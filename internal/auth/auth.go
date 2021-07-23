@@ -27,7 +27,7 @@ func New(parent *gtk.Window) *Assistant {
 // client.
 func NewWithClient(parent *gtk.Window, client httputil.Client) *Assistant {
 	ass := assistant.New(parent, nil)
-	ass.SetTitle("Sign in")
+	ass.SetTitle("Getting Started")
 	ass.Busy()
 
 }

@@ -170,7 +170,7 @@ func (s *EncryptedFile) Get(key string) ([]byte, error) {
 	b, err := os.ReadFile(filepath.Join(s.path, file))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, errors.New("key does not exist")
+			return nil, ErrNotFound
 		}
 		return nil, errors.Wrap(err, "failed to get key")
 	}

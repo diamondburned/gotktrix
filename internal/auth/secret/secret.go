@@ -1,8 +1,13 @@
 // Package secret provides abstractions for storing data securely when possible.
 package secret
 
+import "github.com/pkg/errors"
+
 // Service is the application ID of this package.
 // const Service = "com.diamondburned.gotktrix.secrets"
+
+// ErrNotFound is returned for unknown keys.
+var ErrNotFound = errors.New("key not found")
 
 var drivers []Driver
 
@@ -49,12 +54,18 @@ func (s Service) Set(k string, v []byte) error {
 
 	for _, driver := range s.drivers {
 		if err := driver.Set(k, v); err != nil {
-			if firstErr == nil {
+			// Ignore not found errors, since other ones are more informative.
+			if firstErr == nil && !errors.Is(err, ErrNotFound) {
 				firstErr = err
 			}
 			continue
 		}
 		return nil
+	}
+
+	if firstErr == nil {
+		// Use NotFound if there aren't any other errors.
+		return ErrNotFound
 	}
 
 	return firstErr

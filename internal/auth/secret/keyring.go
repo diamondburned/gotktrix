@@ -1,6 +1,10 @@
 package secret
 
-import "github.com/zalando/go-keyring"
+import (
+	"errors"
+
+	"github.com/zalando/go-keyring"
+)
 
 // Keyring is an implementation of a secret driver using the system's keyring
 // driver.
@@ -24,6 +28,9 @@ func (k *Keyring) Set(key string, value []byte) error {
 func (k *Keyring) Get(key string) ([]byte, error) {
 	v, err := keyring.Get(k.id, key)
 	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return []byte(v), nil
