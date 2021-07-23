@@ -181,15 +181,6 @@ func (a *Assistant) busy(keepCancel bool) {
 
 // Continue restores the dialog and brings it out of busy mode.
 func (a *Assistant) Continue() {
-	if a.cancelState.cancel != nil {
-		a.cancelState.cancel()
-		a.cancelState.cancel = nil
-	}
-
-	a.main.SetSensitive(true)
-	a.ok.SetSensitive(true)
-	a.cancel.SetSensitive(true)
-
 	a.SetIndex(a.current)
 }
 
@@ -236,12 +227,22 @@ func (a *Assistant) SetIndex(ix int) {
 	a.SetStep(a.steps[ix])
 }
 
-// SetStep sets the assistant to show the given step.
+// SetStep sets the assistant to show the given step. If the Assistant is
+// currently busy, then it'll continue.
 func (a *Assistant) SetStep(step *Step) {
 	if step.parent != a {
 		log.Println("given step does not belong to assistant")
 		return
 	}
+
+	if a.cancelState.cancel != nil {
+		a.cancelState.cancel()
+		a.cancelState.cancel = nil
+	}
+
+	a.main.SetSensitive(true)
+	a.ok.SetSensitive(true)
+	a.cancel.SetSensitive(true)
 
 	a.current = step.index
 	a.main.SetVisibleChild(step.content)
