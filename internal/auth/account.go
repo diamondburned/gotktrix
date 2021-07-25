@@ -3,24 +3,23 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/auth/secret"
-	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/pkg/errors"
 )
 
 type account struct {
 	Server    string `json:"server"`
 	Token     string `json:"token"`
+	UserID    string `json:"user_id"`
 	Username  string `json:"username"`
 	AvatarURL string `json:"avatar_url"`
 }
 
 func loadAccounts(driver secret.Driver) ([]account, error) {
-	accIDs, err := listAccountIDs()
+	accIDs, err := listAccountIDs(driver)
 	if err != nil || len(accIDs) == 0 {
 		return nil, err
 	}
@@ -68,10 +67,10 @@ func loadAccounts(driver secret.Driver) ([]account, error) {
 	return accounts, errors.New(strings.TrimSuffix(errMsg.String(), "\n"))
 }
 
-func listAccountIDs() ([]matrix.UserID, error) {
-	b, err := os.ReadFile(config.Path("accounts.json"))
+func listAccountIDs(driver secret.Driver) ([]matrix.UserID, error) {
+	b, err := driver.Get("accounts")
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, secret.ErrNotFound) {
 			return nil, nil
 		}
 		return nil, errors.Wrap(err, "failed to read accounts file")

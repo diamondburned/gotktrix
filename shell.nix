@@ -1,50 +1,18 @@
 { systemPkgs ? import <nixpkgs> {} }:
 
-let unstable = import (systemPkgs.fetchFromGitHub {
-	owner  = "NixOS";
-	repo   = "nixpkgs";
-	rev    = "fbfb79400a08bf754e32b4d4fc3f7d8f8055cf94";
-	sha256 = "0pgyx1l1gj33g5i9kwjar7dc3sal2g14mhfljcajj8bqzzrbc3za";
-}) {
-	overlays = [
-		(self: super: {
-			go = super.go.overrideAttrs (old: {
-				version = "1.17beta1";
-				src = builtins.fetchurl {
-					url    = "https://golang.org/dl/go1.17rc1.linux-arm64.tar.gz";
-					sha256 = "sha256:0kps5kw9yymxawf57ps9xivqrkx2p60bpmkisahr8jl1rqkf963l";
-				};
-				doCheck = false;
-			});
-		})
-	];
-};
+let adw_src = systemPkgs.fetchFromGitHub {
+		owner = "diamondburned";
+		repo  = "gotk4-adwaita";
+		rev   = "5420c7113d40b5ed95e25dc684098f911724a23c";
+		hash  = "sha256:0q2vccx2q6cmfznn1222bpcly0dpph85ifis3hnnanghqhd3m0sz";
+	};
 
-in unstable.mkShell {
-	buildInputs = with unstable; [
-		# gotk4
-		gobjectIntrospection
-		glib
-		graphene
-		gdk-pixbuf
-		gnome3.gtk
-		gtk4
-		vulkan-headers
+	adw = import "${adw_src}/shell.nix" {
+		inherit systemPkgs;
+	};
 
-		# gotk4-secret
-		gnome3.libsecret
-
-		# gotk4-adwaita
-		libadwaita
-	];
-
-	nativeBuildInputs = with unstable; [
-		pkgconfig
-		go
-	];
-
-	CGO_ENABLED = "1";
-
-	TMP    = "/tmp";
-	TMPDIR = "/tmp";
-}
+in adw.overrideAttrs(old: {
+	buildInputs = old.buildInputs ++ (with adw.pkgs; [
+		materia-theme
+	]);
+})

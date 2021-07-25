@@ -87,10 +87,13 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 	ok := gtk.NewButtonWithLabel("OK")
 
 	bar := gtk.NewHeaderBar()
+	bar.SetTitleWidget(gtk.NewLabel(""))
+	bar.SetShowTitleButtons(false)
 	bar.PackStart(cancel)
 	bar.PackEnd(ok)
 
 	window := gtk.NewWindow()
+	window.SetDefaultSize(400, 500)
 	window.SetTransientFor(parent)
 	window.SetModal(true)
 	window.SetTitlebar(bar)
@@ -247,6 +250,7 @@ func (a *Assistant) SetStep(step *Step) {
 	a.current = step.index
 	a.main.SetVisibleChild(step.content)
 	a.ok.SetLabel(step.okLabel)
+	a.ok.SetVisible(step.okLabel != "") // hide if label is empty
 	a.updateBreadcrumb()
 	a.restoreStackTransitions()
 }
@@ -271,7 +275,7 @@ var breadcrumbCSS = cssutil.Applier(crumbInactiveClass[0], `
 	}
 	
 	.assistant-active-crumb {
-		color: @theme_selected_bg_color;
+		color: @accent_bg_color;
 	}
 `)
 
@@ -300,6 +304,13 @@ func (a *Assistant) updateBreadcrumb() {
 	}
 	a.steps[a.current].titleLabel.SetCSSClasses(crumbActiveClass)
 	a.steps[a.current].titleLabel.SetAttributes(crumbActiveAttrs)
+
+	// Scroll the breadcrumb to the end.
+	hadj := a.hviewport.HAdjustment()
+	hadj.SetValue(hadj.Upper())
+
+	// Scroll the breadcrumb back to the child. This way, the user can easily
+	// see what goes after the current crumb.
 	a.hviewport.SetFocusChild(a.steps[a.current].titleLabel)
 }
 
@@ -355,6 +366,8 @@ func NewStep(title, okLabel string) *Step {
 	content := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	content.SetHExpand(true)
 	content.SetVExpand(true)
+	content.SetHAlign(gtk.AlignCenter)
+	content.SetVAlign(gtk.AlignCenter)
 	stepBodyCSS(content)
 
 	titleLabel := gtk.NewLabel(title)

@@ -5,8 +5,20 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
+
+// AppID is the prefix for gotktrix's application ID.
+const AppID = "com.github.diamondburned.gotktrix"
+
+// AppIDDot creates an AppID path.
+func AppIDDot(parts ...string) string {
+	if len(parts) == 0 {
+		return AppID
+	}
+	return AppID + "." + strings.Join(parts, ".")
+}
 
 var (
 	configPath     string
@@ -22,17 +34,38 @@ func Path(tails ...string) string {
 			log.Fatalln("failed to get user config dir:", err)
 		}
 
-		configPath = d
+		configPath = filepath.Join(d, "gotktrix")
 	})
 
-	d := configPath
+	return joinTails(configPath, tails)
+}
 
+var (
+	cacheDir     string
+	cacheDirOnce sync.Once
+)
+
+// CacheDir returns the path to the cache directory of the application.
+func CacheDir(tails ...string) string {
+	cacheDirOnce.Do(func() {
+		d, err := os.UserCacheDir()
+		if err != nil {
+			log.Fatalln("failed to get user cache dir:", err)
+		}
+
+		cacheDir = filepath.Join(d, "gotktrix")
+	})
+
+	return joinTails(cacheDir, tails)
+}
+
+func joinTails(dir string, tails []string) string {
 	if len(tails) == 1 {
-		d = filepath.Join(d, tails[0])
+		dir = filepath.Join(dir, tails[0])
 	} else if len(tails) > 0 {
-		paths := append([]string{d}, tails...)
-		d = filepath.Join(paths...)
+		paths := append([]string{dir}, tails...)
+		dir = filepath.Join(paths...)
 	}
 
-	return d
+	return dir
 }

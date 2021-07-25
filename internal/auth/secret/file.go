@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha512"
+	"crypto/subtle"
 	"encoding/base64"
 	"os"
 	"path/filepath"
@@ -15,8 +16,11 @@ import (
 )
 
 const (
-	saltFile = ".salt"
-	hashFile = ".hash"
+	saltFile = ".salt" // salt input
+	saltSize = 64
+
+	hashFile   = ".hash" // final hash output for comparison
+	hashRounds = 2 << 19
 )
 
 // Reference: https://tutorialedge.net/golang/go-encrypt-decrypt-aes-tutorial/
@@ -28,12 +32,16 @@ type EncryptedFile struct {
 	path string // directory
 
 	mu   sync.RWMutex
-	pass string // use in the future for password
 	aead cipher.AEAD
+
+	pass string
+	enc  bool
 }
 
 // SaltedFileDriver creates a new encrypted file driver with a generated
-// passphrase.
+// passphrase. The .salt file is solely used as the hashing input, so the
+// algorithm will trip without it. One way to completely lock out accounts
+// encrypted with it is to move the file somewhere else.
 func SaltedFileDriver(path string) *EncryptedFile {
 	return &EncryptedFile{path: path}
 }
@@ -42,7 +50,7 @@ func SaltedFileDriver(path string) *EncryptedFile {
 // passphrase. The passphrase is hashed and compared with an existing one, or it
 // will be used if there is none.
 func EncryptedFileDriver(passphrase, path string) *EncryptedFile {
-	return &EncryptedFile{path: path, pass: passphrase}
+	return &EncryptedFile{path: path, pass: passphrase, enc: true}
 }
 
 // mksalt makes the salt once or reads from a file if not.
@@ -87,8 +95,12 @@ func (s *EncryptedFile) getAEAD() (cipher.AEAD, error) {
 // hashAESKey hashes the given password and salt. This function takes 873ms on
 // an Intel i5-8250U.
 func hashAESKey(pass, salt []byte) []byte {
-	return pbkdf2.Key(pass, salt, 2<<19, 32, sha512.New)
+	return pbkdf2.Key(pass, salt, hashRounds, 32, sha512.New)
 }
+
+// ErrIncorrectPassword is returned if the provided user password does not match
+// what is on disk.
+var ErrIncorrectPassword = errors.New("incorrect password")
 
 // getPass gets the PBKDF2-hashed key passphrase. Tihs function is safe from
 // file bruteforcing, because all possible inputs are put through the hashing
@@ -99,11 +111,27 @@ func (s *EncryptedFile) getPass() ([]byte, error) {
 	}
 
 	saltPath := filepath.Join(s.path, saltFile)
+	hashPath := filepath.Join(s.path, hashFile)
 
 	salt, err := os.ReadFile(saltPath)
-	if err != nil {
-		// No existing salt. Generate and write one.
-		salt = make([]byte, 64)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, errors.Wrap(err, "failed to read old salt")
+	}
+
+	hash, err := os.ReadFile(hashPath)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, errors.Wrap(err, "failed to read old hash")
+	}
+
+	if hash != nil && salt == nil {
+		// Old hash exists, but not the salt. We can't decrypt this.
+		return nil, errors.New("missing salt file")
+	}
+
+	if salt == nil {
+		// Hash does not exist, and we have no existing salt. Generate and write
+		// one.
+		salt = make([]byte, saltSize)
 
 		_, err := rand.Read(salt)
 		if err != nil {
@@ -115,37 +143,35 @@ func (s *EncryptedFile) getPass() ([]byte, error) {
 		}
 	}
 
-	// The user provided the password.
-	if s.pass != "" {
-		return hashAESKey([]byte(s.pass), salt), nil
+	password := salt
+	if s.enc {
+		// User provided a password. Use that instead.
+		password = []byte(s.pass)
 	}
 
-	// User did not provide a password. Try and generate our own locally.
-	hashPath := filepath.Join(s.path, hashFile)
+	userHash := hashAESKey(password, salt)
 
-	// Try and read the existing hash.
-	hash, err := os.ReadFile(hashPath)
-	if err != nil {
-		// No existing hash. Generate and write one.
-		hash = make([]byte, 64)
-
-		_, err := rand.Read(hash)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to generate hash")
+	if hash != nil {
+		// User have already encrypted in the past. Compare this password with
+		// the old one.
+		if subtle.ConstantTimeCompare(userHash, hash) == 1 {
+			return userHash, nil
 		}
-
-		if err := os.WriteFile(hashPath, hash, 0600); err != nil {
-			return nil, errors.Wrap(err, "failed to write hash")
-		}
+		return nil, ErrIncorrectPassword
 	}
 
-	return hashAESKey(hash, salt), nil
+	// User have not encrypted before. Save the hash file.
+	if err := os.WriteFile(hashPath, userHash, 0600); err != nil {
+		return nil, errors.Wrap(err, "failed to save hash")
+	}
+
+	return userHash, nil
 }
 
 func (s *EncryptedFile) Set(key string, value []byte) error {
 	aead, err := s.getAEAD()
 	if err != nil {
-		return errors.Wrap(err, "failed to make salt")
+		return errors.Wrap(err, "failed to get cipher")
 	}
 
 	nonce := make([]byte, aead.NonceSize())
@@ -154,8 +180,9 @@ func (s *EncryptedFile) Set(key string, value []byte) error {
 		return errors.Wrap(err, "failed to read nonce")
 	}
 
+	// Append the encrypted data into the nonce for this key.
+	data := aead.Seal(nonce, nonce, value, nil)
 	file := base64.RawStdEncoding.EncodeToString([]byte(key))
-	data := aead.Seal(nil, nonce, value, nil)
 
 	if err := os.WriteFile(filepath.Join(s.path, file), data, 0600); err != nil {
 		return errors.Wrap(err, "failed to write value to file")
@@ -177,7 +204,7 @@ func (s *EncryptedFile) Get(key string) ([]byte, error) {
 
 	aead, err := s.getAEAD()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to make salt")
+		return nil, errors.Wrap(err, "failed to get cipher")
 	}
 
 	if len(b) < aead.NonceSize() {
