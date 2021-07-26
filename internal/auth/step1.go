@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"math"
+	"sync"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -14,9 +15,11 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/gotk3/gotk3/glib"
+	"github.com/pkg/errors"
+	"github.com/zalando/go-keyring"
 )
 
-const avatarSize = 24
+const avatarSize = 28
 
 var accountEntryCSS = cssutil.Applier("auth-account-entry", `
 	.auth-account-entry {
@@ -41,7 +44,7 @@ func newAddEntry() *gtk.ListBoxRow {
 }
 
 var usernameAttrs = markuputil.Attrs(
-	pango.NewAttrWeight(pango.WeightBold),
+// pango.NewAttrWeight(pango.WeightBold),
 )
 
 var serverAttrs = markuputil.Attrs(
@@ -62,16 +65,19 @@ func newAccountEntry(account *account) *gtk.ListBoxRow {
 	imgutil.AsyncGET(context.Background(), account.AvatarURL, icon.SetCustomImage)
 
 	name := gtk.NewLabel(account.Username)
+	name.SetXAlign(0)
 	name.SetEllipsize(pango.EllipsizeMiddle)
 	name.SetHExpand(true)
 	name.SetAttributes(usernameAttrs)
 
 	server := gtk.NewLabel(account.Server)
+	server.SetXAlign(0)
 	server.SetEllipsize(pango.EllipsizeMiddle)
 	server.SetHExpand(true)
 	server.SetAttributes(serverAttrs)
 
 	grid := gtk.NewGrid()
+	grid.SetColumnSpacing(2)
 	grid.Attach(&icon.Widget, 0, 0, 1, 2)
 	grid.Attach(name, 1, 0, 1, 1)
 	grid.Attach(server, 1, 1, 1, 1)
@@ -90,7 +96,7 @@ var accountChooserCSS = cssutil.Applier("account-chooser-step", `
 
 func accountChooserStep(a *Assistant) *assistant.Step {
 	accountList := gtk.NewListBox()
-	accountList.SetSizeRequest(150, -1)
+	accountList.SetSizeRequest(250, -1)
 	accountList.Append(newAddEntry())
 	accountList.SetSelectionMode(gtk.SelectionBrowse)
 	accountList.SetActivateOnSingleClick(true)
@@ -110,46 +116,168 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 	loadingSpin.SetSizeRequest(16, 16)
 	loadingSpin.Start()
 
-	loadingBox := gtk.NewBox(gtk.OrientationVertical, 2)
-	loadingBox.SetHAlign(gtk.AlignCenter)
-	loadingBox.Append(loadingSpin)
+	tailbox := gtk.NewBox(gtk.OrientationVertical, 2)
+	tailbox.SetHAlign(gtk.AlignCenter)
+	tailbox.Append(loadingSpin)
 
-	loadingLabel := gtk.NewLabel("Loading accounts from keyring...")
-	loadingLabel.SetWrap(true)
-	loadingLabel.SetWrapMode(pango.WrapWordChar)
-	loadingBox.Append(loadingLabel)
+	// Use a waitgroup to wait for both goroutines to finish its tasks.
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	childCount := 2
+	minusChild := func() {
+		childCount--
+		if childCount == 0 {
+			loadingSpin.Stop()
+			tailbox.Remove(loadingSpin)
+		}
+	}
+
+	keyringStatus := gtk.NewLabel("Loading accounts from keyring...")
+	keyringStatus.SetWrap(true)
+	keyringStatus.SetWrapMode(pango.WrapWordChar)
+	tailbox.Append(keyringStatus)
 
 	// Asynchronously load the accounts.
 	go func() {
-		accounts, err := loadAccounts(secret.KeyringDriver(keyringAppID))
+		accounts, err := loadAccounts(a.keyring)
 
 		glib.IdleAdd(func() {
-			if err != nil {
-				loadingLabel.SetMarkup(markuputil.Error(err.Error()))
+			minusChild()
+			defer wg.Done()
+
+			if errors.Is(err, keyring.ErrUnsupportedPlatform) {
+				// Invalidate the keyring now while we can. This will aid
+				// visually in step 4.
+				a.keyring = nil
+
+				tailbox.Remove(keyringStatus)
 				return
 			}
 
-			// Add the accounts into our list in the same order.
-			a.accounts = append(a.accounts, accounts...)
-
-			// Use list prepend, so iterate backwards.
-			for i := len(accounts) - 1; i >= 0; i-- {
-				accountList.Prepend(newAccountEntry(&accounts[i]))
+			if err != nil {
+				keyringStatus.Show()
+				keyringStatus.SetMarkup(markuputil.Error(err.Error()))
+				return
 			}
+
+			tailbox.Remove(keyringStatus)
+			addAccounts(a, accountList, accounts)
+		})
+	}()
+
+	go func() {
+		if !secret.PathIsEncrypted(encryptionPath) {
+			glib.IdleAdd(func() {
+				minusChild()
+				wg.Done()
+			})
+			return
+		}
+
+		glib.IdleAdd(func() {
+			minusChild()
+			defer wg.Done()
+
+			// Make a password prompt and add it.
+			button := gtk.NewButtonWithLabel("Decrypt")
+
+			password := gtk.NewEntry()
+			password.SetPlaceholderText("Local keyring password")
+			password.SetHExpand(true)
+			password.SetVisibility(false)
+			password.SetInputPurpose(gtk.InputPurposePassword)
+
+			errLabel := makeErrorLabel()
+			errLabel.Hide()
+
+			box := gtk.NewBox(gtk.OrientationHorizontal, 2)
+			box.Append(password)
+			box.Append(button)
+
+			tailbox.Append(errLabel)
+			tailbox.Append(box)
+
+			password.Connect("activate", func() { button.Activate() })
+			button.Connect("clicked", func() {
+				// Populate the encryption for step 4.
+				a.encrypt = secret.EncryptedFileDriver(password.Text(), encryptionPath)
+				// Add to the waitgroup and wait until decryption is done.
+				wg.Add(1)
+				// Disable button.
+				button.SetSensitive(false)
+
+				go func() {
+					accounts, err := loadAccounts(a.encrypt)
+
+					glib.IdleAdd(func() {
+						defer wg.Done()
+
+						if err != nil {
+							errLabel.SetMarkup(markuputil.Error(err.Error()))
+							errLabel.Show()
+							return
+						}
+
+						tailbox.Remove(errLabel)
+						tailbox.Remove(box)
+						addAccounts(a, accountList, accounts)
+					})
+				}()
+			})
 		})
 	}()
 
 	box := gtk.NewBox(gtk.OrientationVertical, 14)
 	box.Append(accountList)
-	box.Append(loadingBox)
+	box.Append(tailbox)
 	accountChooserCSS(box)
 
 	scroll := gtk.NewScrolledWindow()
 	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 
 	step := assistant.NewStep("Choose an Account", "")
+	step.Done = func(step *assistant.Step) {
+		// Mark the assistant dialog as busy so we can wait for the idling jobs,
+		// if any.
+		a.Busy()
+
+		go func() {
+			wg.Wait()
+
+			glib.IdleAdd(func() {
+				// Resume the assistant and continue.
+				step.Assistant().NextStep()
+			})
+		}()
+	}
+
 	content := step.ContentArea()
 	content.Append(box)
 
 	return step
+}
+
+func addAccounts(a *Assistant, accountList *gtk.ListBox, accounts []account) {
+	hasAccount := func(has *account) bool {
+		for _, acc := range a.accounts {
+			if acc.UserID == has.UserID {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Use list prepend, so iterate backwards.
+	for i := len(accounts) - 1; i >= 0; i-- {
+		account := &accounts[i]
+
+		if hasAccount(account) {
+			// Duplicate.
+			continue
+		}
+
+		a.accounts = append(a.accounts, account)
+		accountList.Prepend(newAccountEntry(account))
+	}
 }

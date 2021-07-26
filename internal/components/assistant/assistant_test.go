@@ -117,7 +117,7 @@ func Example() {
 
 		a := assistant.New(&window.Window, steps)
 		a.SetTitle("Hello")
-		a.Connect("close", window.Close)
+		a.Connect("close-request", window.Close)
 		a.Show()
 	})
 

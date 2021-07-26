@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chanbakjsd/gotrix"
+	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/auth/secret"
 	"github.com/pkg/errors"
@@ -16,6 +18,73 @@ type account struct {
 	UserID    string `json:"user_id"`
 	Username  string `json:"username"`
 	AvatarURL string `json:"avatar_url"`
+}
+
+func copyAccount(client *gotrix.Client) (*account, error) {
+	id, err := client.Whoami()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get whoami")
+	}
+
+	username, _, err := id.Parse()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse user ID")
+	}
+
+	var avatarURL string
+	if mxc, _ := client.AvatarURL(client.UserID); mxc != nil {
+		avatarURL, _ = client.MediaThumbnailURL(*mxc, true, 64, 64, api.MediaThumbnailCrop)
+	}
+
+	return &account{
+		Server:    client.HomeServerScheme + "://" + client.HomeServer,
+		Token:     client.AccessToken,
+		UserID:    string(client.UserID),
+		Username:  username,
+		AvatarURL: avatarURL,
+	}, nil
+}
+
+func saveAccount(driver secret.Driver, a account) error {
+	accIDs, _ := listAccountIDs(driver)
+
+	for _, id := range accIDs {
+		if id == matrix.UserID(a.UserID) {
+			// Account is already in the list. We only need to override the
+			// data.
+			goto added
+		}
+	}
+
+	accIDs = append(accIDs, matrix.UserID(a.UserID))
+	if err := saveAccountIDs(driver, accIDs); err != nil {
+		return errors.Wrap(err, "failed to save account IDs")
+	}
+
+added:
+	b, err := json.Marshal(a)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal account")
+	}
+
+	if err := driver.Set("account:"+a.UserID, b); err != nil {
+		return errors.Wrap(err, "failed to set account secret")
+	}
+
+	return nil
+}
+
+func saveAccountIDs(driver secret.Driver, ids []matrix.UserID) error {
+	b, err := json.Marshal(ids)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal")
+	}
+
+	if err := driver.Set("accounts", b); err != nil {
+		return errors.Wrap(err, "failed to set secret")
+	}
+
+	return nil
 }
 
 func loadAccounts(driver secret.Driver) ([]account, error) {

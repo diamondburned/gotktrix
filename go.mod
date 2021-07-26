@@ -3,9 +3,9 @@ module github.com/diamondburned/gotktrix
 go 1.17
 
 require (
-	github.com/chanbakjsd/gotrix v0.2.1-0.20210523110724-24f4a4d0e0ca
-	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210724022418-e09dbaaafbd1
-	github.com/diamondburned/gotk4/pkg v0.0.0-20210723022814-bb0e7e341e6b
+	github.com/chanbakjsd/gotrix v0.2.1-0.20210726012315-0e0d521975aa
+	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210726010501-6bd075859e59
+	github.com/diamondburned/gotk4/pkg v0.0.0-20210726002900-05ded48917dc
 	github.com/gotk3/gotk3 v0.6.2-0.20210715143523-dfa2afe348c5
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/pkg/errors v0.9.1

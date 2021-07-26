@@ -1,5 +1,7 @@
 github.com/chanbakjsd/gotrix v0.2.1-0.20210523110724-24f4a4d0e0ca h1:S5eVn5bCS3mUceQJXw1pi2JlnGnDhZ1lQYO81A4ICSo=
 github.com/chanbakjsd/gotrix v0.2.1-0.20210523110724-24f4a4d0e0ca/go.mod h1:tHgqHzAHPNJ8vm/S6lWJfyOASWq5fR00IQbCYSd7DR8=
+github.com/chanbakjsd/gotrix v0.2.1-0.20210726012315-0e0d521975aa h1:NR/ueYNJWqBN2OxUce4GK4z2vapprlKrOyTvRZE2xPY=
+github.com/chanbakjsd/gotrix v0.2.1-0.20210726012315-0e0d521975aa/go.mod h1:tHgqHzAHPNJ8vm/S6lWJfyOASWq5fR00IQbCYSd7DR8=
 github.com/danieljoos/wincred v1.1.0 h1:3RNcEpBg4IhIChZdFRSdlQt1QjCp1sMAPIrOnm7Yf8g=
 github.com/danieljoos/wincred v1.1.0/go.mod h1:XYlo+eRTsVA9aHGp7NGjFkPla4m+DCL7hqDjlFjiygg=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -16,6 +18,8 @@ github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210723040738-6e8ae28a0a8e h1
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210723040738-6e8ae28a0a8e/go.mod h1:S2jpQMpNwu/wkladFMUMgq3xgJz5dw2XyuwzIjLAMm4=
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210724022418-e09dbaaafbd1 h1:vHdTs1GDzfz2bsW40nsMMRdLfwVhL0DHcOZvcoUsoRc=
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210724022418-e09dbaaafbd1/go.mod h1:S2jpQMpNwu/wkladFMUMgq3xgJz5dw2XyuwzIjLAMm4=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210726010501-6bd075859e59 h1:6CsBmGBc9jT5LRB3USCx8aWKBFAURc69107jjX+yBpw=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210726010501-6bd075859e59/go.mod h1:YaZtcVsFDr8oXe2IXKO1bThozlBvVAtaQa+077HlR7A=
 github.com/diamondburned/gotk4-secret v0.0.0-20210722092328-173d2f549e94 h1:uwQ0QhWOTfJXysU9L/5wdZqwgu4Bpq7aJ4RZW/lzpAk=
 github.com/diamondburned/gotk4-secret v0.0.0-20210722092328-173d2f549e94/go.mod h1:ha+fT1maMTmiT2RRNrkzfshtKqRZtNtq/6A20x1EOZc=
 github.com/diamondburned/gotk4-secret/pkg v0.0.0-20210722092328-173d2f549e94 h1:445zEiOWbWx7qNKRGabeKHOdb5m8RkyTtT16nMAiE7g=
@@ -30,6 +34,10 @@ github.com/diamondburned/gotk4/pkg v0.0.0-20210723011607-4ce09199511f h1:I5b6YRW
 github.com/diamondburned/gotk4/pkg v0.0.0-20210723011607-4ce09199511f/go.mod h1:g3UzDkxWTTcv0McQlKXeBScFhLywsH+GgwJSL7iQqk0=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210723022814-bb0e7e341e6b h1:8MtQfRoLZoyPaSm9wNcPPsYavI0eOkd/9q3HO+OWXqA=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210723022814-bb0e7e341e6b/go.mod h1:g3UzDkxWTTcv0McQlKXeBScFhLywsH+GgwJSL7iQqk0=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210726002900-05ded48917dc h1:A5PRIUIHOQ+r+oK+6iQ9Yqq4bitkDy5Z33W3IfVJpY0=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210726002900-05ded48917dc/go.mod h1:g3UzDkxWTTcv0McQlKXeBScFhLywsH+GgwJSL7iQqk0=
+github.com/diamondburned/gotrix v0.1.2-0.20210726011812-f2e1e730b3b0 h1:0NHH0XShNX3m9QgQgFucSnqKFoZUj+T9p5CHjqq7KiQ=
+github.com/diamondburned/gotrix v0.1.2-0.20210726011812-f2e1e730b3b0/go.mod h1:tHgqHzAHPNJ8vm/S6lWJfyOASWq5fR00IQbCYSd7DR8=
 github.com/fatih/color v1.10.0 h1:s36xzo75JdqLaaWoiEHk767eHiwo0598uUxyfiPkDsg=
 github.com/fatih/color v1.10.0/go.mod h1:ELkj/draVOlAH/xkhN6mQ50Qd0MPOk5AAr3maGEBuJM=
 github.com/godbus/dbus/v5 v5.0.3 h1:ZqHaoEF7TBzh4jzPmqVhE/5A1z9of6orkAe5uHoAeME=

@@ -2,17 +2,15 @@ package imgutil
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"runtime"
-	"sync"
 	"time"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
-	"github.com/diamondburned/gotk4/pkg/gio/v2"
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gregjones/httpcache"
@@ -72,33 +70,50 @@ func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler)) {
 func GET(ctx context.Context, url string) (gdk.Paintabler, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create request")
+		return nil, errors.Wrapf(err, "failed to create request %q", url)
 	}
 
 	r, err := Client.Do(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to GET")
+		return nil, errors.Wrapf(err, "failed to GET %q", url)
 	}
 	defer r.Body.Close()
 
-	mediaFile := gtk.NewMediaFile()
-
-	stream, err := newInputStream(r.Body, mediaFile.GError)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to make fd stream")
+	loader := gdkpixbuf.NewPixbufLoader()
+	if err := pixbufLoaderReadFrom(loader, r.Body); err != nil {
+		return nil, errors.Wrapf(err, "failed to read response %q", url)
 	}
 
-	readFile := stream.readFile
+	pixbuf := loader.Pixbuf()
+	if pixbuf == nil {
+		return nil, fmt.Errorf("no pixbuf rendered for %q", url)
+	}
 
-	mediaFile.SetInputStream(stream)
-	mediaFile.Connect("notify::ended", func() {
-		// Keep the fd alive until the media stream is done.
-		runtime.KeepAlive(readFile)
-	})
-
-	return mediaFile, nil
+	return gdk.NewTextureForPixbuf(pixbuf), nil
 }
 
+type pixbufLoaderWriter gdkpixbuf.PixbufLoader
+
+func pixbufLoaderReadFrom(l *gdkpixbuf.PixbufLoader, r io.Reader) error {
+	_, err := io.Copy((*pixbufLoaderWriter)(l), r)
+	if err != nil {
+		l.Close()
+		return err
+	}
+	if err := l.Close(); err != nil {
+		return fmt.Errorf("failed to close PixbufLoader: %w", err)
+	}
+	return nil
+}
+
+func (w *pixbufLoaderWriter) Write(b []byte) (int, error) {
+	if err := (*gdkpixbuf.PixbufLoader)(w).Write(b); err != nil {
+		return 0, err
+	}
+	return len(b), nil
+}
+
+/*
 type inputStream struct {
 	*gio.UnixInputStream
 	readFile *os.File
@@ -133,3 +148,4 @@ func newInputStream(r io.Reader, onErr func(err error)) (inputStream, error) {
 		readFile:        rp,
 	}, nil
 }
+*/

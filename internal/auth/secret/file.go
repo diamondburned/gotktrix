@@ -53,6 +53,24 @@ func EncryptedFileDriver(passphrase, path string) *EncryptedFile {
 	return &EncryptedFile{path: path, pass: passphrase, enc: true}
 }
 
+// PathIsEncrypted returns true if the given path is encrypted. It is the
+// caller's responsibility to use SaltedFileDriver or EncryptedFileDriver on the
+// same path.
+//
+// In some cases, false will be returned if the status of encryption cannot be
+// determined. In this case, when EncryptedFileDriver is used, storing will be
+// errored out.
+func PathIsEncrypted(path string) bool {
+	hashPath := filepath.Join(path, hashFile)
+
+	f, err := os.Stat(hashPath)
+	if err != nil || f.IsDir() {
+		return false
+	}
+
+	return true
+}
+
 // mksalt makes the salt once or reads from a file if not.
 func (s *EncryptedFile) getAEAD() (cipher.AEAD, error) {
 	s.mu.RLock()
@@ -106,7 +124,7 @@ var ErrIncorrectPassword = errors.New("incorrect password")
 // file bruteforcing, because all possible inputs are put through the hashing
 // function before it is returned.
 func (s *EncryptedFile) getPass() ([]byte, error) {
-	if err := os.MkdirAll(s.path, 0600); err != nil {
+	if err := os.MkdirAll(s.path, 0700); err != nil {
 		return nil, errors.Wrap(err, "failed to mkdir -p")
 	}
 

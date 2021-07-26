@@ -14,5 +14,7 @@ let adw_src = systemPkgs.fetchFromGitHub {
 in adw.overrideAttrs(old: {
 	buildInputs = old.buildInputs ++ (with adw.pkgs; [
 		materia-theme
+		gnome3.adwaita-icon-theme
+		gnome3.defaultIconTheme
 	]);
 })

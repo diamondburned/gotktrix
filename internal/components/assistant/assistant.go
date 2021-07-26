@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
 // Assistant is a widget that behaves similarly to gtk.Assistant.
@@ -124,23 +125,34 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 			return
 		}
 
+		// 		if assistant.current > 0 && assistant.current < len(assistant.steps) {
+		// 			step := assistant.steps[assistant.current]
+		// 			if step.CanBack {
+		// 				assistant.SetIndex(assistant.current - 1)
+		// 				return
+		// 			}
+		// 		}
+
 		window.Close()
 	})
 
 	ok.Connect("clicked", func() {
-		switch {
-		case assistant.current < 0:
+		if assistant.current < 0 {
 			return
+		}
 
-		case assistant.current < len(assistant.steps)-1:
+		currentStep := assistant.steps[assistant.current]
+		if currentStep.Done != nil {
+			currentStep.Done(currentStep)
+			return
+		}
+
+		if assistant.current == len(assistant.steps)-1 {
+			// Last step; close window.
+			window.Close()
+		} else {
+			// Not last step; move on.
 			assistant.SetIndex(assistant.current + 1)
-
-		case assistant.current == len(assistant.steps)-1:
-			if step := assistant.steps[assistant.current]; step.Done != nil {
-				step.Done(step)
-			} else {
-				window.Close()
-			}
 		}
 	})
 
@@ -152,6 +164,12 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 
 	return &assistant
 }
+
+// OKButton returns the OK button.
+func (a *Assistant) OKButton() *gtk.Button { return a.ok }
+
+// CancelButton returns the Cancel button.
+func (a *Assistant) CancelButton() *gtk.Button { return a.cancel }
 
 // Busy marks the dialog as busy and shows the spinner.
 func (a *Assistant) Busy() {
@@ -211,6 +229,8 @@ func (a *Assistant) AddStep(step *Step) {
 	step.index = len(a.steps)
 	a.steps = append(a.steps, step)
 
+	log.Println("adding step", step.index)
+
 	arrow := gtk.NewLabel("⟩")
 	arrow.SetCSSClasses([]string{"assistant-crumb", "assistant-crumb-arrow"})
 	arrow.SetAttributes(crumbArrowAttrs)
@@ -223,6 +243,12 @@ func (a *Assistant) AddStep(step *Step) {
 	if a.current == -1 {
 		a.SetStep(step)
 	}
+}
+
+// NextStep moves the assistant to the next step. It panics if the assistant is
+// currently at the last step.
+func (a *Assistant) NextStep() {
+	a.SetIndex(a.current + 1)
 }
 
 // SetIndex sets the assistant to the step at the given index.
@@ -248,9 +274,17 @@ func (a *Assistant) SetStep(step *Step) {
 	a.cancel.SetSensitive(true)
 
 	a.current = step.index
+
 	a.main.SetVisibleChild(step.content)
 	a.ok.SetLabel(step.okLabel)
 	a.ok.SetVisible(step.okLabel != "") // hide if label is empty
+
+	// if step.CanBack && a.current > 0 {
+	// 	a.cancel.SetLabel("Back")
+	// } else {
+	// 	a.cancel.SetLabel("Close")
+	// }
+
 	a.updateBreadcrumb()
 	a.restoreStackTransitions()
 }
@@ -259,9 +293,18 @@ var (
 	crumbInactiveClass = []string{"assistant-crumb"}
 	crumbActiveClass   = []string{"assistant-crumb", "assistant-active-crumb"}
 
-	crumbInactiveAttrs *pango.AttrList
-	crumbActiveAttrs   *pango.AttrList
-	crumbArrowAttrs    *pango.AttrList
+	crumbInactiveAttrs = markuputil.Attrs(
+		pango.NewAttrScale(1.1),
+		pango.NewAttrWeight(pango.WeightBook),
+	)
+	crumbActiveAttrs = markuputil.Attrs(
+		pango.NewAttrScale(1.3),
+		pango.NewAttrWeight(pango.WeightBold),
+	)
+	crumbArrowAttrs = markuputil.Attrs(
+		pango.NewAttrScale(1.2),
+		pango.NewAttrWeight(pango.WeightBold),
+	)
 )
 
 var breadcrumbCSS = cssutil.Applier(crumbInactiveClass[0], `
@@ -279,20 +322,6 @@ var breadcrumbCSS = cssutil.Applier(crumbInactiveClass[0], `
 	}
 `)
 
-func init() {
-	crumbInactiveAttrs = pango.NewAttrList()
-	crumbInactiveAttrs.Insert(pango.NewAttrScale(1.2))
-	crumbInactiveAttrs.Insert(pango.NewAttrWeight(pango.WeightBook))
-
-	crumbArrowAttrs = pango.NewAttrList()
-	crumbArrowAttrs.Insert(pango.NewAttrScale(1.3))
-	crumbArrowAttrs.Insert(pango.NewAttrWeight(pango.WeightMedium))
-
-	crumbActiveAttrs = pango.NewAttrList()
-	crumbActiveAttrs.Insert(pango.NewAttrScale(1.2))
-	crumbActiveAttrs.Insert(pango.NewAttrWeight(pango.WeightBold))
-}
-
 func (a *Assistant) updateBreadcrumb() {
 	for i := 0; i < a.current; i++ {
 		a.steps[i].titleLabel.SetCSSClasses(crumbInactiveClass)
@@ -305,19 +334,24 @@ func (a *Assistant) updateBreadcrumb() {
 	a.steps[a.current].titleLabel.SetCSSClasses(crumbActiveClass)
 	a.steps[a.current].titleLabel.SetAttributes(crumbActiveAttrs)
 
+	labelRect := a.steps[a.current].titleLabel.Allocation()
+
 	// Scroll the breadcrumb to the end.
 	hadj := a.hviewport.HAdjustment()
-	hadj.SetValue(hadj.Upper())
+	hadj.SetValue(hadj.Upper() - hadj.PageSize() - float64(labelRect.X()))
 
 	// Scroll the breadcrumb back to the child. This way, the user can easily
 	// see what goes after the current crumb.
-	a.hviewport.SetFocusChild(a.steps[a.current].titleLabel)
+	// a.hviewport.SetFocusChild(a.steps[a.current].titleLabel)
 }
 
 // Step describes each step of the assistant.
 type Step struct {
 	// Done is called when the OK button is clicked and there isn't a next page.
 	Done func(*Step)
+	// CanBack, if true, will allow the assistant to go from this step to the
+	// last step. If this is the first step, then this does nothing.
+	// CanBack bool
 
 	parent     *Assistant
 	content    *gtk.Box
@@ -363,7 +397,7 @@ var stepBodyCSS = cssutil.Applier("assistant-stepbody", `
 
 // NewStep creates a new assistant step.
 func NewStep(title, okLabel string) *Step {
-	content := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	content := gtk.NewBox(gtk.OrientationVertical, 0)
 	content.SetHExpand(true)
 	content.SetVExpand(true)
 	content.SetHAlign(gtk.AlignCenter)

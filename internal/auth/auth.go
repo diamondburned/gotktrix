@@ -6,13 +6,17 @@ import (
 	"github.com/chanbakjsd/gotrix/api/httputil"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/auth/secret"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
-var keyringAppID = config.AppIDDot("secrets")
+var (
+	keyringAppID   = config.AppIDDot("secrets")
+	encryptionPath = config.Path("secrets")
+)
 
 type Assistant struct {
 	*assistant.Assistant
@@ -21,8 +25,11 @@ type Assistant struct {
 	onConnect func(*gotrix.Client)
 
 	// states, can be nil depending on the steps
-	accounts      []account
+	accounts      []*account
 	currentClient *gotrix.Client
+
+	keyring *secret.Keyring
+	encrypt *secret.EncryptedFile
 
 	// hasConnected is true if the connection has already been connected.
 	hasConnected bool
@@ -47,9 +54,10 @@ func NewWithClient(parent *gtk.Window, client httputil.Client) *Assistant {
 	a := Assistant{
 		Assistant: ass,
 		client:    client,
+		keyring:   secret.KeyringDriver(keyringAppID),
 	}
 
-	ass.Connect("close", func() {
+	ass.Connect("close-request", func() {
 		// If the user hasn't chosen to connect to anything yet, then exit the
 		// main window as well.
 		if !a.hasConnected {
@@ -71,20 +79,49 @@ func (a *Assistant) OnConnect(f func(*gotrix.Client)) {
 	a.onConnect = f
 }
 
+// step 1 activate
 func (a *Assistant) signinPage() {
 	step2 := homeserverStep(a)
 	a.AddStep(step2)
 	a.SetStep(step2)
 
-	step3 := loginStep(a)
+	step3 := chooseLoginStep(a)
 	a.AddStep(step3)
 }
 
+// step 2 activate
 func (a *Assistant) chooseHomeserver(client *gotrix.Client) {
 	a.currentClient = client
+	a.NextStep() // step 2 -> 3
 }
 
-func (a *Assistant) chooseAccount(acc account) {}
+// step 3 activate
+func (a *Assistant) chooseLoginMethod(method loginMethod) {
+	step4 := loginStep(a, method)
+	a.AddStep(step4)
+	a.SetStep(step4)
+}
+
+func (a *Assistant) chooseAccount(acc *account) {
+
+}
+
+// finish should be called once a.currentClient has been logged on.
+func (a *Assistant) finish(acc *account) {
+	// ctx := a.CancellableBusy(context.Background())
+
+	// go func() {
+	// 	client := a.currentClient.WithContext(ctx)
+
+	// 	username, hostname, err := client.UserID.Parse()
+	// 	if err != nil {
+	// 	}
+
+	// 	client.AvatarURL(client.UserID)
+
+	// }()
+	// TODO: save the account
+}
 
 var inputBoxCSS = cssutil.Applier("auth-input-box", `
 	.auth-input-box {
@@ -102,7 +139,7 @@ var inputLabelAttrs = markuputil.Attrs(
 	pango.NewAttrForegroundAlpha(65535 * 90 / 100), // 90%
 )
 
-func makeInputs(names ...string) (gtk.Widgetter, []*gtk.Entry) {
+func (a *Assistant) makeInputs(names ...string) (gtk.Widgetter, []*gtk.Entry) {
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	box.SetSizeRequest(200, -1)
 	inputBoxCSS(box)
@@ -117,6 +154,15 @@ func makeInputs(names ...string) (gtk.Widgetter, []*gtk.Entry) {
 		entry := gtk.NewEntry()
 		entry.SetEnableUndo(true)
 
+		if i < len(names)-1 {
+			// Enter moves to the next entry.
+			next := i + 1
+			entry.Connect("activate", func() { entries[next].GrabFocus() })
+		} else {
+			// Enter hits the OK button.
+			entry.Connect("activate", func() { a.OKButton().Activate() })
+		}
+
 		box.Append(label)
 		box.Append(entry)
 
@@ -124,4 +170,16 @@ func makeInputs(names ...string) (gtk.Widgetter, []*gtk.Entry) {
 	}
 
 	return box, entries
+}
+
+var errorLabelCSS = cssutil.Applier("auth-error-label", `
+	.auth-error-label {
+		padding-top: 4px;
+	}
+`)
+
+func makeErrorLabel() *gtk.Label {
+	errLabel := markuputil.ErrorLabel("")
+	errorLabelCSS(errLabel)
+	return errLabel
 }

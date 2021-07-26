@@ -35,6 +35,11 @@ func Path(tails ...string) string {
 		}
 
 		configPath = filepath.Join(d, "gotktrix")
+
+		// Enforce the right permissions.
+		if err := os.MkdirAll(configPath, 0755); err != nil {
+			log.Println("error making config dir:", err)
+		}
 	})
 
 	return joinTails(configPath, tails)
@@ -54,6 +59,10 @@ func CacheDir(tails ...string) string {
 		}
 
 		cacheDir = filepath.Join(d, "gotktrix")
+
+		if err := os.MkdirAll(cacheDir, 0755); err != nil {
+			log.Println("error making config dir:", err)
+		}
 	})
 
 	return joinTails(cacheDir, tails)
