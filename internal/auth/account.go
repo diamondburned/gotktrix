@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type account struct {
+type Account struct {
 	Server    string `json:"server"`
 	Token     string `json:"token"`
 	UserID    string `json:"user_id"`
@@ -20,7 +20,7 @@ type account struct {
 	AvatarURL string `json:"avatar_url"`
 }
 
-func copyAccount(client *gotrix.Client) (*account, error) {
+func copyAccount(client *gotrix.Client) (*Account, error) {
 	id, err := client.Whoami()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get whoami")
@@ -36,7 +36,7 @@ func copyAccount(client *gotrix.Client) (*account, error) {
 		avatarURL, _ = client.MediaThumbnailURL(*mxc, true, 64, 64, api.MediaThumbnailCrop)
 	}
 
-	return &account{
+	return &Account{
 		Server:    client.HomeServerScheme + "://" + client.HomeServer,
 		Token:     client.AccessToken,
 		UserID:    string(client.UserID),
@@ -45,7 +45,7 @@ func copyAccount(client *gotrix.Client) (*account, error) {
 	}, nil
 }
 
-func saveAccount(driver secret.Driver, a account) error {
+func saveAccount(driver secret.Driver, a *Account) error {
 	accIDs, _ := listAccountIDs(driver)
 
 	for _, id := range accIDs {
@@ -87,13 +87,13 @@ func saveAccountIDs(driver secret.Driver, ids []matrix.UserID) error {
 	return nil
 }
 
-func loadAccounts(driver secret.Driver) ([]account, error) {
+func loadAccounts(driver secret.Driver) ([]Account, error) {
 	accIDs, err := listAccountIDs(driver)
 	if err != nil || len(accIDs) == 0 {
 		return nil, err
 	}
 
-	var accounts []account
+	var accounts []Account
 	var errs []error
 
 	for _, id := range accIDs {
@@ -107,7 +107,7 @@ func loadAccounts(driver secret.Driver) ([]account, error) {
 			continue
 		}
 
-		var acc account
+		var acc Account
 		if err := json.Unmarshal(b, &acc); err != nil {
 			errs = append(errs, errors.Wrap(err, "failed to decode account JSON"))
 			continue

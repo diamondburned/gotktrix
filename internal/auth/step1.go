@@ -6,6 +6,8 @@ import (
 	"math"
 	"sync"
 
+	"github.com/chanbakjsd/gotrix"
+	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -19,7 +21,7 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-const avatarSize = 28
+const avatarSize = 32
 
 var accountEntryCSS = cssutil.Applier("auth-account-entry", `
 	.auth-account-entry {
@@ -59,7 +61,7 @@ var avatarCSS = cssutil.Applier("auth-avatar", `
 	}
 `)
 
-func newAccountEntry(account *account) *gtk.ListBoxRow {
+func newAccountEntry(account *Account) *gtk.ListBoxRow {
 	icon := adw.NewAvatar(avatarSize, account.Username, true)
 	avatarCSS(&icon.Widget)
 	imgutil.AsyncGET(context.Background(), account.AvatarURL, icon.SetCustomImage)
@@ -101,22 +103,13 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 	accountList.SetSelectionMode(gtk.SelectionBrowse)
 	accountList.SetActivateOnSingleClick(true)
 
-	accountList.Connect("row-activated", func(accountList *gtk.ListBox, row *gtk.ListBoxRow) {
-		switch ix := row.Index(); {
-		case ix == len(a.accounts):
-			a.signinPage()
-		case ix < len(a.accounts):
-			a.chooseAccount(a.accounts[ix])
-		default:
-			log.Println("unknown index", ix, "chosen")
-		}
-	})
-
 	loadingSpin := gtk.NewSpinner()
 	loadingSpin.SetSizeRequest(16, 16)
 	loadingSpin.Start()
 
 	tailbox := gtk.NewBox(gtk.OrientationVertical, 2)
+	tailbox.SetVExpand(true)
+	tailbox.SetVAlign(gtk.AlignEnd)
 	tailbox.SetHAlign(gtk.AlignCenter)
 	tailbox.Append(loadingSpin)
 
@@ -183,7 +176,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 			button := gtk.NewButtonWithLabel("Decrypt")
 
 			password := gtk.NewEntry()
-			password.SetPlaceholderText("Local keyring password")
+			password.SetPlaceholderText("Decrypt local accounts")
 			password.SetHExpand(true)
 			password.SetVisibility(false)
 			password.SetInputPurpose(gtk.InputPurposePassword)
@@ -228,13 +221,59 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 		})
 	}()
 
+	errLabel := makeErrorLabel()
+	errLabel.Hide()
+
+	onError := func(err error) {
+		errLabel.SetMarkup(markuputil.Error(err.Error()))
+		errLabel.Show()
+		a.Continue()
+	}
+
+	useExistingAccount := func(row *gtk.ListBoxRow) {
+		acc := a.accounts[row.Index()]
+		ctx := a.CancellableBusy(context.Background())
+
+		go func() {
+			client := a.client.WithContext(ctx)
+
+			c, err := gotrix.NewWithClient(client, acc.Server)
+			if err != nil {
+				err = errors.Wrap(err, "server error")
+				glib.IdleAdd(func() {
+					// Disable the account row, since it's not working anyway.
+					// Don't delete the account, though.
+					row.SetSensitive(false)
+					onError(err)
+				})
+				return
+			}
+
+			// Set the credentials.
+			c.UserID = matrix.UserID(acc.UserID)
+			c.AccessToken = acc.Token
+
+			if _, err := c.Whoami(); err != nil {
+				err = errors.Wrap(err, "whoami error")
+				glib.IdleAdd(func() {
+					row.SetSensitive(false)
+					onError(err)
+				})
+				return
+			}
+
+			glib.IdleAdd(func() {
+				a.currentClient = c.WithContext(context.Background())
+				a.finish(acc)
+			})
+		}()
+	}
+
 	box := gtk.NewBox(gtk.OrientationVertical, 14)
 	box.Append(accountList)
+	box.Append(errLabel)
 	box.Append(tailbox)
 	accountChooserCSS(box)
-
-	scroll := gtk.NewScrolledWindow()
-	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 
 	step := assistant.NewStep("Choose an Account", "")
 	step.Done = func(step *assistant.Step) {
@@ -252,14 +291,31 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 		}()
 	}
 
+	accountList.Connect("row-activated", func(accountList *gtk.ListBox, row *gtk.ListBoxRow) {
+		switch ix := row.Index(); {
+		case ix == len(a.accounts):
+			a.signinPage()
+		case ix < len(a.accounts):
+			useExistingAccount(row)
+		default:
+			log.Println("unknown index", ix, "chosen")
+		}
+	})
+
+	scroll := gtk.NewScrolledWindow()
+	scroll.SetVExpand(true)
+	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	scroll.SetChild(box)
+
 	content := step.ContentArea()
-	content.Append(box)
+	content.SetVAlign(gtk.AlignFill)
+	content.Append(scroll)
 
 	return step
 }
 
-func addAccounts(a *Assistant, accountList *gtk.ListBox, accounts []account) {
-	hasAccount := func(has *account) bool {
+func addAccounts(a *Assistant, accountList *gtk.ListBox, accounts []Account) {
+	hasAccount := func(has *Account) bool {
 		for _, acc := range a.accounts {
 			if acc.UserID == has.UserID {
 				return true

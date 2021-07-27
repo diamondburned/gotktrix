@@ -2,6 +2,8 @@
 package auth
 
 import (
+	"log"
+
 	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/api/httputil"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -22,10 +24,10 @@ type Assistant struct {
 	*assistant.Assistant
 	client httputil.Client
 
-	onConnect func(*gotrix.Client)
+	onConnect func(*gotrix.Client, *Account)
 
 	// states, can be nil depending on the steps
-	accounts      []*account
+	accounts      []*Account
 	currentClient *gotrix.Client
 
 	keyring *secret.Keyring
@@ -71,7 +73,7 @@ func NewWithClient(parent *gtk.Window, client httputil.Client) *Assistant {
 // OnConnect sets the handler that is called when the user chooses an account or
 // logs in. If this method has already been called before with a non-nil
 // function, it will panic.
-func (a *Assistant) OnConnect(f func(*gotrix.Client)) {
+func (a *Assistant) OnConnect(f func(*gotrix.Client, *Account)) {
 	if a.onConnect != nil {
 		panic("OnConnect called twice")
 	}
@@ -102,25 +104,17 @@ func (a *Assistant) chooseLoginMethod(method loginMethod) {
 	a.SetStep(step4)
 }
 
-func (a *Assistant) chooseAccount(acc *account) {
-
-}
-
 // finish should be called once a.currentClient has been logged on.
-func (a *Assistant) finish(acc *account) {
-	// ctx := a.CancellableBusy(context.Background())
+func (a *Assistant) finish(acc *Account) {
+	if a.onConnect == nil {
+		log.Println("onConnect handler not attached")
+		return
+	}
 
-	// go func() {
-	// 	client := a.currentClient.WithContext(ctx)
-
-	// 	username, hostname, err := client.UserID.Parse()
-	// 	if err != nil {
-	// 	}
-
-	// 	client.AvatarURL(client.UserID)
-
-	// }()
-	// TODO: save the account
+	a.hasConnected = true
+	a.Continue()
+	a.Close()
+	a.onConnect(a.currentClient, acc)
 }
 
 var inputBoxCSS = cssutil.Applier("auth-input-box", `

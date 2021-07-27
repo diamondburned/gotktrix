@@ -228,18 +228,18 @@ func newRememberMeBox(a *Assistant) *rememberMeBox {
 	return &state
 }
 
-func (r *rememberMeBox) saveAndFinish(a *Assistant, acc *account) {
+func (r *rememberMeBox) saveAndFinish(a *Assistant, acc *Account) {
 	go func() {
 		var errors []error
 
 		if r.keyring && a.keyring != nil {
-			if err := saveAccount(a.keyring, *acc); err != nil {
+			if err := saveAccount(a.keyring, acc); err != nil {
 				errors = append(errors, err)
 			}
 		}
 
 		if r.encrypt && a.encrypt != nil {
-			if err := saveAccount(a.encrypt, *acc); err != nil {
+			if err := saveAccount(a.encrypt, acc); err != nil {
 				errors = append(errors, err)
 			}
 		}

@@ -94,7 +94,7 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 	bar.PackEnd(ok)
 
 	window := gtk.NewWindow()
-	window.SetDefaultSize(400, 500)
+	window.SetDefaultSize(375, 500)
 	window.SetTransientFor(parent)
 	window.SetModal(true)
 	window.SetTitlebar(bar)

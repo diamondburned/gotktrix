@@ -4,6 +4,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/gotk3/gotk3/glib"
 )
 
 var css = cssutil.Applier("errpopup", `
@@ -14,6 +15,10 @@ var css = cssutil.Applier("errpopup", `
 
 // Show shows a popup with the given errors.
 func Show(parent *gtk.Window, errors []error, done func()) {
+	glib.IdleAdd(func() { show(parent, errors, done) })
+}
+
+func show(parent *gtk.Window, errors []error, done func()) {
 	if len(errors) == 0 {
 		done()
 		return

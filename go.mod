@@ -2,8 +2,10 @@ module github.com/diamondburned/gotktrix
 
 go 1.17
 
+replace github.com/chanbakjsd/gotrix => ../../gotrix
+
 require (
-	github.com/chanbakjsd/gotrix v0.2.1-0.20210726012315-0e0d521975aa
+	github.com/chanbakjsd/gotrix v0.2.1-0.20210726090008-fa922d34338d
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210726010501-6bd075859e59
 	github.com/diamondburned/gotk4/pkg v0.0.0-20210726002900-05ded48917dc
 	github.com/gotk3/gotk3 v0.6.2-0.20210715143523-dfa2afe348c5
