@@ -23,7 +23,6 @@ require (
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/danieljoos/wincred v1.1.0 // indirect
 	github.com/dgraph-io/ristretto v0.0.4-0.20210309073149-3836124cdc5a // indirect
-	github.com/diamondburned/kvpack v0.0.0-20210630043040-1c30942ad8b8 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fatih/color v1.10.0 // indirect
 	github.com/godbus/dbus/v5 v5.0.3 // indirect
@@ -36,7 +35,6 @@ require (
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
-	go.etcd.io/bbolt v1.3.6 // indirect
 	go.opencensus.io v0.22.5 // indirect
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110 // indirect
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
