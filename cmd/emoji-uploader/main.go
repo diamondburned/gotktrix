@@ -1,23 +1,34 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"os/signal"
 
-	"github.com/chanbakjsd/gotrix"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/auth"
 	"github.com/diamondburned/gotktrix/internal/auth/syncbox"
 	"github.com/diamondburned/gotktrix/internal/components/errpopup"
 	"github.com/diamondburned/gotktrix/internal/config"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/emojis"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/matrix/emojis"
 )
 
 func main() {
 	app := gtk.NewApplication(config.AppIDDot("emoji-uploader"), 0)
 	app.Connect("activate", activate)
+
+	// Quit the application on a SIGINT.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	go func() {
+		<-ctx.Done()
+		app.Quit()
+	}()
 
 	if code := app.Run(os.Args); code > 0 {
 		log.Println("exit status", code)
@@ -38,27 +49,21 @@ func activate(app *gtk.Application) {
 	window.SetChild(spinner)
 	window.Show()
 
-	fiddle := func(client *gotrix.Client) {
-		if err := client.Open(); err != nil {
-			errpopup.Show(&window.Window, []error{err}, window.Close)
-			return
-		}
+	fiddle := func(client *gotktrix.Client, acc *auth.Account) {
+		syncbox.Open(window, acc, client)
 
-		v, err := client.RoomState("", emojis.UserEmotesEventType, "")
+		e, err := client.WaitForEvent(context.Background(), emojis.UserEmotesEventType)
 		if err != nil {
-			errpopup.Show(&window.Window, []error{err}, window.Close)
+			errpopup.ShowFatal(&window.Window, []error{err})
 			return
 		}
 
-		spew.Dump(v)
-
-		select {}
+		spew.Dump(e)
 	}
 
 	authAssistant := auth.New(&window.Window)
-	authAssistant.OnConnect(func(client *gotrix.Client, acc *auth.Account) {
-		syncbox.Show(&window.Window, acc)
-		go fiddle(client)
+	authAssistant.OnConnect(func(client *gotktrix.Client, acc *auth.Account) {
+		go fiddle(client, acc)
 	})
 	authAssistant.Show()
 }

@@ -3,9 +3,9 @@ package auth
 import (
 	"context"
 
-	"github.com/chanbakjsd/gotrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/gotk3/gotk3/glib"
@@ -34,7 +34,7 @@ func homeserverStep(a *Assistant) *assistant.Step {
 
 		go func() {
 			client := a.client.WithContext(ctx)
-			c, err := gotrix.DiscoverWithClient(client, inputs[0].Text())
+			c, err := gotktrix.Discover(client, inputs[0].Text())
 
 			glib.IdleAdd(func() {
 				if err == nil {

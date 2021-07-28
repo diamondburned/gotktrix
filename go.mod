@@ -2,10 +2,12 @@ module github.com/diamondburned/gotktrix
 
 go 1.17
 
-replace github.com/chanbakjsd/gotrix => ../../gotrix
+replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix v0.1.2-0.20210727221326-dc14887acc19
 
 require (
 	github.com/chanbakjsd/gotrix v0.2.1-0.20210726090008-fa922d34338d
+	github.com/davecgh/go-spew v1.1.1
+	github.com/dgraph-io/badger/v3 v3.2103.0
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210726010501-6bd075859e59
 	github.com/diamondburned/gotk4/pkg v0.0.0-20210726002900-05ded48917dc
 	github.com/gotk3/gotk3 v0.6.2-0.20210715143523-dfa2afe348c5
@@ -17,13 +19,25 @@ require (
 )
 
 require (
+	github.com/DataDog/zstd v1.4.1 // indirect
+	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/danieljoos/wincred v1.1.0 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dgraph-io/ristretto v0.0.4-0.20210309073149-3836124cdc5a // indirect
+	github.com/diamondburned/kvpack v0.0.0-20210630043040-1c30942ad8b8 // indirect
+	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fatih/color v1.10.0 // indirect
 	github.com/godbus/dbus/v5 v5.0.3 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
+	github.com/golang/protobuf v1.3.1 // indirect
+	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/btree v1.0.1 // indirect
+	github.com/google/flatbuffers v1.12.0 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
+	go.etcd.io/bbolt v1.3.6 // indirect
+	go.opencensus.io v0.22.5 // indirect
+	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110 // indirect
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
 )

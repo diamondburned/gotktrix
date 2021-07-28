@@ -13,6 +13,12 @@ var css = cssutil.Applier("errpopup", `
 	}
 `)
 
+// ShowFatal shows a popup that closes the window once it's closed.
+func ShowFatal(parent *gtk.Window, errors []error) {
+	Show(parent, errors, parent.Close)
+	parent.SetSensitive(false)
+}
+
 // Show shows a popup with the given errors.
 func Show(parent *gtk.Window, errors []error, done func()) {
 	glib.IdleAdd(func() { show(parent, errors, done) })

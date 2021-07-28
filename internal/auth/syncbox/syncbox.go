@@ -2,15 +2,20 @@ package syncbox
 
 import (
 	"context"
+	"log"
 	"math"
 
+	"github.com/chanbakjsd/gotrix/api"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/auth"
+	"github.com/diamondburned/gotktrix/internal/components/errpopup"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/gotk3/gotk3/glib"
 )
 
 const avatarSize = 36
@@ -58,6 +63,40 @@ func newAccountGrid(account *auth.Account) gtk.Widgetter {
 	grid.Attach(server, 1, 1, 1, 1)
 
 	return grid
+}
+
+// Open shows a popup while opening the client in the background. Once the
+// client has successfully synchronized, the popup will close automatically.
+// Note that Open will block until the synchronization is done, so it should
+// only be called in a goroutine.
+func Open(parent *gtk.ApplicationWindow, account *auth.Account, client *gotktrix.Client) {
+	syncCh := make(chan *api.SyncResponse, 1)
+	var popup *Popup
+
+	glib.IdleAdd(func() {
+		popup = Show(&parent.Window, account)
+		app := parent.Application()
+
+		go func() {
+			client.State.WaitForNextSync(syncCh)
+
+			if err := client.Open(); err != nil {
+				errpopup.ShowFatal(&parent.Window, []error{err})
+				return
+			}
+
+			app.Connect("shutdown", func() {
+				if err := client.Close(); err != nil {
+					log.Println("failed to close loop:", err)
+				}
+			})
+		}()
+	})
+
+	// This channel will only unblock once Open() is done syncing, which means
+	// popup would've already been set.
+	<-syncCh
+	glib.IdleAdd(func() { popup.Close() })
 }
 
 // Show shows a popup.

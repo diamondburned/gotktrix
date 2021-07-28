@@ -6,13 +6,13 @@ import (
 	"math"
 	"sync"
 
-	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/auth/secret"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
@@ -237,7 +237,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 		go func() {
 			client := a.client.WithContext(ctx)
 
-			c, err := gotrix.NewWithClient(client, acc.Server)
+			c, err := gotktrix.New(client, acc.Server)
 			if err != nil {
 				err = errors.Wrap(err, "server error")
 				glib.IdleAdd(func() {

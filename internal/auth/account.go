@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/auth/secret"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/pkg/errors"
 )
 
@@ -20,7 +20,7 @@ type Account struct {
 	AvatarURL string `json:"avatar_url"`
 }
 
-func copyAccount(client *gotrix.Client) (*Account, error) {
+func copyAccount(client *gotktrix.Client) (*Account, error) {
 	id, err := client.Whoami()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get whoami")

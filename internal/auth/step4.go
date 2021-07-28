@@ -3,11 +3,11 @@ package auth
 import (
 	"context"
 
-	"github.com/chanbakjsd/gotrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/auth/secret"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/components/errpopup"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/gotk3/gotk3/glib"
@@ -15,7 +15,7 @@ import (
 
 type loginStepData struct {
 	InputBox gtk.Widgetter
-	Login    func(client *gotrix.Client) error
+	Login    func(client *gotktrix.Client) error
 }
 
 func loginStep(a *Assistant, method loginMethod) *assistant.Step {
@@ -29,7 +29,7 @@ func loginStep(a *Assistant, method loginMethod) *assistant.Step {
 		inputs[1].SetVisibility(false)
 
 		data.InputBox = inputBox
-		data.Login = func(client *gotrix.Client) error {
+		data.Login = func(client *gotktrix.Client) error {
 			return client.LoginPassword(inputs[0].Text(), inputs[1].Text())
 		}
 	case loginToken:
@@ -38,7 +38,7 @@ func loginStep(a *Assistant, method loginMethod) *assistant.Step {
 		inputs[0].SetVisibility(false)
 
 		data.InputBox = inputBox
-		data.Login = func(client *gotrix.Client) error {
+		data.Login = func(client *gotktrix.Client) error {
 			return client.LoginToken(inputs[0].Text())
 		}
 	}

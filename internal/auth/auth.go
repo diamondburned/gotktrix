@@ -4,13 +4,13 @@ package auth
 import (
 	"log"
 
-	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/api/httputil"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/auth/secret"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/config"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
@@ -24,11 +24,11 @@ type Assistant struct {
 	*assistant.Assistant
 	client httputil.Client
 
-	onConnect func(*gotrix.Client, *Account)
+	onConnect func(*gotktrix.Client, *Account)
 
 	// states, can be nil depending on the steps
 	accounts      []*Account
-	currentClient *gotrix.Client
+	currentClient *gotktrix.Client
 
 	keyring *secret.Keyring
 	encrypt *secret.EncryptedFile
@@ -73,7 +73,7 @@ func NewWithClient(parent *gtk.Window, client httputil.Client) *Assistant {
 // OnConnect sets the handler that is called when the user chooses an account or
 // logs in. If this method has already been called before with a non-nil
 // function, it will panic.
-func (a *Assistant) OnConnect(f func(*gotrix.Client, *Account)) {
+func (a *Assistant) OnConnect(f func(*gotktrix.Client, *Account)) {
 	if a.onConnect != nil {
 		panic("OnConnect called twice")
 	}
@@ -92,7 +92,7 @@ func (a *Assistant) signinPage() {
 }
 
 // step 2 activate
-func (a *Assistant) chooseHomeserver(client *gotrix.Client) {
+func (a *Assistant) chooseHomeserver(client *gotktrix.Client) {
 	a.currentClient = client
 	a.NextStep() // step 2 -> 3
 }
