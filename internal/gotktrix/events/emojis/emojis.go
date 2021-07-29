@@ -1,3 +1,4 @@
+// Package emojis provides an implementation of the im.ponies emoji protocol.
 package emojis
 
 import (
@@ -56,7 +57,7 @@ func parseRoomEmotesEvent(raw event.RawEvent) (event.Event, error) {
 
 func (ev RoomEmotesEvent) StateKey() string { return "" }
 
-// Type impleemnts event.Type.
+// Type implements event.Type.
 func (ev RoomEmotesEvent) Type() event.Type { return RoomEmotesEventType }
 
 // UserEmotesEvent describes the im.ponies.user_emotes event.

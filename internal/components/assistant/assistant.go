@@ -229,8 +229,6 @@ func (a *Assistant) AddStep(step *Step) {
 	step.index = len(a.steps)
 	a.steps = append(a.steps, step)
 
-	log.Println("adding step", step.index)
-
 	arrow := gtk.NewLabel("⟩")
 	arrow.SetCSSClasses([]string{"assistant-crumb", "assistant-crumb-arrow"})
 	arrow.SetAttributes(crumbArrowAttrs)

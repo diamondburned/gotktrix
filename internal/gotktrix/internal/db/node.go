@@ -2,7 +2,6 @@ package db
 
 import (
 	"bytes"
-	"log"
 	"reflect"
 	"strings"
 	"time"
@@ -24,6 +23,28 @@ func Keys(keys ...string) string {
 	}
 
 	return strings.Join(keys, delimiter)
+}
+
+func iterValidKey(iter *badger.Iterator, prefix []byte) bool {
+	if !iter.Valid() {
+		return false
+	}
+
+	k := iter.Item().Key()
+	k = bytes.TrimPrefix(k, prefix)
+	return !bytes.Contains(k, []byte(delimiter))
+}
+
+func iterSplitKey(iter *badger.Iterator, prefix []byte) ([]byte, bool) {
+	k := iter.Item().Key()
+	k = bytes.TrimPrefix(k, prefix)
+
+	i := bytes.Index(k, []byte(delimiter))
+	if i == -1 {
+		return k, true
+	}
+
+	return nil, false
 }
 
 func convertKey(prefix [][]byte, key string) []byte {
@@ -48,7 +69,7 @@ func wrapErr(str string, err error) error {
 	}
 
 	if !errors.Is(err, badger.ErrKeyNotFound) {
-		log.Println("Unexpected db error:", err)
+		// log.Println("unexpected db error:", err)
 	} else {
 		return ErrKeyNotFound
 	}
@@ -72,8 +93,45 @@ func iterOpts(prefix []byte) badger.IteratorOptions {
 }
 
 type Node struct {
+	kv       *KV
+	txn      *badger.Txn
 	prefixes [][]byte
-	kvdb     KV
+}
+
+// TxUpdate creates a new Node with an active transaction and calls f. If this
+// method is called in a Node that already has a transaction, then that
+// transaction is reused.
+func (n Node) TxUpdate(f func(n Node) error) error {
+	if n.txn != nil {
+		return f(n)
+	}
+
+	n.txn = n.kv.db.NewTransaction(true)
+	defer n.txn.Discard()
+
+	if err := f(n); err != nil {
+		return err
+	}
+
+	return n.txn.Commit()
+}
+
+// TxUpdate creates a new Node with an active read-only transaction and calls f.
+// If this method is called in a Node that already has a transaction, then that
+// transaction is reused.
+func (n Node) TxView(f func(n Node) error) error {
+	if n.txn != nil {
+		return f(n)
+	}
+
+	n.txn = n.kv.db.NewTransaction(false)
+	defer n.txn.Discard()
+
+	if err := f(n); err != nil {
+		return err
+	}
+
+	return n.txn.Commit()
 }
 
 // Prefix returns the joined prefixes with the trailing delimiter.
@@ -81,50 +139,50 @@ func (n Node) Prefix() string {
 	return string(convertKey(n.prefixes, ""))
 }
 
-func (n Node) Node(name string) Node {
-	if name == "" {
+// FromPath creates a new node with the given full path. The path will
+// completely override the old path.
+func (n Node) FromPath(path NodePath) Node {
+	n.prefixes = path
+	return n
+}
+
+// Node creates a child node with the given names appended to its path. If the
+// node has an ongoing transaction, then it is inherited over.
+func (n Node) Node(names ...string) Node {
+	if len(names) == 0 {
 		panic("Node name can't be empty")
+	}
+
+	namesBytes := make([][]byte, len(names))
+	for i := range names {
+		namesBytes[i] = []byte(names[i])
 	}
 
 	prefixes := make([][]byte, 0, len(n.prefixes)+1)
 	prefixes = append(prefixes, n.prefixes...)
-	prefixes = append(prefixes, []byte(name))
+	prefixes = append(prefixes, namesBytes...)
 
-	return Node{
-		prefixes: prefixes,
-		kvdb:     n.kvdb,
-	}
-}
-
-func (n Node) SetBatch(f func(Batcher) error) error {
-	batch := n.kvdb.db.NewWriteBatch()
-	batch.SetMaxPendingTxns(32)
-
-	if err := f(Batcher{n, batch}); err != nil {
-		batch.Cancel()
-		return err
-	}
-
-	return batch.Flush()
+	n.prefixes = prefixes
+	return n
 }
 
 func (n Node) Set(k string, v interface{}) error {
-	b, err := n.kvdb.Marshal(v)
+	b, err := n.kv.Marshal(v)
 	if err != nil {
 		return errors.Wrap(err, "Failed to marshal")
 	}
 
 	key := convertKey(n.prefixes, k)
 
-	return wrapErr("Failed to update db", n.kvdb.db.Update(
-		func(tx *badger.Txn) error {
-			return tx.Set(key, b)
+	return wrapErr("failed to update db", n.TxUpdate(
+		func(n Node) error {
+			return n.txn.Set(key, b)
 		},
 	))
 }
 
 func (n Node) SetWithTTL(k string, v interface{}, ttl time.Duration) error {
-	b, err := n.kvdb.Marshal(v)
+	b, err := n.kv.Marshal(v)
 	if err != nil {
 		return errors.Wrap(err, "Failed to marshal")
 	}
@@ -132,9 +190,9 @@ func (n Node) SetWithTTL(k string, v interface{}, ttl time.Duration) error {
 	key := convertKey(n.prefixes, k)
 	expiry := time.Now().Add(ttl)
 
-	return wrapErr("Failed to update db", n.kvdb.db.Update(
-		func(tx *badger.Txn) error {
-			return tx.SetEntry(&badger.Entry{
+	return wrapErr("failed to update db", n.TxUpdate(
+		func(n Node) error {
+			return n.txn.SetEntry(&badger.Entry{
 				Key:       key,
 				Value:     b,
 				ExpiresAt: uint64(expiry.Unix()),
@@ -143,24 +201,28 @@ func (n Node) SetWithTTL(k string, v interface{}, ttl time.Duration) error {
 	))
 }
 
+// Exists returns true if the given key exists.
+func (n Node) Exists(k string) bool {
+	return n.Get(k, nil) == nil
+}
+
 func (n Node) Get(k string, v interface{}) error {
 	key := convertKey(n.prefixes, k)
 
-	return wrapErr("Failed to get from db", n.kvdb.db.View(
-		func(tx *badger.Txn) error {
-			i, err := tx.Get(key)
+	return wrapErr("failed to get from db", n.TxView(
+		func(n Node) error {
+			i, err := n.txn.Get(key)
 			if err != nil {
-				if err != badger.ErrKeyNotFound {
-					// Unknown error, log:
-					log.Println("[db]: error:", err)
-				}
-
 				return err
 			}
 
+			if v == nil {
+				return nil
+			}
+
 			return i.Value(func(b []byte) error {
-				if err := n.kvdb.Unmarshal(b, v); err != nil {
-					return errors.Wrap(err, "Failed to unmarshal")
+				if err := n.kv.Unmarshal(b, v); err != nil {
+					return errors.Wrap(err, "failed to unmarshal")
 				}
 				return nil
 			})
@@ -171,9 +233,9 @@ func (n Node) Get(k string, v interface{}) error {
 func (n Node) Delete(k string) error {
 	key := convertKey(n.prefixes, k)
 
-	return wrapErr("Failed to delete from db", n.kvdb.db.Update(
-		func(tx *badger.Txn) error {
-			return tx.Delete(key)
+	return wrapErr("failed to delete from db", n.TxUpdate(
+		func(n Node) error {
+			return n.txn.Delete(key)
 		},
 	))
 }
@@ -182,24 +244,53 @@ func (n Node) Delete(k string) error {
 func (n Node) Drop() error {
 	prefix := convertKey(n.prefixes, "")
 
-	return wrapErr("Failed to delete from db", n.kvdb.db.Update(
-		func(tx *badger.Txn) error {
-			iter := tx.NewIterator(iterKeyOnlyOpts(prefix))
+	return wrapErr("failed to delete from db", n.TxUpdate(
+		func(n Node) error {
+			iter := n.txn.NewIterator(iterKeyOnlyOpts(prefix))
 			defer iter.Close()
-
-			var deleted bool
 
 			for iter.Rewind(); iter.Valid(); iter.Next() {
 				key := iter.Item().KeyCopy(nil)
-				if err := tx.Delete(key); err != nil {
-					return errors.Wrap(err, "Failed to delete key "+string(key))
+				if err := n.txn.Delete(key); err != nil {
+					return errors.Wrap(err, "failed to delete key "+string(key))
 				}
-
-				deleted = true
 			}
 
-			if !deleted {
-				return errors.New("nothing was deleted")
+			return nil
+		},
+	))
+}
+
+// DropExceptLast drops the entire node except for the last few values. This
+// method heavily relies on keyed values being sorted properly, and that the
+// stored values are NOT nested.
+func (n Node) DropExceptLast(last int) error {
+	prefix := convertKey(n.prefixes, "")
+
+	var total int
+
+	return wrapErr("failed to delete from db", n.TxUpdate(
+		func(n Node) error {
+			iter := n.txn.NewIterator(iterKeyOnlyOpts(prefix))
+			defer iter.Close()
+
+			for iter.Rewind(); iter.Valid(); iter.Next() {
+				total++
+			}
+
+			until := total - last
+			if until < 1 {
+				return nil
+			}
+
+			var deleted int
+
+			for iter.Rewind(); iter.Valid() && until > deleted; iter.Next() {
+				key := iter.Item().KeyCopy(nil)
+				if err := n.txn.Delete(key); err != nil {
+					return errors.Wrapf(err, "failed to delete key %q", key)
+				}
+				deleted++
 			}
 
 			return nil
@@ -208,59 +299,143 @@ func (n Node) Drop() error {
 }
 
 // All scans all values with the key prefix into the slice. This method uses
-// reflection.
+// reflection. The given slice will have its length reset to 0.
 func (n Node) All(slicePtr interface{}, prefix string) error {
 	vPtr := reflect.ValueOf(slicePtr)
-	v := vPtr.Elem()
-
-	if v.Kind() != reflect.Slice {
-		return errors.New("not a slice")
+	if vPtr.Kind() != reflect.Ptr {
+		return errors.New("given slice ptr is not a ptr")
 	}
 
-	// Grab the slice element's underlying type.
-	var elemT = v.Type().Elem()
-	var elemPtr = false
-	if elemT.Kind() == reflect.Ptr {
-		elemT = elemT.Elem()
-		elemPtr = true
+	v := vPtr.Elem()
+	if v.Kind() != reflect.Slice {
+		return errors.New("not a slice")
 	}
 
 	// this will have a trailing delimiter regardless
 	longPrefix := convertKey(n.prefixes, prefix)
 
-	fn := func(tx *badger.Txn) error {
-		iter := tx.NewIterator(iterOpts(longPrefix))
+	fn := func(n Node) error {
+		iter := n.txn.NewIterator(iterOpts(longPrefix))
 		defer iter.Close()
 
-		for iter.Rewind(); iter.Valid(); iter.Next() {
-			item := iter.Item()
+		var length int
+		for iter.Rewind(); iterValidKey(iter, longPrefix); iter.Next() {
+			length++
+		}
 
-			// Create a new element pointer
-			var elem = reflect.New(elemT)
+		if length == 0 {
+			v.SetLen(0)
+			return nil
+		}
+
+		// Reallocate anyway, because we want fresh zero values.
+		vType := v.Type()
+		v.Set(reflect.MakeSlice(vType, length, length))
+
+		var ix int
+		for iter.Rewind(); iterValidKey(iter, longPrefix); iter.Next() {
+			item := iter.Item()
+			// Directly use a pointer to the backing array to unmarshal into.
+			dst := v.Index(ix).Addr()
+			ix++
 
 			// Start to unmarshal
 			if err := item.Value(func(b []byte) error {
-				return n.kvdb.Unmarshal(b, elem.Interface())
+				return n.kv.Unmarshal(b, dst.Interface())
 			}); err != nil {
-				return errors.Wrap(err,
-					"Failed to unmarshal into new underlying value")
+				return errors.Wrap(err, "failed to unmarshal into new underlying value")
 			}
-
-			// Check if dereference is needed before appending.
-			if !elemPtr {
-				// If the slice's underlying type is not a pointer,
-				// dereference it.
-				elem = elem.Elem()
-			}
-
-			// Append
-			v.Set(reflect.Append(v, elem))
 		}
 
 		return nil
 	}
 
-	return wrapErr("Failed to iterate", n.kvdb.db.View(fn))
+	return wrapErr("failed to iterate", n.TxView(fn))
+}
+
+// Length queries the number of keys within the node, similarly to running
+// AllKeys and taking the length of what was returned.
+func (n Node) Length(prefix string) (int, error) {
+	// this will have a trailing delimiter regardless
+	longPrefix := convertKey(n.prefixes, prefix)
+	var length int
+
+	return length, wrapErr("failed to iterate keys", n.TxView(
+		func(n Node) error {
+			iter := n.txn.NewIterator(iterKeyOnlyOpts(longPrefix))
+			defer iter.Close()
+
+			for iter.Rewind(); iterValidKey(iter, longPrefix); iter.Next() {
+				length++
+			}
+
+			return nil
+		},
+	))
+}
+
+var stringType = reflect.TypeOf("")
+
+// AllKeys is similar to All, except only the keys are fetched.
+func (n Node) AllKeys(slicePtr interface{}, prefix string) error {
+	vPtr := reflect.ValueOf(slicePtr)
+	if vPtr.Kind() != reflect.Ptr {
+		return errors.New("given slice ptr is not a ptr")
+	}
+
+	v := vPtr.Elem()
+	if v.Kind() != reflect.Slice {
+		return errors.New("not a slice")
+	}
+
+	elemT := v.Type().Elem()
+	needsConvert := stringType == elemT
+
+	// this will have a trailing delimiter regardless
+	longPrefix := convertKey(n.prefixes, prefix)
+
+	return wrapErr("failed to iterate keys", n.TxView(
+		func(n Node) error {
+			iter := n.txn.NewIterator(iterKeyOnlyOpts(longPrefix))
+			defer iter.Close()
+
+			var length int
+			for iter.Rewind(); iterValidKey(iter, longPrefix); iter.Next() {
+				length++
+			}
+
+			if length == 0 {
+				v.SetLen(0)
+				return nil
+			}
+
+			if v.Cap() < length {
+				vType := v.Type()
+				v.Set(reflect.MakeSlice(vType, length, length))
+			} else {
+				v.SetLen(length)
+			}
+
+			var ix int
+
+			for iter.Rewind(); iter.Valid(); iter.Next() {
+				ik, ok := iterSplitKey(iter, longPrefix)
+				if !ok {
+					continue
+				}
+
+				vk := reflect.ValueOf(string(ik))
+				if needsConvert {
+					vk = vk.Convert(elemT)
+				}
+
+				v.Index(ix).Set(vk)
+				ix++
+			}
+
+			return nil
+		},
+	))
 }
 
 // EachBreak is an error that Each callbacks could return to stop the loop and
@@ -292,26 +467,35 @@ var EachBreak = errors.New("each break (not an error)")
 //        return nil
 //    })
 //
-func (n Node) Each(v interface{}, prefix string, fn func(k string) error) error {
+func (n Node) Each(v interface{}, prefix string, fn func(k string, l int) error) error {
 	// this will have a trailing delimiter regardless
-	fullPrefix := convertKey(n.prefixes, "")
+	fullPrefix := convertKey(n.prefixes, prefix)
 
-	return wrapErr("Failed to iterate", n.kvdb.db.View(
-		func(tx *badger.Txn) error {
-			iter := tx.NewIterator(iterOpts(appendString(fullPrefix, prefix)))
+	return wrapErr("failed to iterate", n.TxView(
+		func(n Node) error {
+			iter := n.txn.NewIterator(iterOpts(fullPrefix))
 			defer iter.Close()
 
-			for iter.Rewind(); iter.Valid(); iter.Next() {
-				item := iter.Item()
-				k := string(bytes.TrimPrefix(item.Key(), fullPrefix))
+			var length int
+			for iter.Rewind(); iterValidKey(iter, fullPrefix); iter.Next() {
+				length++
+			}
 
-				if err := item.Value(func(b []byte) error {
-					return n.kvdb.Unmarshal(b, v)
-				}); err != nil {
-					return errors.Wrap(err, "Failed to unmarshal "+k)
+			for iter.Rewind(); iter.Valid(); iter.Next() {
+				ik, ok := iterSplitKey(iter, fullPrefix)
+				if !ok {
+					continue
 				}
 
-				if err := fn(k); err != nil {
+				item := iter.Item()
+
+				if err := item.Value(func(b []byte) error {
+					return n.kv.Unmarshal(b, v)
+				}); err != nil {
+					return errors.Wrapf(err, "failed to unmarshal %q", string(ik))
+				}
+
+				if err := fn(string(ik), length); err != nil {
 					if err == EachBreak {
 						return nil
 					}
@@ -325,19 +509,27 @@ func (n Node) Each(v interface{}, prefix string, fn func(k string) error) error 
 	))
 }
 
-func (n Node) EachKey(prefix string, fn func(k string) error) error {
-	fullPrefix := convertKey(n.prefixes, "")
+// EachKey iterates over keys.
+func (n Node) EachKey(prefix string, fn func(k string, l int) error) error {
+	fullPrefix := convertKey(n.prefixes, prefix)
 
-	return wrapErr("Failed to iterate keys", n.kvdb.db.View(
-		func(tx *badger.Txn) error {
-			iter := tx.NewIterator(iterOpts(appendString(fullPrefix, prefix)))
+	return wrapErr("failed to iterate keys", n.TxView(
+		func(n Node) error {
+			iter := n.txn.NewIterator(iterOpts(fullPrefix))
 			defer iter.Close()
 
-			for iter.Rewind(); iter.Valid(); iter.Next() {
-				item := iter.Item()
-				k := string(bytes.TrimPrefix(item.Key(), fullPrefix))
+			var length int
+			for iter.Rewind(); iterValidKey(iter, fullPrefix); iter.Next() {
+				length++
+			}
 
-				if err := fn(k); err != nil {
+			for iter.Rewind(); iter.Valid(); iter.Next() {
+				ik, ok := iterSplitKey(iter, fullPrefix)
+				if !ok {
+					continue
+				}
+
+				if err := fn(string(ik), length); err != nil {
 					if err == EachBreak {
 						return nil
 					}

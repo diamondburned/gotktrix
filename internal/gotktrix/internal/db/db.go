@@ -4,10 +4,35 @@ import (
 	"runtime"
 
 	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v3/options"
 	"github.com/pkg/errors"
 )
 
 const delimiter = "\x00"
+
+// NodePath contains the full path to a node. It can be used as a lighter way to
+// store nodes.
+type NodePath [][]byte
+
+// NewNodePath creates a new NodePath.
+func NewNodePath(names ...string) NodePath {
+	namesBytes := make([][]byte, len(names))
+	for i := range names {
+		namesBytes[i] = []byte(names[i])
+	}
+
+	return namesBytes
+}
+
+// Tail creates a copy of NodePath with the given tail.
+func (p NodePath) Tail(tails ...string) NodePath {
+	namesBytes := make([][]byte, 0, len(p)+len(tails))
+	namesBytes = append(namesBytes, p...)
+	for i := range tails {
+		namesBytes = append(namesBytes, []byte(tails[i]))
+	}
+	return namesBytes
+}
 
 type KV struct {
 	Marshaler
@@ -23,10 +48,19 @@ func halfMin(v, min int) int {
 }
 
 func NewKVFile(path string) (*KV, error) {
-	opt := badger.DefaultOptions(path)
-	opt = opt.WithNumGoroutines(halfMin(runtime.GOMAXPROCS(-1), 1))
+	optimumWorkers := halfMin(runtime.GOMAXPROCS(-1), 1)
+
+	opt := badger.LSMOnlyOptions(path)
+	opt = opt.WithNumGoroutines(optimumWorkers)
+	opt = opt.WithNumCompactors(optimumWorkers)
 	opt = opt.WithLoggingLevel(badger.WARNING)
+	opt = opt.WithCompression(options.ZSTD)
 	opt = opt.WithZSTDCompressionLevel(2)
+	opt = opt.WithBlockCacheSize(1 << 24)   // 16MB
+	opt = opt.WithValueLogFileSize(1 << 29) // 500MB
+	opt = opt.WithCompactL0OnClose(true)
+	opt = opt.WithMetricsEnabled(false)
+
 	return NewKV(opt)
 }
 
@@ -41,32 +75,24 @@ func NewKV(opts badger.Options) (*KV, error) {
 
 func KVWithDB(db *badger.DB) *KV {
 	return &KV{
-		Marshaler: JSONMarshaler,
+		Marshaler: CBORMarshaler,
 		db:        db,
 	}
 }
 
-func (kv KV) SetBatch(f func(Batcher) error) error {
-	batch := kv.db.NewWriteBatch()
-	batch.SetMaxPendingTxns(32)
-
-	if err := f(Batcher{Node{kvdb: kv}, batch}); err != nil {
-		batch.Cancel()
-		return err
+func (kv KV) NodeFromPath(path NodePath) Node {
+	return Node{
+		prefixes: path,
+		kv:       &kv,
 	}
-
-	return batch.Flush()
 }
 
-func (kv KV) Node(name string) Node {
-	if name == "" {
+func (kv KV) Node(names ...string) Node {
+	if len(names) == 0 {
 		panic("Node name can't be empty")
 	}
 
-	return Node{
-		prefixes: [][]byte{[]byte(name)},
-		kvdb:     kv,
-	}
+	return kv.NodeFromPath(NewNodePath(names...))
 }
 
 func (kv KV) Close() error {

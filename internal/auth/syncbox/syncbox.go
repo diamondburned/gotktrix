@@ -85,10 +85,16 @@ func Open(parent *gtk.ApplicationWindow, account *auth.Account, client *gotktrix
 				return
 			}
 
-			app.Connect("shutdown", func() {
-				if err := client.Close(); err != nil {
-					log.Println("failed to close loop:", err)
-				}
+			glib.IdleAddPriority(glib.PRIORITY_HIGH, func() {
+				app.Connect("shutdown", func() {
+					log.Println("shutting down Matrix...")
+
+					if err := client.Close(); err != nil {
+						log.Println("failed to close loop:", err)
+					}
+
+					log.Println("Matrix event loop shut down.")
+				})
 			})
 		}()
 	})
@@ -117,11 +123,14 @@ func Show(parent *gtk.Window, account *auth.Account) *Popup {
 	content.Append(spinBox)
 	popupCSS(content)
 
+	handle := gtk.NewWindowHandle()
+	handle.SetChild(content)
+
 	window := gtk.NewWindow()
 	window.SetTransientFor(parent)
 	window.SetModal(true)
 	window.SetDefaultSize(250, 100)
-	window.SetChild(content)
+	window.SetChild(handle)
 	window.SetTitle("Syncing")
 	window.SetTitlebar(gtk.NewBox(gtk.OrientationHorizontal, 0)) // no titlebar
 	window.Show()
