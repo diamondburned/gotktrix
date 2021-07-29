@@ -13,8 +13,8 @@ var css = cssutil.Applier("errpopup", `
 	}
 `)
 
-// ShowFatal shows a popup that closes the window once it's closed.
-func ShowFatal(parent *gtk.Window, errors []error) {
+// Fatal shows a popup that closes the window once it's closed.
+func Fatal(parent *gtk.Window, errors ...error) {
 	Show(parent, errors, parent.Close)
 	parent.SetSensitive(false)
 }
@@ -36,6 +36,7 @@ func show(parent *gtk.Window, errors []error, done func()) {
 	}
 
 	dialog := gtk.NewDialog()
+	dialog.SetDefaultSize(400, 200)
 	dialog.SetTitle("Error")
 	dialog.SetTransientFor(parent)
 	dialog.SetModal(true)

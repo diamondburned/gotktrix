@@ -27,6 +27,23 @@ var Filter = event.GlobalFilter{
 	},
 }
 
+var (
+	cancelled  context.Context
+	cancelOnce sync.Once
+)
+
+// Cancelled gets a cancelled context.
+func Cancelled() context.Context {
+	cancelOnce.Do(func() {
+		var cancel func()
+
+		cancelled, cancel = context.WithCancel(context.Background())
+		cancel()
+	})
+
+	return cancelled
+}
+
 type Client struct {
 	*gotrix.Client
 	*intern
@@ -114,6 +131,11 @@ func (c *Client) Close() error {
 		return err1
 	}
 	return err2
+}
+
+// Offline returns a Client that does not use the API.
+func (c *Client) Offline() *Client {
+	return c.WithContext(Cancelled())
 }
 
 func (c *Client) WithContext(ctx context.Context) *Client {
@@ -224,6 +246,11 @@ func (c *Client) ChForEvent(typ event.Type, ch chan event.Event) {
 		}
 		return
 	}
+}
+
+// SquareThumbnail is a helper function around MediaThumbnailURL.
+func (c *Client) SquareThumbnail(mURL matrix.URL, size int) (string, error) {
+	return c.MediaThumbnailURL(mURL, true, size, size, api.MediaThumbnailCrop)
 }
 
 // RoomTimeline queries the state cache for the timeline of the given room. If

@@ -65,23 +65,41 @@ func newAccountGrid(account *auth.Account) gtk.Widgetter {
 	return grid
 }
 
+// OpenThen is similar to Open, except the function does not block, but instead
+// will call f in the main event loop once it's done.
+func OpenThen(
+	parent *gtk.ApplicationWindow, client *gotktrix.Client, account *auth.Account, f func()) {
+
+	if f == nil {
+		panic("given callback must not be nil")
+	}
+
+	openThen(parent, account, client, f)
+}
+
 // Open shows a popup while opening the client in the background. Once the
 // client has successfully synchronized, the popup will close automatically.
 // Note that Open will block until the synchronization is done, so it should
 // only be called in a goroutine.
-func Open(parent *gtk.ApplicationWindow, account *auth.Account, client *gotktrix.Client) {
+func Open(parent *gtk.ApplicationWindow, client *gotktrix.Client, account *auth.Account) *Popup {
+	return openThen(parent, account, client, nil)
+}
+
+func openThen(
+	parent *gtk.ApplicationWindow, acc *auth.Account, client *gotktrix.Client, f func()) *Popup {
+
 	syncCh := make(chan *api.SyncResponse, 1)
 	var popup *Popup
 
 	glib.IdleAdd(func() {
-		popup = Show(&parent.Window, account)
+		popup = Show(&parent.Window, acc)
 		app := parent.Application()
 
 		go func() {
 			client.State.WaitForNextSync(syncCh)
 
 			if err := client.Open(); err != nil {
-				errpopup.ShowFatal(&parent.Window, []error{err})
+				errpopup.Fatal(&parent.Window, err)
 				return
 			}
 
@@ -96,13 +114,22 @@ func Open(parent *gtk.ApplicationWindow, account *auth.Account, client *gotktrix
 					log.Println("Matrix event loop shut down.")
 				})
 			})
+
+			if f != nil {
+				<-syncCh
+				glib.IdleAdd(f)
+			}
 		}()
 	})
 
-	// This channel will only unblock once Open() is done syncing, which means
-	// popup would've already been set.
-	<-syncCh
-	glib.IdleAdd(func() { popup.Close() })
+	if f == nil {
+		// This channel will only unblock once Open() is done syncing, which
+		// means popup would've already been set.
+		<-syncCh
+		return popup
+	}
+
+	return nil
 }
 
 // Show shows a popup.
@@ -153,4 +180,9 @@ func (p *Popup) Close() {
 // SetLabel sets the popup's label. The default label is "Syncing".
 func (p *Popup) SetLabel(text string) {
 	p.label.SetLabel(text)
+}
+
+// QueueSetLabel queues the label setting to be on the main thread.
+func (p *Popup) QueueSetLabel(text string) {
+	glib.IdleAdd(func() { p.SetLabel(text) })
 }

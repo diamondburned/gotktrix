@@ -1,7 +1,6 @@
 package state
 
 import (
-	"context"
 	"log"
 	"sync"
 
@@ -18,23 +17,6 @@ const (
 	// database should only keep the last 50 events.
 	TimelineKeepLast = 50
 )
-
-var (
-	cancelled  context.Context
-	cancelOnce sync.Once
-)
-
-// Cancelled gets a cancelled context.
-func Cancelled() context.Context {
-	cancelOnce.Do(func() {
-		var cancel func()
-
-		cancelled, cancel = context.WithCancel(context.Background())
-		cancel()
-	})
-
-	return cancelled
-}
 
 // State is a disk-based database of the Matrix state. Note that methods that
 // get multiple events will ignore unknown events, while methods that get a
@@ -113,7 +95,6 @@ func (s *State) RoomState(roomID matrix.RoomID, typ event.Type, key string) (eve
 	}
 
 	if err := s.db.NodeFromPath(s.paths.rooms).Get(dbKey, &raw); err != nil {
-		log.Printf("key %q not found", dbKey)
 		return nil, err
 	}
 

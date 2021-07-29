@@ -31,8 +31,8 @@ func Error(msg string) string {
 func ErrorLabel(markup string) *gtk.Label {
 	errLabel := gtk.NewLabel(markup)
 	errLabel.SetUseMarkup(true)
-	errLabel.SetWrap(true)
 	errLabel.SetSelectable(true)
+	errLabel.SetWrap(true)
 	errLabel.SetWrapMode(pango.WrapWordChar)
 	errLabel.SetCSSClasses([]string{"error"})
 	errLabel.SetAttributes(Attrs(pango.NewAttrInsertHyphens(false)))

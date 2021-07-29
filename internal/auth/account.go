@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/auth/secret"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
@@ -33,7 +32,7 @@ func copyAccount(client *gotktrix.Client) (*Account, error) {
 
 	var avatarURL string
 	if mxc, _ := client.AvatarURL(client.UserID); mxc != nil {
-		avatarURL, _ = client.MediaThumbnailURL(*mxc, true, 64, 64, api.MediaThumbnailCrop)
+		avatarURL, _ = client.SquareThumbnail(*mxc, avatarSize)
 	}
 
 	return &Account{
