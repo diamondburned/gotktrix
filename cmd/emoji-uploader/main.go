@@ -9,13 +9,13 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/auth"
-	"github.com/diamondburned/gotktrix/internal/auth/syncbox"
-	"github.com/diamondburned/gotktrix/internal/components/errpopup"
+	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/app/auth"
+	"github.com/diamondburned/gotktrix/internal/app/auth/syncbox"
+	"github.com/diamondburned/gotktrix/internal/app/emojiview"
+	"github.com/diamondburned/gotktrix/internal/app/roomlist"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/roomlist"
 	"github.com/gotk3/gotk3/glib"
 )
 
@@ -39,45 +39,27 @@ func main() {
 	}
 }
 
-func activate(app *gtk.Application) {
-	cssutil.ApplyGlobalCSS()
+func activate(gtkapp *gtk.Application) {
+	app := app.Wrap(gtkapp)
+	app.Window.SetTitle("Emoji Uploader")
+	app.Window.Show()
 
-	header := gtk.NewHeaderBar()
-	header.SetShowTitleButtons(true)
-
-	spinner := gtk.NewSpinner()
-	spinner.Start()
-	spinner.SetSizeRequest(18, 18)
-	spinner.SetHAlign(gtk.AlignCenter)
-	spinner.SetVAlign(gtk.AlignCenter)
-
-	window := gtk.NewApplicationWindow(app)
-	window.SetDefaultSize(600, 400)
-	window.SetTitle("Emoji Uploader")
-	window.SetChild(spinner)
-	window.SetTitlebar(header)
-	window.Show()
-
-	authAssistant := auth.New(&window.Window)
+	authAssistant := auth.New(&app.Window.Window)
 	authAssistant.Show()
 	authAssistant.OnConnect(func(client *gotktrix.Client, acc *auth.Account) {
+		app.Client = client
+
 		go func() {
-			popup := syncbox.Open(window, client, acc)
+			popup := syncbox.Open(app, acc)
 			popup.QueueSetLabel("Getting rooms...")
 
 			rooms, err := client.Rooms()
 			if err != nil {
-				errpopup.Fatal(&window.Window, err)
+				app.Fatal(err)
 				return
 			}
 
 			glib.IdleAdd(func() {
-				app := &Application{
-					Application: app,
-					Window:      window,
-					Header:      header,
-					Client:      client,
-				}
 				ready(app, rooms)
 				popup.Close()
 			})
@@ -85,14 +67,7 @@ func activate(app *gtk.Application) {
 	})
 }
 
-type Application struct {
-	*gtk.Application
-	Window *gtk.ApplicationWindow
-	Header *gtk.HeaderBar
-	Client *gotktrix.Client
-}
-
-func ready(app *Application, rooms []matrix.RoomID) {
+func ready(app *app.Application, rooms []matrix.RoomID) {
 	list := roomlist.New(app.Client)
 	list.AddRooms(rooms)
 
@@ -101,14 +76,33 @@ func ready(app *Application, rooms []matrix.RoomID) {
 	listScroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	listScroll.SetChild(list)
 
+	emojis := emojiview.NewForUser(app)
+	emojis.SetHExpand(true)
+
+	emojiScroll := gtk.NewScrolledWindow()
+	emojiScroll.SetHExpand(true)
+	emojiScroll.SetChild(emojis)
+
 	flap := adw.NewFlap()
 	flap.SetFlap(listScroll)
-	flap.SetContent(gtk.NewLabel("Hello :)"))
+	flap.SetContent(emojiScroll)
 	flap.SetSwipeToOpen(true)
 	flap.SetSwipeToClose(true)
 	flap.SetFoldPolicy(adw.FlapFoldPolicyAuto)
 	flap.SetTransitionType(adw.FlapTransitionTypeOver)
 	flap.SetSeparator(gtk.NewSeparator(gtk.OrientationVertical))
+
+	list.OnRoom(func(roomID matrix.RoomID) {
+		if emojis != nil {
+			// Ensure that background work in the previous room is stopped.
+			emojis.Stop()
+		}
+
+		emojis = emojiview.NewForRoom(app, roomID)
+		emojis.SetHExpand(true)
+
+		flap.SetContent(emojis)
+	})
 
 	unflap := gtk.NewButtonFromIconName("document-properties-symbolic")
 	unflap.InitiallyUnowned.Connect("clicked", func() {

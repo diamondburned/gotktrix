@@ -9,9 +9,10 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
-type section struct {
+// Section is a room section, such as People or Favorites.
+type Section struct {
 	*gtk.Box
-	list *gtk.ListBox
+	List *gtk.ListBox
 
 	current matrix.RoomID
 	parent  *List
@@ -68,7 +69,7 @@ func revealIconName(rev bool) string {
 	return "go-next"
 }
 
-func newListSection(parent *List, name string) *section {
+func NewSection(parent *List, name string) Section {
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionBrowse)
 	list.SetActivateOnSingleClick(true)
@@ -99,9 +100,9 @@ func newListSection(parent *List, name string) *section {
 	box.Append(btn)
 	box.Append(rev)
 
-	section := section{
+	section := Section{
 		Box:    box,
-		list:   list,
+		List:   list,
 		parent: parent,
 	}
 
@@ -110,13 +111,13 @@ func newListSection(parent *List, name string) *section {
 		parent.setRoom(section.current)
 	})
 
-	return &section
+	return section
 }
 
 // Unselect unselects the list of the current section. If the given current room
 // ID is the same as what the list has, then nothing is done.
-func (s *section) Unselect(current matrix.RoomID) {
+func (s *Section) Unselect(current matrix.RoomID) {
 	if s.current != current {
-		s.list.UnselectAll()
+		s.List.UnselectAll()
 	}
 }

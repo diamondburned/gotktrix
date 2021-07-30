@@ -11,11 +11,15 @@ import (
 // AvatarSize is the size in pixels of the avatar.
 const AvatarSize = 32
 
-type room struct {
+// Room is a single room row.
+type Room struct {
 	*gtk.ListBoxRow
-	name    *gtk.Label
-	avatar  *adw.Avatar
-	section *section
+	Box *gtk.Box
+
+	Name   *gtk.Label
+	Avatar *adw.Avatar
+
+	section *Section
 }
 
 var avatarCSS = cssutil.Applier("roomlist-avatar", `
@@ -24,7 +28,8 @@ var avatarCSS = cssutil.Applier("roomlist-avatar", `
 	}
 `)
 
-func addEmptyRoom(section *section, roomID matrix.RoomID) room {
+// AddEmptyRoom adds an empty room with the given ID.
+func AddEmptyRoom(section *Section, roomID matrix.RoomID) Room {
 	nameLabel := gtk.NewLabel(string(roomID))
 	nameLabel.SetXAlign(0)
 	nameLabel.SetEllipsize(pango.EllipsizeEnd)
@@ -41,23 +46,24 @@ func addEmptyRoom(section *section, roomID matrix.RoomID) room {
 	row.SetChild(box)
 	row.SetName(string(roomID))
 
-	section.list.Insert(row, -1)
+	section.List.Insert(row, -1)
 
-	return room{
+	return Room{
 		ListBoxRow: row,
-		name:       nameLabel,
-		avatar:     adwAvatar,
+		Box:        box,
+		Name:       nameLabel,
+		Avatar:     adwAvatar,
 		section:    section,
 	}
 }
 
-func (r *room) move(dst *section) {
-	r.section.list.Remove(r)
+func (r *Room) move(dst *Section) {
+	r.section.List.Remove(r.ListBoxRow)
 	r.section = dst
-	r.section.list.Insert(r, -1)
+	r.section.List.Insert(r.ListBoxRow, -1)
 }
 
-func (r *room) SetLabel(text string) {
-	r.name.SetLabel(text)
-	r.avatar.SetName(text)
+func (r Room) SetLabel(text string) {
+	r.Name.SetLabel(text)
+	r.Avatar.SetName(text)
 }

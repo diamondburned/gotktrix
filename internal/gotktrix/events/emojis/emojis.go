@@ -4,9 +4,11 @@ package emojis
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/pkg/errors"
 )
 
@@ -18,6 +20,9 @@ type EmoticonEventData struct {
 // EmojiName describes the name of an emoji, which is surrounded by colons, such
 // as ":gnutroll:".
 type EmojiName string
+
+// Name returns the emoji name without the colons.
+func (n EmojiName) Name() string { return strings.Trim(string(n), ":") }
 
 // Emoji describes the information of an emoji.
 type Emoji struct {
@@ -80,3 +85,29 @@ func parseUserEmotesEvent(raw event.RawEvent) (event.Event, error) {
 
 // Type impleemnts event.Type.
 func (ev UserEmotesEvent) Type() event.Type { return UserEmotesEventType }
+
+// UserEmotes gets the current user's emojis.
+func UserEmotes(c *gotktrix.Client) (UserEmotesEvent, error) {
+	e, err := c.UserEvent(UserEmotesEventType)
+	if err != nil {
+		return UserEmotesEvent{}, err
+	}
+
+	return e.(UserEmotesEvent), nil
+}
+
+// RoomHasEmotes returns true if the room is known to have emojis.
+func RoomHasEmotes(c *gotktrix.Client, roomID matrix.RoomID) bool {
+	e, _ := RoomEmotes(c, roomID)
+	return len(e.Emoticons) > 0
+}
+
+// RoomEmotes gets the room's emojis.
+func RoomEmotes(c *gotktrix.Client, roomID matrix.RoomID) (RoomEmotesEvent, error) {
+	e, err := c.RoomState(roomID, UserEmotesEventType, "")
+	if err != nil {
+		return RoomEmotesEvent{}, nil
+	}
+
+	return e.(RoomEmotesEvent), nil
+}

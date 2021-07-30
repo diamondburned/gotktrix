@@ -9,9 +9,8 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/auth"
-	"github.com/diamondburned/gotktrix/internal/components/errpopup"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/app/auth"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
@@ -67,39 +66,34 @@ func newAccountGrid(account *auth.Account) gtk.Widgetter {
 
 // OpenThen is similar to Open, except the function does not block, but instead
 // will call f in the main event loop once it's done.
-func OpenThen(
-	parent *gtk.ApplicationWindow, client *gotktrix.Client, account *auth.Account, f func()) {
-
+func OpenThen(app *app.Application, acc *auth.Account, f func()) {
 	if f == nil {
 		panic("given callback must not be nil")
 	}
 
-	openThen(parent, account, client, f)
+	openThen(app, acc, f)
 }
 
 // Open shows a popup while opening the client in the background. Once the
 // client has successfully synchronized, the popup will close automatically.
 // Note that Open will block until the synchronization is done, so it should
 // only be called in a goroutine.
-func Open(parent *gtk.ApplicationWindow, client *gotktrix.Client, account *auth.Account) *Popup {
-	return openThen(parent, account, client, nil)
+func Open(app *app.Application, acc *auth.Account) *Popup {
+	return openThen(app, acc, nil)
 }
 
-func openThen(
-	parent *gtk.ApplicationWindow, acc *auth.Account, client *gotktrix.Client, f func()) *Popup {
-
+func openThen(app *app.Application, acc *auth.Account, f func()) *Popup {
 	syncCh := make(chan *api.SyncResponse, 1)
 	var popup *Popup
 
 	glib.IdleAdd(func() {
-		popup = Show(&parent.Window, acc)
-		app := parent.Application()
+		popup = Show(&app.Window.Window, acc)
 
 		go func() {
-			client.State.WaitForNextSync(syncCh)
+			app.Client.State.WaitForNextSync(syncCh)
 
-			if err := client.Open(); err != nil {
-				errpopup.Fatal(&parent.Window, err)
+			if err := app.Client.Open(); err != nil {
+				app.Fatal(err)
 				return
 			}
 
@@ -107,7 +101,7 @@ func openThen(
 				app.Connect("shutdown", func() {
 					log.Println("shutting down Matrix...")
 
-					if err := client.Close(); err != nil {
+					if err := app.Client.Close(); err != nil {
 						log.Println("failed to close loop:", err)
 					}
 

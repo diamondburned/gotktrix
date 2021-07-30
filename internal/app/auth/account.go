@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotktrix/internal/auth/secret"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/secret"
 	"github.com/pkg/errors"
 )
 

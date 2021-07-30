@@ -20,18 +20,18 @@ type List struct {
 	section sections
 
 	onRoom  func(matrix.RoomID)
-	rooms   map[matrix.RoomID]room
+	rooms   map[matrix.RoomID]Room
 	current matrix.RoomID
 }
 
 type sections struct {
-	rooms  *section
-	people *section
+	rooms  Section
+	people Section
 }
 
-func (s sections) each(f func(*section)) {
-	f(s.rooms)
-	f(s.people)
+func (s sections) each(f func(*Section)) {
+	f(&s.rooms)
+	f(&s.people)
 }
 
 var listCSS = cssutil.Applier("roomlist-list", `
@@ -52,11 +52,11 @@ func New(client *gotktrix.Client) *List {
 	roomList := List{
 		Box:    gtk.NewBox(gtk.OrientationVertical, 0),
 		client: client,
-		rooms:  make(map[matrix.RoomID]room),
+		rooms:  make(map[matrix.RoomID]Room),
 	}
 
-	roomList.section.rooms = newListSection(&roomList, "Rooms")
-	roomList.section.people = newListSection(&roomList, "People")
+	roomList.section.rooms = NewSection(&roomList, "Rooms")
+	roomList.section.people = NewSection(&roomList, "People")
 
 	roomList.Append(roomList.section.rooms)
 	roomList.Append(roomList.section.people)
@@ -93,11 +93,11 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 			willRetry = true
 		}
 
-		var r room
+		var r Room
 		if direct {
-			r = addEmptyRoom(l.section.people, roomID)
+			r = AddEmptyRoom(&l.section.people, roomID)
 		} else {
-			r = addEmptyRoom(l.section.rooms, roomID)
+			r = AddEmptyRoom(&l.section.rooms, roomID)
 		}
 
 		name, err := state.RoomName(roomID)
@@ -125,7 +125,7 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 		if e != nil {
 			avatarEv := e.(event.RoomAvatarEvent)
 			url, _ := state.SquareThumbnail(avatarEv.URL, AvatarSize*2)
-			imgutil.AsyncGET(context.TODO(), url, r.avatar.SetCustomImage)
+			imgutil.AsyncGET(context.TODO(), url, r.Avatar.SetCustomImage)
 		}
 	}
 
@@ -146,11 +146,11 @@ func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
 		if err == nil && e != nil {
 			avatarEv := e.(event.RoomAvatarEvent)
 			url, _ := l.client.SquareThumbnail(avatarEv.URL, AvatarSize*2)
-			imgutil.AsyncGET(context.TODO(), url, room.avatar.SetCustomImage)
+			imgutil.AsyncGET(context.TODO(), url, room.Avatar.SetCustomImage)
 		}
 
 		// Double-check that the room is in the correct section.
-		move := room.section == l.section.rooms && l.client.IsDirect(roomID)
+		move := room.section == &l.section.rooms && l.client.IsDirect(roomID)
 
 		roomName, _ := l.client.RoomName(roomID)
 
@@ -162,7 +162,7 @@ func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
 			if move {
 				// Room is now direct after querying API; move it to the right
 				// place.
-				room.move(l.section.people)
+				room.move(&l.section.people)
 			}
 		})
 	}
@@ -170,7 +170,7 @@ func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
 
 func (l *List) setRoom(id matrix.RoomID) {
 	l.current = id
-	l.section.each(func(s *section) {
+	l.section.each(func(s *Section) {
 		s.Unselect(l.current)
 	})
 
