@@ -166,6 +166,29 @@ func (n Node) Node(names ...string) Node {
 	return n
 }
 
+// SetIfNone sets the key into the database only if the key does not exist. This
+// method is useful primarily for filling up the cache with data fetched from
+// the API while data from /sync should be prioritized.
+func (n Node) SetIfNone(k string, v interface{}) error {
+	b, err := n.kv.Marshal(v)
+	if err != nil {
+		return errors.Wrap(err, "Failed to marshal")
+	}
+
+	key := convertKey(n.prefixes, k)
+
+	return wrapErr("failed to update db", n.TxUpdate(
+		func(n Node) error {
+			_, err := n.txn.Get(key)
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				return n.txn.Set(key, b)
+			}
+			return err
+		},
+	))
+}
+
+// Set sets the key into the database.
 func (n Node) Set(k string, v interface{}) error {
 	b, err := n.kv.Marshal(v)
 	if err != nil {
@@ -181,6 +204,8 @@ func (n Node) Set(k string, v interface{}) error {
 	))
 }
 
+// SetWithTTL sets the key into the database with time-to-live, or an expiry
+// duration.
 func (n Node) SetWithTTL(k string, v interface{}, ttl time.Duration) error {
 	b, err := n.kv.Marshal(v)
 	if err != nil {

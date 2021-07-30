@@ -1,6 +1,9 @@
 package roomsort
 
 import (
+	"unicode"
+	"unicode/utf8"
+
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 )
@@ -11,6 +14,70 @@ import (
 type PartialRoomLister interface {
 	FirstID() matrix.RoomID
 	LastID() matrix.RoomID
+}
+
+func popRune(str *string) rune {
+	r, sz := utf8.DecodeRuneInString(*str)
+	if sz == 0 {
+		return utf8.RuneError
+	}
+
+	*str = (*str)[sz:]
+	return r
+}
+
+// compareFold compares 2 strings in a case-insensitive manner. If the string is
+// prefixed with !, then it's put to last.
+func compareFold(i, j string) int {
+	for {
+		ir := popRune(&i)
+		jr := popRune(&j)
+
+		if ir == utf8.RuneError || jr == utf8.RuneError {
+			if i == "" && j != "" {
+				// len(i) < len(j)
+				return -1
+			}
+			if i != "" && j == "" {
+				// len(i) > len(j)
+				return 1
+			}
+			return 0
+		}
+
+		if ir == '!' {
+			return 1 // put last
+		}
+
+		if jr == '!' {
+			return -1 // put last
+		}
+
+		if eq := compareRuneFold(ir, jr); eq != 0 {
+			return eq
+		}
+	}
+}
+
+func compareRuneFold(i, j rune) int {
+	if i == j {
+		return 0
+	}
+
+	li := unicode.ToLower(i)
+	lj := unicode.ToLower(j)
+
+	if li != lj {
+		if li < lj {
+			return -1
+		}
+		return 1
+	}
+
+	if i < j {
+		return -1
+	}
+	return 1
 }
 
 // Comparer partially implements sort.Interface: it provides a Less function
@@ -27,7 +94,7 @@ type Comparer struct {
 // NewComparer creates a new comparer.
 func NewComparer(client *gotktrix.Client, mode SortMode) *Comparer {
 	return &Comparer{
-		client:      client.Offline(),
+		client:      client,
 		Mode:        mode,
 		roomDataMap: map[matrix.RoomID]interface{}{},
 	}
@@ -60,102 +127,116 @@ func (comparer *Comparer) InvalidateRoomCache() {
 
 // Less returns true if the room with iID should be before the one with jID.
 func (comparer *Comparer) Less(iID, jID matrix.RoomID) bool {
+	return comparer.Compare(iID, jID) == -1
+}
+
+// Compare behaves similarly to strings.Compare. Most users should use Less
+// instead of Compare; this method only exists to satisfy bad C APIs.
+//
+// As the API is similar to strings.Compare, 0 is returned if the position is
+// equal; -1 is returned if iID's position is less than (above/before) jID, and
+// 1 is returned if iID's position is more than (below/after) jID.
+func (comparer *Comparer) Compare(iID, jID matrix.RoomID) int {
+	if iID == jID {
+		return 0
+	}
+
 	switch ipos := comparer.positions[iID]; ipos.Anchor {
 	case AnchorAbove:
 		if ipos.RelID == jID {
-			// i is above (before) j.
-			return true
+			return -1
 		}
 	case AnchorBelow:
 		if ipos.RelID == jID {
-			// i is below (after) j.
-			return false
+			return 1
 		}
 	case AnchorTop:
-		if comparer.List != nil && jID == comparer.List.FirstID() {
-			// j is the first room, so place i before it.
-			return true
-		}
+		return -1 // always before
+
+		// if comparer.List != nil && jID == comparer.List.FirstID() {
+		// 	return -1
+		// }
 	case AnchorBottom:
-		if comparer.List != nil && jID == comparer.List.LastID() {
-			// j is the last room, so place i after it.
-			return false
-		}
+		return 1 // always after
+
+		// if comparer.List != nil && jID == comparer.List.LastID() {
+		// 	return false
+		// }
 	}
 
-	return comparer.less(iID, jID)
+	return comparer.compare(iID, jID)
 }
 
-func (comparer *Comparer) roomTimestamp(id matrix.RoomID) (int64, bool) {
+func (comparer *Comparer) roomTimestamp(id matrix.RoomID) int64 {
 	if v, ok := comparer.roomDataMap[id]; ok {
-		if v == nil {
-			return 0, false
-		}
-
-		return v.(int64), true
+		i, _ := v.(int64)
+		return i
 	}
 
 	events, err := comparer.client.RoomTimeline(id)
 	if err != nil || len(events) == 0 {
 		// Set something just so we don't repetitively hit the API.
 		comparer.roomDataMap[id] = nil
-		return 0, false
+		return 0
 	}
 
 	ts := int64(events[0].OriginServerTime())
 	comparer.roomDataMap[id] = ts
 
-	return ts, true
+	return ts
 }
 
-func (comparer *Comparer) roomName(id matrix.RoomID) (string, bool) {
+func (comparer *Comparer) roomName(id matrix.RoomID) string {
 	if v, ok := comparer.roomDataMap[id]; ok {
-		if v == nil {
-			return "", false
-		}
-
-		return v.(string), true
+		s, _ := v.(string)
+		return s
 	}
 
 	name, err := comparer.client.RoomName(id)
 	if err != nil {
 		// Set something just so we don't repetitively hit the API.
 		comparer.roomDataMap[id] = nil
-		return "", false
+		return ""
 	}
 
 	comparer.roomDataMap[id] = name
-	return name, true
+	return name
 }
 
-func (comparer *Comparer) less(iID, jID matrix.RoomID) bool {
+func (comparer *Comparer) compare(iID, jID matrix.RoomID) int {
 	switch comparer.Mode {
 	case SortActivity:
-		its, iok := comparer.roomTimestamp(iID)
-		jts, jok := comparer.roomTimestamp(jID)
+		its := comparer.roomTimestamp(iID)
+		jts := comparer.roomTimestamp(jID)
 
-		if !iok {
-			return false
+		if its == 0 {
+			return 1 // put to last
 		}
-		if !jok {
-			return true
+		if jts == 0 {
+			return -1 // put to last
 		}
 
-		return its < jts
+		if its == jts {
+			return 0
+		}
+		if its < jts {
+			return -1
+		}
+		return 1
 
 	case SortAlphabetically:
-		iname, iok := comparer.roomName(iID)
-		jname, jok := comparer.roomName(jID)
+		iname := comparer.roomName(iID)
+		jname := comparer.roomName(jID)
 
-		if !iok {
-			return false
+		if iname == "" {
+			return 1 // put to last
 		}
-		if !jok {
-			return true
+		if jname == "" {
+			return -1 // put to iast
 		}
 
-		return iname < jname
+		return compareFold(iname, jname)
 	}
 
-	return false
+	return 0
 }

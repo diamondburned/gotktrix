@@ -373,7 +373,7 @@ func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, err
 		return nil
 	}
 
-	if err := c.State.EachRoomState(roomID, event.TypeRoomMember, onEach); err == nil {
+	if err := c.State.EachRoomStateLen(roomID, event.TypeRoomMember, onEach); err == nil {
 		if events != nil {
 			return events, nil
 		}
@@ -382,5 +382,162 @@ func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, err
 	// prev is optional.
 	prev, _ := c.State.RoomPreviousBatch(roomID)
 
-	return c.Client.RoomMembers(roomID, api.RoomMemberFilter{At: prev})
+	rawEvs, err := c.Client.RoomMembers(roomID, api.RoomMemberFilter{At: prev})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query RoomMembers from API")
+	}
+
+	// Save the obtained events into the state cache.
+	c.State.AddRoomEvents(roomID, rawEvs)
+
+	events = make([]event.RoomMemberEvent, 0, len(rawEvs))
+
+	for i := range rawEvs {
+		e, err := rawEvs[i].Parse()
+		if err != nil {
+			continue
+		}
+
+		ev, ok := e.(event.RoomMemberEvent)
+		if !ok {
+			continue
+		}
+
+		events = append(events, ev)
+	}
+
+	return events, nil
+}
+
+// MemberName describes a member name.
+type MemberName struct {
+	ID        matrix.UserID
+	Name      string
+	Ambiguous bool
+}
+
+// MemberName calculates the display name of a member. Note that a user joining
+// might invalidate some names if they share the same display name as
+// disambiguation will become necessary.
+//
+// Use the Client.MemberNames variant when generating member name for multiple
+// users to reduce duplicate work.
+func (c *Client) MemberName(roomID matrix.RoomID, userID matrix.UserID) (MemberName, error) {
+	names, err := c.MemberNames(roomID, []matrix.UserID{userID})
+	if err != nil {
+		return MemberName{}, err
+	}
+	return names[0], nil
+}
+
+// MemberNames calculates the display name of all the users provided.
+func (c *Client) MemberNames(roomID matrix.RoomID, userIDs []matrix.UserID) ([]MemberName, error) {
+	result := make([]MemberName, 0, len(userIDs))
+
+	for _, userID := range userIDs {
+		name := MemberName{
+			ID: userID,
+		}
+
+		e, _ := c.RoomState(roomID, event.TypeRoomMember, string(userID))
+		if e == nil {
+			name.Name = string(userID)
+			result = append(result, name)
+			continue
+		}
+
+		memberEvent := e.(event.RoomMemberEvent)
+		if memberEvent.DisplayName == nil || *memberEvent.DisplayName == "" {
+			name.Name = string(userID)
+			result = append(result, name)
+			continue
+		}
+
+		name.Name = *memberEvent.DisplayName
+		result = append(result, name)
+	}
+
+	// Hash all names to check for duplicates.
+	names := make(map[string]int, len(userIDs))
+
+	for i, name := range result {
+		// Mark any collisions within the given user list.
+		if j, ok := names[name.Name]; ok {
+			result[j].Ambiguous = true
+		}
+
+		// This will override the collided user, if any, but since we've already
+		// marked it, we should be fine.
+		names[name.Name] = i
+	}
+
+	onMember := func(v event.Event, _ int) error {
+		ev, ok := v.(event.RoomMemberEvent)
+		if !ok || ev.DisplayName == nil {
+			return nil
+		}
+
+		if i, ok := names[*ev.DisplayName]; ok {
+			name := &result[i]
+
+			if !name.Ambiguous && name.ID != ev.UserID {
+				// Collide. Mark as ambiguous.
+				name.Ambiguous = true
+			}
+		}
+
+		return nil
+	}
+
+	// Reiterate and check for ambiguous names. Ambiguous checking isn't super
+	// important, so we can skip it.
+	c.State.EachRoomStateLen(roomID, event.TypeRoomMember, onMember)
+
+	return result, nil
+}
+
+// IsDirect returns true if the given room is a direct messaging room.
+func (c *Client) IsDirect(roomID matrix.RoomID) bool {
+	if is, ok := c.State.IsDirect(roomID); ok {
+		return is
+	}
+
+	u, err := c.Whoami()
+	if err != nil {
+		return false
+	}
+
+	if e, err := c.Client.DMRooms(u); err == nil {
+		c.State.UseDirectEvent(e)
+		return roomIsDM(e, roomID)
+	}
+
+	// Resort to querying the room state directly from the API. State.IsDirect
+	// already queries RoomState on itself, so we don't need to do that.
+	r, err := c.Client.Client.RoomState(roomID, event.TypeRoomMember, string(u))
+	if err != nil {
+		return false
+	}
+
+	// Save the event we've fetched into the state.
+	c.State.AddRoomEvents(roomID, []event.RawEvent{*r})
+
+	e, err := r.Parse()
+	if err != nil {
+		return false
+	}
+
+	ev, _ := e.(event.RoomMemberEvent)
+	return ev.IsDirect
+}
+
+func roomIsDM(dir event.DirectEvent, roomID matrix.RoomID) bool {
+	for _, ids := range dir {
+		for _, id := range ids {
+			if id == roomID {
+				return true
+			}
+		}
+	}
+	return false
 }

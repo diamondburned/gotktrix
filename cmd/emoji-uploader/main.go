@@ -15,6 +15,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/roomlist"
 	"github.com/gotk3/gotk3/glib"
 )
 
@@ -51,7 +52,7 @@ func activate(app *gtk.Application) {
 	spinner.SetVAlign(gtk.AlignCenter)
 
 	window := gtk.NewApplicationWindow(app)
-	window.SetDefaultSize(450, 300)
+	window.SetDefaultSize(600, 400)
 	window.SetTitle("Emoji Uploader")
 	window.SetChild(spinner)
 	window.SetTitlebar(header)
@@ -92,10 +93,11 @@ type Application struct {
 }
 
 func ready(app *Application, rooms []matrix.RoomID) {
-	list := NewRoomList(app.Client)
+	list := roomlist.New(app.Client)
 	list.AddRooms(rooms)
 
 	listScroll := gtk.NewScrolledWindow()
+	listScroll.SetHExpand(false)
 	listScroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	listScroll.SetChild(list)
 

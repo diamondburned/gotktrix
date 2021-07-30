@@ -13,6 +13,8 @@ import (
 type dbPaths struct {
 	user      db.NodePath
 	rooms     db.NodePath
+	directs   db.NodePath
+	summaries db.NodePath
 	timelines db.NodePath
 }
 
@@ -20,11 +22,13 @@ func newDBPaths(topPath db.NodePath) dbPaths {
 	return dbPaths{
 		user:      topPath.Tail("user"),
 		rooms:     topPath.Tail("rooms"),
+		directs:   topPath.Tail("directs"),
+		summaries: topPath.Tail("summaries"),
 		timelines: topPath.Tail("timelines"),
 	}
 }
 
-func setRawEvent(n db.Node, roomID matrix.RoomID, raw *event.RawEvent) {
+func setRawEvent(n db.Node, roomID matrix.RoomID, raw *event.RawEvent, state bool) {
 	raw.RoomID = roomID
 
 	var dbKey string
@@ -34,12 +38,21 @@ func setRawEvent(n db.Node, roomID matrix.RoomID, raw *event.RawEvent) {
 		dbKey = string(raw.Type)
 	}
 
-	if err := n.Set(dbKey, raw); err != nil {
+	var err error
+	if state {
+		err = n.Set(dbKey, raw)
+	} else {
+		err = n.SetIfNone(dbKey, raw)
+	}
+
+	if err != nil {
 		log.Printf("failed to set Matrix event for room %q: %v", roomID, err)
 	}
 }
 
-func (p *dbPaths) setRaws(n db.Node, roomID matrix.RoomID, raws []event.RawEvent) {
+func (p *dbPaths) setRaws(
+	n db.Node, roomID matrix.RoomID, raws []event.RawEvent, state bool) {
+
 	if roomID != "" {
 		n = n.FromPath(p.rooms.Tail(string(roomID)))
 	} else {
@@ -47,11 +60,13 @@ func (p *dbPaths) setRaws(n db.Node, roomID matrix.RoomID, raws []event.RawEvent
 	}
 
 	for i := range raws {
-		setRawEvent(n, roomID, &raws[i])
+		setRawEvent(n, roomID, &raws[i], state)
 	}
 }
 
-func (p *dbPaths) setStrippeds(n db.Node, roomID matrix.RoomID, raws []event.StrippedEvent) {
+func (p *dbPaths) setStrippeds(
+	n db.Node, roomID matrix.RoomID, raws []event.StrippedEvent, state bool) {
+
 	if roomID != "" {
 		n = n.FromPath(p.rooms.Tail(string(roomID)))
 	} else {
@@ -59,7 +74,17 @@ func (p *dbPaths) setStrippeds(n db.Node, roomID matrix.RoomID, raws []event.Str
 	}
 
 	for i := range raws {
-		setRawEvent(n, roomID, &raws[i].RawEvent)
+		setRawEvent(n, roomID, &raws[i].RawEvent, state)
+	}
+}
+
+func (p *dbPaths) setSummary(n db.Node, roomID matrix.RoomID, s api.SyncRoomSummary) {
+	if roomID == "" {
+		return // unexpecting
+	}
+
+	if err := n.FromPath(p.summaries).Set(string(roomID), &s); err != nil {
+		log.Printf("failed to set Matrix room summary for room %q: %v", roomID, err)
 	}
 }
 
@@ -111,5 +136,20 @@ func (p *dbPaths) deleteTimeline(n db.Node, roomID matrix.RoomID) {
 
 	if err := n.Drop(); err != nil {
 		log.Printf("failed to delete Matrix timeline for room %q: %v", roomID, err)
+	}
+}
+
+func (p *dbPaths) setDirect(n db.Node, roomID matrix.RoomID, direct bool) {
+	n = n.FromPath(p.directs)
+
+	var err error
+	if direct {
+		err = n.Set(string(roomID), struct{}{})
+	} else {
+		err = n.Delete(string(roomID))
+	}
+
+	if err != nil {
+		log.Printf("failed to save direct room %q: %v", roomID, err)
 	}
 }
