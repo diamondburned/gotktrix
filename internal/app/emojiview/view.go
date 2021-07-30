@@ -1,6 +1,9 @@
 package emojiview
 
 import (
+	"strings"
+	"time"
+
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -13,6 +16,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
+	"github.com/gotk3/gotk3/glib"
 	"github.com/pkg/errors"
 )
 
@@ -24,6 +28,7 @@ type View struct {
 	list *gtk.ListBox
 	name *gtk.Label
 
+	search string
 	emojis map[emojis.EmojiName]emoji
 	roomID matrix.RoomID // empty if user, constant
 
@@ -40,7 +45,7 @@ var boxCSS = cssutil.Applier("emojiview-box", `
 	.emojiview-box .emojiview-name {
 		margin: 0 8px;
 	}
-	.emojiview-box .emojiview-actions {
+	.emojiview-box .emojiview-rightbox {
 		margin-bottom: 8px;
 	}
 `)
@@ -63,6 +68,7 @@ func NewForUser(app *app.Application) *View {
 
 func new(app *app.Application, roomID matrix.RoomID) *View {
 	list := gtk.NewListBox()
+	list.SetShowSeparators(true)
 	list.SetSelectionMode(gtk.SelectionMultiple)
 	list.SetActivateOnSingleClick(false)
 	list.SetPlaceholder(gtk.NewLabel("No emojis yet..."))
@@ -82,17 +88,33 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 	boxLabel.SetXAlign(0)
 	boxLabel.SetAttributes(nameAttrs)
 
+	busy := gtk.NewSpinner()
+	busy.Stop()
+	busy.Hide()
+
 	buttonBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	buttonBox.SetCSSClasses([]string{"linked", "emojiview-actions"})
+	buttonBox.SetCSSClasses([]string{"linked"})
 	buttonBox.Append(delButton)
 	buttonBox.Append(addButton)
 
-	topBox := gtk.NewBox(gtk.OrientationHorizontal, 4)
-	topBox.Append(boxLabel)
-	topBox.Append(buttonBox)
+	rightBox := gtk.NewBox(gtk.OrientationHorizontal, 5)
+	rightBox.SetCSSClasses([]string{"emojiview-rightbox"})
+	rightBox.SetHAlign(gtk.AlignEnd)
+	rightBox.Append(busy)
+	rightBox.Append(buttonBox)
+
+	// Use a leaflet here and make it behave like a box.
+	top := gtk.NewFlowBox()
+	top.Insert(boxLabel, -1)
+	top.Insert(rightBox, -1)
+	top.SetActivateOnSingleClick(false)
+	top.SetSelectionMode(gtk.SelectionNone)
+	top.SetColumnSpacing(5)
+	top.SetMinChildrenPerLine(1)
+	top.SetMaxChildrenPerLine(2)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
-	box.Append(topBox)
+	box.Append(top)
 	box.Append(list)
 	boxCSS(box)
 
@@ -121,6 +143,22 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 
 	view.InvalidateName()
 	view.Invalidate()
+
+	list.SetFilterFunc(func(row *gtk.ListBoxRow) bool {
+		return view.search == "" || strings.Contains(row.Name(), view.search)
+	})
+
+	delButton.Connect("clicked", func() {
+		busy.Start()
+		busy.Show()
+
+		list.SelectedForeach(func(list *gtk.ListBox, row *gtk.ListBoxRow) {
+			delete(view.emojis, emojis.EmojiName(row.Name()))
+			list.Remove(row)
+		})
+
+		view.syncEmojis(busy)
+	})
 
 	return view
 }
@@ -162,6 +200,54 @@ func (v *View) Invalidate() {
 	}
 
 	v.useEmoticonEvent(e)
+}
+
+// ToData converts View's internal state to an EmoticonEventData type.
+func (v *View) ToData() emojis.EmoticonEventData {
+	emoticons := make(map[emojis.EmojiName]emojis.Emoji, len(v.emojis))
+
+	for name, emoji := range v.emojis {
+		emoticons[name] = emojis.Emoji{
+			URL: emoji.mxc,
+		}
+	}
+
+	return emojis.EmoticonEventData{
+		Emoticons: emoticons,
+	}
+}
+
+func (v *View) syncEmojis(busy *gtk.Spinner) {
+	ctx := v.stop.Context()
+	client := v.client.WithContext(ctx)
+
+	go func() {
+		defer glib.IdleAdd(func() {
+			busy.Stop()
+			busy.Hide()
+		})
+
+		u, err := client.Whoami()
+		if err != nil {
+			v.app.Error(errors.Wrap(err, "whoami error"))
+			return
+		}
+
+		ev := v.ToData()
+
+		if v.roomID != "" {
+			err = client.ClientConfigRoomSet(u, v.roomID, string(emojis.RoomEmotesEventType), ev)
+		} else {
+			err = client.ClientConfigSet(u, string(emojis.RoomEmotesEventType), ev)
+		}
+
+		if err != nil {
+			v.app.Error(errors.Wrap(err, "failed to set emojis config"))
+			return
+		}
+
+		time.Sleep(5 * time.Second)
+	}()
 }
 
 func (v *View) onlineFetch() {
