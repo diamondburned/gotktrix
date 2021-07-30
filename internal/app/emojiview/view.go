@@ -234,7 +234,7 @@ func (v *View) syncEmojis(busy *gtk.Spinner) {
 		if v.roomID != "" {
 			err = client.ClientConfigRoomSet(v.roomID, string(emojis.RoomEmotesEventType), ev)
 		} else {
-			err = client.ClientConfigSet(string(emojis.RoomEmotesEventType), ev)
+			err = client.ClientConfigSet(string(emojis.UserEmotesEventType), ev)
 		}
 
 		if err != nil {
