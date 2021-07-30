@@ -80,6 +80,7 @@ func ready(app *app.Application, rooms []matrix.RoomID) {
 	emojis.SetHExpand(true)
 
 	emojiScroll := gtk.NewScrolledWindow()
+	emojiScroll.SetSizeRequest(250, -1)
 	emojiScroll.SetHExpand(true)
 	emojiScroll.SetChild(emojis)
 

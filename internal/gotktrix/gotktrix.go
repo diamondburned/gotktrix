@@ -327,14 +327,9 @@ func (c *Client) UserEvent(typ event.Type) (event.Event, error) {
 		return nil, err
 	}
 
-	uID, err := c.Whoami()
-	if err != nil {
-		return nil, errors.Wrap(err, "whoami error")
-	}
-
 	raw := event.RawEvent{Type: typ}
 
-	if err := c.ClientConfig(uID, string(typ), &raw.Content); err != nil {
+	if err := c.ClientConfig(string(typ), &raw.Content); err != nil {
 		return nil, errors.Wrap(err, "failed to get client config")
 	}
 
@@ -502,14 +497,14 @@ func (c *Client) IsDirect(roomID matrix.RoomID) bool {
 		return is
 	}
 
+	if e, err := c.Client.DMRooms(); err == nil {
+		c.State.UseDirectEvent(e)
+		return roomIsDM(e, roomID)
+	}
+
 	u, err := c.Whoami()
 	if err != nil {
 		return false
-	}
-
-	if e, err := c.Client.DMRooms(u); err == nil {
-		c.State.UseDirectEvent(e)
-		return roomIsDM(e, roomID)
 	}
 
 	// Resort to querying the room state directly from the API. State.IsDirect

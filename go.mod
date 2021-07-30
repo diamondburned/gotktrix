@@ -5,7 +5,7 @@ go 1.17
 // replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix 8e65308220d2779adf31f1575d77e2d02ff98a89
 
 require (
-	github.com/chanbakjsd/gotrix v0.3.0
+	github.com/chanbakjsd/gotrix v0.3.1-0.20210730082524-488f3af06fac
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgraph-io/badger/v3 v3.2103.0
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210726010501-6bd075859e59

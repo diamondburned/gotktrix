@@ -2,9 +2,9 @@ package emojiview
 
 import (
 	"strings"
-	"time"
 
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -152,10 +152,10 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 		busy.Start()
 		busy.Show()
 
-		list.SelectedForeach(func(list *gtk.ListBox, row *gtk.ListBoxRow) {
+		for _, row := range list.SelectedRows() {
 			delete(view.emojis, emojis.EmojiName(row.Name()))
-			list.Remove(row)
-		})
+			list.Remove(&row)
+		}
 
 		view.syncEmojis(busy)
 	})
@@ -221,32 +221,26 @@ func (v *View) syncEmojis(busy *gtk.Spinner) {
 	ctx := v.stop.Context()
 	client := v.client.WithContext(ctx)
 
+	ev := v.ToData()
+	spew.Dump(ev)
+
 	go func() {
 		defer glib.IdleAdd(func() {
 			busy.Stop()
 			busy.Hide()
 		})
 
-		u, err := client.Whoami()
-		if err != nil {
-			v.app.Error(errors.Wrap(err, "whoami error"))
-			return
-		}
-
-		ev := v.ToData()
-
+		var err error
 		if v.roomID != "" {
-			err = client.ClientConfigRoomSet(u, v.roomID, string(emojis.RoomEmotesEventType), ev)
+			err = client.ClientConfigRoomSet(v.roomID, string(emojis.RoomEmotesEventType), ev)
 		} else {
-			err = client.ClientConfigSet(u, string(emojis.RoomEmotesEventType), ev)
+			err = client.ClientConfigSet(string(emojis.RoomEmotesEventType), ev)
 		}
 
 		if err != nil {
 			v.app.Error(errors.Wrap(err, "failed to set emojis config"))
 			return
 		}
-
-		time.Sleep(5 * time.Second)
 	}()
 }
 
