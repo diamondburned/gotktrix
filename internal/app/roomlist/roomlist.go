@@ -17,21 +17,17 @@ type List struct {
 	*gtk.Box
 	client *gotktrix.Client
 
-	section sections
+	section struct {
+		rooms  *Section
+		people *Section
+	}
+
+	sections []*Section
+	search   string
 
 	onRoom  func(matrix.RoomID)
 	rooms   map[matrix.RoomID]Room
 	current matrix.RoomID
-}
-
-type sections struct {
-	rooms  Section
-	people Section
-}
-
-func (s sections) each(f func(*Section)) {
-	f(&s.rooms)
-	f(&s.people)
 }
 
 var listCSS = cssutil.Applier("roomlist-list", `
@@ -53,21 +49,49 @@ func New(client *gotktrix.Client) *List {
 		Box:    gtk.NewBox(gtk.OrientationVertical, 0),
 		client: client,
 		rooms:  make(map[matrix.RoomID]Room),
+		sections: []*Section{
+			NewSection("Rooms"),
+			NewSection("People"),
+		},
 	}
 
-	roomList.section.rooms = NewSection(&roomList, "Rooms")
-	roomList.section.people = NewSection(&roomList, "People")
+	roomList.section.rooms = roomList.sections[0]
+	roomList.section.people = roomList.sections[1]
 
-	roomList.Append(roomList.section.rooms)
-	roomList.Append(roomList.section.people)
+	for _, section := range roomList.sections {
+		section.SetParentList(&roomList)
+		roomList.Append(section)
+	}
+
 	listCSS(roomList)
-
 	return &roomList
+}
+
+func (l *List) Search(str string) {
+	l.search = str
+
+	for _, s := range l.sections {
+		s.List.InvalidateFilter()
+	}
 }
 
 // OnRoom sets the function to be called when a room is selected.
 func (l *List) OnRoom(f func(matrix.RoomID)) {
 	l.onRoom = f
+}
+
+// PrependSection prepends the given section into the list.
+func (l *List) PrependSection(s *Section) {
+	l.Prepend(s)
+	l.sections = append([]*Section{s}, l.sections...)
+	s.SetParentList(l)
+}
+
+// AppendSection appends the given section into the list.
+func (l *List) AppendSection(s *Section) {
+	l.Append(s)
+	l.sections = append(l.sections, s)
+	s.SetParentList(l)
 }
 
 // AddRooms adds the rooms with the given IDs.
@@ -95,9 +119,9 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 
 		var r Room
 		if direct {
-			r = AddEmptyRoom(&l.section.people, roomID)
+			r = AddEmptyRoom(l.section.people, roomID)
 		} else {
-			r = AddEmptyRoom(&l.section.rooms, roomID)
+			r = AddEmptyRoom(l.section.rooms, roomID)
 		}
 
 		name, err := state.RoomName(roomID)
@@ -150,7 +174,7 @@ func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
 		}
 
 		// Double-check that the room is in the correct section.
-		move := room.section == &l.section.rooms && l.client.IsDirect(roomID)
+		move := room.section == l.section.rooms && l.client.IsDirect(roomID)
 
 		roomName, _ := l.client.RoomName(roomID)
 
@@ -162,7 +186,7 @@ func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
 			if move {
 				// Room is now direct after querying API; move it to the right
 				// place.
-				room.move(&l.section.people)
+				room.move(l.section.people)
 			}
 		})
 	}
@@ -170,9 +194,10 @@ func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
 
 func (l *List) setRoom(id matrix.RoomID) {
 	l.current = id
-	l.section.each(func(s *Section) {
+
+	for _, s := range l.sections {
 		s.Unselect(l.current)
-	})
+	}
 
 	if l.onRoom != nil {
 		l.onRoom(id)

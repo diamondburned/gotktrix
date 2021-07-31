@@ -1,10 +1,16 @@
 package emojiview
 
 import (
+	"bufio"
+	"context"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -15,6 +21,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/uploadutil"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
 	"github.com/gotk3/gotk3/glib"
 	"github.com/pkg/errors"
@@ -27,6 +34,7 @@ type View struct {
 	*adw.Clamp
 	list *gtk.ListBox
 	name *gtk.Label
+	sync *gtk.Button
 
 	search string
 	emojis map[emojis.EmojiName]emoji
@@ -92,16 +100,20 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 	busy.Stop()
 	busy.Hide()
 
-	buttonBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	buttonBox.SetCSSClasses([]string{"linked"})
-	buttonBox.Append(delButton)
-	buttonBox.Append(addButton)
+	actionBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	actionBox.SetCSSClasses([]string{"linked"})
+	actionBox.Append(delButton)
+	actionBox.Append(addButton)
+
+	syncButton := newActionButton("Sync", "document-save-symbolic")
+	syncButton.SetSensitive(false)
 
 	rightBox := gtk.NewBox(gtk.OrientationHorizontal, 5)
 	rightBox.SetCSSClasses([]string{"emojiview-rightbox"})
 	rightBox.SetHAlign(gtk.AlignEnd)
 	rightBox.Append(busy)
-	rightBox.Append(buttonBox)
+	rightBox.Append(actionBox)
+	rightBox.Append(syncButton)
 
 	// Use a leaflet here and make it behave like a box.
 	top := gtk.NewFlowBox()
@@ -133,6 +145,7 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 		Clamp: clamp,
 		list:  list,
 		name:  boxLabel,
+		sync:  syncButton,
 
 		emojis: map[emojis.EmojiName]emoji{},
 		roomID: roomID,
@@ -148,14 +161,23 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 		return view.search == "" || strings.Contains(row.Name(), view.search)
 	})
 
-	delButton.Connect("clicked", func() {
-		busy.Start()
-		busy.Show()
+	addButton.Connect("clicked", func() {
+		chooser := newFileChooser(&app.Window.Window, view.addEmotesFromFiles)
+		chooser.Show()
+	})
 
+	delButton.Connect("clicked", func() {
 		for _, row := range list.SelectedRows() {
 			delete(view.emojis, emojis.EmojiName(row.Name()))
 			list.Remove(&row)
 		}
+
+		syncButton.SetSensitive(true)
+	})
+
+	syncButton.Connect("clicked", func() {
+		busy.Start()
+		busy.Show()
 
 		view.syncEmojis(busy)
 	})
@@ -202,48 +224,6 @@ func (v *View) Invalidate() {
 	v.useEmoticonEvent(e)
 }
 
-// ToData converts View's internal state to an EmoticonEventData type.
-func (v *View) ToData() emojis.EmoticonEventData {
-	emoticons := make(map[emojis.EmojiName]emojis.Emoji, len(v.emojis))
-
-	for name, emoji := range v.emojis {
-		emoticons[name] = emojis.Emoji{
-			URL: emoji.mxc,
-		}
-	}
-
-	return emojis.EmoticonEventData{
-		Emoticons: emoticons,
-	}
-}
-
-func (v *View) syncEmojis(busy *gtk.Spinner) {
-	ctx := v.stop.Context()
-	client := v.client.WithContext(ctx)
-
-	ev := v.ToData()
-	spew.Dump(ev)
-
-	go func() {
-		defer glib.IdleAdd(func() {
-			busy.Stop()
-			busy.Hide()
-		})
-
-		var err error
-		if v.roomID != "" {
-			err = client.ClientConfigRoomSet(v.roomID, string(emojis.RoomEmotesEventType), ev)
-		} else {
-			err = client.ClientConfigSet(string(emojis.UserEmotesEventType), ev)
-		}
-
-		if err != nil {
-			v.app.Error(errors.Wrap(err, "failed to set emojis config"))
-			return
-		}
-	}()
-}
-
 func (v *View) onlineFetch() {
 	ctx := v.stop.Context()
 	client := v.client.WithContext(ctx)
@@ -267,6 +247,58 @@ func fetchEmotes(client *gotktrix.Client, roomID matrix.RoomID) (emojis.Emoticon
 		e, err := emojis.UserEmotes(client)
 		return e.EmoticonEventData, err
 	}
+}
+
+// ToData converts View's internal state to an EmoticonEventData type.
+func (v *View) ToData() emojis.EmoticonEventData {
+	emoticons := make(map[emojis.EmojiName]emojis.Emoji, len(v.emojis))
+
+	for name, emoji := range v.emojis {
+		emoticons[name] = emojis.Emoji{
+			URL: emoji.mxc,
+		}
+	}
+
+	return emojis.EmoticonEventData{
+		Emoticons: emoticons,
+	}
+}
+
+func (v *View) syncEmojis(busy *gtk.Spinner) {
+	ctx := v.stop.Context()
+	client := v.client.WithContext(ctx)
+
+	ev := v.ToData()
+
+	go func() {
+		defer glib.IdleAdd(func() {
+			busy.Stop()
+			busy.Hide()
+		})
+
+		var err error
+		if v.roomID != "" {
+			err = client.ClientConfigRoomSet(v.roomID, string(emojis.RoomEmotesEventType), ev)
+		} else {
+			err = client.ClientConfigSet(string(emojis.UserEmotesEventType), ev)
+		}
+
+		if err != nil {
+			v.app.Error(errors.Wrap(err, "failed to set emojis config"))
+			return
+		}
+	}()
+}
+
+func (v *View) renameEmoji(old, new emojis.EmojiName) {
+	emoji := v.emojis[old]
+	emoji.Rename(new)
+
+	delete(v.emojis, old)
+	v.emojis[new] = emoji
+
+	v.list.InvalidateSort()
+	v.sync.SetSensitive(true)
 }
 
 func (v *View) useEmoticonEvent(ev emojis.EmoticonEventData) {
@@ -309,13 +341,113 @@ func (v *View) useEmoticonEvent(ev emojis.EmoticonEventData) {
 
 	// Add missing emojis.
 	for name, emoji := range ev.Emoticons {
-		row := newEmptyEmoji(name)
-		row.mxc = emoji.URL
-
-		url, _ := v.client.SquareThumbnail(row.mxc, EmojiSize*2)
-		imgutil.AsyncGET(v.stop.Context(), url, row.emoji.SetFromPaintable)
-
-		v.list.Insert(row, -1)
-		v.emojis[name] = row
+		v.addEmoji(name, emoji.URL)
 	}
+}
+
+func (v *View) addEmoji(name emojis.EmojiName, mxc matrix.URL) emoji {
+	emoji := newEmptyEmoji(name)
+	emoji.mxc = mxc
+
+	url, _ := v.client.SquareThumbnail(emoji.mxc, EmojiSize*2)
+	imgutil.AsyncGET(v.stop.Context(), url, emoji.emoji.SetFromPaintable)
+
+	v.list.Insert(emoji, -1)
+	v.emojis[name] = emoji
+
+	return emoji
+}
+
+func (v *View) addEmotesFromFiles(paths []string) {
+	// Create pseudo-emojis.
+	for _, path := range paths {
+		v.addEmotesFromfile(path)
+	}
+}
+
+const bufferSize = 1 << 15 // 32KB
+
+func (v *View) addEmotesFromfile(path string) {
+	name := emojiNameFromFile(path)
+
+	emoji := newUploadingEmoji(name)
+	emoji.img.SetFromFile(path)
+
+	ctx, cancel := context.WithCancel(v.stop.Context())
+
+	emoji.action.Connect("clicked", func(action *gtk.Button) {
+		action.SetSensitive(false)
+		cancel()
+	})
+
+	v.list.Append(emoji)
+
+	onError := func(err error) {
+		prefix := strings.Trim(string(name), ":")
+		emoji.name.SetMarkup(markuputil.Error(prefix + ": " + err.Error()))
+		emoji.pbar.Error()
+
+		emoji.action.SetIconName("view-refresh-symbolic")
+		emoji.action.SetSensitive(false)
+	}
+
+	go func() {
+		defer cancel()
+
+		f, err := os.Open(path)
+		if err != nil {
+			glib.IdleAdd(func() { onError(err) })
+			return
+		}
+		defer f.Close()
+
+		if s, _ := f.Stat(); s != nil {
+			emoji.pbar.SetTotal(s.Size())
+		}
+
+		r := uploadutil.WrapProgressReader(emoji.pbar, f)
+		defer r.Close()
+
+		buf := bufio.NewReaderSize(r, bufferSize)
+
+		b, err := buf.Peek(512)
+		if err != nil {
+			glib.IdleAdd(func() { onError(err) })
+			return
+		}
+
+		u, err := v.client.WithContext(ctx).MediaUpload(
+			http.DetectContentType(b),
+			filepath.Base(path),
+			uploadutil.WrapCloser(buf, r),
+		)
+		if err != nil {
+			glib.IdleAdd(func() { onError(err) })
+			return
+		}
+
+		glib.IdleAdd(func() {
+			v.list.Remove(emoji)
+			v.addEmoji(name, u)
+			v.sync.SetSensitive(true)
+		})
+	}()
+}
+
+type bufReader struct {
+	*bufio.Reader
+	io.Closer
+}
+
+func emojiNameFromFile(path string) emojis.EmojiName {
+	filename := filepath.Base(path)
+	parts := strings.SplitN(filename, ".", 2)
+	return emojis.EmojiName(":" + strings.Map(emojiNameMap, parts[0]) + ":")
+}
+
+func emojiNameMap(r rune) rune {
+	if r != ':' && !unicode.IsSpace(r) {
+		return r
+	}
+	return -1
 }

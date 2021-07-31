@@ -39,6 +39,11 @@ func main() {
 	}
 }
 
+// TODO: allow multiple instances of the app? Application can provide a generic
+// state API, and a package can be made to open a room from the given ID. To
+// split a chat view into another window, simply open a new instance, ask it to
+// open the room, and close it on our end.
+
 func activate(gtkapp *gtk.Application) {
 	app := app.Wrap(gtkapp)
 	app.Window.SetTitle("Emoji Uploader")

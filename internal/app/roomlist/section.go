@@ -1,6 +1,8 @@
 package roomlist
 
 import (
+	"strings"
+
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -69,23 +71,12 @@ func revealIconName(rev bool) string {
 	return "go-next"
 }
 
-func NewSection(parent *List, name string) Section {
+// NewSection creates a new deactivated section.
+func NewSection(name string) *Section {
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionBrowse)
 	list.SetActivateOnSingleClick(true)
 	list.SetPlaceholder(gtk.NewLabel("No rooms yet..."))
-
-	comparer := roomsort.NewComparer(
-		parent.client.Offline(),
-		roomsort.SortAlphabetically,
-	)
-
-	list.SetSortFunc(func(i, j *gtk.ListBoxRow) int {
-		return comparer.Compare(
-			matrix.RoomID(i.Name()),
-			matrix.RoomID(j.Name()),
-		)
-	})
 
 	rev := gtk.NewRevealer()
 	rev.SetRevealChild(true)
@@ -101,17 +92,46 @@ func NewSection(parent *List, name string) Section {
 	box.Append(rev)
 
 	section := Section{
-		Box:    box,
-		List:   list,
-		parent: parent,
+		Box:  box,
+		List: list,
 	}
 
-	list.Connect("row-activated", func(list *gtk.ListBox, row *gtk.ListBoxRow) {
-		section.current = matrix.RoomID(row.Name())
-		parent.setRoom(section.current)
+	return &section
+}
+
+// SetParentList sets the section's parent list and activates it.
+func (s *Section) SetParentList(parent *List) {
+	s.parent = parent
+
+	s.List.Connect("row-activated", func(list *gtk.ListBox, row *gtk.ListBoxRow) {
+		s.current = matrix.RoomID(row.Name())
+		parent.setRoom(s.current)
 	})
 
-	return section
+	comparer := roomsort.NewComparer(
+		parent.client.Offline(),
+		roomsort.SortAlphabetically,
+	)
+
+	s.List.SetSortFunc(func(i, j *gtk.ListBoxRow) int {
+		return comparer.Compare(
+			matrix.RoomID(i.Name()),
+			matrix.RoomID(j.Name()),
+		)
+	})
+
+	s.List.SetFilterFunc(func(row *gtk.ListBoxRow) bool {
+		if parent.search == "" {
+			return true
+		}
+
+		rm, ok := parent.rooms[matrix.RoomID(row.Name())]
+		if !ok {
+			return false
+		}
+
+		return strings.Contains(rm.name, parent.search)
+	})
 }
 
 // Unselect unselects the list of the current section. If the given current room

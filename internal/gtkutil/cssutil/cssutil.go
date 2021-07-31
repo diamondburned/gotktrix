@@ -27,6 +27,14 @@ func Applier(class, css string) func(gtk.Widgetter) {
 	}
 }
 
+// AddClass adds classes.
+func AddClass(w gtk.Widgetter, classes ...string) {
+	ctx := w.StyleContext()
+	for _, class := range classes {
+		ctx.AddClass(class)
+	}
+}
+
 var (
 	userCSS  []byte
 	userOnce sync.Once

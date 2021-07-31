@@ -1,20 +1,53 @@
 { systemPkgs ? import <nixpkgs> {} }:
 
-let adw_src = systemPkgs.fetchFromGitHub {
+let gotk4 = systemPkgs.fetchFromGitHub {
+		owner = "diamondburned";
+		repo  = "gotk4";
+		rev   = "4f507c20f8b07f4a87f0152fbefdc9a380042b83";
+		hash  = "sha256:0zijivbyjfbb2vda05vpvq268i7vx9bhzlbzzsa4zfzzr9427w66";
+	};
+
+	gotk4-adw = systemPkgs.fetchFromGitHub {
 		owner = "diamondburned";
 		repo  = "gotk4-adwaita";
-		rev   = "5420c7113d40b5ed95e25dc684098f911724a23c";
-		hash  = "sha256:0q2vccx2q6cmfznn1222bpcly0dpph85ifis3hnnanghqhd3m0sz";
+		rev   = "01f60b73109a41d6b28e09dce61c45486bdc401b";
+		hash  = "sha256:1l57ygzg5az0pikn0skj0bwggbvfj21d36glkwpkyp7csxi8hzhr";
 	};
 
-	adw = import "${adw_src}/shell.nix" {
-		inherit systemPkgs;
+	overlay = self: super: {
+		libadwaita = super.libadwaita.overrideAttrs (old: {
+			version = "1.0.0-alpha.2";
+	
+			src = super.fetchFromGitLab {
+				domain = "gitlab.gnome.org";
+				owner  = "GNOME";
+				repo   = "libadwaita";
+				rev    = "f5932ab4250c8e709958c6e75a1a4941a5f0f386";
+				hash   = "sha256:1yvjdzs5ipmr4gi0l4k6dkqhl9b090kpjc3ll8bv1a6i7yfaf53s";
+			};
+
+			doCheck = false;
+		});
 	};
 
-in adw.overrideAttrs(old: {
-	buildInputs = old.buildInputs ++ (with adw.pkgs; [
+	pkgs = import "${gotk4}/.nix/pkgs.nix" {
+		src = systemPkgs.fetchFromGitHub {
+			owner  = "NixOS";
+			repo   = "nixpkgs";
+			rev    = "8ecc61c91a5";
+			sha256 = "sha256:0vhajylsmipjkm5v44n2h0pglcmpvk4mkyvxp7qfvkjdxw21dyml";
+		};
+		overlays = [ (overlay) ];
+	};
+
+	shell = import "${gotk4}/.nix/shell.nix" {
+		inherit pkgs;
+	};
+
+in shell.overrideAttrs (old: {
+	buildInputs = old.buildInputs ++ (with pkgs; [
+		libadwaita
 		materia-theme
-		gnome3.adwaita-icon-theme
-		gnome3.defaultIconTheme
+		papirus-icon-theme
 	]);
 })

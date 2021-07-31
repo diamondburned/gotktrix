@@ -19,6 +19,7 @@ type Room struct {
 	Name   *gtk.Label
 	Avatar *adw.Avatar
 
+	name    string
 	section *Section
 }
 
@@ -64,6 +65,7 @@ func (r *Room) move(dst *Section) {
 }
 
 func (r Room) SetLabel(text string) {
+	r.name = text
 	r.Name.SetLabel(text)
 	r.Avatar.SetName(text)
 }
