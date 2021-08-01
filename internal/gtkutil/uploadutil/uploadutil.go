@@ -1,11 +1,15 @@
 package uploadutil
 
 import (
+	"bufio"
 	"errors"
 	"io"
+	"net/http"
 	"sync/atomic"
 
+	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/gotk3/gotk3/glib"
 )
@@ -163,4 +167,18 @@ func WrapCloser(r io.Reader, c io.Closer) io.ReadCloser {
 type readCloser struct {
 	io.Reader
 	io.Closer
+}
+
+const bufferSize = 1 << 15 // 32KB
+
+// Upload wraps around a reader to peek for its MIME type.
+func Upload(c *gotktrix.Client, r io.ReadCloser, name string) (matrix.URL, error) {
+	buf := bufio.NewReaderSize(r, bufferSize)
+
+	b, err := buf.Peek(512)
+	if err != nil {
+		return "", err
+	}
+
+	return c.MediaUpload(http.DetectContentType(b), name, WrapCloser(buf, r))
 }

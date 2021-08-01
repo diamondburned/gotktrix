@@ -27,6 +27,8 @@ var emojiCSS = cssutil.Applier("emojiview-emoji", `
 	}
 `)
 
+const inputIllegalChars = "Name contains illegal character(s)."
+
 func newEmptyEmoji(name emojis.EmojiName) emoji {
 	img := gtk.NewImage()
 	img.SetSizeRequest(EmojiSize, EmojiSize)
@@ -106,18 +108,30 @@ func newUploadingEmoji(name emojis.EmojiName) uploadingEmoji {
 	}
 }
 
-func newActionButton(name, icon string) *gtk.Button {
-	img := gtk.NewImageFromIconName(icon)
-	img.SetPixelSize(14)
-	img.SetMarginEnd(4)
-	img.SetMarginBottom(1)
+type renamingEmoji struct {
+	*gtk.Box
+	entry *gtk.Entry
+	name  emojis.EmojiName
+}
+
+func newEmojiRenameRow(name emojis.EmojiName, emoji emoji) renamingEmoji {
+	img := gtk.NewImage()
+	img.SetSizeRequest(EmojiSize, EmojiSize)
+	img.SetFromPaintable(emoji.emoji.Paintable())
+
+	entry := gtk.NewEntry()
+	entry.SetHExpand(true)
+	entry.SetText(name.Name())
+	entry.SetInputPurpose(gtk.InputPurposeAlpha)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	box.Append(img)
-	box.Append(gtk.NewLabel(name))
+	box.Append(entry)
+	emojiCSS(box)
 
-	button := gtk.NewButton()
-	button.SetChild(box)
-
-	return button
+	return renamingEmoji{
+		Box:   box,
+		entry: entry,
+		name:  name,
+	}
 }

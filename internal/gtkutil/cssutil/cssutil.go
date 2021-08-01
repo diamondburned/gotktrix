@@ -20,9 +20,8 @@ func Applier(class, css string) func(gtk.Widgetter) {
 	globalCSS.WriteString(css)
 	classes := strings.Split(class, ".")
 	return func(w gtk.Widgetter) {
-		ctx := w.StyleContext()
 		for _, class := range classes {
-			ctx.AddClass(class)
+			w.AddCSSClass(class)
 		}
 	}
 }

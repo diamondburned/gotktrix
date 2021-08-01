@@ -86,6 +86,7 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 
 	cancel := gtk.NewButtonWithLabel("Close")
 	ok := gtk.NewButtonWithLabel("OK")
+	ok.AddCSSClass("suggested-action")
 
 	bar := gtk.NewHeaderBar()
 	bar.SetTitleWidget(gtk.NewLabel(""))
@@ -125,13 +126,13 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 			return
 		}
 
-		// 		if assistant.current > 0 && assistant.current < len(assistant.steps) {
-		// 			step := assistant.steps[assistant.current]
-		// 			if step.CanBack {
-		// 				assistant.SetIndex(assistant.current - 1)
-		// 				return
-		// 			}
-		// 		}
+		// if assistant.current > 0 && assistant.current < len(assistant.steps) {
+		// 	step := assistant.steps[assistant.current]
+		// 	if step.CanBack {
+		// 		assistant.SetIndex(assistant.current - 1)
+		// 		return
+		// 	}
+		// }
 
 		window.Close()
 	})

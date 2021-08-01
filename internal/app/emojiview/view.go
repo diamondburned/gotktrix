@@ -1,20 +1,18 @@
 package emojiview
 
 import (
-	"bufio"
 	"context"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode"
+	"time"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -84,9 +82,31 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 		return sortutil.StrcmpFold(r1.Name(), r2.Name())
 	})
 
+	busy := gtk.NewSpinner()
+	busy.Stop()
+	busy.Hide()
+
+	renameButton := newActionButton("Rename", "document-edit-symbolic")
+	renameButton.SetSensitive(false)
+
 	delButton := newActionButton("Remove", "list-remove-symbolic")
 	delButton.SetSensitive(false)
 	addButton := newActionButton("Add", "list-add-symbolic")
+	actionBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	actionBox.SetCSSClasses([]string{"linked"})
+	actionBox.Append(delButton)
+	actionBox.Append(addButton)
+
+	syncButton := newFullActionButton("Sync", "emblem-synchronizing-symbolic")
+	syncButton.SetSensitive(false)
+
+	rightBox := gtk.NewBox(gtk.OrientationHorizontal, 5)
+	rightBox.SetCSSClasses([]string{"emojiview-rightbox"})
+	rightBox.SetHAlign(gtk.AlignEnd)
+	rightBox.Append(busy)
+	rightBox.Append(renameButton)
+	rightBox.Append(actionBox)
+	rightBox.Append(syncButton)
 
 	boxLabel := gtk.NewLabel(string(roomID))
 	boxLabel.SetCSSClasses([]string{"emojiview-name"})
@@ -95,25 +115,6 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 	boxLabel.SetWrapMode(pango.WrapWordChar)
 	boxLabel.SetXAlign(0)
 	boxLabel.SetAttributes(nameAttrs)
-
-	busy := gtk.NewSpinner()
-	busy.Stop()
-	busy.Hide()
-
-	actionBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	actionBox.SetCSSClasses([]string{"linked"})
-	actionBox.Append(delButton)
-	actionBox.Append(addButton)
-
-	syncButton := newActionButton("Sync", "document-save-symbolic")
-	syncButton.SetSensitive(false)
-
-	rightBox := gtk.NewBox(gtk.OrientationHorizontal, 5)
-	rightBox.SetCSSClasses([]string{"emojiview-rightbox"})
-	rightBox.SetHAlign(gtk.AlignEnd)
-	rightBox.Append(busy)
-	rightBox.Append(actionBox)
-	rightBox.Append(syncButton)
 
 	// Use a leaflet here and make it behave like a box.
 	top := gtk.NewFlowBox()
@@ -137,8 +138,9 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 
 	list.Connect("selected-rows-changed", func(list *gtk.ListBox) {
 		// Allow pressing the delete button if we have selected rows.
-		rows := list.SelectedRows()
-		delButton.SetSensitive(len(rows) > 0)
+		selected := len(list.SelectedRows()) > 0
+		delButton.SetSensitive(selected)
+		renameButton.SetSensitive(selected)
 	})
 
 	view := &View{
@@ -161,6 +163,17 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 		return view.search == "" || strings.Contains(row.Name(), view.search)
 	})
 
+	renameButton.Connect("clicked", func() {
+		selected := list.SelectedRows()
+		names := make([]emojis.EmojiName, len(selected))
+
+		for i, row := range selected {
+			names[i] = emojis.EmojiName(row.Name())
+		}
+
+		view.promptRenameEmojis(names)
+	})
+
 	addButton.Connect("clicked", func() {
 		chooser := newFileChooser(&app.Window.Window, view.addEmotesFromFiles)
 		chooser.Show()
@@ -175,7 +188,8 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 		syncButton.SetSensitive(true)
 	})
 
-	syncButton.Connect("clicked", func() {
+	syncButton.Connect("clicked", func(syncButton *gtk.Button) {
+		syncButton.SetSensitive(false)
 		busy.Start()
 		busy.Show()
 
@@ -183,6 +197,29 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 	})
 
 	return view
+}
+
+func newActionButton(name, icon string) *gtk.Button {
+	button := gtk.NewButtonFromIconName(icon)
+	button.SetTooltipText(name)
+
+	return button
+}
+
+func newFullActionButton(name, icon string) *gtk.Button {
+	img := gtk.NewImageFromIconName(icon)
+	img.SetPixelSize(14)
+	img.SetMarginEnd(4)
+	img.SetMarginBottom(1)
+
+	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	box.Append(img)
+	box.Append(gtk.NewLabel(name))
+
+	button := gtk.NewButton()
+	button.SetChild(box)
+
+	return button
 }
 
 // Stop cancels the background context, which cancels any background jobs.
@@ -274,6 +311,7 @@ func (v *View) syncEmojis(busy *gtk.Spinner) {
 		defer glib.IdleAdd(func() {
 			busy.Stop()
 			busy.Hide()
+			v.list.UnselectAll()
 		})
 
 		var err error
@@ -290,15 +328,52 @@ func (v *View) syncEmojis(busy *gtk.Spinner) {
 	}()
 }
 
+func (v *View) promptRenameEmojis(names []emojis.EmojiName) {
+	listBox := gtk.NewBox(gtk.OrientationVertical, 2)
+	renames := make([]renamingEmoji, 0, len(names))
+
+	for _, name := range names {
+		if emoji, ok := v.emojis[name]; ok {
+			w := newEmojiRenameRow(name, emoji)
+
+			renames = append(renames, w)
+			listBox.Append(w)
+		}
+	}
+
+	scroll := gtk.NewScrolledWindow()
+	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	scroll.SetChild(listBox)
+
+	dialog := dialogs.New(&v.app.Window.Window, "Cancel", "Save")
+	dialog.SetDefaultSize(300, 240)
+	dialog.SetTitle("Rename Emojis")
+	dialog.SetChild(scroll)
+	dialog.Show()
+
+	dialog.Cancel.Connect("clicked", dialog.Close)
+	dialog.OK.Connect("clicked", func() {
+		for _, rename := range renames {
+			v.renameEmoji(rename.name, newEmojiName(rename.entry.Text()))
+		}
+
+		v.list.InvalidateSort()
+		v.sync.SetSensitive(true)
+		dialog.Close()
+	})
+}
+
+// renameEmoji does NOT update UI state, except for the row name.
 func (v *View) renameEmoji(old, new emojis.EmojiName) {
+	if old == new {
+		return
+	}
+
 	emoji := v.emojis[old]
 	emoji.Rename(new)
 
 	delete(v.emojis, old)
 	v.emojis[new] = emoji
-
-	v.list.InvalidateSort()
-	v.sync.SetSensitive(true)
 }
 
 func (v *View) useEmoticonEvent(ev emojis.EmoticonEventData) {
@@ -365,8 +440,6 @@ func (v *View) addEmotesFromFiles(paths []string) {
 	}
 }
 
-const bufferSize = 1 << 15 // 32KB
-
 func (v *View) addEmotesFromfile(path string) {
 	name := emojiNameFromFile(path)
 
@@ -394,6 +467,8 @@ func (v *View) addEmotesFromfile(path string) {
 	go func() {
 		defer cancel()
 
+		time.Sleep(5 * time.Second)
+
 		f, err := os.Open(path)
 		if err != nil {
 			glib.IdleAdd(func() { onError(err) })
@@ -408,19 +483,7 @@ func (v *View) addEmotesFromfile(path string) {
 		r := uploadutil.WrapProgressReader(emoji.pbar, f)
 		defer r.Close()
 
-		buf := bufio.NewReaderSize(r, bufferSize)
-
-		b, err := buf.Peek(512)
-		if err != nil {
-			glib.IdleAdd(func() { onError(err) })
-			return
-		}
-
-		u, err := v.client.WithContext(ctx).MediaUpload(
-			http.DetectContentType(b),
-			filepath.Base(path),
-			uploadutil.WrapCloser(buf, r),
-		)
+		u, err := uploadutil.Upload(v.client.WithContext(ctx), r, filepath.Base(path))
 		if err != nil {
 			glib.IdleAdd(func() { onError(err) })
 			return
@@ -434,20 +497,12 @@ func (v *View) addEmotesFromfile(path string) {
 	}()
 }
 
-type bufReader struct {
-	*bufio.Reader
-	io.Closer
-}
-
 func emojiNameFromFile(path string) emojis.EmojiName {
 	filename := filepath.Base(path)
 	parts := strings.SplitN(filename, ".", 2)
-	return emojis.EmojiName(":" + strings.Map(emojiNameMap, parts[0]) + ":")
+	return newEmojiName(parts[0])
 }
 
-func emojiNameMap(r rune) rune {
-	if r != ':' && !unicode.IsSpace(r) {
-		return r
-	}
-	return -1
+func newEmojiName(name string) emojis.EmojiName {
+	return emojis.EmojiName(":" + strings.Trim(name, ":") + ":")
 }
