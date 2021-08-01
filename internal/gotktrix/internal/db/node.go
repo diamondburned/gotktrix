@@ -308,14 +308,12 @@ func (n Node) DropExceptLast(last int) error {
 				return nil
 			}
 
-			var deleted int
-
-			for iter.Rewind(); iter.Valid() && until > deleted; iter.Next() {
+			for iter.Rewind(); iter.Valid() && until > 0; iter.Next() {
 				key := iter.Item().KeyCopy(nil)
 				if err := n.txn.Delete(key); err != nil {
 					return errors.Wrapf(err, "failed to delete key %q", key)
 				}
-				deleted++
+				until--
 			}
 
 			return nil

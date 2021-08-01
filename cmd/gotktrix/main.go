@@ -12,6 +12,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
 	"github.com/diamondburned/gotktrix/internal/app/auth/syncbox"
+	"github.com/diamondburned/gotktrix/internal/app/messageview"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
@@ -85,26 +86,21 @@ func ready(app *app.Application, rooms []matrix.RoomID) {
 	welcome.SetTitle("Welcome")
 	welcome.SetDescription("Choose a room on the left panel.")
 
+	msgview := messageview.New(app)
+	msgview.SetPlaceholder(welcome)
+
 	flap := adw.NewFlap()
 	flap.SetFlap(listScroll)
-	flap.SetContent(welcome)
+	flap.SetContent(msgview)
 	flap.SetSwipeToOpen(true)
 	flap.SetSwipeToClose(true)
 	flap.SetFoldPolicy(adw.FlapFoldPolicyAuto)
 	flap.SetTransitionType(adw.FlapTransitionTypeOver)
 	flap.SetSeparator(gtk.NewSeparator(gtk.OrientationVertical))
 
-	// list.OnRoom(func(roomID matrix.RoomID) {
-	// 	if emojis != nil {
-	// 		// Ensure that background work in the previous room is stopped.
-	// 		emojis.Stop()
-	// 	}
-
-	// 	emojis = emojiview.NewForRoom(app, roomID)
-	// 	emojis.SetHExpand(true)
-
-	// 	flap.SetContent(emojis)
-	// })
+	list.OnRoom(func(roomID matrix.RoomID) {
+		msgview.OpenRoom(roomID)
+	})
 
 	unflap := gtk.NewButtonFromIconName("document-properties-symbolic")
 	unflap.InitiallyUnowned.Connect("clicked", func() {

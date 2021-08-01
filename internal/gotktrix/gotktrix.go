@@ -138,6 +138,12 @@ func (c *Client) Offline() *Client {
 	return c.WithContext(Cancelled())
 }
 
+// Online returns a Client that can use the API. It is meant to be used to
+// guarantee that a synchronous fetching routine is meaningful by using the API.
+func (c *Client) Online() *Client {
+	return c.WithContext(context.Background())
+}
+
 func (c *Client) WithContext(ctx context.Context) *Client {
 	return &Client{
 		Client: c.Client.WithContext(ctx),
@@ -248,8 +254,13 @@ func (c *Client) ChForEvent(typ event.Type, ch chan event.Event) {
 	}
 }
 
+// ThumbnailScale determines the sacle at which square/round thumbnails will be
+// fetched. It's mostly important for HiDPI displays.
+const ThumbnailScale = 2
+
 // SquareThumbnail is a helper function around MediaThumbnailURL.
 func (c *Client) SquareThumbnail(mURL matrix.URL, size int) (string, error) {
+	size *= ThumbnailScale
 	return c.MediaThumbnailURL(mURL, true, size, size, api.MediaThumbnailCrop)
 }
 
@@ -275,7 +286,7 @@ func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 
 	r, err := c.RoomMessages(roomID, api.RoomMessagesQuery{
 		From:      prev,
-		Direction: api.RoomMessagesBackward, // latest last
+		Direction: api.RoomMessagesForward, // latest last
 		Limit:     state.TimelineKeepLast,
 	})
 	if err != nil {
@@ -283,13 +294,6 @@ func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 	}
 
 	c.State.AddRoomMessages(roomID, &r)
-
-	// Returned events will be sorted latest-first, so we reverse the slice.
-	// https://github.com/golang/go/wiki/SliceTricks#reversing
-	for i := len(r.Chunk)/2 - 1; i >= 0; i-- {
-		opp := len(r.Chunk) - 1 - i
-		r.Chunk[i], r.Chunk[opp] = r.Chunk[opp], r.Chunk[i]
-	}
 
 	timelineEvs := make([]event.RoomEvent, 0, len(r.Chunk))
 

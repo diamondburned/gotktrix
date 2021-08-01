@@ -148,7 +148,7 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 
 		if e != nil {
 			avatarEv := e.(event.RoomAvatarEvent)
-			url, _ := state.SquareThumbnail(avatarEv.URL, AvatarSize*2)
+			url, _ := state.SquareThumbnail(avatarEv.URL, AvatarSize)
 			imgutil.AsyncGET(context.TODO(), url, r.Avatar.SetCustomImage)
 		}
 	}
@@ -169,7 +169,7 @@ func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
 		e, err := l.client.RoomState(roomID, event.TypeRoomAvatar, "")
 		if err == nil && e != nil {
 			avatarEv := e.(event.RoomAvatarEvent)
-			url, _ := l.client.SquareThumbnail(avatarEv.URL, AvatarSize*2)
+			url, _ := l.client.SquareThumbnail(avatarEv.URL, AvatarSize)
 			imgutil.AsyncGET(context.TODO(), url, room.Avatar.SetCustomImage)
 		}
 

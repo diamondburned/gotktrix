@@ -26,6 +26,13 @@ func Applier(class, css string) func(gtk.Widgetter) {
 	}
 }
 
+// WriteCSS adds the given string to the global CSS. It's primarily meant to be
+// used during global variable initialization.
+func WriteCSS(css string) struct{} {
+	globalCSS.WriteString(css)
+	return struct{}{}
+}
+
 // AddClass adds classes.
 func AddClass(w gtk.Widgetter, classes ...string) {
 	ctx := w.StyleContext()
