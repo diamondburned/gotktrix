@@ -3,9 +3,11 @@ package app
 import (
 	"log"
 
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/components/errpopup"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
@@ -58,4 +60,38 @@ func (app *Application) Fatal(err ...error) {
 	}
 
 	errpopup.Fatal(&app.Window.Window, err...)
+}
+
+// AddActions adds multiple actions and returns a callback that removes all of
+// them. Calling the callback is optional.
+func (app *Application) AddActions(actions ...gio.Actioner) (rm func()) {
+	names := make([]string, len(actions))
+	for i, action := range actions {
+		app.AddAction(action)
+		names[i] = action.Name()
+	}
+
+	return func() {
+		for _, name := range names {
+			app.RemoveAction(name)
+		}
+	}
+}
+
+// AddCallbackAction is a convenient function for adding a SimpleAction.
+func (app *Application) AddCallbackAction(name string, f func()) {
+	c := gtkutil.NewCallbackAction(name)
+	c.OnActivate(f)
+	app.AddAction(c)
+}
+
+// MenuModel constructs an application-scoped menu model. Components are
+// expected to register its preference settings into the menu directly. Most use
+// cases of this method should be to add a menu subsection.
+func (app *Application) MenuModel() *gio.Menu {
+	menu := gio.NewMenu()
+	for _, action := range app.ActionGroup.ListActions() {
+		menu.Append(action, action)
+	}
+	return menu
 }

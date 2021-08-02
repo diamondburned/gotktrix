@@ -48,11 +48,27 @@ func iterSplitKey(iter *badger.Iterator, prefix []byte) ([]byte, bool) {
 }
 
 func convertKey(prefix [][]byte, key string) []byte {
-	if key == "" {
-		return bytes.Join(prefix, []byte(delimiter))
+	// TODO: find out why I did this.
+	// if key == "" {
+	// 	return bytes.Join(prefix, []byte(delimiter))
+	// }
+
+	total := len(key)
+	for _, b := range prefix {
+		total += len(b) + len(delimiter)
 	}
 
-	return bytes.Join(append(prefix, []byte(key)), []byte(delimiter))
+	buf := bytes.Buffer{}
+	buf.Grow(total)
+
+	for _, b := range prefix {
+		buf.Write(b)
+		buf.WriteString(delimiter)
+	}
+
+	buf.WriteString(key)
+
+	return buf.Bytes()
 }
 
 func convertPrefix(prefix [][]byte) []byte {
@@ -432,12 +448,8 @@ func (n Node) AllKeys(slicePtr interface{}, prefix string) error {
 				return nil
 			}
 
-			if v.Cap() < length {
-				vType := v.Type()
-				v.Set(reflect.MakeSlice(vType, length, length))
-			} else {
-				v.SetLen(length)
-			}
+			vType := v.Type()
+			v.Set(reflect.MakeSlice(vType, length, length))
 
 			var ix int
 

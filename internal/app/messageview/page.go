@@ -8,6 +8,7 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
+	"github.com/diamondburned/gotktrix/internal/components/autoscroll"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -18,7 +19,7 @@ import (
 // Page describes a tab page, which is a single message view. It satisfies teh
 // MessageViewer interface.
 type Page struct {
-	*gtk.ScrolledWindow
+	*autoscroll.Window
 	list     *gtk.ListBox
 	name     string
 	messages map[matrix.EventID]message.Message
@@ -34,8 +35,8 @@ type Page struct {
 
 var _ message.MessageViewer = (*Page)(nil)
 
-var messageListCSS = cssutil.Applier("messageview-list", `
-	.messageview-list {
+var msgListCSS = cssutil.Applier("messageview-msglist", `
+	.messageview-msglist {
 		background: none;
 	}
 `)
@@ -44,6 +45,7 @@ var messageListCSS = cssutil.Applier("messageview-list", `
 func NewPage(parent *View, roomID matrix.RoomID) *Page {
 	msgList := gtk.NewListBox()
 	msgList.SetSelectionMode(gtk.SelectionNone)
+	msgListCSS(msgList)
 
 	name, _ := parent.client.Offline().RoomName(roomID)
 
@@ -68,12 +70,15 @@ func NewPage(parent *View, roomID matrix.RoomID) *Page {
 	clamp.SetTighteningThreshold(800)
 	clamp.SetChild(msgList)
 
-	scroll := gtk.NewScrolledWindow()
+	scroll := autoscroll.NewWindow()
 	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	scroll.SetChild(clamp)
 
+	// Bind the scrolled window for automatic scrolling.
+	msgList.SetAdjustment(scroll.VAdjustment())
+
 	return &Page{
-		ScrolledWindow: scroll,
+		Window: scroll,
 
 		list:     msgList,
 		name:     name,
@@ -193,6 +198,7 @@ func (p *Page) Load(done func()) {
 			}
 
 			p.loaded = true
+			p.ScrollToBottom()
 			done()
 		})
 	}()

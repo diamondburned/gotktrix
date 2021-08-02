@@ -1,6 +1,7 @@
 package db
 
 import (
+	"bytes"
 	"runtime"
 
 	"github.com/dgraph-io/badger/v3"
@@ -80,6 +81,14 @@ func KVWithDB(db *badger.DB) *KV {
 	}
 }
 
+// DropPrefix drops the whole given prefix.
+func (kv KV) DropPrefix(path NodePath) error {
+	return kv.db.DropPrefix(
+		bytes.TrimSuffix(convertKey(path, ""), []byte(delimiter)),
+	)
+}
+
+// NodeFromPath creates a new Node from path.
 func (kv KV) NodeFromPath(path NodePath) Node {
 	return Node{
 		prefixes: path,
@@ -87,6 +96,7 @@ func (kv KV) NodeFromPath(path NodePath) Node {
 	}
 }
 
+// Node creates a new Node from the given names joined as paths.
 func (kv KV) Node(names ...string) Node {
 	if len(names) == 0 {
 		panic("Node name can't be empty")
@@ -95,6 +105,7 @@ func (kv KV) Node(names ...string) Node {
 	return kv.NodeFromPath(NewNodePath(names...))
 }
 
+// Close closes the database.
 func (kv KV) Close() error {
 	return kv.db.Close()
 }

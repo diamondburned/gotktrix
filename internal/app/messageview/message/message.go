@@ -2,14 +2,14 @@ package message
 
 import (
 	"context"
-	"fmt"
-	"html"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -63,31 +63,6 @@ func lastIsAuthor(parent MessageViewer, ev event.RoomMessageEvent) bool {
 	return last != nil && last.Event().Sender() == ev.SenderID
 }
 
-// newNameLabel creates a new Label from the given name.
-func newNameLabel(c *gotktrix.Client, name gotktrix.MemberName) *gtk.Label {
-	l := gtk.NewLabel("")
-	setNameLabel(l, c, name)
-
-	return l
-}
-
-// setNameLabel updates the given label to show the given member name.
-func setNameLabel(l *gtk.Label, c *gotktrix.Client, name gotktrix.MemberName) {
-	// TODO: pronouns
-	// TODO: colors
-	// TODO: maybe bridge role colors?
-
-	if !name.Ambiguous {
-		l.SetLabel(name.Name)
-		return
-	}
-
-	l.SetMarkup(fmt.Sprintf(
-		`%s <span fgalpha="85%%" scale="0.85">(%s)</span>`,
-		html.EscapeString(name.Name), html.EscapeString(string(name.ID)),
-	))
-}
-
 const (
 	avatarSize  = 36
 	avatarWidth = 36 + 8*2 // keep consistent with CSS
@@ -101,11 +76,8 @@ var messageCSS = cssutil.Applier("message-message", `
 
 // eventMessage is a mini-message.
 type eventMessage struct {
-	*gtk.Box
+	*gtk.Label
 	ev event.RoomEvent
-
-	sender *gtk.Label
-	action *gtk.Label
 }
 
 var _ = cssutil.WriteCSS(`
@@ -116,28 +88,20 @@ var _ = cssutil.WriteCSS(`
 `)
 
 func newEventMessage(parent MessageViewer, ev event.RoomEvent) Message {
-	client := parent.Client().Offline()
-
-	name, _ := client.MemberName(ev.Room(), ev.Sender())
-	nameLabel := newNameLabel(client, name)
-
-	action := gtk.NewLabel(fmt.Sprintf(
-		"did an event %T (%s).",
-		ev, ev.ID(),
+	action := gtk.NewLabel("")
+	action.AddCSSClass("message-event")
+	action.SetWrap(true)
+	action.SetWrapMode(pango.WrapWordChar)
+	action.SetMarkup(mauthor.Markup(
+		parent.Client().Offline(), ev.Room(), ev.Sender(),
+		mauthor.WithWidgetColor(action),
 	))
 
-	box := gtk.NewBox(gtk.OrientationHorizontal, 2)
-	box.Append(nameLabel)
-	box.Append(action)
-
-	box.AddCSSClass("message-event")
-	messageCSS(box)
+	messageCSS(action)
 
 	return &eventMessage{
-		Box:    box,
-		ev:     ev,
-		sender: nameLabel,
-		action: action,
+		Label: action,
+		ev:    ev,
 	}
 }
 
@@ -146,7 +110,7 @@ func (m *eventMessage) Event() event.RoomEvent { return m.ev }
 var _ = cssutil.WriteCSS(`
 	.message-timestamp {
 		font-size: .8em;
-		color: alpha(@theme_fg_color, 0.6);
+		color: alpha(@theme_fg_color, 0.55);
 	}
 `)
 
@@ -226,27 +190,26 @@ var _ = cssutil.WriteCSS(`
 `)
 
 func newCozyMessage(parent MessageViewer, ev *event.RoomMessageEvent) Message {
-	var refetch bool
 	client := parent.Client().Offline()
 
-	name, err := client.MemberName(ev.Room(), ev.Sender())
-	if err != nil {
-		refetch = true
-	}
-
-	nameLabel := newNameLabel(client, name)
+	nameLabel := gtk.NewLabel("")
+	nameLabel.SetMarkup(mauthor.Markup(
+		client, ev.RoomID, ev.SenderID,
+		mauthor.WithWidgetColor(nameLabel),
+	))
 
 	timestamp := newTimestamp(ev.OriginTime, true)
-	timestamp.SetYAlign(0)
+	timestamp.SetYAlign(0.6)
 
-	avatar := adw.NewAvatar(avatarSize, name.Name, true)
+	// Pull the username directly from the sender's ID for the avatar initials.
+	username, _, _ := ev.SenderID.Parse()
+
+	avatar := adw.NewAvatar(avatarSize, username, true)
 	avatar.SetVAlign(gtk.AlignStart)
 	avatar.SetMarginStart(2)
 
-	mxc, err := client.AvatarURL(ev.SenderID)
-	if err != nil {
-		refetch = true
-	} else if mxc != nil {
+	mxc, _ := client.AvatarURL(ev.SenderID)
+	if mxc != nil {
 		setAvatar(parent.Context(), avatar, client, *mxc)
 	}
 
@@ -279,19 +242,16 @@ func newCozyMessage(parent MessageViewer, ev *event.RoomMessageEvent) Message {
 		content:   content,
 	}
 
-	if refetch {
-		msg.asyncFetch()
-	}
-
+	msg.asyncFetch()
 	return msg
 }
 
 func (m *cozyMessage) asyncFetch() {
+	opt := mauthor.WithWidgetColor(m.sender)
+
 	go func() {
-		name, err := m.parent.Client().MemberName(m.ev.RoomID, m.ev.SenderID)
-		if err == nil {
-			glib.IdleAdd(func() { setNameLabel(m.sender, m.parent.Client(), name) })
-		}
+		markup := mauthor.Markup(m.parent.Client(), m.ev.RoomID, m.ev.SenderID, opt)
+		glib.IdleAdd(func() { m.sender.SetMarkup(markup) })
 
 		mxc, _ := m.parent.Client().AvatarURL(m.ev.SenderID)
 		if mxc != nil {

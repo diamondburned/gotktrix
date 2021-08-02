@@ -2,6 +2,8 @@ package gotktrix
 
 import (
 	"context"
+	"log"
+	"math/bits"
 	"sync"
 
 	"github.com/chanbakjsd/gotrix"
@@ -254,13 +256,25 @@ func (c *Client) ChForEvent(typ event.Type, ch chan event.Event) {
 	}
 }
 
-// ThumbnailScale determines the sacle at which square/round thumbnails will be
-// fetched. It's mostly important for HiDPI displays.
-const ThumbnailScale = 2
+// thumbnailScale determines the sacle at which square/round thumbnails will be
+// fetched. It's mostly important for HiDPI displays. Note that the dimensions
+// are scaled up to the next power of 2 as well, so for example, 38px will end
+// up being 128px.
+const thumbnailScale = 2
 
-// SquareThumbnail is a helper function around MediaThumbnailURL.
+// roundPow2 rounds x up to the nearest power of 2. For example, if 36 is given,
+// then the returned number is 64.
+func roundPow2(x uint) uint {
+	return 1 << bits.Len(x-1)
+}
+
+// SquareThumbnail is a helper function around MediaThumbnailURL. The given size
+// is assumed to be a square, and the size will be scaled up to the next power
+// of 2 and multiplied up for ensured HiDPI support of up to 2x.
 func (c *Client) SquareThumbnail(mURL matrix.URL, size int) (string, error) {
-	size *= ThumbnailScale
+	size = int(roundPow2(uint(size)))
+	size = size * thumbnailScale
+
 	return c.MediaThumbnailURL(mURL, true, size, size, api.MediaThumbnailCrop)
 }
 
@@ -293,11 +307,13 @@ func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 		return nil, errors.Wrapf(err, "failed to get messages for room %q", roomID)
 	}
 
-	c.State.AddRoomMessages(roomID, &r)
+	// c.State.AddRoomMessages(roomID, &r)
 
-	timelineEvs := make([]event.RoomEvent, 0, len(r.Chunk))
+	events := make([]event.RoomEvent, 0, len(r.Chunk))
 
 	for i := range r.Chunk {
+		r.Chunk[i].RoomID = roomID
+
 		e, err := r.Chunk[i].Parse()
 		if err != nil {
 			continue
@@ -305,11 +321,13 @@ func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 
 		state, ok := e.(event.RoomEvent)
 		if ok {
-			timelineEvs = append(timelineEvs, state)
+			events = append(events, state)
 		}
 	}
 
-	return timelineEvs, nil
+	log.Println("API queried")
+
+	return events, nil
 }
 
 // LatestMessage finds the latest room message event from the given list of
@@ -326,9 +344,9 @@ func LatestMessage(events []event.RoomEvent) (event.RoomMessageEvent, bool) {
 
 // UserEvent gets the user event from the state or the API.
 func (c *Client) UserEvent(typ event.Type) (event.Event, error) {
-	ev, err := c.State.UserEvent(typ)
-	if err != nil {
-		return nil, err
+	e, _ := c.State.UserEvent(typ)
+	if e != nil {
+		return e, nil
 	}
 
 	raw := event.RawEvent{Type: typ}
@@ -337,12 +355,13 @@ func (c *Client) UserEvent(typ event.Type) (event.Event, error) {
 		return nil, errors.Wrap(err, "failed to get client config")
 	}
 
-	ev, err = raw.Parse()
+	e, err := raw.Parse()
 	if err != nil {
+		log.Printf("failed to parse UserEvent %s: %v", typ, err)
 		return nil, errors.Wrap(err, "failed to parse event from API")
 	}
 
-	return ev, nil
+	return e, nil
 }
 
 // Rooms returns the list of rooms the user is in.
@@ -392,6 +411,8 @@ func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, err
 	events = make([]event.RoomMemberEvent, 0, len(rawEvs))
 
 	for i := range rawEvs {
+		rawEvs[i].RoomID = roomID
+
 		e, err := rawEvs[i].Parse()
 		if err != nil {
 			continue
@@ -410,7 +431,6 @@ func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, err
 
 // MemberName describes a member name.
 type MemberName struct {
-	ID        matrix.UserID
 	Name      string
 	Ambiguous bool
 }
@@ -431,29 +451,22 @@ func (c *Client) MemberName(roomID matrix.RoomID, userID matrix.UserID) (MemberN
 
 // MemberNames calculates the display name of all the users provided.
 func (c *Client) MemberNames(roomID matrix.RoomID, userIDs []matrix.UserID) ([]MemberName, error) {
-	result := make([]MemberName, 0, len(userIDs))
+	result := make([]MemberName, len(userIDs))
 
-	for _, userID := range userIDs {
-		name := MemberName{
-			ID: userID,
-		}
-
+	for i, userID := range userIDs {
 		e, _ := c.RoomState(roomID, event.TypeRoomMember, string(userID))
 		if e == nil {
-			name.Name = string(userID)
-			result = append(result, name)
+			result[i].Name = string(userID)
 			continue
 		}
 
 		memberEvent := e.(event.RoomMemberEvent)
 		if memberEvent.DisplayName == nil || *memberEvent.DisplayName == "" {
-			name.Name = string(userID)
-			result = append(result, name)
+			result[i].Name = string(userID)
 			continue
 		}
 
-		name.Name = *memberEvent.DisplayName
-		result = append(result, name)
+		result[i].Name = *memberEvent.DisplayName
 	}
 
 	// Hash all names to check for duplicates.
@@ -479,7 +492,7 @@ func (c *Client) MemberNames(roomID matrix.RoomID, userIDs []matrix.UserID) ([]M
 		if i, ok := names[*ev.DisplayName]; ok {
 			name := &result[i]
 
-			if !name.Ambiguous && name.ID != ev.UserID {
+			if !name.Ambiguous && userIDs[i] != ev.UserID {
 				// Collide. Mark as ambiguous.
 				name.Ambiguous = true
 			}
@@ -517,6 +530,8 @@ func (c *Client) IsDirect(roomID matrix.RoomID) bool {
 	if err != nil {
 		return false
 	}
+
+	r.RoomID = roomID
 
 	// Save the event we've fetched into the state.
 	c.State.AddRoomEvents(roomID, []event.RawEvent{*r})

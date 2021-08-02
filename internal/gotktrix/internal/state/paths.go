@@ -1,8 +1,10 @@
 package state
 
 import (
-	"encoding/binary"
 	"log"
+	"math"
+	"strconv"
+	"strings"
 
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/event"
@@ -96,19 +98,33 @@ func (p *dbPaths) timelineEventsPath(roomID matrix.RoomID) db.NodePath {
 	return p.timelines.Tail(string(roomID), "events")
 }
 
+var i64ZeroPadding = func() string {
+	v := len(strconv.FormatInt(math.MaxInt64, 32))
+	return strings.Repeat("0", v)
+}()
+
 // timelineEventKey formats a key that the internal database can use to sort the
 // returned values lexicographically.
 func timelineEventKey(ev *event.RawEvent) string {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, uint64(ev.OriginServerTime))
-	// Hopefully this is never printed.
-	return string(b) + "\x00" + string(ev.ID)
+	str := strconv.FormatInt(int64(ev.OriginServerTime), 32)
+	// Pad the timestamp with zeroes to validate sorting.
+	if ev.OriginServerTime >= 0 {
+		str = i64ZeroPadding[len(i64ZeroPadding)-len(str):] + str
+	} else {
+		// Account for negative number.
+		str = "-" + i64ZeroPadding[len(i64ZeroPadding)-len(str)-1:] + str[1:]
+	}
+
+	// use \x01 to avoid colliding delimiter
+	return str + "\x01" + string(ev.ID)
 }
 
 func (p *dbPaths) setTimeline(n db.Node, roomID matrix.RoomID, tl api.SyncTimeline) {
 	tnode := n.FromPath(p.timelineEventsPath(roomID))
 
 	for i := range tl.Events {
+		tl.Events[i].RoomID = roomID
+
 		key := timelineEventKey(&tl.Events[i])
 
 		if err := tnode.Set(key, &tl.Events[i]); err != nil {
@@ -116,10 +132,10 @@ func (p *dbPaths) setTimeline(n db.Node, roomID matrix.RoomID, tl api.SyncTimeli
 		}
 	}
 
-	// Clean up the timeline events.
-	if err := tnode.DropExceptLast(TimelineKeepLast); err != nil {
-		log.Printf("failed to clean up Matrix timeline for room %q: %v", roomID, err)
-	}
+	// // Clean up the timeline events.
+	// if err := tnode.DropExceptLast(TimelineKeepLast); err != nil {
+	// 	log.Printf("failed to clean up Matrix timeline for room %q: %v", roomID, err)
+	// }
 
 	// Write the previous batch string, if any.
 	if tl.PreviousBatch != "" {

@@ -7,8 +7,6 @@ github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAE
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/cespare/xxhash v1.1.0 h1:a6HrQnmkObjyL+Gs60czilIUGqrzKutQD6XZog3p+ko=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
-github.com/chanbakjsd/gotrix v0.3.0 h1:s1bolpmsT3Pvp6tGA1nXQ6PV7keJxN+gyvJFtqeNmug=
-github.com/chanbakjsd/gotrix v0.3.0/go.mod h1:tHgqHzAHPNJ8vm/S6lWJfyOASWq5fR00IQbCYSd7DR8=
 github.com/chanbakjsd/gotrix v0.3.1-0.20210730082524-488f3af06fac h1:5wOn1Oj0fWdUFMpNzMq418ieNv1amjKv8w1ebomOK0M=
 github.com/chanbakjsd/gotrix v0.3.1-0.20210730082524-488f3af06fac/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
@@ -31,10 +29,6 @@ github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210726010501-6bd075859e59 h1
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210726010501-6bd075859e59/go.mod h1:YaZtcVsFDr8oXe2IXKO1bThozlBvVAtaQa+077HlR7A=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210726002900-05ded48917dc h1:A5PRIUIHOQ+r+oK+6iQ9Yqq4bitkDy5Z33W3IfVJpY0=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210726002900-05ded48917dc/go.mod h1:g3UzDkxWTTcv0McQlKXeBScFhLywsH+GgwJSL7iQqk0=
-github.com/diamondburned/gotrix v0.1.2-0.20210727221326-dc14887acc19 h1:cW77mtWJCpUuJ9oNmmWbHwsY6U1c4r7X/BYlX3X46NE=
-github.com/diamondburned/gotrix v0.1.2-0.20210727221326-dc14887acc19/go.mod h1:tHgqHzAHPNJ8vm/S6lWJfyOASWq5fR00IQbCYSd7DR8=
-github.com/diamondburned/gotrix v0.1.2-0.20210728234434-e129aed12d6e h1:tGv0NEoiVe0T+ejMccNQiCYGNHiueu8SMbKedRRrnzQ=
-github.com/diamondburned/gotrix v0.1.2-0.20210728234434-e129aed12d6e/go.mod h1:tHgqHzAHPNJ8vm/S6lWJfyOASWq5fR00IQbCYSd7DR8=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/fatih/color v1.10.0 h1:s36xzo75JdqLaaWoiEHk767eHiwo0598uUxyfiPkDsg=

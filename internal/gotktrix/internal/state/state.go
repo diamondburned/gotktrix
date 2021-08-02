@@ -16,6 +16,9 @@ const (
 	// TimelineKeepLast determines that, when it's time to clean up, the
 	// database should only keep the last 50 events.
 	TimelineKeepLast = 50
+	// Version is the incremental database version number. It is incremented
+	// when a breaking change is made in the database that breaks old databases.
+	Version = 1
 )
 
 // State is a disk-based database of the Matrix state. Note that methods that
@@ -41,19 +44,36 @@ func New(path string) (*State, error) {
 		return nil, err
 	}
 
-	return NewWithDatabase(*kv), nil
+	return NewWithDatabase(*kv)
 }
 
 // NewWithDatabase creates a new State with the given kvpack database.
-func NewWithDatabase(kv db.KV) *State {
+func NewWithDatabase(kv db.KV) (*State, error) {
 	topPath := db.NewNodePath("gotktrix")
+	topNode := kv.NodeFromPath(topPath)
+
+	// Confirm version.
+	var version int
+
+	// Version is provided, so old database.
+	if err := topNode.Get("version", &version); err == nil && version < Version {
+		// Database is too outdated; wipe it.
+		if err := kv.DropPrefix(topPath); err != nil {
+			return nil, errors.Wrap(err, "failed to wipe old state")
+		}
+	}
+
+	// Write the new version.
+	if err := topNode.Set("version", Version); err != nil {
+		return nil, errors.Wrap(err, "failed to write version")
+	}
 
 	return &State{
 		db:       kv,
 		top:      kv.NodeFromPath(topPath),
 		paths:    newDBPaths(topPath),
 		syncWait: make(map[chan<- *api.SyncResponse]bool),
-	}
+	}, nil
 }
 
 // Close closes the internal database.
