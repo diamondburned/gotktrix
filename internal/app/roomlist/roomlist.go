@@ -3,7 +3,6 @@ package roomlist
 import (
 	"log"
 
-	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -112,7 +111,7 @@ func (l *List) Search(str string) {
 // AddRooms adds the rooms with the given IDs.
 func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 	// Prefetch everything offline first.
-	state := l.client.WithContext(gotktrix.Cancelled())
+	state := l.client.Offline()
 	retry := make([]matrix.RoomID, 0, len(roomIDs))
 
 	for _, roomID := range roomIDs {
@@ -155,7 +154,7 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 		// Update the room name.
 		r.SetLabel(name)
 
-		e, err := state.RoomState(roomID, event.TypeRoomAvatar, "")
+		u, err := state.RoomAvatar(roomID)
 		if err != nil {
 			// No avatar found from querying; delegate.
 			if !willRetry {
@@ -164,9 +163,8 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 			continue
 		}
 
-		if e != nil {
-			avatarEv := e.(event.RoomAvatarEvent)
-			r.SetAvatarURL(avatarEv.URL)
+		if u != nil {
+			r.SetAvatarURL(*u)
 		}
 	}
 
@@ -183,10 +181,9 @@ func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
 		}
 
 		// TODO: don't fetch avatar twice.
-		e, err := l.client.RoomState(roomID, event.TypeRoomAvatar, "")
-		if err == nil && e != nil {
-			avatarEv := e.(event.RoomAvatarEvent)
-			room.SetAvatarURL(avatarEv.URL)
+		u, _ := l.client.RoomAvatar(roomID)
+		if u != nil {
+			room.SetAvatarURL(*u)
 		}
 
 		// Double-check that the room is in the correct section.

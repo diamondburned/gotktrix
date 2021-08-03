@@ -18,12 +18,16 @@ var iconButtonCSS = cssutil.Applier("roomlist-iconbutton", `
 		margin:  2px 6px;
 		padding: 0;
 	}
+
 	.roomlist-expand {
 		font-weight: bold;
 	}
+
 	.roomlist-showmore {
 		background: none;
-		color: alpha(@theme_fg_color, 0.65);	
+	}
+	.roomlist-showmore * {
+		color: alpha(@theme_fg_color, 0.75);	
 	}
 `)
 
