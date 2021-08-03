@@ -118,6 +118,10 @@ type Node struct {
 // method is called in a Node that already has a transaction, then that
 // transaction is reused.
 func (n Node) TxUpdate(f func(n Node) error) error {
+	if n.kv.db.IsClosed() {
+		return badger.ErrDBClosed
+	}
+
 	if n.txn != nil {
 		return f(n)
 	}
@@ -136,6 +140,10 @@ func (n Node) TxUpdate(f func(n Node) error) error {
 // If this method is called in a Node that already has a transaction, then that
 // transaction is reused.
 func (n Node) TxView(f func(n Node) error) error {
+	if n.kv.db.IsClosed() {
+		return badger.ErrDBClosed
+	}
+
 	if n.txn != nil {
 		return f(n)
 	}

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -14,12 +15,15 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/auth/syncbox"
 	"github.com/diamondburned/gotktrix/internal/app/messageview"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
+	"github.com/diamondburned/gotktrix/internal/app/roomlist/selfbar"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/gotk3/gotk3/glib"
 )
 
 func main() {
+	runtime.LockOSThread()
+
 	app := gtk.NewApplication(config.AppIDDot("gotktrix"), 0)
 	app.Connect("activate", activate)
 
@@ -46,13 +50,14 @@ func main() {
 
 func activate(gtkapp *gtk.Application) {
 	app := app.Wrap(gtkapp)
-	app.Window.SetTitle("gotktrix")
-	app.Window.Show()
+	app.Window().SetDefaultSize(800, 600)
+	app.Window().SetTitle("gotktrix")
+	app.Window().Show()
 
-	authAssistant := auth.New(&app.Window.Window)
+	authAssistant := auth.New(app.Window())
 	authAssistant.Show()
 	authAssistant.OnConnect(func(client *gotktrix.Client, acc *auth.Account) {
-		app.Client = client
+		app.UseClient(client)
 
 		go func() {
 			popup := syncbox.Open(app, acc)
@@ -65,48 +70,84 @@ func activate(gtkapp *gtk.Application) {
 			}
 
 			glib.IdleAdd(func() {
-				ready(app, rooms)
+				app := application{Application: app}
+				app.ready(rooms)
 				popup.Close()
 			})
 		}()
 	})
 }
 
-func ready(app *app.Application, rooms []matrix.RoomID) {
-	list := roomlist.New(app.Client)
-	list.AddRooms(rooms)
+type application struct {
+	*app.Application
+	roomList *roomlist.List
+	msgView  *messageview.View
+}
+
+var (
+	_ roomlist.Application = (*application)(nil)
+)
+
+func (app *application) ready(rooms []matrix.RoomID) {
+	app.roomList = roomlist.New(app)
+	app.roomList.AddRooms(rooms)
 
 	listScroll := gtk.NewScrolledWindow()
-	listScroll.SetHExpand(false)
+	listScroll.SetVExpand(true)
 	listScroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	listScroll.SetChild(list)
+	listScroll.SetChild(app.roomList)
+
+	self := selfbar.New(app.Application)
+	self.Invalidate()
+
+	leftBox := gtk.NewBox(gtk.OrientationVertical, 0)
+	leftBox.SetOverflow(gtk.OverflowHidden) // need this for box-shadow
+	leftBox.SetHExpand(false)
+	leftBox.Append(listScroll)
+	leftBox.Append(self)
 
 	welcome := adw.NewStatusPage()
 	welcome.SetIconName("go-previous-symbolic")
 	welcome.SetTitle("Welcome")
 	welcome.SetDescription("Choose a room on the left panel.")
 
-	msgview := messageview.New(app)
-	msgview.SetPlaceholder(welcome)
+	app.msgView = messageview.New(app)
+	app.msgView.SetPlaceholder(welcome)
 
 	flap := adw.NewFlap()
-	flap.SetFlap(listScroll)
-	flap.SetContent(msgview)
+	flap.SetFlap(leftBox)
+	flap.SetContent(app.msgView)
 	flap.SetSwipeToOpen(true)
 	flap.SetSwipeToClose(true)
 	flap.SetFoldPolicy(adw.FlapFoldPolicyAuto)
 	flap.SetTransitionType(adw.FlapTransitionTypeOver)
 	flap.SetSeparator(gtk.NewSeparator(gtk.OrientationVertical))
 
-	list.OnRoom(func(roomID matrix.RoomID) {
-		msgview.OpenRoom(roomID)
-	})
-
 	unflap := gtk.NewButtonFromIconName("document-properties-symbolic")
 	unflap.InitiallyUnowned.Connect("clicked", func() {
 		flap.SetRevealFlap(!flap.RevealFlap())
 	})
 
-	app.Window.SetChild(flap)
-	app.Header.PackStart(unflap)
+	app.Window().SetChild(flap)
+	app.Header().PackStart(unflap)
+}
+
+func (app *application) OpenRoom(id matrix.RoomID) {
+	name, _ := app.Client().Offline().RoomName(id)
+	log.Println("opening room", name)
+
+	app.msgView.OpenRoom(id)
+	app.SetSelectedRoom(id)
+}
+
+func (app *application) OpenRoomInTab(id matrix.RoomID) {
+	name, _ := app.Client().Offline().RoomName(id)
+	log.Println("opening room", name, "in new tab")
+
+	app.msgView.OpenRoomInNewTab(id)
+	app.SetSelectedRoom(id)
+}
+
+func (app *application) SetSelectedRoom(id matrix.RoomID) {
+	app.roomList.SetSelectedRoom(id)
 }

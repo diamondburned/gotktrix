@@ -41,12 +41,39 @@ func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler)) {
 		return
 	}
 
+	async(ctx, func() (func(), error) {
+		p, err := GET(ctx, url)
+		if err != nil {
+			return nil, errors.Wrap(err, "async GET error")
+		}
+
+		return func() { f(p) }, nil
+	})
+}
+
+// AsyncPixbuf fetches a pixbuf.
+func AsyncPixbuf(ctx context.Context, url string, f func(*gdkpixbuf.Pixbuf)) {
+	if url == "" {
+		return
+	}
+
+	async(ctx, func() (func(), error) {
+		p, err := GETPixbuf(ctx, url)
+		if err != nil {
+			return nil, errors.Wrap(err, "async GET error")
+		}
+
+		return func() { f(p) }, nil
+	})
+}
+
+func async(ctx context.Context, do func() (func(), error)) {
 	go func() {
 		if err := sema.Acquire(ctx, 1); err != nil {
 			return
 		}
 
-		p, err := GET(ctx, url)
+		f, err := do()
 		if err != nil {
 			log.Println("async GET error:", err)
 			return
@@ -60,7 +87,7 @@ func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler)) {
 			case <-ctx.Done():
 				// don't call f if cancelledd
 			default:
-				f(p)
+				f()
 			}
 		})
 	}()
@@ -68,6 +95,15 @@ func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler)) {
 
 // GET gets the given URL into a Paintable.
 func GET(ctx context.Context, url string) (gdk.Paintabler, error) {
+	pixbuf, err := GETPixbuf(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+
+	return gdk.NewTextureForPixbuf(pixbuf), nil
+}
+
+func GETPixbuf(ctx context.Context, url string) (*gdkpixbuf.Pixbuf, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create request %q", url)
@@ -89,7 +125,7 @@ func GET(ctx context.Context, url string) (gdk.Paintabler, error) {
 		return nil, fmt.Errorf("no pixbuf rendered for %q", url)
 	}
 
-	return gdk.NewTextureForPixbuf(pixbuf), nil
+	return pixbuf, nil
 }
 
 type pixbufLoaderWriter gdkpixbuf.PixbufLoader

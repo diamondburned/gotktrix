@@ -55,14 +55,19 @@ type View struct {
 	bar   *adw.TabBar
 	empty gtk.Widgetter
 
-	app    *app.Application
+	app    Application
 	client *gotktrix.Client
 
 	pages *pages
 }
 
+type Application interface {
+	app.Applicationer
+	SetSelectedRoom(id matrix.RoomID)
+}
+
 // New creates a new instance of View.
-func New(app *app.Application) *View {
+func New(app Application) *View {
 	view := adw.NewTabView()
 	view.SetVExpand(true)
 
@@ -76,7 +81,7 @@ func New(app *app.Application) *View {
 
 	stack := gtk.NewStack()
 	stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
-	stack.AddChild(box)
+	stack.AddNamed(box, "named")
 
 	pages := newPages()
 
@@ -107,7 +112,7 @@ func New(app *app.Application) *View {
 		bar:   bar,
 
 		app:    app,
-		client: app.Client,
+		client: app.Client(),
 
 		pages: pages,
 	}
@@ -131,6 +136,22 @@ func (v *View) SetPlaceholder(w gtk.Widgetter) {
 // then a new one is created. If the room already exists in another tab, then
 // that tab is selected.
 func (v *View) OpenRoom(id matrix.RoomID) *Page {
+	return v.openRoom(id, false)
+}
+
+// OpenRoomInNewTab opens the room in a new tab. If the room is already opened,
+// then the old tab is focused. If no rooms are opened yet, then the first tab
+// is created, so the function behaves like OpenRoom.
+func (v *View) OpenRoomInNewTab(id matrix.RoomID) *Page {
+	return v.openRoom(id, true)
+}
+
+func (v *View) openRoom(id matrix.RoomID, newTab bool) *Page {
+	// Break up a potential infinite call recursion.
+	if v.pages.visible == id {
+		return v.pages.pages[id].Page
+	}
+
 	v.Stack.SetVisibleChild(v.box)
 
 	if page, ok := v.pages.pages[id]; ok {
@@ -143,7 +164,7 @@ func (v *View) OpenRoom(id matrix.RoomID) *Page {
 
 	v.pages.pages[id] = page
 
-	if v.pages.visible != "" {
+	if v.pages.visible != "" && !newTab {
 		last := v.pages.PopVisible()
 
 		page.tab = v.view.AddPage(page.Page, last.tab)

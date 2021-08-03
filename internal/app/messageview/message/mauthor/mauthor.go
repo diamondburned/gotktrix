@@ -13,14 +13,30 @@ import (
 )
 
 type markupOpts struct {
-	hasher  ColorHasher
-	minimal bool
+	hasher    ColorHasher
+	minimal   bool
+	multiline bool
 }
 
 // MarkupMod is a function type that Markup can take multiples of. It
 // changes subtle behaviors of the Markup function, such as the color hasher
 // used.
 type MarkupMod func(opts *markupOpts)
+
+// WithMinimal renders the markup without additional information, such as
+// pronouns.
+func WithMinimal() MarkupMod {
+	return func(opts *markupOpts) {
+		opts.minimal = true
+	}
+}
+
+// WithMultiline renders the markup in multiple lines.
+func WithMultiline() MarkupMod {
+	return func(opts *markupOpts) {
+		opts.multiline = true
+	}
+}
 
 // WithColorHasher uses the given color hasher.
 func WithColorHasher(hasher ColorHasher) MarkupMod {
@@ -90,14 +106,28 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 		RGBHex(color), html.EscapeString(name),
 	))
 
+	if opts.minimal {
+		return b.String()
+	}
+
 	if pronoun := pronouns.UserPronouns(c, rID, uID).Pronoun(); pronoun != "" {
+		if opts.multiline {
+			b.WriteByte('\n')
+		} else {
+			b.WriteByte(' ')
+		}
 		b.WriteString(fmt.Sprintf(
-			` <span fgalpha="90%%" size="small">(%s)</span>`,
+			`<span fgalpha="90%%" size="small">(%s)</span>`,
 			html.EscapeString(string(pronoun)),
 		))
 	}
 
 	if ambiguous {
+		if opts.multiline {
+			b.WriteByte('\n')
+		} else {
+			b.WriteByte(' ')
+		}
 		b.WriteString(fmt.Sprintf(
 			` <span fgalpha="80%%" size="small">(%s)</span>`,
 			html.EscapeString(string(uID)),

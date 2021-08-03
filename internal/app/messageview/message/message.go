@@ -2,6 +2,8 @@ package message
 
 import (
 	"context"
+	"fmt"
+	"html"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -63,11 +65,6 @@ func lastIsAuthor(parent MessageViewer, ev event.RoomMessageEvent) bool {
 	return last != nil && last.Event().Sender() == ev.SenderID
 }
 
-const (
-	avatarSize  = 36
-	avatarWidth = 36 + 8*2 // keep consistent with CSS
-)
-
 var messageCSS = cssutil.Applier("message-message", `
 	/* .message-collapsed */
 	/* .message-cozy */
@@ -92,9 +89,15 @@ func newEventMessage(parent MessageViewer, ev event.RoomEvent) Message {
 	action.AddCSSClass("message-event")
 	action.SetWrap(true)
 	action.SetWrapMode(pango.WrapWordChar)
-	action.SetMarkup(mauthor.Markup(
+
+	markup := mauthor.Markup(
 		parent.Client().Offline(), ev.Room(), ev.Sender(),
 		mauthor.WithWidgetColor(action),
+	)
+
+	action.SetMarkup(fmt.Sprintf(
+		"%s did an event %T (%s).",
+		markup, ev, html.EscapeString(string(ev.ID())),
 	))
 
 	messageCSS(action)
@@ -139,6 +142,11 @@ type collapsedMessage struct {
 	content   *mcontent.Content
 }
 
+const (
+	avatarSize  = 36
+	avatarWidth = 36 + 10*2 // keep consistent with CSS
+)
+
 func newCollapsedMessage(parent MessageViewer, ev *event.RoomMessageEvent) Message {
 	client := parent.Client().Offline()
 
@@ -178,11 +186,11 @@ type cozyMessage struct {
 
 var _ = cssutil.WriteCSS(`
 	.message-cozy {
-		margin: 0px 6px;
-		margin-top: 2px;
+		margin: 0px 10px;
+		margin-top:  2px;
 	}
-	.message-cozy >box {
-		margin-left: 8px;
+	.message-cozy > box {
+		margin-left: 10px;
 	}
 	.message-cozy .message-timestamp {
 		margin-left: .5em;
@@ -206,7 +214,7 @@ func newCozyMessage(parent MessageViewer, ev *event.RoomMessageEvent) Message {
 
 	avatar := adw.NewAvatar(avatarSize, username, true)
 	avatar.SetVAlign(gtk.AlignStart)
-	avatar.SetMarginStart(2)
+	avatar.SetMarginTop(2)
 
 	mxc, _ := client.AvatarURL(ev.SenderID)
 	if mxc != nil {

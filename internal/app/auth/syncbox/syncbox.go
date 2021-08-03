@@ -87,12 +87,13 @@ func openThen(app *app.Application, acc *auth.Account, f func()) *Popup {
 	var popup *Popup
 
 	glib.IdleAdd(func() {
-		popup = Show(&app.Window.Window, acc)
+		popup = Show(app.Window(), acc)
+		client := app.Client()
 
 		go func() {
-			app.Client.State.WaitForNextSync(syncCh)
+			app.Client().State.WaitForNextSync(syncCh)
 
-			if err := app.Client.Open(); err != nil {
+			if err := client.Open(); err != nil {
 				app.Fatal(err)
 				return
 			}
@@ -101,7 +102,7 @@ func openThen(app *app.Application, acc *auth.Account, f func()) *Popup {
 				app.Connect("shutdown", func() {
 					log.Println("shutting down Matrix...")
 
-					if err := app.Client.Close(); err != nil {
+					if err := client.Close(); err != nil {
 						log.Println("failed to close loop:", err)
 					}
 

@@ -2,10 +2,12 @@ package roomlist
 
 import (
 	"context"
+	"log"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
@@ -15,6 +17,7 @@ import (
 // List describes a room list widget.
 type List struct {
 	*gtk.Box
+	app    Application
 	client *gotktrix.Client
 
 	section struct {
@@ -25,8 +28,7 @@ type List struct {
 	sections []*Section
 	search   string
 
-	onRoom  func(matrix.RoomID)
-	rooms   map[matrix.RoomID]Room
+	rooms   map[matrix.RoomID]*Room
 	current matrix.RoomID
 }
 
@@ -43,12 +45,20 @@ var listCSS = cssutil.Applier("roomlist-list", `
 	}
 `)
 
+// Application describes the application requirement.
+type Application interface {
+	app.Applicationer
+	OpenRoom(matrix.RoomID)
+	OpenRoomInTab(matrix.RoomID)
+}
+
 // New creates a new room list widget.
-func New(client *gotktrix.Client) *List {
+func New(app Application) *List {
 	roomList := List{
 		Box:    gtk.NewBox(gtk.OrientationVertical, 0),
-		client: client,
-		rooms:  make(map[matrix.RoomID]Room),
+		app:    app,
+		client: app.Client(),
+		rooms:  make(map[matrix.RoomID]*Room),
 		sections: []*Section{
 			NewSection("Rooms"),
 			NewSection("People"),
@@ -73,11 +83,6 @@ func (l *List) Search(str string) {
 	for _, s := range l.sections {
 		s.List.InvalidateFilter()
 	}
-}
-
-// OnRoom sets the function to be called when a room is selected.
-func (l *List) OnRoom(f func(matrix.RoomID)) {
-	l.onRoom = f
 }
 
 // PrependSection prepends the given section into the list.
@@ -117,12 +122,15 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 			willRetry = true
 		}
 
-		var r Room
+		var r *Room
 		if direct {
 			r = AddEmptyRoom(l.section.people, roomID)
 		} else {
 			r = AddEmptyRoom(l.section.rooms, roomID)
 		}
+
+		// Register the room anyway.
+		l.rooms[roomID] = r
 
 		name, err := state.RoomName(roomID)
 		if err != nil {
@@ -192,14 +200,24 @@ func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
 	}
 }
 
+// SetSelectedRoom sets the given room ID as the selected room row. It does not
+// activate the room.
+func (l *List) SetSelectedRoom(id matrix.RoomID) {
+	log.Println("marking-selecting room", id)
+	room := l.rooms[id]
+	room.section.List.SelectRow(room.ListBoxRow)
+}
+
 func (l *List) setRoom(id matrix.RoomID) {
 	l.current = id
+
+	if _, ok := l.rooms[id]; !ok {
+		log.Panicf("room %q not in registry", id)
+	}
 
 	for _, s := range l.sections {
 		s.Unselect(l.current)
 	}
 
-	if l.onRoom != nil {
-		l.onRoom(id)
-	}
+	l.app.OpenRoom(id)
 }
