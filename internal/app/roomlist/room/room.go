@@ -1,6 +1,7 @@
-package roomlist
+package room
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -12,6 +13,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 )
 
 // AvatarSize is the size in pixels of the avatar.
@@ -27,15 +29,16 @@ var ShowMessagePreview = prefs.NewBool(true, prefs.PropMeta{
 // Room is a single room row.
 type Room struct {
 	*gtk.ListBoxRow
-	Box *gtk.Box
+	box *gtk.Box
 
-	Name    *gtk.Label
-	Preview *gtk.Label
-	Avatar  *adw.Avatar
+	name    *gtk.Label
+	preview *gtk.Label
+	avatar  *adw.Avatar
 
-	id      matrix.RoomID
-	name    string
-	section *Section
+	section Section
+
+	ID   matrix.RoomID
+	Name string
 }
 
 var avatarCSS = cssutil.Applier("roomlist-avatar", `
@@ -55,8 +58,19 @@ var roomBoxCSS = cssutil.Applier("roomlist-roombox", `
 	}
 `)
 
-// AddEmptyRoom adds an empty room with the given ID.
-func AddEmptyRoom(section *Section, roomID matrix.RoomID) *Room {
+type Section interface {
+	Client() *gotktrix.Client
+
+	Reminify()
+	Remove(*Room)
+	Insert(*Room)
+
+	OpenRoom(matrix.RoomID)
+	OpenRoomInTab(matrix.RoomID)
+}
+
+// AddTo adds an empty room with the given ID to the given section..
+func AddTo(section Section, roomID matrix.RoomID) *Room {
 	nameLabel := gtk.NewLabel(string(roomID))
 	nameLabel.SetSingleLineMode(true)
 	nameLabel.SetXAlign(0)
@@ -90,11 +104,9 @@ func AddEmptyRoom(section *Section, roomID matrix.RoomID) *Room {
 	row.SetChild(box)
 	row.SetName(string(roomID))
 
-	section.List.Insert(row, -1)
-
 	gtkutil.BindActionMap(row, "room", map[string]func(){
-		"open":        func() { section.parent.app.OpenRoom(roomID) },
-		"open-in-tab": func() { section.parent.app.OpenRoomInTab(roomID) },
+		"open":        func() { section.OpenRoom(roomID) },
+		"open-in-tab": func() { section.OpenRoomInTab(roomID) },
 	})
 
 	gtkutil.BindPopoverMenu(row, [][2]string{
@@ -104,15 +116,18 @@ func AddEmptyRoom(section *Section, roomID matrix.RoomID) *Room {
 
 	r := Room{
 		ListBoxRow: row,
-		Box:        box,
-		Name:       nameLabel,
-		Preview:    previewLabel,
-		Avatar:     adwAvatar,
+		box:        box,
+		name:       nameLabel,
+		preview:    previewLabel,
+		avatar:     adwAvatar,
 
-		id:      roomID,
-		name:    string(roomID),
 		section: section,
+
+		ID:   roomID,
+		Name: string(roomID),
 	}
+
+	section.Insert(&r)
 
 	ShowMessagePreview.Connect(r, func() {
 		r.InvalidatePreview()
@@ -121,21 +136,40 @@ func AddEmptyRoom(section *Section, roomID matrix.RoomID) *Room {
 	return &r
 }
 
-func (r *Room) move(dst *Section) {
-	r.section.List.Remove(r.ListBoxRow)
-	r.section = dst
-	r.section.List.Insert(r.ListBoxRow, -1)
+// IsIn returns true if the room is in the given section.
+func (r *Room) IsIn(s Section) bool {
+	return r.section == s
 }
 
-func (r Room) SetLabel(text string) {
-	r.name = text
-	r.Name.SetLabel(text)
-	r.Avatar.SetName(text)
+// Move moves the room to the given section.
+func (r *Room) Move(dst Section) {
+	r.section.Remove(r)
+	r.section = dst
+	r.section.Insert(r)
+}
+
+// Changed marks the row as changed, invalidating its sorting and filter.
+func (r *Room) Changed() {
+	r.ListBoxRow.Changed()
+	r.section.Reminify()
+}
+
+func (r *Room) SetLabel(text string) {
+	r.Name = text
+	r.name.SetLabel(text)
+	r.avatar.SetName(text)
+}
+
+// SetAvatar sets the room's avatar URL.
+func (r *Room) SetAvatarURL(mxc matrix.URL) {
+	client := r.section.Client().Offline()
+	url, _ := client.SquareThumbnail(mxc, AvatarSize)
+	imgutil.AsyncGET(context.TODO(), url, r.avatar.SetCustomImage)
 }
 
 func (r *Room) erasePreview() {
-	r.Preview.SetLabel("")
-	r.Preview.Hide()
+	r.preview.SetLabel("")
+	r.preview.Hide()
 }
 
 // InvalidatePreview invalidate the room's preview.
@@ -145,17 +179,17 @@ func (r *Room) InvalidatePreview() {
 		return
 	}
 
-	client := r.section.parent.client.Offline()
+	client := r.section.Client().Offline()
 
-	events, err := client.RoomTimeline(r.id)
+	events, err := client.RoomTimeline(r.ID)
 	if err != nil || len(events) == 0 {
 		r.erasePreview()
 		return
 	}
 
-	preview := generatePreview(client, r.id, events[len(events)-1])
-	r.Preview.SetLabel(preview)
-	r.Preview.Show()
+	preview := generatePreview(client, r.ID, events[len(events)-1])
+	r.preview.SetLabel(preview)
+	r.preview.Show()
 }
 
 func generatePreview(c *gotktrix.Client, rID matrix.RoomID, ev event.RoomEvent) string {

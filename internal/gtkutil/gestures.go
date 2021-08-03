@@ -13,6 +13,6 @@ func BindRightClick(w gtk.Widgetter, f func()) {
 	l := gtk.NewGestureLongPress()
 	l.Connect("pressed", f)
 
-	w.AddController(c)
-	w.AddController(l)
+	// w.AddController(c)
+	// w.AddController(l)
 }

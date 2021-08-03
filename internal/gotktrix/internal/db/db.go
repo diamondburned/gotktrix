@@ -3,6 +3,7 @@ package db
 import (
 	"bytes"
 	"runtime"
+	"sync"
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/dgraph-io/badger/v3/options"
@@ -38,6 +39,7 @@ func (p NodePath) Tail(tails ...string) NodePath {
 type KV struct {
 	Marshaler
 	db *badger.DB
+	mu sync.RWMutex
 }
 
 func halfMin(v, min int) int {
@@ -82,22 +84,25 @@ func KVWithDB(db *badger.DB) *KV {
 }
 
 // DropPrefix drops the whole given prefix.
-func (kv KV) DropPrefix(path NodePath) error {
+func (kv *KV) DropPrefix(path NodePath) error {
+	kv.mu.RLock()
+	defer kv.mu.RUnlock()
+
 	return kv.db.DropPrefix(
 		bytes.TrimSuffix(convertKey(path, ""), []byte(delimiter)),
 	)
 }
 
 // NodeFromPath creates a new Node from path.
-func (kv KV) NodeFromPath(path NodePath) Node {
+func (kv *KV) NodeFromPath(path NodePath) Node {
 	return Node{
 		prefixes: path,
-		kv:       &kv,
+		kv:       kv,
 	}
 }
 
 // Node creates a new Node from the given names joined as paths.
-func (kv KV) Node(names ...string) Node {
+func (kv *KV) Node(names ...string) Node {
 	if len(names) == 0 {
 		panic("Node name can't be empty")
 	}
@@ -106,6 +111,9 @@ func (kv KV) Node(names ...string) Node {
 }
 
 // Close closes the database.
-func (kv KV) Close() error {
+func (kv *KV) Close() error {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+
 	return kv.db.Close()
 }

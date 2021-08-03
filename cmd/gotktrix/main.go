@@ -27,6 +27,9 @@ func main() {
 	app := gtk.NewApplication(config.AppIDDot("gotktrix"), 0)
 	app.Connect("activate", activate)
 
+	// Ensure the app quits on a panic.
+	defer app.Quit()
+
 	// Quit the application on a SIGINT.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()

@@ -126,6 +126,9 @@ func (n Node) TxUpdate(f func(n Node) error) error {
 		return f(n)
 	}
 
+	n.kv.mu.RLock()
+	defer n.kv.mu.RUnlock()
+
 	n.txn = n.kv.db.NewTransaction(true)
 	defer n.txn.Discard()
 
@@ -147,6 +150,9 @@ func (n Node) TxView(f func(n Node) error) error {
 	if n.txn != nil {
 		return f(n)
 	}
+
+	n.kv.mu.RLock()
+	defer n.kv.mu.RUnlock()
 
 	n.txn = n.kv.db.NewTransaction(false)
 	defer n.txn.Discard()

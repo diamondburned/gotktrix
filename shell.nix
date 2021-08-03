@@ -28,6 +28,8 @@ let gotk4 = systemPkgs.fetchFromGitHub {
 
 			doCheck = false;
 		});
+		glib = super.enableDebugging super.glib;
+		gtk4 = super.enableDebugging super.gtk4;
 	};
 
 	pkgs = import "${gotk4}/.nix/pkgs.nix" {
@@ -47,7 +49,12 @@ let gotk4 = systemPkgs.fetchFromGitHub {
 in shell.overrideAttrs (old: {
 	buildInputs = old.buildInputs ++ (with pkgs; [
 		libadwaita
-		materia-theme
-		papirus-icon-theme
+		# materia-theme
+		# papirus-icon-theme
 	]);
+
+	CGO_CFLAGS   = "-g2 -O2";
+	CGO_CXXFLAGS = "-g2 -O2";
+	CGO_FFLAGS   = "-g2 -O2";
+	CGO_LDFLAGS  = "-g2 -O2";
 })

@@ -154,9 +154,9 @@ func (comparer *Comparer) compare(iID, jID matrix.RoomID) int {
 			return 0
 		}
 		if its < jts {
-			return -1
+			return 1
 		}
-		return 1
+		return -1
 
 	case SortAlphabetically:
 		iname := comparer.roomName(iID)

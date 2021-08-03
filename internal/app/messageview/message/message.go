@@ -201,12 +201,15 @@ func newCozyMessage(parent MessageViewer, ev *event.RoomMessageEvent) Message {
 	client := parent.Client().Offline()
 
 	nameLabel := gtk.NewLabel("")
+	nameLabel.SetSingleLineMode(true)
+	nameLabel.SetEllipsize(pango.EllipsizeEnd)
 	nameLabel.SetMarkup(mauthor.Markup(
 		client, ev.RoomID, ev.SenderID,
 		mauthor.WithWidgetColor(nameLabel),
 	))
 
 	timestamp := newTimestamp(ev.OriginTime, true)
+	timestamp.SetEllipsize(pango.EllipsizeEnd)
 	timestamp.SetYAlign(0.6)
 
 	// Pull the username directly from the sender's ID for the avatar initials.
