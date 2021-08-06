@@ -19,6 +19,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/selfbar"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+
+	_ "github.com/diamondburned/gotktrix/internal/gtkutil/aggressivegc"
 )
 
 func main() {
@@ -127,7 +129,7 @@ func (app *application) ready(rooms []matrix.RoomID) {
 	flap.SetSeparator(gtk.NewSeparator(gtk.OrientationVertical))
 
 	unflap := gtk.NewButtonFromIconName("document-properties-symbolic")
-	unflap.InitiallyUnowned.Connect("clicked", func() {
+	unflap.Connect("clicked", func() {
 		flap.SetRevealFlap(!flap.RevealFlap())
 	})
 

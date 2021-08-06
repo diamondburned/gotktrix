@@ -215,11 +215,12 @@ func (s *Section) NHidden() int {
 func (s *Section) Minimize() {
 	s.minified = true
 
-	for i := nMinified; i < len(s.rooms); i++ {
+	// Remove the rooms in backwards order so the list doesn't cascade back.
+	for i := len(s.rooms) - 1; i >= nMinified; i-- {
 		row := s.listBox.RowAtIndex(i)
 		if row == nil {
-			// Out of bounds.
-			return
+			// This shouldn't happen.
+			continue
 		}
 
 		room, ok := s.rooms[matrix.RoomID(row.Name())]

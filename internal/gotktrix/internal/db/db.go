@@ -115,5 +115,7 @@ func (kv *KV) Close() error {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 
+	defer func() { kv.db = nil }()
+
 	return kv.db.Close()
 }

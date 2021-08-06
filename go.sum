@@ -39,6 +39,8 @@ github.com/diamondburned/gotk4/pkg v0.0.0-20210803171808-ac31dc427606 h1:MdgTMHi
 github.com/diamondburned/gotk4/pkg v0.0.0-20210803171808-ac31dc427606/go.mod h1:g3UzDkxWTTcv0McQlKXeBScFhLywsH+GgwJSL7iQqk0=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210804221822-b90b865bc4ef h1:0vO+W1g3Ni9Vybn4jAQId3brtQwpUdXVJghcHBEGMiU=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210804221822-b90b865bc4ef/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210806212324-65b2b1b3791d h1:yKXmqkm3zkRDIxJWs5rF+NnAaxOIS4Roch+GCxQ1Czc=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210806212324-65b2b1b3791d/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/fatih/color v1.10.0 h1:s36xzo75JdqLaaWoiEHk767eHiwo0598uUxyfiPkDsg=
