@@ -3,7 +3,7 @@ package gtkutil
 import (
 	"context"
 
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 // IdleCtx runs the given callback inside the main loop only if the context has

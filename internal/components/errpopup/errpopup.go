@@ -4,7 +4,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 var css = cssutil.Applier("errpopup", `
@@ -56,7 +56,7 @@ func show(parent *gtk.Window, errors []error, done func()) {
 		errorStack.AddChild(errLabels[i])
 	}
 
-	nextButton := dialog.AddButton("Next", int(gtk.ResponseOk)).(*gtk.Button)
+	nextButton := dialog.AddButton("Next", int(gtk.ResponseOK)).(*gtk.Button)
 	dialog.SetDefaultWidget(nextButton)
 
 	var ix int

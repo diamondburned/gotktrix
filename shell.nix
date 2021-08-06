@@ -28,8 +28,20 @@ let gotk4 = systemPkgs.fetchFromGitHub {
 
 			doCheck = false;
 		});
-		glib = super.enableDebugging super.glib;
-		gtk4 = super.enableDebugging super.gtk4;
+		go = super.go.overrideAttrs (old: {
+			version = "1.17rc2";
+			src = builtins.fetchurl {
+				url    = "https://golang.org/dl/go1.17rc2.linux-amd64.tar.gz";
+				sha256 = "sha256:015dg39aj0s6ka5hkqgr9rjmfwz9jzzxgd3cdhfsbln7qznkb0ij";
+			};
+			doCheck = false;
+			patches = [
+				# cmd/go/internal/work: concurrent ccompile routines
+				(builtins.fetchurl "https://github.com/diamondburned/go/commit/4e07fa9fe4e905d89c725baed404ae43e03eb08e.patch")
+				# cmd/cgo: concurrent file generation
+				(builtins.fetchurl "https://github.com/diamondburned/go/commit/432db23601eeb941cf2ae3a539a62e6f7c11ed06.patch")
+			];
+		});
 	};
 
 	pkgs = import "${gotk4}/.nix/pkgs.nix" {
@@ -46,13 +58,27 @@ let gotk4 = systemPkgs.fetchFromGitHub {
 		inherit pkgs;
 	};
 
+	# minitime is a mini-output time wrapper.
+	minitime = pkgs.writeShellScriptBin
+		"minitime"
+		"command time --format $'🕒 -> %es\\n' \"$@\"";
+
+
 in shell.overrideAttrs (old: {
 	buildInputs = old.buildInputs ++ (with pkgs; [
+		gtk4.debug
+		glib.debug
+
 		libadwaita
-		# materia-theme
-		# papirus-icon-theme
 	]);
 
+	nativeBuildInputs = old.nativeBuildInputs ++ [
+		minitime
+	];
+
+	# NIX_DEBUG_INFO_DIRS = ''${pkgs.gtk4.debug}/lib/debug:${pkgs.glib.debug}/lib/debug'';
+
+	CGO_ENABLED  = "1";
 	CGO_CFLAGS   = "-g2 -O2";
 	CGO_CXXFLAGS = "-g2 -O2";
 	CGO_FFLAGS   = "-g2 -O2";

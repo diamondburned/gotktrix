@@ -115,6 +115,8 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 	}
 
 	cancel.Connect("clicked", func() {
+		log.Println("ok button clicekd")
+
 		if assistant.cancelState.cancel != nil {
 			assistant.cancelState.cancel()
 			assistant.cancel.SetSensitive(false)

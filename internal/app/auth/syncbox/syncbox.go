@@ -7,6 +7,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -14,7 +15,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/gotk3/gotk3/glib"
 )
 
 const avatarSize = 36
@@ -98,7 +98,7 @@ func openThen(app *app.Application, acc *auth.Account, f func()) *Popup {
 				return
 			}
 
-			glib.IdleAddPriority(glib.PRIORITY_HIGH, func() {
+			glib.IdleAddPriority(glib.PriorityHigh, func() {
 				app.Connect("shutdown", func() {
 					log.Println("shutting down Matrix...")
 

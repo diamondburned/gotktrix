@@ -10,7 +10,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/section"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 // List describes a room list widget.
@@ -51,6 +51,10 @@ var listCSS = cssutil.Applier("roomlist-list", `
 type Application interface {
 	app.Applicationer
 	OpenRoom(matrix.RoomID)
+}
+
+// RoomTabOpener can optionally be implemented by Application.
+type RoomTabOpener interface {
 	OpenRoomInTab(matrix.RoomID)
 }
 
@@ -226,7 +230,12 @@ func (l *List) OpenRoom(id matrix.RoomID) {
 // OpenRoomInTab opens the given room in a new tab.
 func (l *List) OpenRoomInTab(id matrix.RoomID) {
 	l.setRoom(id)
-	l.app.OpenRoomInTab(id)
+
+	if opener, ok := l.app.(RoomTabOpener); ok {
+		opener.OpenRoomInTab(id)
+	} else {
+		l.app.OpenRoom(id)
+	}
 }
 
 func (l *List) setRoom(id matrix.RoomID) {

@@ -3,8 +3,7 @@ package prefs
 import (
 	"sync"
 
-	"github.com/diamondburned/gotk4/pkg/core/gextras"
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 // Pubsub provides a simple publish-subscribe API. This instance is safe to use
@@ -24,7 +23,7 @@ func NewPubsub() *Pubsub {
 
 // Publish publishes changes to all subscribe routines.
 func (p *Pubsub) Publish() {
-	glib.IdleAddPriority(glib.PRIORITY_HIGH_IDLE, func() {
+	glib.IdleAddPriority(glib.PriorityHighIdle, func() {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
@@ -45,7 +44,7 @@ func (p *Pubsub) Subscribe(f func()) (rm func()) {
 	p.count++
 	p.mu.Unlock()
 
-	glib.IdleAddPriority(glib.PRIORITY_HIGH_IDLE, f)
+	glib.IdleAddPriority(glib.PriorityHighIdle, f)
 
 	return func() {
 		p.mu.Lock()
@@ -55,7 +54,7 @@ func (p *Pubsub) Subscribe(f func()) (rm func()) {
 }
 
 // Connect binds f to the lifetime of the given object.
-func (p *Pubsub) Connect(obj gextras.Objector, f func()) {
+func (p *Pubsub) Connect(obj glib.Objector, f func()) {
 	unsub := p.Subscribe(f)
 	obj.Connect("destroy", unsub)
 }

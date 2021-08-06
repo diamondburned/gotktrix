@@ -27,8 +27,18 @@ github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 h1:tdlZCpZ/P9DhczC
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUnsFjfmXRMNPybcSiG0BgUW2AuFH8PAnS2iTw=
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210726010501-6bd075859e59 h1:6CsBmGBc9jT5LRB3USCx8aWKBFAURc69107jjX+yBpw=
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210726010501-6bd075859e59/go.mod h1:YaZtcVsFDr8oXe2IXKO1bThozlBvVAtaQa+077HlR7A=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210803093324-832b90424584/go.mod h1:JWQwFqKkzgVt92UnTqV3geokGHUvMSky1pUtaGFZhgw=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210803172204-333ce604de67 h1:0Th3vSvnX17aNsWJto7uaSAYm7RFTd0zzZFbU8sgfXI=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210803172204-333ce604de67/go.mod h1:33n0MByfdnFPlREkCdkXFo7vD5RI+sUQU5f481gTEfM=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210804221856-1e67b01159f4 h1:DfWzZ0j/Vni7/O+CtPx5RkQqbs+B9agkEbjS51SZwzo=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210804221856-1e67b01159f4/go.mod h1:KzDFoktNa5qp6gOh6gFMa3G7t6a3YHl2LMCwoKbMayM=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210726002900-05ded48917dc h1:A5PRIUIHOQ+r+oK+6iQ9Yqq4bitkDy5Z33W3IfVJpY0=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210726002900-05ded48917dc/go.mod h1:g3UzDkxWTTcv0McQlKXeBScFhLywsH+GgwJSL7iQqk0=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210803093138-9fd78aaaf36a/go.mod h1:g3UzDkxWTTcv0McQlKXeBScFhLywsH+GgwJSL7iQqk0=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210803171808-ac31dc427606 h1:MdgTMHia5VPbNFJSHKW0ovlSArYPDabML1Erfse7HlQ=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210803171808-ac31dc427606/go.mod h1:g3UzDkxWTTcv0McQlKXeBScFhLywsH+GgwJSL7iQqk0=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210804221822-b90b865bc4ef h1:0vO+W1g3Ni9Vybn4jAQId3brtQwpUdXVJghcHBEGMiU=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210804221822-b90b865bc4ef/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/fatih/color v1.10.0 h1:s36xzo75JdqLaaWoiEHk767eHiwo0598uUxyfiPkDsg=
@@ -106,6 +116,8 @@ github.com/zalando/go-keyring v0.1.1 h1:w2V9lcx/Uj4l+dzAf1m9s+DJ1O8ROkEHnynonHjT
 github.com/zalando/go-keyring v0.1.1/go.mod h1:OIC+OZ28XbmwFxU/Rp9V7eKzZjamBJwRzC8UFJH9+L8=
 go.opencensus.io v0.22.5 h1:dntmOdLpSpHlVqbW5Eay97DelsZHe+55D+xC6i0dDS0=
 go.opencensus.io v0.22.5/go.mod h1:5pWMHQbX5EPX2/62yrJeAkowc+lfs/XD7Uxpq3pI6kk=
+go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063 h1:1tk03FUNpulq2cuWpXZWj649rwJpk0d20rxWiopKRmc=
+go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063/go.mod h1:FftLjUGFEDu5k8lt0ddY+HcrH/qU/0qk+H8j9/nTl3E=
 golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=

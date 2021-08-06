@@ -9,6 +9,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
@@ -18,7 +19,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/selfbar"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/gotk3/gotk3/glib"
 )
 
 func main() {
@@ -37,7 +37,7 @@ func main() {
 	go func() {
 		<-ctx.Done()
 		// Quit with high priority.
-		glib.IdleAddPriority(glib.PRIORITY_HIGH, func() { app.Quit() })
+		glib.IdleAddPriority(glib.PriorityHigh, func() { app.Quit() })
 	}()
 
 	if code := app.Run(os.Args); code > 0 {

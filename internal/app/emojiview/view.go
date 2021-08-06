@@ -21,7 +21,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/uploadutil"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/pkg/errors"
 )
 
@@ -40,7 +40,7 @@ type View struct {
 
 	stop gtkutil.Canceler
 
-	app    *app.Application
+	app    app.Applicationer
 	client *gotktrix.Client
 }
 
@@ -63,16 +63,16 @@ var nameAttrs = markuputil.Attrs(
 )
 
 // NewForRoom creates a new emoji view for a room.
-func NewForRoom(app *app.Application, roomID matrix.RoomID) *View {
+func NewForRoom(app app.Applicationer, roomID matrix.RoomID) *View {
 	return new(app, roomID)
 }
 
 // NewForUser creates a new emoji view for the current user.
-func NewForUser(app *app.Application) *View {
+func NewForUser(app app.Applicationer) *View {
 	return new(app, "")
 }
 
-func new(app *app.Application, roomID matrix.RoomID) *View {
+func new(app app.Applicationer, roomID matrix.RoomID) *View {
 	list := gtk.NewListBox()
 	list.SetShowSeparators(true)
 	list.SetSelectionMode(gtk.SelectionMultiple)
@@ -153,7 +153,7 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 		roomID: roomID,
 
 		app:    app,
-		client: app.Client,
+		client: app.Client(),
 	}
 
 	view.InvalidateName()
@@ -175,7 +175,7 @@ func new(app *app.Application, roomID matrix.RoomID) *View {
 	})
 
 	addButton.Connect("clicked", func() {
-		chooser := newFileChooser(&app.Window.Window, view.addEmotesFromFiles)
+		chooser := newFileChooser(app.Window(), view.addEmotesFromFiles)
 		chooser.Show()
 	})
 
@@ -345,7 +345,7 @@ func (v *View) promptRenameEmojis(names []emojis.EmojiName) {
 	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	scroll.SetChild(listBox)
 
-	dialog := dialogs.New(&v.app.Window.Window, "Cancel", "Save")
+	dialog := dialogs.New(v.app.Window(), "Cancel", "Save")
 	dialog.SetDefaultSize(300, 240)
 	dialog.SetTitle("Rename Emojis")
 	dialog.SetChild(scroll)

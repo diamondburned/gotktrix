@@ -16,7 +16,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/gotk3/gotk3/glib"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 func main() {
@@ -46,13 +46,13 @@ func main() {
 
 func activate(gtkapp *gtk.Application) {
 	app := app.Wrap(gtkapp)
-	app.Window.SetTitle("Emoji Uploader")
-	app.Window.Show()
+	app.Window().SetTitle("Emoji Uploader")
+	app.Window().Show()
 
-	authAssistant := auth.New(&app.Window.Window)
+	authAssistant := auth.New(app.Window())
 	authAssistant.Show()
 	authAssistant.OnConnect(func(client *gotktrix.Client, acc *auth.Account) {
-		app.Client = client
+		app.UseClient(client)
 
 		go func() {
 			popup := syncbox.Open(app, acc)
@@ -65,15 +65,22 @@ func activate(gtkapp *gtk.Application) {
 			}
 
 			glib.IdleAdd(func() {
-				ready(app, rooms)
+				app := &application{Application: app}
+				app.ready(rooms)
 				popup.Close()
 			})
 		}()
 	})
 }
 
-func ready(app *app.Application, rooms []matrix.RoomID) {
-	list := roomlist.New(app.Client)
+type application struct {
+	*app.Application
+	flap   *adw.Flap
+	emojis *emojiview.View
+}
+
+func (app *application) ready(rooms []matrix.RoomID) {
+	list := roomlist.New(app)
 	list.AddRooms(rooms)
 
 	listScroll := gtk.NewScrolledWindow()
@@ -81,40 +88,40 @@ func ready(app *app.Application, rooms []matrix.RoomID) {
 	listScroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	listScroll.SetChild(list)
 
-	emojis := emojiview.NewForUser(app)
-	emojis.SetHExpand(true)
+	app.emojis = emojiview.NewForUser(app)
+	app.emojis.SetHExpand(true)
 
 	emojiScroll := gtk.NewScrolledWindow()
 	emojiScroll.SetSizeRequest(250, -1)
 	emojiScroll.SetHExpand(true)
-	emojiScroll.SetChild(emojis)
+	emojiScroll.SetChild(app.emojis)
 
-	flap := adw.NewFlap()
-	flap.SetFlap(listScroll)
-	flap.SetContent(emojiScroll)
-	flap.SetSwipeToOpen(true)
-	flap.SetSwipeToClose(true)
-	flap.SetFoldPolicy(adw.FlapFoldPolicyAuto)
-	flap.SetTransitionType(adw.FlapTransitionTypeOver)
-	flap.SetSeparator(gtk.NewSeparator(gtk.OrientationVertical))
-
-	list.OnRoom(func(roomID matrix.RoomID) {
-		if emojis != nil {
-			// Ensure that background work in the previous room is stopped.
-			emojis.Stop()
-		}
-
-		emojis = emojiview.NewForRoom(app, roomID)
-		emojis.SetHExpand(true)
-
-		flap.SetContent(emojis)
-	})
+	app.flap = adw.NewFlap()
+	app.flap.SetFlap(listScroll)
+	app.flap.SetContent(emojiScroll)
+	app.flap.SetSwipeToOpen(true)
+	app.flap.SetSwipeToClose(true)
+	app.flap.SetFoldPolicy(adw.FlapFoldPolicyAuto)
+	app.flap.SetTransitionType(adw.FlapTransitionTypeOver)
+	app.flap.SetSeparator(gtk.NewSeparator(gtk.OrientationVertical))
 
 	unflap := gtk.NewButtonFromIconName("document-properties-symbolic")
 	unflap.InitiallyUnowned.Connect("clicked", func() {
-		flap.SetRevealFlap(!flap.RevealFlap())
+		app.flap.SetRevealFlap(!app.flap.RevealFlap())
 	})
 
-	app.Window.SetChild(flap)
-	app.Header.PackStart(unflap)
+	app.Window().SetChild(app.flap)
+	app.Header().PackStart(unflap)
+}
+
+func (app *application) OpenRoom(id matrix.RoomID) {
+	if app.emojis != nil {
+		// Ensure that background work in the previous room is stopped.
+		app.emojis.Stop()
+	}
+
+	app.emojis = emojiview.NewForRoom(app, id)
+	app.emojis.SetHExpand(true)
+
+	app.flap.SetContent(app.emojis)
 }
