@@ -58,7 +58,6 @@ func New(name string) *Section {
 	minify := newMinifyButton(true)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
-	box.SetSizeRequest(200, -1)
 	box.Append(btn)
 	box.Append(rev)
 	box.Append(minify)

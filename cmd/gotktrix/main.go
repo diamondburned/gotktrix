@@ -106,6 +106,7 @@ func (app *application) ready(rooms []matrix.RoomID) {
 	self.Invalidate()
 
 	leftBox := gtk.NewBox(gtk.OrientationVertical, 0)
+	leftBox.SetSizeRequest(250, -1)
 	leftBox.SetOverflow(gtk.OverflowHidden) // need this for box-shadow
 	leftBox.SetHExpand(false)
 	leftBox.Append(listScroll)
