@@ -84,6 +84,8 @@ func Open(app *app.Application, acc *auth.Account) *Popup {
 
 func openThen(app *app.Application, acc *auth.Account, f func()) *Popup {
 	syncCh := make(chan *api.SyncResponse, 1)
+	cancel := app.Client().OnSyncCh(syncCh)
+
 	var popup *Popup
 
 	glib.IdleAdd(func() {
@@ -91,27 +93,25 @@ func openThen(app *app.Application, acc *auth.Account, f func()) *Popup {
 		client := app.Client()
 
 		go func() {
-			app.Client().State.WaitForNextSync(syncCh)
-
 			if err := client.Open(); err != nil {
 				app.Fatal(err)
+				cancel()
 				return
 			}
 
-			glib.IdleAddPriority(glib.PriorityHigh, func() {
-				app.Connect("shutdown", func() {
-					log.Println("shutting down Matrix...")
+			app.Connect("shutdown", func() {
+				log.Println("shutting down Matrix...")
 
-					if err := client.Close(); err != nil {
-						log.Println("failed to close loop:", err)
-					}
+				if err := client.Close(); err != nil {
+					log.Println("failed to close loop:", err)
+				}
 
-					log.Println("Matrix event loop shut down.")
-				})
+				log.Println("Matrix event loop shut down.")
 			})
 
 			if f != nil {
 				<-syncCh
+				cancel()
 				glib.IdleAdd(f)
 			}
 		}()
@@ -121,6 +121,7 @@ func openThen(app *app.Application, acc *auth.Account, f func()) *Popup {
 		// This channel will only unblock once Open() is done syncing, which
 		// means popup would've already been set.
 		<-syncCh
+		cancel()
 		return popup
 	}
 

@@ -25,12 +25,9 @@ const (
 // get multiple events will ignore unknown events, while methods that get a
 // single event will error out when that happens.
 type State struct {
-	db    db.KV
+	db    *db.KV
 	top   db.Node
 	paths dbPaths
-
-	waitMu   sync.Mutex
-	syncWait map[chan<- *api.SyncResponse]bool // true -> keep
 
 	idErr  error
 	idUser matrix.UserID
@@ -44,11 +41,11 @@ func New(path string) (*State, error) {
 		return nil, err
 	}
 
-	return NewWithDatabase(*kv)
+	return NewWithDatabase(kv)
 }
 
 // NewWithDatabase creates a new State with the given kvpack database.
-func NewWithDatabase(kv db.KV) (*State, error) {
+func NewWithDatabase(kv *db.KV) (*State, error) {
 	topPath := db.NewNodePath("gotktrix")
 	topNode := kv.NodeFromPath(topPath)
 
@@ -69,10 +66,9 @@ func NewWithDatabase(kv db.KV) (*State, error) {
 	}
 
 	return &State{
-		db:       kv,
-		top:      kv.NodeFromPath(topPath),
-		paths:    newDBPaths(topPath),
-		syncWait: make(map[chan<- *api.SyncResponse]bool),
+		db:    kv,
+		top:   kv.NodeFromPath(topPath),
+		paths: newDBPaths(topPath),
 	}, nil
 }
 
@@ -397,7 +393,7 @@ func (s *State) IsDirect(roomID matrix.RoomID) (is, ok bool) {
 
 // AddEvent sets the room state events inside a State to be returned by State later.
 func (s *State) AddEvents(sync *api.SyncResponse) error {
-	err := s.top.TxUpdate(func(n db.Node) error {
+	return s.top.TxUpdate(func(n db.Node) error {
 		s.paths.setRaws(n, "", sync.AccountData.Events, true)
 		s.paths.setRaws(n, "", sync.Presence.Events, true)
 		s.paths.setRaws(n, "", sync.ToDevice.Events, true)
@@ -441,29 +437,4 @@ func (s *State) AddEvents(sync *api.SyncResponse) error {
 
 		return nil
 	})
-
-	s.waitMu.Lock()
-	defer s.waitMu.Unlock()
-
-	for ch, keep := range s.syncWait {
-		select {
-		case ch <- sync:
-			if !keep {
-				delete(s.syncWait, ch)
-			}
-		default:
-			// Retry later.
-		}
-	}
-
-	return err
-}
-
-// WaitForNextSync will add the channel to the registry of channels to be called
-// on the next sync. Once that next sync is sent into the channel, it will be
-// removed.
-func (s *State) WaitForNextSync(ch chan<- *api.SyncResponse) {
-	s.waitMu.Lock()
-	s.syncWait[ch] = false
-	s.waitMu.Unlock()
 }

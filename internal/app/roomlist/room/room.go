@@ -157,7 +157,9 @@ func (r *Room) Changed() {
 func (r *Room) SetLabel(text string) {
 	r.Name = text
 	r.name.SetLabel(text)
+	r.name.SetTooltipText(text)
 	r.avatar.SetName(text)
+	r.avatar.SetTooltipText(text)
 }
 
 // SetAvatar sets the room's avatar URL.
@@ -189,6 +191,7 @@ func (r *Room) InvalidatePreview() {
 
 	preview := generatePreview(client, r.ID, events[len(events)-1])
 	r.preview.SetLabel(preview)
+	r.preview.SetTooltipText(preview)
 	r.preview.Show()
 }
 

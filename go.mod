@@ -2,7 +2,7 @@ module github.com/diamondburned/gotktrix
 
 go 1.17
 
-// replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix 8e65308220d2779adf31f1575d77e2d02ff98a89
+replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix v0.1.2-0.20210806234701-007163952522
 
 require (
 	github.com/chanbakjsd/gotrix v0.3.1-0.20210730082524-488f3af06fac

@@ -12,6 +12,7 @@ import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/config"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/handler"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
 	"github.com/pkg/errors"
 )
@@ -48,13 +49,8 @@ func Cancelled() context.Context {
 
 type Client struct {
 	*gotrix.Client
-	*intern
+	*handler.Registry
 	State *state.State
-}
-
-type intern struct {
-	waitMu sync.Mutex
-	waits  map[event.Type]map[chan event.Event]struct{}
 }
 
 // New wraps around gotrix.NewWithClient.
@@ -85,38 +81,23 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 		return nil, errors.Wrap(err, "failed to make state db")
 	}
 
-	c.State = state
+	registry := handler.New()
+
+	c.State = registry.Wrap(state)
 	c.Filter = Filter
 
-	client := Client{
-		Client: c,
-		State:  state,
-		intern: &intern{
-			waits: make(map[event.Type]map[chan event.Event]struct{}),
-		},
-	}
+	return &Client{
+		Client:   c,
+		Registry: registry,
+		State:    state,
+	}, nil
+}
 
-	client.AddHandler(func(_ *gotrix.Client, raw *event.RawEvent) {
-		if !client.waitingForEvent(raw.Type) {
-			return
-		}
-
-		e, err := raw.Parse()
-		if err != nil {
-			return
-		}
-
-		client.waitMu.Lock()
-		defer client.waitMu.Unlock()
-
-		chMap := client.waits[raw.Type]
-		for ch := range chMap {
-			ch <- e
-			delete(chMap, ch)
-		}
-	})
-
-	return &client, nil
+// AddHandler will panic.
+//
+// Deprecated: Use c.On() instead.
+func (c *Client) AddHandler(function interface{}) error {
+	panic("don't use AddHandler(); use On().")
 }
 
 // Open opens the client with the last next batch string.
@@ -148,9 +129,9 @@ func (c *Client) Online() *Client {
 
 func (c *Client) WithContext(ctx context.Context) *Client {
 	return &Client{
-		Client: c.Client.WithContext(ctx),
-		State:  c.State,
-		intern: c.intern,
+		Client:   c.Client.WithContext(ctx),
+		Registry: c.Registry,
+		State:    c.State,
 	}
 }
 
@@ -171,89 +152,6 @@ func (c *Client) Whoami() (matrix.UserID, error) {
 
 	c.State.SetWhoami(u)
 	return u, nil
-}
-
-func (c *Client) waitingForEvent(typ event.Type) bool {
-	c.waitMu.Lock()
-	defer c.waitMu.Unlock()
-
-	chMap, ok := c.waits[typ]
-	return ok && len(chMap) > 0
-}
-
-func (c *Client) addEventCh(typ event.Type, ch chan event.Event) {
-	c.waitMu.Lock()
-	defer c.waitMu.Unlock()
-
-	evMap := c.waits[typ]
-	if evMap == nil {
-		evMap = make(map[chan event.Event]struct{})
-		c.waits[typ] = evMap
-	}
-
-	evMap[ch] = struct{}{}
-}
-
-func (c *Client) removeEventCh(typ event.Type, ch chan event.Event) {
-	c.waitMu.Lock()
-	defer c.waitMu.Unlock()
-
-	evMap, ok := c.waits[typ]
-	if ok {
-		delete(evMap, ch)
-	}
-}
-
-// WaitForUserEvent waits for a user event of the given type until the context
-// expires. If the event exists in the state, then it is returned.
-func (c *Client) WaitForUserEvent(ctx context.Context, typ event.Type) (event.Event, error) {
-	if ev, err := c.State.UserEvent(typ); err == nil {
-		return ev, nil
-	}
-
-	ch := make(chan event.Event, 1)
-	c.addEventCh(typ, ch)
-
-	// Double-check after adding the event channel.
-	if ev, err := c.State.UserEvent(typ); err == nil {
-		c.removeEventCh(typ, ch)
-		return ev, nil
-	}
-
-	// No events; use a select channel.
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case ev := <-ch:
-		return ev, nil
-	}
-}
-
-// ChForEvent waits for an event and feeds the event into the channel. The
-// channel's buffer must AT LEAST be 1; a panic will occur otherwise.
-func (c *Client) ChForEvent(typ event.Type, ch chan event.Event) {
-	if cap(ch) < 1 {
-		panic("given channel is not buffered")
-	}
-
-	if ev, err := c.State.UserEvent(typ); err == nil {
-		ch <- ev
-		return
-	}
-
-	c.addEventCh(typ, ch)
-
-	// Double-check after adding the event channel.
-	if ev, err := c.State.UserEvent(typ); err == nil {
-		// Ensure the event channel is removed.
-		c.removeEventCh(typ, ch)
-		// If the event channel is not filled, then use the event from the
-		// state; otherwise, use the handled event.
-		if len(ch) == 0 {
-			ch <- ev
-		}
-		return
-	}
 }
 
 // thumbnailScale determines the sacle at which square/round thumbnails will be
