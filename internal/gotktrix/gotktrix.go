@@ -17,6 +17,9 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TimelimeLimit is the number of timeline events that the database keeps.
+const TimelimeLimit = state.TimelineKeepLast
+
 var Filter = event.GlobalFilter{
 	Room: event.RoomFilter{
 		IncludeLeave: true,
@@ -24,7 +27,7 @@ var Filter = event.GlobalFilter{
 			LazyLoadMembers: true,
 		},
 		Timeline: event.RoomEventFilter{
-			Limit:           state.TimelineKeepLast,
+			Limit:           TimelimeLimit,
 			LazyLoadMembers: true,
 		},
 	},

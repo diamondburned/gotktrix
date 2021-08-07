@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 // IdleCtx runs the given callback inside the main loop only if the context has
@@ -23,6 +24,14 @@ func IdleCtx(ctx context.Context, f func()) {
 type Canceler struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+}
+
+// WidgetVisibilityCanceler creates a new canceler that is canceled when the
+// widget is hidden.
+func WidgetVisibilityCanceler(w gtk.Widgetter) Canceler {
+	c := NewCanceler()
+	w.Connect("unmap", c.Renew)
+	return c
 }
 
 // NewCanceler creates a new Canceler.

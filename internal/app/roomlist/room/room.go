@@ -109,7 +109,7 @@ func AddTo(section Section, roomID matrix.RoomID) *Room {
 		"open-in-tab": func() { section.OpenRoomInTab(roomID) },
 	})
 
-	gtkutil.BindPopoverMenu(row, [][2]string{
+	gtkutil.BindPopoverMenu(row, gtk.PosRight, [][2]string{
 		{"Open", "room.open"},
 		{"Open in New Tab", "room.open-in-tab"},
 	})

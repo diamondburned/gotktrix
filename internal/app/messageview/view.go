@@ -93,6 +93,7 @@ func New(app Application) *View {
 	view.Connect("close-page", func(view *adw.TabView, page *adw.TabPage) {
 		// Delete the page from the page registry.
 		child := page.Child()
+		log.Println("closing page", child.Name())
 		pages.Pop(matrix.RoomID(child.Name()))
 		// Finish closing the page.
 		view.ClosePageFinish(page, true)
@@ -147,6 +148,8 @@ func (v *View) OpenRoomInNewTab(id matrix.RoomID) *Page {
 }
 
 func (v *View) openRoom(id matrix.RoomID, newTab bool) *Page {
+	log.Println("opening room", id)
+
 	// Break up a potential infinite call recursion.
 	if v.pages.visible == id {
 		return v.pages.pages[id].Page

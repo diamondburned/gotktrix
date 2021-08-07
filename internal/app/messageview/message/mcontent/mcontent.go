@@ -2,6 +2,7 @@ package mcontent
 
 import (
 	"github.com/chanbakjsd/gotrix/event"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
@@ -56,6 +57,20 @@ func New(client *gotktrix.Client, msg *event.RoomMessageEvent) *Content {
 		Widgetter: box,
 		box:       box,
 		parts:     parts,
+	}
+}
+
+type extraMenuSetter interface {
+	SetExtraMenu(gio.MenuModeller)
+}
+
+// SetExtraMenu sets the extra menu for the message content.
+func (c *Content) SetExtraMenu(menu gio.MenuModeller) {
+	for _, part := range c.parts {
+		s, ok := part.(extraMenuSetter)
+		if ok {
+			s.SetExtraMenu(menu)
+		}
 	}
 }
 

@@ -55,17 +55,22 @@ func BindActionMap(w gtk.Widgetter, prefix string, m map[string]func()) {
 	w.InsertActionGroup(prefix, group)
 }
 
+// MenuPair creates a gtk.Menu out of the given menu pair. The returned Menu
+// instance satisfies gio.MenuModeller.
+func MenuPair(pairs [][2]string) *gio.Menu {
+	menu := gio.NewMenu()
+	for _, pair := range pairs {
+		menu.Append(pair[0], pair[1])
+	}
+	return menu
+}
+
 // BindPopoverMenu binds the given widget to a popover menu to be displayed on
 // right-clicking.
-func BindPopoverMenu(w gtk.Widgetter, pairs [][2]string) {
+func BindPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) {
 	BindRightClick(w, func() {
-		menu := gio.NewMenu()
-		for _, pair := range pairs {
-			menu.Append(pair[0], pair[1])
-		}
-
-		popover := gtk.NewPopoverMenuFromModel(menu)
-		popover.SetPosition(gtk.PosRight)
+		popover := gtk.NewPopoverMenuFromModel(MenuPair(pairs))
+		popover.SetPosition(pos)
 		popover.SetParent(w)
 		popover.Popup()
 	})

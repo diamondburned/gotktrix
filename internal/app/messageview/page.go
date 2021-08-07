@@ -6,20 +6,22 @@ import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/components/autoscroll"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/pkg/errors"
 )
 
 // Page describes a tab page, which is a single message view. It satisfies teh
 // MessageViewer interface.
 type Page struct {
-	*autoscroll.Window
+	gtk.Widgetter
+
+	scroll   *autoscroll.Window
 	list     *gtk.ListBox
 	name     string
 	messages map[matrix.EventID]message.Message
@@ -77,24 +79,26 @@ func NewPage(parent *View, roomID matrix.RoomID) *Page {
 	// Bind the scrolled window for automatic scrolling.
 	msgList.SetAdjustment(scroll.VAdjustment())
 
-	return &Page{
-		Window: scroll,
+	page := Page{
+		Widgetter: scroll,
 
+		scroll:   scroll,
 		list:     msgList,
 		name:     name,
 		messages: msgMap,
 
 		onTitle: func(string) {},
-		cancel:  gtkutil.NewCanceler(),
+		cancel:  gtkutil.WidgetVisibilityCanceler(msgList),
 
 		parent: parent,
 		roomID: roomID,
 	}
-}
 
-// Stop stops any asynchronous work inside the page.
-func (p *Page) Stop() {
-	p.cancel.Cancel()
+	msgList.Connect("destroy", parent.client.SubscribeTimeline(roomID,
+		func(r event.RoomEvent) { page.OnRoomEvent(r) },
+	))
+
+	return &page
 }
 
 // OnTitle subscribes to the page's title changes.
@@ -111,6 +115,11 @@ func (p *Page) OnTitle(f func(string)) {
 // Client satisfies MessageViewer.
 func (p *Page) Client() *gotktrix.Client {
 	return p.parent.client
+}
+
+// Window returns the window that this page is in.
+func (p *Page) Window() *gtk.Window {
+	return p.parent.app.Window()
 }
 
 // Context returns the page's context
@@ -145,6 +154,23 @@ func (p *Page) OnRoomEvent(ev event.RoomEvent) {
 	}
 
 	p.onRoomEvent(ev)
+	p.clean()
+}
+
+func (p *Page) clean() {
+	if !p.scroll.IsBottomed() {
+		return
+	}
+
+	for i := len(p.messages); i >= gotktrix.TimelimeLimit; i-- {
+		row := p.list.RowAtIndex(i)
+		if row == nil {
+			continue
+		}
+
+		p.list.Remove(row)
+		delete(p.messages, matrix.EventID(row.Name()))
+	}
 }
 
 func (p *Page) onRoomEvent(ev event.RoomEvent) {
@@ -198,7 +224,7 @@ func (p *Page) Load(done func()) {
 			}
 
 			p.loaded = true
-			p.ScrollToBottom()
+			p.scroll.ScrollToBottom()
 			done()
 		})
 	}()

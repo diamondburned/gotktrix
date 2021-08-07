@@ -3,12 +3,12 @@ package message
 import (
 	"context"
 	"fmt"
-	"html"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
@@ -16,7 +16,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 // Message describes a generic message type.
@@ -28,6 +27,7 @@ type Message interface {
 
 // MessageViewer describes the parent that holds messages.
 type MessageViewer interface {
+	Window() *gtk.Window
 	// LastMessage returns the latest message.
 	LastMessage() Message
 	// Context returns the viewer's context that is associated with the client.
@@ -44,20 +44,21 @@ type MessageViewer interface {
 
 // NewCozyMessage creates a new cozy or collapsed message.
 func NewCozyMessage(parent MessageViewer, ev event.RoomEvent) Message {
+	var msg Message
+
 	switch ev := ev.(type) {
 	case event.RoomMessageEvent:
-		var msg Message
-
 		if lastIsAuthor(parent, ev) {
 			msg = newCollapsedMessage(parent, &ev)
 		} else {
 			msg = newCozyMessage(parent, &ev)
 		}
-
-		return msg
 	default:
-		return newEventMessage(parent, ev)
+		msg = newEventMessage(parent, ev)
 	}
+
+	bind(parent, msg)
+	return msg
 }
 
 func lastIsAuthor(parent MessageViewer, ev event.RoomMessageEvent) bool {
@@ -86,19 +87,27 @@ var _ = cssutil.WriteCSS(`
 
 func newEventMessage(parent MessageViewer, ev event.RoomEvent) Message {
 	action := gtk.NewLabel("")
+	action.SetXAlign(0)
 	action.AddCSSClass("message-event")
 	action.SetWrap(true)
 	action.SetWrapMode(pango.WrapWordChar)
+	bindExtraMenu(action)
 
-	markup := mauthor.Markup(
+	author := mauthor.Markup(
 		parent.Client().Offline(), ev.Room(), ev.Sender(),
 		mauthor.WithWidgetColor(action),
 	)
 
-	action.SetMarkup(fmt.Sprintf(
-		"%s did an event %T (%s).",
-		markup, ev, html.EscapeString(string(ev.ID())),
-	))
+	var msg string
+
+	switch ev := ev.(type) {
+	case event.RoomCreateEvent:
+		msg = fmt.Sprintf("%s created this room.", author)
+	default:
+		msg = fmt.Sprintf("%s did an event %T.", author, ev)
+	}
+
+	action.SetMarkup(msg)
 
 	messageCSS(action)
 
@@ -154,6 +163,7 @@ func newCollapsedMessage(parent MessageViewer, ev *event.RoomMessageEvent) Messa
 	timestamp.SetSizeRequest(avatarWidth, -1)
 
 	content := mcontent.New(client, ev)
+	bindExtraMenu(content)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	box.Append(timestamp)
@@ -229,6 +239,7 @@ func newCozyMessage(parent MessageViewer, ev *event.RoomMessageEvent) Message {
 	authorTsBox.Append(timestamp)
 
 	content := mcontent.New(client, ev)
+	bindExtraMenu(content)
 
 	rightBox := gtk.NewBox(gtk.OrientationVertical, 0)
 	rightBox.SetHExpand(true)
