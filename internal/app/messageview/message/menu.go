@@ -79,3 +79,22 @@ func showMsgSource(w *gtk.Window, ev event.Event) {
 
 	d.Show()
 }
+
+// func rawEvent(ev event.Event) *event.RawEvent {
+// 	raw := event.RawEvent{
+// 		Type: ev.Type(),
+// 	}
+
+// 	if room, ok := ev.(event.RoomEvent); ok {
+// 		raw.ID = room.ID()
+// 		raw.RoomID = room.Room()
+// 		raw.Sender = room.Sender()
+// 		raw.OriginServerTime = room.OriginServerTime()
+// 	}
+
+// 	if state, ok := ev.(event.StateEvent); ok {
+// 		raw.StateKey = state.StateKey()
+// 	}
+
+// 	j, err := json.Marshal()
+// }

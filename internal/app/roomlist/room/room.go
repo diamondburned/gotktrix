@@ -7,10 +7,13 @@ import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/roomsort"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
@@ -62,6 +65,9 @@ type Section interface {
 	Client() *gotktrix.Client
 
 	Reminify()
+	SortMode() roomsort.SortMode
+	InvalidateSort()
+
 	Remove(*Room)
 	Insert(*Room)
 
@@ -129,9 +135,21 @@ func AddTo(section Section, roomID matrix.RoomID) *Room {
 
 	section.Insert(&r)
 
-	ShowMessagePreview.Connect(r, func() {
-		r.InvalidatePreview()
-	})
+	// Bind the show message preview options.
+	ShowMessagePreview.Connect(r, func() { r.InvalidatePreview() })
+
+	// Bind the message handler to update itself.
+	r.Connect("destroy", section.Client().SubscribeTimeline(roomID, func(event.RoomEvent) {
+		glib.IdleAdd(func() {
+			if r.section.SortMode() == roomsort.SortActivity {
+				r.section.InvalidateSort()
+			}
+		})
+	}))
+
+	// Initialize drag-and-drop.
+	drag := gtkutil.NewDragSourceWithContent(row, gdk.ActionMove, string(roomID))
+	r.AddController(drag)
 
 	return &r
 }

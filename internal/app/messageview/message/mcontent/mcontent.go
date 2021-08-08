@@ -86,7 +86,7 @@ type textContent struct {
 var textContentCSS = cssutil.Applier("mcontent-text", `
 	textview.mcontent-text,
 	textview.mcontent-text text {
-		background: none;
+		background-color: transparent;
 	}
 `)
 

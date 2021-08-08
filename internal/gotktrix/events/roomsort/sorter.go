@@ -1,6 +1,7 @@
 package roomsort
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -11,9 +12,21 @@ import (
 type SortMode uint8
 
 const (
-	SortAlphabetically SortMode = iota
+	SortName SortMode = iota // A-Z
 	SortActivity
 )
+
+// String returns the sort mode in human-readable string.
+func (m SortMode) String() string {
+	switch m {
+	case SortName:
+		return "Name (A-Z)"
+	case SortActivity:
+		return "Activity"
+	default:
+		return fmt.Sprintf("SortMode(%d)", m)
+	}
+}
 
 // Sorter is a sorter interface that implements sort.Interface. It sorts rooms.
 type Sorter struct {

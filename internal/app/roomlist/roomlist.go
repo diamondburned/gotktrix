@@ -80,6 +80,7 @@ func New(app Application) *List {
 	}
 
 	listCSS(roomList)
+
 	return &roomList
 }
 

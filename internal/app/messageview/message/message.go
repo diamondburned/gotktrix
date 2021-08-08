@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"fmt"
+	"html"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -63,7 +64,15 @@ func NewCozyMessage(parent MessageViewer, ev event.RoomEvent) Message {
 
 func lastIsAuthor(parent MessageViewer, ev event.RoomMessageEvent) bool {
 	last := parent.LastMessage()
-	return last != nil && last.Event().Sender() == ev.SenderID
+	// Ensure that the last message IS a cozy OR compact message.
+	switch last := last.(type) {
+	case *cozyMessage:
+		return last.ev.SenderID == ev.SenderID
+	case *collapsedMessage:
+		return last.ev.SenderID == ev.SenderID
+	default:
+		return false
+	}
 }
 
 var messageCSS = cssutil.Applier("message-message", `
@@ -81,11 +90,12 @@ type eventMessage struct {
 var _ = cssutil.WriteCSS(`
 	.message-event {
 		font-size: .9em;
+		margin: 0 10px;
 		color: alpha(@theme_fg_color, 0.8);
 	}
 `)
 
-func newEventMessage(parent MessageViewer, ev event.RoomEvent) Message {
+func newEventMessage(parent MessageViewer, ev event.RoomEvent) *eventMessage {
 	action := gtk.NewLabel("")
 	action.SetXAlign(0)
 	action.AddCSSClass("message-event")
@@ -98,13 +108,63 @@ func newEventMessage(parent MessageViewer, ev event.RoomEvent) Message {
 		mauthor.WithWidgetColor(action),
 	)
 
-	var msg string
+	msg := author + " "
 
 	switch ev := ev.(type) {
 	case event.RoomCreateEvent:
-		msg = fmt.Sprintf("%s created this room.", author)
+		msg += "created this room."
+	case event.RoomMemberEvent:
+		switch ev.NewState {
+		case event.MemberInvited:
+			msg += "was invited."
+		case event.MemberJoined:
+			msg += "joined."
+		case event.MemberLeft:
+			msg += "left."
+		case event.MemberBanned:
+			msg += "was banned."
+		default:
+			msg += escapef("performed member action %q.", ev.NewState)
+		}
+	case event.RoomPowerLevelsEvent:
+		msg += "changed the room's permissions."
+	case event.RoomJoinRulesEvent:
+		switch ev.JoinRule {
+		case event.JoinPublic:
+			msg += "made the room public."
+		case event.JoinInvite:
+			msg += "made the room invite-only."
+		default:
+			msg += escapef("changed the join rule to %q.", ev.JoinRule)
+		}
+	case event.RoomHistoryVisibilityEvent:
+		switch ev.Visibility {
+		case event.VisibilityInvited:
+			msg += "made the room's history visible to all invited members."
+		case event.VisibilityJoined:
+			msg += "made the room's history visible to all current members."
+		case event.VisibilityShared:
+			msg += "made the room's history visible to all past members."
+		case event.VisibilityWorldReadable:
+			msg += "made the room's history world-readable."
+		default:
+			msg += escapef("changed the room history visibility to %q.", ev.Visibility)
+		}
+	case event.RoomGuestAccessEvent:
+		switch ev.GuestAccess {
+		case event.GuestAccessCanJoin:
+			msg += "allowed guests to join the room."
+		case event.GuestAccessForbidden:
+			msg += "denied guests from joining the room."
+		default:
+			msg += escapef("changed the room's guess access rule to %q.", ev.GuestAccess)
+		}
+	case event.RoomNameEvent:
+		msg += "changed the room's name to <i>" + html.EscapeString(ev.Name) + "</i>."
+	case event.RoomTopicEvent:
+		msg += "changed the room's topic to <i>" + html.EscapeString(ev.Topic) + "</i>."
 	default:
-		msg = fmt.Sprintf("%s did an event %T.", author, ev)
+		msg += fmt.Sprintf("sent a %T event.", ev)
 	}
 
 	action.SetMarkup(msg)
@@ -115,6 +175,10 @@ func newEventMessage(parent MessageViewer, ev event.RoomEvent) Message {
 		Label: action,
 		ev:    ev,
 	}
+}
+
+func escapef(f string, v ...interface{}) string {
+	return html.EscapeString(fmt.Sprintf(f, v...))
 }
 
 func (m *eventMessage) Event() event.RoomEvent { return m.ev }
@@ -156,7 +220,7 @@ const (
 	avatarWidth = 36 + 10*2 // keep consistent with CSS
 )
 
-func newCollapsedMessage(parent MessageViewer, ev *event.RoomMessageEvent) Message {
+func newCollapsedMessage(parent MessageViewer, ev *event.RoomMessageEvent) *collapsedMessage {
 	client := parent.Client().Offline()
 
 	timestamp := newTimestamp(ev.OriginTime, false)
@@ -207,7 +271,7 @@ var _ = cssutil.WriteCSS(`
 	}
 `)
 
-func newCozyMessage(parent MessageViewer, ev *event.RoomMessageEvent) Message {
+func newCozyMessage(parent MessageViewer, ev *event.RoomMessageEvent) *cozyMessage {
 	client := parent.Client().Offline()
 
 	nameLabel := gtk.NewLabel("")

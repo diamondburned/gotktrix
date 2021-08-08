@@ -6,10 +6,15 @@ import (
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/roomsort"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
 const nMinified = 8
@@ -35,7 +40,8 @@ type Section struct {
 	rooms  map[matrix.RoomID]*room.Room
 	hidden map[*room.Room]bool
 
-	current matrix.RoomID
+	comparer *roomsort.Comparer
+	current  matrix.RoomID
 
 	minified bool
 }
@@ -47,20 +53,23 @@ func New(name string) *Section {
 	list.SetActivateOnSingleClick(true)
 	list.SetPlaceholder(gtk.NewLabel("No rooms yet..."))
 
+	minify := newMinifyButton(true)
+
+	inner := gtk.NewBox(gtk.OrientationVertical, 0)
+	inner.Append(list)
+	inner.Append(minify)
+
 	rev := gtk.NewRevealer()
 	rev.SetRevealChild(true)
 	rev.SetTransitionType(gtk.RevealerTransitionTypeSlideDown)
-	rev.SetChild(list)
+	rev.SetChild(inner)
 
 	btn := newRevealButton(rev, name)
 	btn.SetHasFrame(false)
 
-	minify := newMinifyButton(true)
-
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	box.Append(btn)
 	box.Append(rev)
-	box.Append(minify)
 	box.SetSensitive(false)
 
 	sect := Section{
@@ -70,6 +79,28 @@ func New(name string) *Section {
 		hidden:  make(map[*room.Room]bool),
 		listBox: list,
 	}
+
+	gtkutil.BindActionMap(btn, "roomsection", map[string]func(){
+		"change-sort": func() {},
+	})
+
+	menuPairs := [][2]string{}
+
+	gtkutil.BindRightClick(btn, func() {
+		menu := gtkutil.MenuPair(menuPairs)
+		menu.AppendItem(gtkutil.NewCustomMenuItem("Sort by", "roomsection.change-sort"))
+
+		p := gtk.NewPopoverMenuFromModel(menu)
+		p.SetPosition(gtk.PosBottom)
+		p.SetParent(btn)
+
+		if !p.AddChild(sect.sortByBox(), "roomsection.change-sort") {
+			log.Println("Sort by not added.")
+			return
+		}
+
+		p.Popup()
+	})
 
 	minify.OnToggled(func(minify bool) string {
 		if !minify {
@@ -81,7 +112,60 @@ func New(name string) *Section {
 		return fmt.Sprintf("Show %d more", sect.NHidden())
 	})
 
+	// Initialize drag-and-drop.
+	drop := gtkutil.NewListDropTarget(list, glib.TypeString, gdk.ActionMove)
+	drop.Connect("drop", func(drop *gtk.DropTarget, v *glib.Value, x, y float64) {
+		log.Println("got dropped at Y =", y)
+		row, pos := gtkutil.RowAtY(list, y)
+		if row == nil {
+			log.Println("no row found at y")
+			return
+		}
+
+		switch pos {
+		case gtk.PosBottom:
+			log.Println("bottom of", row.Name(), "add", v.GoValue())
+		case gtk.PosTop:
+			log.Println("top of", row.Name(), "add", v.GoValue())
+		}
+	})
+
+	list.AddController(drop)
+
 	return &sect
+}
+
+func (s *Section) sortByBox() gtk.Widgetter {
+	header := gtk.NewLabel("Sort by")
+	header.SetXAlign(0)
+	header.SetAttributes(markuputil.Attrs(
+		pango.NewAttrWeight(pango.WeightBold),
+	))
+
+	radio := gtkutil.RadioData{
+		Current: 1,
+		Options: []string{"Name (A-Z)", "Activity"},
+	}
+
+	switch s.comparer.Mode {
+	case roomsort.SortName:
+		radio.Current = 0
+	case roomsort.SortActivity:
+		radio.Current = 1
+	}
+
+	b := gtk.NewBox(gtk.OrientationVertical, 0)
+	b.Append(header)
+	b.Append(gtkutil.NewRadioButtons(radio, func(i int) {
+		switch i {
+		case 0:
+			s.SetSortMode(roomsort.SortName)
+		case 1:
+			s.SetSortMode(roomsort.SortActivity)
+		}
+	}))
+
+	return b
 }
 
 // SetParentList sets the section's parent list and activates it.
@@ -94,14 +178,10 @@ func (s *Section) SetParentList(parent ParentList) {
 		parent.OpenRoom(s.current)
 	})
 
-	comparer := roomsort.NewComparer(
-		parent.Client().Offline(),
-		// TODO enumify
-		roomsort.SortActivity,
-	)
+	s.comparer = roomsort.NewComparer(parent.Client().Offline(), roomsort.SortActivity)
 
 	s.listBox.SetSortFunc(func(i, j *gtk.ListBoxRow) int {
-		return comparer.Compare(
+		return s.comparer.Compare(
 			matrix.RoomID(i.Name()),
 			matrix.RoomID(j.Name()),
 		)
@@ -120,6 +200,25 @@ func (s *Section) SetParentList(parent ParentList) {
 
 		return strings.Contains(rm.Name, searching)
 	})
+}
+
+// SetSortMode sets the sorting mode for each room.
+func (s *Section) SetSortMode(mode roomsort.SortMode) {
+	if s.ParentList == nil {
+		log.Panicln("SetSortMode called before SetParentList")
+	}
+
+	s.comparer = roomsort.NewComparer(s.ParentList.Client().Offline(), mode)
+	s.InvalidateSort()
+}
+
+// SortMode returns the section's current sort mode.
+func (s *Section) SortMode() roomsort.SortMode {
+	if s.comparer == nil {
+		log.Panicln("SortMode called before SetParentList")
+	}
+
+	return s.comparer.Mode
 }
 
 // Unselect unselects the list of the current section. If the given current room

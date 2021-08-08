@@ -76,7 +76,7 @@ in shell.overrideAttrs (old: {
 		minitime
 	];
 
-	# NIX_DEBUG_INFO_DIRS = ''${pkgs.gtk4.debug}/lib/debug:${pkgs.glib.debug}/lib/debug'';
+	NIX_DEBUG_INFO_DIRS = ''${pkgs.gtk4.debug}/lib/debug:${pkgs.glib.debug}/lib/debug'';
 
 	CGO_ENABLED  = "1";
 	CGO_CFLAGS   = "-g2 -O2";

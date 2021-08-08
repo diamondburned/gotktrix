@@ -95,7 +95,9 @@ func NewPage(parent *View, roomID matrix.RoomID) *Page {
 	}
 
 	msgList.Connect("destroy", parent.client.SubscribeTimeline(roomID,
-		func(r event.RoomEvent) { page.OnRoomEvent(r) },
+		func(r event.RoomEvent) {
+			glib.IdleAdd(func() { page.OnRoomEvent(r) })
+		},
 	))
 
 	return &page

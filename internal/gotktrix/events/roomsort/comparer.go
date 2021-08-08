@@ -158,7 +158,7 @@ func (comparer *Comparer) compare(iID, jID matrix.RoomID) int {
 		}
 		return -1
 
-	case SortAlphabetically:
+	case SortName:
 		iname := comparer.roomName(iID)
 		jname := comparer.roomName(jID)
 

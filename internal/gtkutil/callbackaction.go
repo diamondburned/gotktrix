@@ -2,6 +2,7 @@ package gtkutil
 
 import (
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
@@ -55,8 +56,15 @@ func BindActionMap(w gtk.Widgetter, prefix string, m map[string]func()) {
 	w.InsertActionGroup(prefix, group)
 }
 
+func NewCustomMenuItem(label, id string) *gio.MenuItem {
+	item := gio.NewMenuItem(label, id)
+	item.SetAttributeValue("custom", glib.NewVariantString(id))
+	return item
+}
+
 // MenuPair creates a gtk.Menu out of the given menu pair. The returned Menu
-// instance satisfies gio.MenuModeller.
+// instance satisfies gio.MenuModeller. The first value of a pair should be the
+// name.
 func MenuPair(pairs [][2]string) *gio.Menu {
 	menu := gio.NewMenu()
 	for _, pair := range pairs {
@@ -74,4 +82,50 @@ func BindPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) {
 		popover.SetParent(w)
 		popover.Popup()
 	})
+}
+
+// NewPopoverMenuFromPairs is a convenient function for NewPopoverMenuFromModel
+// and MenuPairs.
+func NewPopoverMenuFromPairs(pairs [][2]string) *gtk.PopoverMenu {
+	return gtk.NewPopoverMenuFromModel(MenuPair(pairs))
+}
+
+// RadioData describes the data for the set of radio buttons created by
+// NewRadioButtons.
+type RadioData struct {
+	Current int
+	Options []string
+}
+
+// NewRadioButtons creates a new box of radio buttons.
+func NewRadioButtons(d RadioData, f func(int)) gtk.Widgetter {
+	b := gtk.NewBox(gtk.OrientationVertical, 0)
+	b.AddCSSClass("radio-buttons")
+
+	var first *gtk.CheckButton
+
+	for i, opt := range d.Options {
+		i := i
+
+		radio := gtk.NewCheckButtonWithLabel(opt)
+		radio.Connect("toggled", func() {
+			if radio.Active() {
+				f(i)
+			}
+		})
+
+		if d.Current == i {
+			radio.SetActive(true)
+		}
+
+		if first != nil {
+			radio.SetGroup(first)
+		} else {
+			first = radio
+		}
+
+		b.Append(radio)
+	}
+
+	return b
 }
