@@ -27,7 +27,9 @@ func ActionFunc(name string, f func()) *CallbackAction {
 // OnActivate binds the given function callback to be called when the action is
 // activated.
 func (a *CallbackAction) OnActivate(f func()) {
-	a.SimpleAction.Connect("activate", f)
+	if f != nil {
+		a.SimpleAction.Connect("activate", f)
+	}
 }
 
 // ActionData describes a CallbackAction's data.
@@ -73,15 +75,77 @@ func MenuPair(pairs [][2]string) *gio.Menu {
 	return menu
 }
 
+// PopoverWidth is the default popover width.
+const PopoverWidth = 150
+
 // BindPopoverMenu binds the given widget to a popover menu to be displayed on
 // right-clicking.
 func BindPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) {
-	BindRightClick(w, func() {
-		popover := gtk.NewPopoverMenuFromModel(MenuPair(pairs))
-		popover.SetPosition(pos)
-		popover.SetParent(w)
-		popover.Popup()
-	})
+	BindRightClick(w, func() { ShowPopoverMenu(w, pos, pairs) })
+}
+
+// ShowPopoverMenu is like ShowPopoverMenuCustom but uses a regular string pair
+// list.
+func ShowPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) {
+	popover := gtk.NewPopoverMenuFromModel(MenuPair(pairs))
+	popover.SetMnemonicsVisible(true)
+	popover.SetSizeRequest(PopoverWidth, -1)
+	popover.SetPosition(pos)
+	popover.SetParent(w)
+	popover.Popup()
+}
+
+// PopoverMenuItem describes an item in the popover menu. It is the full version
+// of the [][2]string menu pairs.
+type PopoverMenuItem struct {
+	Label  string
+	Action string        // disabled if empty, "---" if separator
+	Widget gtk.Widgetter // optional
+}
+
+// BindPopoverMenuCustom works similarly to BindPopoverMenu, but the value type
+// can be more than just an action string. The key must be a string.
+func BindPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, pairs []PopoverMenuItem) {
+	BindRightClick(w, func() { ShowPopoverMenuCustom(w, pos, pairs) })
+}
+
+// ShowPopoverMenuCustom is like BindPopoverMenuCustom, but it does not bind a
+// handler. This is useful if the caller does not want pairs to be in memory all
+// the time. If any of the menus cannot be added in, then false is returned, and
+// the popover isn't shown.
+func ShowPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, pairs []PopoverMenuItem) bool {
+	menu := gio.NewMenu()
+	section := menu
+
+	for _, pair := range pairs {
+		if pair.Action == "---" {
+			section = gio.NewMenu()
+			menu.AppendSection(pair.Label, section)
+			continue
+		}
+
+		if pair.Widget == nil {
+			section.Append(pair.Label, pair.Action)
+		} else {
+			section.AppendItem(NewCustomMenuItem(pair.Label, pair.Action))
+		}
+	}
+
+	popover := gtk.NewPopoverMenuFromModel(menu)
+	popover.SetSizeRequest(PopoverWidth, -1)
+	popover.SetPosition(pos)
+	popover.SetParent(w)
+
+	for _, pair := range pairs {
+		if pair.Widget != nil {
+			if !popover.AddChild(pair.Widget, pair.Action) {
+				return false
+			}
+		}
+	}
+
+	popover.Popup()
+	return true
 }
 
 // NewPopoverMenuFromPairs is a convenient function for NewPopoverMenuFromModel

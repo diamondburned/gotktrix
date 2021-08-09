@@ -226,8 +226,6 @@ func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 		}
 	}
 
-	log.Println("API queried")
-
 	return events, nil
 }
 
@@ -241,6 +239,29 @@ func LatestMessage(events []event.RoomEvent) (event.RoomMessageEvent, bool) {
 		}
 	}
 	return event.RoomMessageEvent{}, false
+}
+
+// AsyncSetConfig updates the state cache first, and then updates the API in the
+// background.
+//
+// If done is given, then it's called once the API is updated. Most of the time,
+// done should only be used to display errors; to know when things are updated,
+// use a handler. Because of that, done may be invoked before AsyncConfigSet has
+// been returned when there's an error. Done might also be called in a different
+// goroutine.
+func (c *Client) AsyncSetConfig(ev event.Event, done func(error)) {
+	if err := c.State.SetUserEvent(ev); err != nil {
+		done(err)
+		return
+	}
+
+	go func() {
+		err := c.ClientConfigSet(string(ev.Type()), ev)
+
+		if done != nil {
+			done(err)
+		}
+	}()
 }
 
 // UserEvent gets the user event from the state or the API.

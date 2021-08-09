@@ -11,7 +11,6 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/roomsort"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -22,12 +21,12 @@ import (
 // AvatarSize is the size in pixels of the avatar.
 const AvatarSize = 32
 
-// ShowMessagePreview determines if a room shows a preview of its latest
-// message.
-var ShowMessagePreview = prefs.NewBool(true, prefs.PropMeta{
-	Name:        "Preview Message",
-	Description: "Whether or not to show a preview of the latest message.",
-})
+// // ShowMessagePreview determines if a room shows a preview of its latest
+// // message.
+// var ShowMessagePreview = prefs.NewBool(true, prefs.PropMeta{
+// 	Name:        "Preview Message",
+// 	Description: "Whether or not to show a preview of the latest message.",
+// })
 
 // Room is a single room row.
 type Room struct {
@@ -38,10 +37,11 @@ type Room struct {
 	preview *gtk.Label
 	avatar  *adw.Avatar
 
-	section Section
-
 	ID   matrix.RoomID
 	Name string
+
+	section     Section
+	showPreview bool
 }
 
 var avatarCSS = cssutil.Applier("roomlist-avatar", `
@@ -135,12 +135,11 @@ func AddTo(section Section, roomID matrix.RoomID) *Room {
 
 	section.Insert(&r)
 
-	// Bind the show message preview options.
-	ShowMessagePreview.Connect(r, func() { r.InvalidatePreview() })
-
 	// Bind the message handler to update itself.
 	r.Connect("destroy", section.Client().SubscribeTimeline(roomID, func(event.RoomEvent) {
 		glib.IdleAdd(func() {
+			r.InvalidatePreview()
+
 			if r.section.SortMode() == roomsort.SortActivity {
 				r.section.InvalidateSort()
 			}
@@ -152,6 +151,11 @@ func AddTo(section Section, roomID matrix.RoomID) *Room {
 	r.AddController(drag)
 
 	return &r
+}
+
+// Section returns the current section that the room is in.
+func (r *Room) Section() Section {
+	return r.section
 }
 
 // IsIn returns true if the room is in the given section.
@@ -187,6 +191,13 @@ func (r *Room) SetAvatarURL(mxc matrix.URL) {
 	imgutil.AsyncGET(context.TODO(), url, r.avatar.SetCustomImage)
 }
 
+// SetShowMessagePreview sets whether or not the room should show the message
+// preview.
+func (r *Room) SetShowMessagePreview(show bool) {
+	r.showPreview = show
+	r.InvalidatePreview()
+}
+
 func (r *Room) erasePreview() {
 	r.preview.SetLabel("")
 	r.preview.Hide()
@@ -194,7 +205,7 @@ func (r *Room) erasePreview() {
 
 // InvalidatePreview invalidate the room's preview.
 func (r *Room) InvalidatePreview() {
-	if !ShowMessagePreview.Value() {
+	if !r.showPreview {
 		r.erasePreview()
 		return
 	}

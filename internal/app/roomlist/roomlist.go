@@ -10,7 +10,9 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/section"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/roomsort"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/pkg/errors"
 )
 
 // List describes a room list widget.
@@ -249,4 +251,55 @@ func (l *List) setRoom(id matrix.RoomID) {
 	for _, s := range l.sections {
 		s.Unselect(l.current)
 	}
+}
+
+// MoveRoom implements section.ParentList.
+func (l *List) MoveRoom(src matrix.RoomID, dstRoom *room.Room, pos gtk.PositionType) bool {
+	srcRoom, ok := l.rooms[src]
+	if !ok {
+		return false
+	}
+
+	if !srcRoom.IsIn(dstRoom.Section()) {
+		srcRoom.Move(dstRoom.Section())
+	}
+
+	var anchor roomsort.Anchor
+	switch pos {
+	case gtk.PosTop:
+		anchor = roomsort.AnchorAbove
+	case gtk.PosBottom:
+		anchor = roomsort.AnchorBelow
+	}
+
+	override := func(ev roomsort.RoomPositionEvent) {
+		if ev.Positions == nil {
+			ev.Positions = make(roomsort.RoomPositions, 1)
+		}
+
+		ev.Positions[src] = roomsort.RoomPosition{
+			RelID:  dstRoom.ID,
+			Anchor: anchor,
+		}
+
+		l.client.AsyncSetConfig(ev, func(err error) {
+			if err != nil {
+				l.app.Error(errors.Wrap(err, "failed to update roomsort list"))
+			}
+		})
+
+		glib.IdleAdd(func() {
+			// Update the order of the room.
+			dstRoom.Section().InvalidateSort()
+		})
+	}
+
+	e, _ := l.client.Offline().UserEvent(roomsort.RoomPositionEventType)
+	if e == nil {
+		override(roomsort.RoomPositionEvent{})
+		return true
+	}
+
+	override(e.(roomsort.RoomPositionEvent))
+	return true
 }

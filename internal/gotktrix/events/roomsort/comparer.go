@@ -1,6 +1,8 @@
 package roomsort
 
 import (
+	"log"
+
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
@@ -27,31 +29,36 @@ type Comparer struct {
 
 // NewComparer creates a new comparer.
 func NewComparer(client *gotktrix.Client, mode SortMode) *Comparer {
-	return &Comparer{
+	cmp := &Comparer{
 		client:      client,
 		Mode:        mode,
 		roomDataMap: map[matrix.RoomID]interface{}{},
 	}
+
+	cmp.InvalidatePositions()
+	cmp.InvalidateRoomCache()
+
+	return cmp
 }
 
 // InvalidatePositions invalidates the room_positions event cached inside the
 // sorter.
-func (comparer *Comparer) InvalidatePositions() error {
+func (comparer *Comparer) InvalidatePositions() {
 	ev, err := comparer.client.UserEvent(RoomPositionEventType)
 	if err != nil {
-		return err
+		log.Println("no RoomPositionEventType:", err)
+		return
 	}
 
 	pos, _ := ev.(RoomPositionEvent)
 	comparer.positions = pos.Positions
-
-	return nil
+	comparer.positions.Sanitize()
 }
 
 // InvalidateRoomCache invalidates the room name/timestamp cache. This is
 // automatically called when Sort is called.
 func (comparer *Comparer) InvalidateRoomCache() {
-	if len(comparer.roomDataMap) == 0 {
+	if comparer.roomDataMap != nil && len(comparer.roomDataMap) == 0 {
 		// Already empty.
 		return
 	}
@@ -75,30 +82,40 @@ func (comparer *Comparer) Compare(iID, jID matrix.RoomID) int {
 		return 0
 	}
 
-	switch ipos := comparer.positions[iID]; ipos.Anchor {
+	if ipos, iok := comparer.positions[iID]; iok {
+		if c := compareOverride(ipos, jID); c != 0 {
+			return c
+		}
+		return comparer.compare(ipos.RelID, jID)
+	}
+
+	if jpos, jok := comparer.positions[jID]; jok {
+		if c := compareOverride(jpos, iID); c != 0 {
+			return -c
+		}
+		return comparer.compare(iID, jpos.RelID)
+	}
+
+	return comparer.compare(iID, jID)
+}
+
+func compareOverride(pos RoomPosition, id matrix.RoomID) int {
+	switch pos.Anchor {
 	case AnchorAbove:
-		if ipos.RelID == jID {
+		if pos.RelID == id {
 			return -1
 		}
 	case AnchorBelow:
-		if ipos.RelID == jID {
+		if pos.RelID == id {
 			return 1
 		}
 	case AnchorTop:
 		return -1 // always before
-
-		// if comparer.List != nil && jID == comparer.List.FirstID() {
-		// 	return -1
-		// }
 	case AnchorBottom:
 		return 1 // always after
-
-		// if comparer.List != nil && jID == comparer.List.LastID() {
-		// 	return false
-		// }
 	}
 
-	return comparer.compare(iID, jID)
+	return 0
 }
 
 func (comparer *Comparer) roomTimestamp(id matrix.RoomID) int64 {
@@ -114,7 +131,7 @@ func (comparer *Comparer) roomTimestamp(id matrix.RoomID) int64 {
 		return 0
 	}
 
-	ts := int64(events[0].OriginServerTime())
+	ts := int64(events[len(events)-1].OriginServerTime())
 	comparer.roomDataMap[id] = ts
 
 	return ts

@@ -6,9 +6,10 @@ replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix v0.1.2-0
 
 require (
 	github.com/chanbakjsd/gotrix v0.3.1-0.20210730082524-488f3af06fac
+	github.com/davecgh/go-spew v1.1.1
 	github.com/dgraph-io/badger/v3 v3.2103.0
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210808051715-e0113f499df6
-	github.com/diamondburned/gotk4/pkg v0.0.0-20210808084554-afe99689dff6
+	github.com/diamondburned/gotk4/pkg v0.0.0-20210808215846-7af4da2ca3a6
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/pkg/errors v0.9.1

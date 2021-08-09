@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"log"
 	"sync"
 
@@ -302,6 +303,25 @@ func (s *State) UserEvent(typ event.Type) (event.Event, error) {
 	}
 
 	return e, nil
+}
+
+// SetUserEvent updates the user event inside the state.
+func (s *State) SetUserEvent(ev event.Event) error {
+	b, err := json.Marshal(ev)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal event")
+	}
+
+	raw := event.RawEvent{
+		Type:    ev.Type(),
+		Content: b,
+	}
+
+	if err := s.db.NodeFromPath(s.paths.user).Set(string(raw.Type), &raw); err != nil {
+		return errors.Wrap(err, "failed to update db")
+	}
+
+	return nil
 }
 
 // NextBatch returns the next batch string with true if the database contains

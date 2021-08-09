@@ -7,48 +7,58 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 // Bar describes a self bar widget.
 type Bar struct {
-	*gtk.Box
-	app *app.Application
+	*gtk.Button
+	app Application
 
-	avatar    *adw.Avatar
-	name      *gtk.Label
-	hamburger *gtk.Button
+	box    *gtk.Box
+	avatar *adw.Avatar
+	name   *gtk.Label
 }
 
 var avatarSize = 32
 
 var barCSS = cssutil.Applier("selfbar-bar", `
 	.selfbar-bar {
-		padding:   2px 8px;
-		padding-right: 6px;
 		box-shadow: 0 0 8px 0px rgba(0, 0, 0, 0.35);
 		background-color: @theme_bg_color;
+		border: none;
+		border-radius: 0;
+		padding:   4px 8px;
+		padding-right: 8px;
 	}
 	.selfbar-bar label {
 		margin-left: 6px;
+		font-weight: initial;
 	}
 `)
 
+type Application interface {
+	app.Applicationer
+	// BeginReorderMode signals the application to put the room list under
+	// reorder mode, or override mode, which would allow the user to arbitrarily
+	// move rooms according to roomsort anchors.
+	BeginReorderMode()
+}
+
 // New creates a new self bar instance.
-func New(app *app.Application) *Bar {
-	burger := gtk.NewButtonFromIconName("open-menu-symbolic")
+func New(app Application) *Bar {
+	burger := gtk.NewImageFromIconName("open-menu-symbolic")
 	burger.SetTooltipText("Menu")
-	burger.AddCSSClass("selfbar-hamburger")
-	burger.SetHasFrame(false)
+	burger.AddCSSClass("selfbar-icon")
 	burger.SetVAlign(gtk.AlignCenter)
-	burger.Connect("clicked", func() { openHamburger(app) })
 
 	uID, _ := app.Client().Offline().Whoami()
 	username, _, _ := uID.Parse()
@@ -66,15 +76,28 @@ func New(app *app.Application) *Bar {
 	box.Append(&avatar.Widget)
 	box.Append(name)
 	box.Append(burger)
-	barCSS(box)
+
+	button := gtk.NewButton()
+	button.SetHasFrame(false)
+	button.SetChild(box)
+	barCSS(button)
+
+	gtkutil.BindActionMap(button, "selfbar", map[string]func(){
+		"begin-reorder-mode": app.BeginReorderMode,
+	})
+	button.Connect("clicked", func() {
+		gtkutil.ShowPopoverMenu(button, gtk.PosTop, [][2]string{
+			{"_Reorder Rooms", "selfbar.begin-reorder-mode"},
+		})
+	})
 
 	return &Bar{
-		Box: box,
-		app: app,
+		Button: button,
+		app:    app,
 
-		avatar:    avatar,
-		name:      name,
-		hamburger: burger,
+		box:    box,
+		avatar: avatar,
+		name:   name,
 	}
 }
 
@@ -114,9 +137,4 @@ func nameMarkup(c *gotktrix.Client, uID matrix.UserID, mods ...mauthor.MarkupMod
 	}
 
 	return markup
-}
-
-func openHamburger(app *app.Application) {
-	// TODO
-	// gtk.NewPopoverMenuFromModel()
 }

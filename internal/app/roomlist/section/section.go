@@ -7,7 +7,6 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
@@ -22,11 +21,18 @@ const nMinified = 8
 // ParentList describes the list containing the section.
 type ParentList interface {
 	Client() *gotktrix.Client
+
 	OpenRoom(matrix.RoomID)
 	OpenRoomInTab(matrix.RoomID)
 
 	// Searching returns the string being searched.
 	Searching() string
+
+	// MoveRoom moves the src room into where dst was accordingly to the
+	// position type. The method is expected to also asynchronously save the
+	// position into the server. True should be returned if the move is
+	// successful.
+	MoveRoom(src matrix.RoomID, dst *room.Room, pos gtk.PositionType) bool
 }
 
 // Section is a room section, such as People or Favorites.
@@ -43,7 +49,12 @@ type Section struct {
 	comparer *roomsort.Comparer
 	current  matrix.RoomID
 
-	minified bool
+	minified    bool
+	showPreview bool
+}
+
+type reorderMode struct {
+	drop *gtk.DropTarget
 }
 
 // New creates a new deactivated section.
@@ -73,33 +84,25 @@ func New(name string) *Section {
 	box.SetSensitive(false)
 
 	sect := Section{
-		Box:     box,
-		minify:  minify,
-		rooms:   make(map[matrix.RoomID]*room.Room),
-		hidden:  make(map[*room.Room]bool),
-		listBox: list,
+		Box:         box,
+		minify:      minify,
+		rooms:       make(map[matrix.RoomID]*room.Room),
+		hidden:      make(map[*room.Room]bool),
+		listBox:     list,
+		showPreview: true, // TODO config module
 	}
 
 	gtkutil.BindActionMap(btn, "roomsection", map[string]func(){
-		"change-sort": func() {},
+		"change-sort":  nil,
+		"show-preview": nil,
 	})
 
-	menuPairs := [][2]string{}
-
 	gtkutil.BindRightClick(btn, func() {
-		menu := gtkutil.MenuPair(menuPairs)
-		menu.AppendItem(gtkutil.NewCustomMenuItem("Sort by", "roomsection.change-sort"))
-
-		p := gtk.NewPopoverMenuFromModel(menu)
-		p.SetPosition(gtk.PosBottom)
-		p.SetParent(btn)
-
-		if !p.AddChild(sect.sortByBox(), "roomsection.change-sort") {
-			log.Println("Sort by not added.")
-			return
-		}
-
-		p.Popup()
+		gtkutil.ShowPopoverMenuCustom(btn, gtk.PosBottom, []gtkutil.PopoverMenuItem{
+			{"Sort by", "roomsection.change-sort", sect.sortByBox()},
+			{"Appearance", "---", nil},
+			{"Show Preview", "roomsection.show-preview", sect.showPreviewBox()},
+		})
 	})
 
 	minify.OnToggled(func(minify bool) string {
@@ -113,26 +116,54 @@ func New(name string) *Section {
 	})
 
 	// Initialize drag-and-drop.
-	drop := gtkutil.NewListDropTarget(list, glib.TypeString, gdk.ActionMove)
-	drop.Connect("drop", func(drop *gtk.DropTarget, v *glib.Value, x, y float64) {
-		log.Println("got dropped at Y =", y)
-		row, pos := gtkutil.RowAtY(list, y)
-		if row == nil {
-			log.Println("no row found at y")
-			return
-		}
+	// drop := gtkutil.NewListDropTarget(list, glib.TypeString, gdk.ActionMove)
+	// drop.Connect("drop", sect.moveRoom)
 
-		switch pos {
-		case gtk.PosBottom:
-			log.Println("bottom of", row.Name(), "add", v.GoValue())
-		case gtk.PosTop:
-			log.Println("top of", row.Name(), "add", v.GoValue())
+	// list.AddController(drop)
+
+	return &sect
+}
+
+func (s *Section) moveRoom(drop *gtk.DropTarget, v *glib.Value, x, y float64) bool {
+	if s.ParentList == nil {
+		return false
+	}
+
+	row, pos := gtkutil.RowAtY(s.listBox, y)
+	if row == nil {
+		log.Println("no row found at y")
+		return false
+	}
+
+	vstr, ok := v.GoValue().(string)
+	if !ok {
+		log.Printf("erroneous value not of type string, but %T", v.GoValue())
+		return false
+	}
+
+	srcID := matrix.RoomID(vstr)
+	dstID := matrix.RoomID(row.Name())
+
+	dstRoom, ok := s.rooms[dstID]
+	if !ok {
+		log.Printf("unknown room dropped upon, ID %s", dstID)
+		return false
+	}
+
+	return s.ParentList.MoveRoom(srcID, dstRoom, pos)
+}
+
+func (s *Section) showPreviewBox() gtk.Widgetter {
+	check := gtk.NewCheckButtonWithLabel("Show Message Preview")
+	check.Connect("toggled", func() {
+		s.showPreview = check.Active()
+		// Update all rooms individually. No magic here.
+		for _, room := range s.rooms {
+			room.SetShowMessagePreview(s.showPreview)
 		}
 	})
 
-	list.AddController(drop)
-
-	return &sect
+	return check
 }
 
 func (s *Section) sortByBox() gtk.Widgetter {
@@ -253,6 +284,7 @@ func (s *Section) Insert(room *room.Room) {
 		delete(s.rooms, room.ID)
 	}
 
+	room.SetShowMessagePreview(s.showPreview)
 	room.ListBoxRow.SetName(string(room.ID))
 	s.listBox.Insert(room.ListBoxRow, -1)
 
@@ -281,6 +313,8 @@ func (s *Section) Remove(room *room.Room) {
 // InvalidateSort invalidates the section's sort. This should be called if any
 // room inside the section has been changed.
 func (s *Section) InvalidateSort() {
+	s.comparer.InvalidateRoomCache()
+	s.comparer.InvalidatePositions()
 	s.listBox.InvalidateSort()
 	s.Reminify()
 }

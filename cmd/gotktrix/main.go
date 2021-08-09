@@ -102,7 +102,7 @@ func (app *application) ready(rooms []matrix.RoomID) {
 	listScroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	listScroll.SetChild(app.roomList)
 
-	self := selfbar.New(app.Application)
+	self := selfbar.New(app)
 	self.Invalidate()
 
 	leftBox := gtk.NewBox(gtk.OrientationVertical, 0)
@@ -156,4 +156,8 @@ func (app *application) OpenRoomInTab(id matrix.RoomID) {
 
 func (app *application) SetSelectedRoom(id matrix.RoomID) {
 	app.roomList.SetSelectedRoom(id)
+}
+
+func (app *application) BeginReorderMode() {
+	// TODO
 }
