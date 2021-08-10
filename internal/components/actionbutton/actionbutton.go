@@ -18,7 +18,6 @@ type Button struct {
 // given position type.
 func NewButton(icon, label string, pos gtk.PositionType) *Button {
 	img := gtk.NewImageFromIconName(icon)
-	img.SetMarginEnd(4)
 	img.SetMarginBottom(1)
 
 	lbl := gtk.NewLabel(label)
@@ -27,9 +26,11 @@ func NewButton(icon, label string, pos gtk.PositionType) *Button {
 
 	switch pos {
 	case gtk.PosLeft:
+		img.SetMarginStart(4)
 		box.Append(img)
 		box.Append(lbl)
 	case gtk.PosRight:
+		img.SetMarginEnd(4)
 		box.Append(lbl)
 		box.Append(img)
 	default:

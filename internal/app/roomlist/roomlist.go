@@ -10,7 +10,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/section"
-	"github.com/diamondburned/gotktrix/internal/components/actionbutton"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/roomsort"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -23,8 +22,9 @@ type List struct {
 	ctx  context.Context
 	ctrl Controller
 
-	sections []*section.Section
-	section  struct {
+	sectionBox *gtk.Box
+	sections   []*section.Section
+	section    struct {
 		rooms  *section.Section
 		people *section.Section
 	}
@@ -34,12 +34,11 @@ type List struct {
 	rooms   map[matrix.RoomID]*room.Room
 	current matrix.RoomID
 
-	reordering *reorderingState
+	reorderAction *gtk.ActionBar
+	reordering    *reorderingState
 }
 
 type reorderingState struct {
-	*gtk.ActionBar
-	done  *actionbutton.Button
 	state roomsort.RoomPositions
 }
 
@@ -56,6 +55,13 @@ var listCSS = cssutil.Applier("roomlist-list", `
 	.roomlist-list list row:selected {
 		background-color: alpha(@accent_color, 0.2);
 		color: mix(@accent_color, @theme_fg_color, 0.25);
+	}
+
+	.roomlist-reorderactions {
+		color: @accent_color;
+	}
+	.roomlist-reorderactions button {
+		margin-left: 6px;
 	}
 `)
 
@@ -86,12 +92,32 @@ func New(ctx context.Context, ctrl Controller) *List {
 	roomList.section.rooms = roomList.sections[0]
 	roomList.section.people = roomList.sections[1]
 
+	sectionBox := gtk.NewBox(gtk.OrientationVertical, 0)
+	listCSS(sectionBox)
+
 	for _, section := range roomList.sections {
-		roomList.Append(section)
+		sectionBox.Append(section)
 	}
 
-	listCSS(roomList)
+	scroll := gtk.NewScrolledWindow()
+	scroll.SetVExpand(true)
+	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	scroll.SetChild(sectionBox)
 
+	cancel := gtk.NewButtonFromIconName("process-stop-symbolic")
+	cancel.Connect("clicked", roomList.stopOrdering)
+	done := gtk.NewButtonFromIconName("object-select-symbolic")
+	done.Connect("clicked", roomList.saveOrdering)
+
+	roomList.reorderAction = gtk.NewActionBar()
+	roomList.reorderAction.AddCSSClass("roomlist-reorderactions")
+	roomList.reorderAction.SetRevealed(false)
+	roomList.reorderAction.PackStart(gtk.NewLabel("Reorder rooms"))
+	roomList.reorderAction.PackEnd(done)
+	roomList.reorderAction.PackEnd(cancel)
+
+	roomList.Append(scroll)
+	roomList.Append(roomList.reorderAction)
 	return &roomList
 }
 
@@ -374,22 +400,24 @@ func (l *List) BeginReorderMode() {
 		pos.Positions = make(roomsort.RoomPositions, 1)
 	}
 
-	r := reorderingState{
-		ActionBar: gtk.NewActionBar(),
-		done:      actionbutton.NewButton("object-select-symbolic", "Done", gtk.PosRight),
-		state:     pos.Positions,
+	l.reorderAction.SetRevealed(true)
+	l.reordering = &reorderingState{
+		state: pos.Positions,
 	}
-
-	r.ActionBar.PackEnd(r.done)
-
-	l.reordering = &r
-	l.Box.Append(r)
 
 	for _, section := range l.sections {
 		section.BeginReorderMode()
 	}
+}
 
-	r.done.Connect("clicked", l.saveOrdering)
+func (l *List) stopOrdering() {
+	if l.reordering == nil {
+		return
+	}
+
+	l.RemoveCSSClass("reordering")
+	l.reordering = nil
+	l.reorderAction.SetRevealed(false)
 }
 
 func (l *List) saveOrdering() {
@@ -397,9 +425,6 @@ func (l *List) saveOrdering() {
 		// Not in reordering mode for some reason.
 		return
 	}
-
-	l.RemoveCSSClass("reordering")
-	l.Box.Remove(l.reordering)
 
 	ev := roomsort.RoomPositionEvent{
 		Positions: l.reordering.state,
@@ -417,5 +442,5 @@ func (l *List) saveOrdering() {
 		section.InvalidateSort()
 	}
 
-	l.reordering = nil
+	l.stopOrdering()
 }

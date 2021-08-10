@@ -92,12 +92,8 @@ type manager struct {
 
 func (m *manager) ready(rooms []matrix.RoomID) {
 	m.roomList = roomlist.New(m.ctx, m)
+	m.roomList.SetVExpand(true)
 	m.roomList.AddRooms(rooms)
-
-	listScroll := gtk.NewScrolledWindow()
-	listScroll.SetVExpand(true)
-	listScroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	listScroll.SetChild(m.roomList)
 
 	self := selfbar.New(m.ctx, m)
 	self.Invalidate()
@@ -106,7 +102,7 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	leftBox.SetSizeRequest(250, -1)
 	leftBox.SetOverflow(gtk.OverflowHidden) // need this for box-shadow
 	leftBox.SetHExpand(false)
-	leftBox.Append(listScroll)
+	leftBox.Append(m.roomList)
 	leftBox.Append(self)
 
 	welcome := adw.NewStatusPage()
