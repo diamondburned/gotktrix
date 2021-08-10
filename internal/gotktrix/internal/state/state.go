@@ -98,6 +98,21 @@ func (s *State) SetWhoami(uID matrix.UserID) {
 	s.idMut.Unlock()
 }
 
+// RoomEvent queries the event with the given type. If the event type implies a
+// state event, then the empty key is tried.
+func (s *State) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, error) {
+	raw := event.RawEvent{RoomID: roomID}
+
+	// Prevent trailing delimiter; see setRawEvent.
+	dbKey := db.Keys(string(roomID), string(typ))
+
+	if err := s.db.NodeFromPath(s.paths.rooms).Get(dbKey, &raw); err != nil {
+		return nil, err
+	}
+
+	return raw.Parse()
+}
+
 // RoomState returns the last event set by RoomEventSet. It never returns an
 // error as it does not forget state.
 func (s *State) RoomState(roomID matrix.RoomID, typ event.Type, key string) (event.StateEvent, error) {
@@ -299,7 +314,7 @@ func (s *State) UserEvent(typ event.Type) (event.Event, error) {
 	e, err := raw.Parse()
 	if err != nil {
 		log.Printf("error parsing event type %s from db: %v", typ, err)
-		return nil, errors.Wrap(err, "event not found in state")
+		return nil, errors.Wrap(err, "parse error")
 	}
 
 	return e, nil
@@ -399,12 +414,9 @@ func (s *State) IsDirect(roomID matrix.RoomID) (is, ok bool) {
 			return err
 		}
 
-		ev, ok := e.(event.RoomMemberEvent)
-		if !ok {
-			return err
-		}
-
+		ev := e.(event.RoomMemberEvent)
 		ok = ev.IsDirect
+
 		return nil
 	})
 

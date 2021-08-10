@@ -2,11 +2,8 @@ module github.com/diamondburned/gotktrix
 
 go 1.17
 
-replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix v0.1.2-0.20210806234701-007163952522
-
 require (
-	github.com/chanbakjsd/gotrix v0.3.1-0.20210730082524-488f3af06fac
-	github.com/davecgh/go-spew v1.1.1
+	github.com/chanbakjsd/gotrix v0.3.2-0.20210808044857-c75ecddb4dda
 	github.com/dgraph-io/badger/v3 v3.2103.0
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210808051715-e0113f499df6
 	github.com/diamondburned/gotk4/pkg v0.0.0-20210808215846-7af4da2ca3a6

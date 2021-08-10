@@ -65,6 +65,8 @@ var roomBoxCSS = cssutil.Applier("roomlist-roombox", `
 
 // Section is the controller interface that Room holds as its parent section.
 type Section interface {
+	Tag() matrix.TagName
+
 	Reminify()
 	SortMode() roomsort.SortMode
 	InvalidateSort()
@@ -114,16 +116,6 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	ctx, cancel := context.WithCancel(ctx)
 	row.Connect("destroy", cancel)
 
-	gtkutil.BindActionMap(row, "room", map[string]func(){
-		"open":        func() { section.OpenRoom(roomID) },
-		"open-in-tab": func() { section.OpenRoomInTab(roomID) },
-	})
-
-	gtkutil.BindPopoverMenu(row, gtk.PosRight, [][2]string{
-		{"Open", "room.open"},
-		{"Open in New Tab", "room.open-in-tab"},
-	})
-
 	r := Room{
 		ListBoxRow: row,
 		box:        box,
@@ -140,19 +132,33 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 
 	section.Insert(&r)
 
-	// Bind the message handler to update itself.
-	r.Connect(
-		"destroy",
-		gotktrix.FromContext(ctx).SubscribeTimeline(roomID, func(event.RoomEvent) {
-			glib.IdleAdd(func() {
-				r.InvalidatePreview()
+	gtkutil.BindActionMap(row, "room", map[string]func(){
+		"open":        func() { section.OpenRoom(roomID) },
+		"open-in-tab": func() { section.OpenRoomInTab(roomID) },
+		// TODO: prompt-order
+	})
 
-				if r.section.SortMode() == roomsort.SortActivity {
-					r.section.InvalidateSort()
-				}
-			})
-		}),
-	)
+	client := gotktrix.FromContext(ctx).Offline()
+
+	gtkutil.BindRightClick(row, func() {
+		actions := [][2]string{
+			{"Open", "room.open"},
+			{"Open in New Tab", "room.open-in-tab"},
+		}
+
+		gtkutil.ShowPopoverMenu(row, gtk.PosBottom, actions)
+	})
+
+	// Bind the message handler to update itself.
+	r.Connect("destroy", client.SubscribeTimeline(roomID, func(event.RoomEvent) {
+		glib.IdleAdd(func() {
+			r.InvalidatePreview()
+
+			if r.section.SortMode() == roomsort.SortActivity {
+				r.section.InvalidateSort()
+			}
+		})
+	}))
 
 	// Initialize drag-and-drop.
 	drag := gtkutil.NewDragSourceWithContent(row, gdk.ActionMove, string(roomID))
@@ -249,3 +255,22 @@ func trimString(s string, maxLen int) string {
 	}
 	return s
 }
+
+// func (r *Room) unlink() {
+// 	client := gotktrix.FromContext(r.ctx)
+
+// 	e, err := client.Offline().UserEvent(roomsort.RoomPositionEventType)
+// 	if err != nil {
+// 		app.Error(r.ctx, errors.Wrap(err, "room position event error"))
+// 		return
+// 	}
+
+// 	ev := e.(roomsort.RoomPositionEvent)
+// 	delete(ev.Positions, r.ID)
+
+// 	client.AsyncSetConfig(ev, func(err error) {
+// 		app.Error(r.ctx, errors.Wrap(err, "failed to save unlink changes"))
+// 	})
+
+// 	r.section.InvalidateSort()
+// }

@@ -92,20 +92,26 @@ func Fatal(ctx context.Context, err ...error) {
 
 // Error shows an error popup.
 func (app *Application) Error(err ...error) {
-	for _, err := range err {
-		log.Println("error:", err)
-	}
-
-	errpopup.Show(&app.window.Window, err, func() {})
+	errpopup.Show(&app.window.Window, filterAndLogErrors("error:", err), func() {})
 }
 
 // Fatal shows a fatal error popup and closes the application afterwards.
 func (app *Application) Fatal(err ...error) {
-	for _, err := range err {
-		log.Println("fatal:", err)
+	errpopup.Fatal(&app.window.Window, filterAndLogErrors("fatal:", err)...)
+}
+
+func filterAndLogErrors(prefix string, errors []error) []error {
+	nonNils := errors[:0]
+
+	for _, err := range errors {
+		if err == nil {
+			continue
+		}
+		nonNils = append(nonNils, err)
+		log.Println(prefix, err)
 	}
 
-	errpopup.Fatal(&app.window.Window, err...)
+	return nonNils
 }
 
 func (app *Application) Window() *gtk.Window    { return &app.window.Window }

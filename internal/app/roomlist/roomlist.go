@@ -23,11 +23,7 @@ type List struct {
 	ctrl Controller
 
 	sectionBox *gtk.Box
-	sections   []*section.Section
-	section    struct {
-		rooms  *section.Section
-		people *section.Section
-	}
+	sections   map[matrix.TagName]*section.Section
 
 	search string
 
@@ -81,16 +77,8 @@ func New(ctx context.Context, ctrl Controller) *List {
 		Box:   gtk.NewBox(gtk.OrientationVertical, 0),
 		ctx:   ctx,
 		ctrl:  ctrl,
-		rooms: make(map[matrix.RoomID]*room.Room),
+		rooms: make(map[matrix.RoomID]*room.Room, 100),
 	}
-
-	roomList.sections = []*section.Section{
-		section.New(ctx, &roomList, "Rooms"),
-		section.New(ctx, &roomList, "People"),
-	}
-
-	roomList.section.rooms = roomList.sections[0]
-	roomList.section.people = roomList.sections[1]
 
 	sectionBox := gtk.NewBox(gtk.OrientationVertical, 0)
 	listCSS(sectionBox)

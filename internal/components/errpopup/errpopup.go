@@ -1,10 +1,10 @@
 package errpopup
 
 import (
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 var css = cssutil.Applier("errpopup", `

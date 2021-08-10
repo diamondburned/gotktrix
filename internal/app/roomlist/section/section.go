@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
+	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -20,6 +22,90 @@ import (
 
 const nMinified = 8
 
+// DMSection is the special pseudo-tag name for the DM section.
+const DMSection matrix.TagName = "xyz.diamondb.gotktrix.dm_section"
+
+// TagName returns the name of the given tag.
+func TagName(name matrix.TagName) string {
+	switch {
+	case name.Namespace("m"):
+		switch name {
+		case matrix.TagFavourites:
+			return "Favorites"
+		case matrix.TagLowPriority:
+			return "Low Priority"
+		case matrix.TagServerNotice:
+			return "Server Notice"
+		default:
+			return strings.TrimPrefix(string(name), "m.")
+		}
+	case name.Namespace("u"):
+		return strings.TrimPrefix(string(name), "u.")
+	case name == DMSection:
+		return "People"
+	case name == "":
+		return "Rooms"
+	default:
+		return string(name)
+	}
+}
+
+// RoomTag queries the client and returns the tag that the room with the given
+// ID is in. It tries its best to be deterministic. If the room should be in the
+// default room section, then an empty string is returned.
+func RoomTag(c *gotktrix.Client, id matrix.RoomID) matrix.TagName {
+	e, err := c.RoomEvent(id, event.TypeTag)
+	if err != nil {
+		return defaultRoomTag(c, id)
+	}
+
+	ev := e.(event.TagEvent)
+	if len(ev.Tags) == 0 {
+		return defaultRoomTag(c, id)
+	}
+
+	type roomTag struct {
+		Name  matrix.TagName
+		Order float64 // 2 if nil
+	}
+
+	tags := make([]roomTag, 0, len(ev.Tags))
+	for name, tag := range ev.Tags {
+		order := 2.0
+		if tag.Order != nil {
+			order = *tag.Order
+		}
+
+		tags = append(tags, roomTag{name, order})
+	}
+
+	if len(tags) == 1 {
+		return tags[0].Name
+	}
+
+	// Sort the tags in ascending order. Rooms that are supposed to appear first
+	// will appear first.
+	sort.Slice(tags, func(i, j int) bool {
+		if tags[i].Order != tags[j].Order {
+			// Tag the room so that it will be in the section with the topmost
+			// order.
+			return tags[i].Order < tags[j].Order
+		}
+		// Fallback to tag name.
+		return tags[i].Name < tags[j].Name
+	})
+
+	return tags[0].Name
+}
+
+func defaultRoomTag(c *gotktrix.Client, id matrix.RoomID) matrix.TagName {
+	if c.IsDirect(id) {
+		return DMSection
+	} else {
+		return ""
+	}
+}
+
 // Controller describes the parent widget that Section controls.
 type Controller interface {
 	OpenRoom(matrix.RoomID)
@@ -28,11 +114,6 @@ type Controller interface {
 	// Searching returns the string being searched.
 	Searching() string
 
-	// MoveRoom moves the src room into where dst was accordingly to the
-	// position type. The method is expected to also asynchronously save the
-	// position into the server. True should be returned if the move is
-	// successful.
-	MoveRoom(src matrix.RoomID, dst *room.Room, pos gtk.PositionType) bool
 	// MoveRoomToSection moves a room to another section. The method is expected
 	// to verify that the moving is valid.
 	MoveRoomToSection(src matrix.RoomID, dst *Section) bool
@@ -50,18 +131,15 @@ type Section struct {
 	rooms  map[matrix.RoomID]*room.Room
 	hidden map[*room.Room]bool
 
-	comparer *roomsort.Comparer
+	comparer Comparer
 	current  matrix.RoomID
-
-	sectionDrop *gtk.DropTarget // only for moving sections
-	reordering  *gtk.DropTarget
 
 	minified    bool
 	showPreview bool
 }
 
 // New creates a new deactivated section.
-func New(ctx context.Context, ctrl Controller, name string) *Section {
+func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionBrowse)
 	list.SetActivateOnSingleClick(true)
@@ -78,7 +156,7 @@ func New(ctx context.Context, ctrl Controller, name string) *Section {
 	rev.SetTransitionType(gtk.RevealerTransitionTypeSlideDown)
 	rev.SetChild(inner)
 
-	btn := newRevealButton(rev, name)
+	btn := newRevealButton(rev, TagName(tag))
 	btn.SetHasFrame(false)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
@@ -103,7 +181,7 @@ func New(ctx context.Context, ctrl Controller, name string) *Section {
 
 	gtkutil.BindRightClick(btn, func() {
 		gtkutil.ShowPopoverMenuCustom(btn, gtk.PosBottom, []gtkutil.PopoverMenuItem{
-			{"Sort by", "roomsection.change-sort", s.sortByBox()},
+			{"Sort By", "roomsection.change-sort", s.sortByBox()},
 			{"Appearance", "---", nil},
 			{"Show Preview", "roomsection.show-preview", s.showPreviewBox()},
 		})
@@ -125,13 +203,10 @@ func New(ctx context.Context, ctrl Controller, name string) *Section {
 	})
 
 	client := gotktrix.FromContext(ctx)
-	s.comparer = roomsort.NewComparer(client.Offline(), roomsort.SortActivity)
+	s.comparer = *NewComparer(client.Offline(), SortActivity, tag)
 
 	s.listBox.SetSortFunc(func(i, j *gtk.ListBoxRow) int {
-		return s.comparer.Compare(
-			matrix.RoomID(i.Name()),
-			matrix.RoomID(j.Name()),
-		)
+		return s.comparer.Compare(matrix.RoomID(i.Name()), matrix.RoomID(j.Name()))
 	})
 
 	s.listBox.SetFilterFunc(func(row *gtk.ListBoxRow) bool {
@@ -149,73 +224,18 @@ func New(ctx context.Context, ctrl Controller, name string) *Section {
 	})
 
 	// default drag-and-drop mode.
-	s.setSectionDropMode()
+	drop := gtk.NewDropTarget(glib.TypeString, gdk.ActionMove)
+	drop.Connect("drop", func(_ *gtk.DropTarget, v *glib.Value) bool {
+		srcID, ok := roomIDFromValue(v)
+		if !ok {
+			return false
+		}
+
+		return s.ctrl.MoveRoomToSection(srcID, &s)
+	})
+	s.listBox.AddController(drop)
 
 	return &s
-}
-
-// BeginReorderMode implements selfbar's.
-func (s *Section) BeginReorderMode() {
-	s.setRoomDropMode()
-}
-
-// EndReorderMode stops reordering mode.
-func (s *Section) EndReorderMode() {
-	s.setSectionDropMode()
-}
-
-func (s *Section) setRoomDropMode() {
-	if s.sectionDrop != nil {
-		s.listBox.RemoveController(s.sectionDrop)
-	}
-
-	if s.reordering == nil {
-		s.reordering = gtkutil.NewListDropTarget(s.listBox, glib.TypeString, gdk.ActionMove)
-		s.reordering.Connect("drop", func(_ *gtk.DropTarget, v *glib.Value, x, y float64) bool {
-			r, pos := gtkutil.RowAtY(s.listBox, y)
-			if r == nil {
-				log.Println("no row found at y")
-				return false
-			}
-
-			srcID, ok := roomIDFromValue(v)
-			if !ok {
-				return false
-			}
-
-			dstID := matrix.RoomID(r.Name())
-
-			dstRoom, ok := s.rooms[dstID]
-			if !ok {
-				log.Printf("unknown room dropped upon, ID %s", dstID)
-				return false
-			}
-
-			return s.ctrl.MoveRoom(srcID, dstRoom, pos)
-		})
-	}
-
-	s.listBox.AddController(s.reordering)
-}
-
-func (s *Section) setSectionDropMode() {
-	if s.reordering != nil {
-		s.listBox.RemoveController(s.reordering)
-	}
-
-	if s.sectionDrop == nil {
-		s.sectionDrop = gtk.NewDropTarget(glib.TypeString, gdk.ActionMove)
-		s.sectionDrop.Connect("drop", func(_ *gtk.DropTarget, v *glib.Value) bool {
-			srcID, ok := roomIDFromValue(v)
-			if !ok {
-				return false
-			}
-
-			return s.ctrl.MoveRoomToSection(srcID, s)
-		})
-	}
-
-	s.listBox.AddController(s.sectionDrop)
 }
 
 func roomIDFromValue(v *glib.Value) (matrix.RoomID, bool) {
@@ -226,6 +246,11 @@ func roomIDFromValue(v *glib.Value) (matrix.RoomID, bool) {
 	}
 
 	return matrix.RoomID(vstr), true
+}
+
+// Tag returns the tag name of this section.
+func (s *Section) Tag() matrix.TagName {
+	return s.comparer.Tag
 }
 
 func (s *Section) showPreviewBox() gtk.Widgetter {
@@ -254,9 +279,9 @@ func (s *Section) sortByBox() gtk.Widgetter {
 	}
 
 	switch s.comparer.Mode {
-	case roomsort.SortName:
+	case SortName:
 		radio.Current = 0
-	case roomsort.SortActivity:
+	case SortActivity:
 		radio.Current = 1
 	}
 
@@ -265,9 +290,9 @@ func (s *Section) sortByBox() gtk.Widgetter {
 	b.Append(gtkutil.NewRadioButtons(radio, func(i int) {
 		switch i {
 		case 0:
-			s.SetSortMode(roomsort.SortName)
+			s.SetSortMode(SortName)
 		case 1:
-			s.SetSortMode(roomsort.SortActivity)
+			s.SetSortMode(SortActivity)
 		}
 	}))
 
@@ -281,17 +306,13 @@ func (s *Section) OpenRoom(id matrix.RoomID) { s.ctrl.OpenRoom(id) }
 func (s *Section) OpenRoomInTab(id matrix.RoomID) { s.ctrl.OpenRoomInTab(id) }
 
 // SetSortMode sets the sorting mode for each room.
-func (s *Section) SetSortMode(mode roomsort.SortMode) {
-	s.comparer = roomsort.NewComparer(gotktrix.FromContext(s.ctx).Offline(), mode)
+func (s *Section) SetSortMode(mode SortMode) {
+	s.comparer = *NewComparer(gotktrix.FromContext(s.ctx).Offline(), mode, s.comparer.Tag)
 	s.InvalidateSort()
 }
 
 // SortMode returns the section's current sort mode.
-func (s *Section) SortMode() roomsort.SortMode {
-	if s.comparer == nil {
-		log.Panicln("SortMode called before SetParentList")
-	}
-
+func (s *Section) SortMode() SortMode {
 	return s.comparer.Mode
 }
 
@@ -363,7 +384,6 @@ func (s *Section) InvalidateSort() {
 // room positions.
 func (s *Section) UseRoomPositions(pos roomsort.RoomPositions) {
 	s.comparer.InvalidateRoomCache()
-	s.comparer.InvalidatePositions(pos)
 	s.listBox.InvalidateSort()
 	s.Reminify()
 }

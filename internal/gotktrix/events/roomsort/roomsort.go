@@ -8,6 +8,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/pkg/errors"
 )
 
@@ -204,4 +205,20 @@ func (p RoomPositions) find(f func(r RoomPosition) bool) matrix.RoomID {
 type RoomPosition struct {
 	Anchor Anchor        `json:"anchor"`
 	RelID  matrix.RoomID `json:"rel_id,omitempty"`
+}
+
+// RoomPositioning returns the position of the given room. If the position is
+// not found, then a zero-value is returned.
+func RoomPositioning(c *gotktrix.Client, roomID matrix.RoomID) (RoomPosition, bool) {
+	e, _ := c.UserEvent(RoomPositionEventType)
+	if e == nil {
+		return RoomPosition{}, false
+	}
+
+	rp, ok := e.(RoomPositionEvent).Positions[roomID]
+	if !ok {
+		return RoomPosition{}, false
+	}
+
+	return rp, true
 }
