@@ -12,6 +12,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
@@ -40,9 +41,9 @@ var serverAttrs = markuputil.Attrs(
 	pango.NewAttrForegroundAlpha(uint16(math.Round(0.75*65535))),
 )
 
-func newAccountGrid(account *auth.Account) gtk.Widgetter {
+func newAccountGrid(ctx context.Context, account *auth.Account) gtk.Widgetter {
 	avatar := adw.NewAvatar(avatarSize, account.Username, true)
-	imgutil.AsyncGET(context.Background(), account.AvatarURL, avatar.SetCustomImage)
+	imgutil.AsyncGET(ctx, account.AvatarURL, avatar.SetCustomImage)
 
 	name := gtk.NewLabel(account.Username)
 	name.SetXAlign(0)
@@ -66,40 +67,42 @@ func newAccountGrid(account *auth.Account) gtk.Widgetter {
 
 // OpenThen is similar to Open, except the function does not block, but instead
 // will call f in the main event loop once it's done.
-func OpenThen(app *app.Application, acc *auth.Account, f func()) {
+func OpenThen(ctx context.Context, acc *auth.Account, f func()) {
 	if f == nil {
 		panic("given callback must not be nil")
 	}
 
-	openThen(app, acc, f)
+	openThen(ctx, acc, f)
 }
 
 // Open shows a popup while opening the client in the background. Once the
 // client has successfully synchronized, the popup will close automatically.
 // Note that Open will block until the synchronization is done, so it should
 // only be called in a goroutine.
-func Open(app *app.Application, acc *auth.Account) *Popup {
-	return openThen(app, acc, nil)
+func Open(ctx context.Context, acc *auth.Account) *Popup {
+	return openThen(ctx, acc, nil)
 }
 
-func openThen(app *app.Application, acc *auth.Account, f func()) *Popup {
+func openThen(ctx context.Context, acc *auth.Account, f func()) *Popup {
+	client := gotktrix.FromContext(ctx)
 	syncCh := make(chan *api.SyncResponse, 1)
-	cancel := app.Client().OnSyncCh(syncCh)
+
+	ctx, cancel := context.WithCancel(ctx)
+	client.OnSyncCh(ctx, syncCh)
 
 	var popup *Popup
 
 	glib.IdleAdd(func() {
-		popup = Show(app.Window(), acc)
-		client := app.Client()
+		popup = Show(ctx, acc)
 
 		go func() {
 			if err := client.Open(); err != nil {
-				app.Fatal(err)
+				app.Fatal(ctx, err)
 				cancel()
 				return
 			}
 
-			app.Connect("shutdown", func() {
+			app.FromContext(ctx).Connect("shutdown", func() {
 				log.Println("shutting down Matrix...")
 
 				if err := client.Close(); err != nil {
@@ -129,7 +132,7 @@ func openThen(app *app.Application, acc *auth.Account, f func()) *Popup {
 }
 
 // Show shows a popup.
-func Show(parent *gtk.Window, account *auth.Account) *Popup {
+func Show(ctx context.Context, account *auth.Account) *Popup {
 	spinner := gtk.NewSpinner()
 	spinner.SetSizeRequest(18, 18)
 
@@ -142,7 +145,7 @@ func Show(parent *gtk.Window, account *auth.Account) *Popup {
 	spinBox.Append(loadLabel)
 
 	content := gtk.NewBox(gtk.OrientationVertical, 6)
-	content.Append(newAccountGrid(account))
+	content.Append(newAccountGrid(ctx, account))
 	content.Append(spinBox)
 	popupCSS(content)
 
@@ -150,7 +153,7 @@ func Show(parent *gtk.Window, account *auth.Account) *Popup {
 	handle.SetChild(content)
 
 	window := gtk.NewWindow()
-	window.SetTransientFor(parent)
+	window.SetTransientFor(app.FromContext(ctx).Window())
 	window.SetModal(true)
 	window.SetDefaultSize(250, 100)
 	window.SetChild(handle)

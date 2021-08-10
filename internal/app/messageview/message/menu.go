@@ -1,12 +1,14 @@
 package message
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/components/errpopup"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -17,9 +19,9 @@ var messageMenuItems = [][2]string{
 	{"Show Source", "message.show-source"},
 }
 
-func bind(p MessageViewer, m Message) {
+func bind(ctx context.Context, m Message) {
 	actions := map[string]func(){
-		"show-source": func() { showMsgSource(p.Window(), m.Event()) },
+		"show-source": func() { showMsgSource(app.FromContext(ctx).Window(), m.Event()) },
 	}
 
 	gtkutil.BindActionMap(m, "message", actions)

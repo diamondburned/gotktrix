@@ -35,23 +35,26 @@ func NewComparer(client *gotktrix.Client, mode SortMode) *Comparer {
 		roomDataMap: map[matrix.RoomID]interface{}{},
 	}
 
-	cmp.InvalidatePositions()
+	cmp.InvalidatePositions(nil)
 	cmp.InvalidateRoomCache()
 
 	return cmp
 }
 
 // InvalidatePositions invalidates the room_positions event cached inside the
-// sorter.
-func (comparer *Comparer) InvalidatePositions() {
-	ev, err := comparer.client.UserEvent(RoomPositionEventType)
-	if err != nil {
-		log.Println("no RoomPositionEventType:", err)
-		return
+// sorter. If pos is nil, then the position is fetched from the state.
+func (comparer *Comparer) InvalidatePositions(pos RoomPositions) {
+	if pos == nil {
+		e, err := comparer.client.UserEvent(RoomPositionEventType)
+		if e == nil {
+			log.Println("no RoomPositionEventType:", err)
+			return
+		}
+
+		pos = e.(RoomPositionEvent).Positions
 	}
 
-	pos, _ := ev.(RoomPositionEvent)
-	comparer.positions = pos.Positions
+	comparer.positions = pos
 	comparer.positions.Sanitize()
 }
 

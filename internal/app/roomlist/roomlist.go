@@ -1,6 +1,7 @@
 package roomlist
 
 import (
+	"context"
 	"log"
 
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -9,6 +10,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/section"
+	"github.com/diamondburned/gotktrix/internal/components/actionbutton"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/roomsort"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -18,19 +20,27 @@ import (
 // List describes a room list widget.
 type List struct {
 	*gtk.Box
-	app    Application
-	client *gotktrix.Client
+	ctx  context.Context
+	ctrl Controller
 
-	section struct {
+	sections []*section.Section
+	section  struct {
 		rooms  *section.Section
 		people *section.Section
 	}
 
-	sections []*section.Section
-	search   string
+	search string
 
 	rooms   map[matrix.RoomID]*room.Room
 	current matrix.RoomID
+
+	reordering *reorderingState
+}
+
+type reorderingState struct {
+	*gtk.ActionBar
+	done  *actionbutton.Button
+	state roomsort.RoomPositions
 }
 
 var listCSS = cssutil.Applier("roomlist-list", `
@@ -49,9 +59,8 @@ var listCSS = cssutil.Applier("roomlist-list", `
 	}
 `)
 
-// Application describes the application requirement.
-type Application interface {
-	app.Applicationer
+// Controller describes the controller requirement.
+type Controller interface {
 	OpenRoom(matrix.RoomID)
 }
 
@@ -61,23 +70,23 @@ type RoomTabOpener interface {
 }
 
 // New creates a new room list widget.
-func New(app Application) *List {
+func New(ctx context.Context, ctrl Controller) *List {
 	roomList := List{
-		Box:    gtk.NewBox(gtk.OrientationVertical, 0),
-		app:    app,
-		client: app.Client(),
-		rooms:  make(map[matrix.RoomID]*room.Room),
-		sections: []*section.Section{
-			section.New("Rooms"),
-			section.New("People"),
-		},
+		Box:   gtk.NewBox(gtk.OrientationVertical, 0),
+		ctx:   ctx,
+		ctrl:  ctrl,
+		rooms: make(map[matrix.RoomID]*room.Room),
+	}
+
+	roomList.sections = []*section.Section{
+		section.New(ctx, &roomList, "Rooms"),
+		section.New(ctx, &roomList, "People"),
 	}
 
 	roomList.section.rooms = roomList.sections[0]
 	roomList.section.people = roomList.sections[1]
 
 	for _, section := range roomList.sections {
-		section.SetParentList(&roomList)
 		roomList.Append(section)
 	}
 
@@ -85,9 +94,6 @@ func New(app Application) *List {
 
 	return &roomList
 }
-
-// Client returns the list's client.
-func (l *List) Client() *gotktrix.Client { return l.client }
 
 // Searching returns the string being searched.
 func (l *List) Searching() string { return l.search }
@@ -118,7 +124,8 @@ func (l *List) Search(str string) {
 // AddRooms adds the rooms with the given IDs.
 func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 	// Prefetch everything offline first.
-	state := l.client.Offline()
+	client := gotktrix.FromContext(l.ctx)
+	state := client.Offline()
 	retry := make([]matrix.RoomID, 0, len(roomIDs))
 
 	for _, roomID := range roomIDs {
@@ -130,7 +137,7 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 
 		var willRetry bool
 
-		direct, ok := l.client.State.IsDirect(roomID)
+		direct, ok := client.State.IsDirect(roomID)
 		if !ok {
 			// Delegate rooms that we're unsure if it's direct or not to later,
 			// but still add it into the room list.
@@ -140,9 +147,9 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 
 		var r *room.Room
 		if direct {
-			r = room.AddTo(l.section.people, roomID)
+			r = room.AddTo(l.ctx, l.section.people, roomID)
 		} else {
-			r = room.AddTo(l.section.rooms, roomID)
+			r = room.AddTo(l.ctx, l.section.rooms, roomID)
 		}
 
 		// Register the room anyway.
@@ -181,6 +188,8 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 }
 
 func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
+	client := gotktrix.FromContext(l.ctx)
+
 	for _, roomID := range roomIDs {
 		room, ok := l.rooms[roomID]
 		if !ok {
@@ -188,15 +197,15 @@ func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
 		}
 
 		// TODO: don't fetch avatar twice.
-		u, _ := l.client.RoomAvatar(roomID)
+		u, _ := client.RoomAvatar(roomID)
 		if u != nil {
 			room.SetAvatarURL(*u)
 		}
 
 		// Double-check that the room is in the correct section.
-		move := room.IsIn(l.section.rooms) && l.client.IsDirect(roomID)
+		move := room.IsIn(l.section.rooms) && client.IsDirect(roomID)
 
-		roomName, _ := l.client.RoomName(roomID)
+		roomName, _ := client.RoomName(roomID)
 
 		glib.IdleAdd(func() {
 			if roomName != "" {
@@ -227,17 +236,17 @@ func (l *List) SetSelectedRoom(id matrix.RoomID) {
 // OpenRoom opens the given room.
 func (l *List) OpenRoom(id matrix.RoomID) {
 	l.setRoom(id)
-	l.app.OpenRoom(id)
+	l.ctrl.OpenRoom(id)
 }
 
 // OpenRoomInTab opens the given room in a new tab.
 func (l *List) OpenRoomInTab(id matrix.RoomID) {
 	l.setRoom(id)
 
-	if opener, ok := l.app.(RoomTabOpener); ok {
+	if opener, ok := l.ctrl.(RoomTabOpener); ok {
 		opener.OpenRoomInTab(id)
 	} else {
-		l.app.OpenRoom(id)
+		l.ctrl.OpenRoom(id)
 	}
 }
 
@@ -253,15 +262,77 @@ func (l *List) setRoom(id matrix.RoomID) {
 	}
 }
 
+// MoveRoomToSection moves the room w/ the given ID to the given section. False
+// is returend if the return doesn't make sense.
+func (l *List) MoveRoomToSection(src matrix.RoomID, dst *section.Section) bool {
+	if l.reordering != nil {
+		// In room reordering mode, section moving is handled automatically.
+		return false
+	}
+
+	srcRoom, ok := l.rooms[src]
+	if !ok {
+		// TODO: automatically create a new room so we can implement room
+		// joining.
+		return false
+	}
+
+	if !l.canMoveRoom(srcRoom, dst) {
+		return false
+	}
+
+	srcRoom.Move(dst)
+	return true
+}
+
+// canMoveRoom checks that moving the given room to the given section is
+// reasonable.
+func (l *List) canMoveRoom(room *room.Room, sect *section.Section) bool {
+	if room.IsIn(sect) {
+		return false
+	}
+
+	// DM check.
+	direct := gotktrix.FromContext(l.ctx).Offline().IsDirect(room.ID)
+
+	// Moving a non-DM room to the DM section is invalid.
+	if !direct && sect == l.section.people {
+		return false
+	}
+	// Moving the non-DM room to the regular rooms section OR the Low Priority
+	// section is invalid.
+	if direct && sect == l.section.rooms {
+		// TODO: add Low Priority room section.
+		return false
+	}
+
+	return true
+}
+
 // MoveRoom implements section.ParentList.
 func (l *List) MoveRoom(src matrix.RoomID, dstRoom *room.Room, pos gtk.PositionType) bool {
+	if l.reordering == nil {
+		// Not in reordering mode; don't allow.
+		return false
+	}
+
 	srcRoom, ok := l.rooms[src]
 	if !ok {
 		return false
 	}
 
-	if !srcRoom.IsIn(dstRoom.Section()) {
-		srcRoom.Move(dstRoom.Section())
+	dstSection, ok := dstRoom.Section().(*section.Section)
+	if !ok {
+		log.Printf("BUG: room has unknown section type %T", dstRoom.Section())
+		return false
+	}
+
+	if !srcRoom.IsIn(dstSection) {
+		if !l.canMoveRoom(srcRoom, dstSection) {
+			return false
+		}
+		// Move should remove the room from the section.
+		srcRoom.Move(dstSection)
 	}
 
 	var anchor roomsort.Anchor
@@ -272,34 +343,79 @@ func (l *List) MoveRoom(src matrix.RoomID, dstRoom *room.Room, pos gtk.PositionT
 		anchor = roomsort.AnchorBelow
 	}
 
-	override := func(ev roomsort.RoomPositionEvent) {
-		if ev.Positions == nil {
-			ev.Positions = make(roomsort.RoomPositions, 1)
-		}
-
-		ev.Positions[src] = roomsort.RoomPosition{
-			RelID:  dstRoom.ID,
-			Anchor: anchor,
-		}
-
-		l.client.AsyncSetConfig(ev, func(err error) {
-			if err != nil {
-				l.app.Error(errors.Wrap(err, "failed to update roomsort list"))
-			}
-		})
-
-		glib.IdleAdd(func() {
-			// Update the order of the room.
-			dstRoom.Section().InvalidateSort()
-		})
+	l.reordering.state[src] = roomsort.RoomPosition{
+		RelID:  dstRoom.ID,
+		Anchor: anchor,
 	}
 
-	e, _ := l.client.Offline().UserEvent(roomsort.RoomPositionEventType)
-	if e == nil {
-		override(roomsort.RoomPositionEvent{})
-		return true
-	}
-
-	override(e.(roomsort.RoomPositionEvent))
+	dstSection.UseRoomPositions(l.reordering.state)
 	return true
+}
+
+// BeginReorderMode implements selfbar's.
+func (l *List) BeginReorderMode() {
+	if l.reordering != nil {
+		// Already in reordering mode.
+		return
+	}
+
+	l.AddCSSClass("reordering")
+
+	client := gotktrix.FromContext(l.ctx).Offline()
+
+	// Grab the current state.
+	e, err := client.UserEvent(roomsort.RoomPositionEventType)
+	if err != nil {
+		e = roomsort.RoomPositionEvent{}
+	}
+
+	pos := e.(roomsort.RoomPositionEvent)
+	if pos.Positions == nil {
+		pos.Positions = make(roomsort.RoomPositions, 1)
+	}
+
+	r := reorderingState{
+		ActionBar: gtk.NewActionBar(),
+		done:      actionbutton.NewButton("object-select-symbolic", "Done", gtk.PosRight),
+		state:     pos.Positions,
+	}
+
+	r.ActionBar.PackEnd(r.done)
+
+	l.reordering = &r
+	l.Box.Append(r)
+
+	for _, section := range l.sections {
+		section.BeginReorderMode()
+	}
+
+	r.done.Connect("clicked", l.saveOrdering)
+}
+
+func (l *List) saveOrdering() {
+	if l.reordering == nil {
+		// Not in reordering mode for some reason.
+		return
+	}
+
+	l.RemoveCSSClass("reordering")
+	l.Box.Remove(l.reordering)
+
+	ev := roomsort.RoomPositionEvent{
+		Positions: l.reordering.state,
+	}
+
+	gotktrix.FromContext(l.ctx).AsyncSetConfig(ev, func(err error) {
+		if err != nil {
+			app.Error(l.ctx, errors.Wrap(err, "failed to update roomsort list"))
+		}
+	})
+
+	// Update the order of the room.
+	for _, section := range l.sections {
+		section.EndReorderMode()
+		section.InvalidateSort()
+	}
+
+	l.reordering = nil
 }

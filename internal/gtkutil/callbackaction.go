@@ -86,13 +86,14 @@ func BindPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) {
 
 // ShowPopoverMenu is like ShowPopoverMenuCustom but uses a regular string pair
 // list.
-func ShowPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) {
+func ShowPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) *gtk.PopoverMenu {
 	popover := gtk.NewPopoverMenuFromModel(MenuPair(pairs))
 	popover.SetMnemonicsVisible(true)
 	popover.SetSizeRequest(PopoverWidth, -1)
 	popover.SetPosition(pos)
 	popover.SetParent(w)
 	popover.Popup()
+	return popover
 }
 
 // PopoverMenuItem describes an item in the popover menu. It is the full version

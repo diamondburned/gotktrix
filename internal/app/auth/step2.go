@@ -3,12 +3,12 @@ package auth
 import (
 	"context"
 
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 var homeserverStepCSS = cssutil.Applier("auth-homeserver-step", ``)
@@ -30,7 +30,7 @@ func homeserverStep(a *Assistant) *assistant.Step {
 	homeserverStepCSS(content)
 
 	step.Done = func(step *assistant.Step) {
-		ctx := a.CancellableBusy(context.Background())
+		ctx := a.CancellableBusy(a.ctx)
 
 		go func() {
 			client := a.client.WithContext(ctx)

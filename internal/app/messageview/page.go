@@ -8,6 +8,7 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/components/autoscroll"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
@@ -44,7 +45,7 @@ var msgListCSS = cssutil.Applier("messageview-msglist", `
 `)
 
 // NewPage creates a new page.
-func NewPage(parent *View, roomID matrix.RoomID) *Page {
+func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	msgList := gtk.NewListBox()
 	msgList.SetSelectionMode(gtk.SelectionNone)
 	msgListCSS(msgList)
@@ -88,7 +89,7 @@ func NewPage(parent *View, roomID matrix.RoomID) *Page {
 		messages: msgMap,
 
 		onTitle: func(string) {},
-		cancel:  gtkutil.WidgetVisibilityCanceler(msgList),
+		cancel:  gtkutil.WidgetVisibilityCanceler(ctx, msgList),
 
 		parent: parent,
 		roomID: roomID,
@@ -112,21 +113,6 @@ func (p *Page) OnTitle(f func(string)) {
 	} else {
 		f(p.name)
 	}
-}
-
-// Client satisfies MessageViewer.
-func (p *Page) Client() *gotktrix.Client {
-	return p.parent.client
-}
-
-// Window returns the window that this page is in.
-func (p *Page) Window() *gtk.Window {
-	return p.parent.app.Window()
-}
-
-// Context returns the page's context
-func (p *Page) Context() context.Context {
-	return p.cancel.Context()
 }
 
 // LastMessage satisfies MessageViewer.
@@ -176,7 +162,7 @@ func (p *Page) clean() {
 }
 
 func (p *Page) onRoomEvent(ev event.RoomEvent) {
-	m := message.NewCozyMessage(p, ev)
+	m := message.NewCozyMessage(p.parent.ctx, p, ev)
 
 	eventID := m.Event().ID()
 	p.messages[eventID] = m
@@ -215,7 +201,7 @@ func (p *Page) Load(done func()) {
 
 		events, err := client.RoomTimeline(p.roomID)
 		if err != nil {
-			p.parent.app.Error(errors.Wrap(err, "failed to load timeline"))
+			app.Error(p.parent.ctx, errors.Wrap(err, "failed to load timeline"))
 			glib.IdleAdd(done)
 			return
 		}

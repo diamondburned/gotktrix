@@ -1,12 +1,14 @@
 package section
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
@@ -18,10 +20,8 @@ import (
 
 const nMinified = 8
 
-// ParentList describes the list containing the section.
-type ParentList interface {
-	Client() *gotktrix.Client
-
+// Controller describes the parent widget that Section controls.
+type Controller interface {
 	OpenRoom(matrix.RoomID)
 	OpenRoomInTab(matrix.RoomID)
 
@@ -33,13 +33,17 @@ type ParentList interface {
 	// position into the server. True should be returned if the move is
 	// successful.
 	MoveRoom(src matrix.RoomID, dst *room.Room, pos gtk.PositionType) bool
+	// MoveRoomToSection moves a room to another section. The method is expected
+	// to verify that the moving is valid.
+	MoveRoomToSection(src matrix.RoomID, dst *Section) bool
 }
 
 // Section is a room section, such as People or Favorites.
 type Section struct {
-	ParentList
-
 	*gtk.Box
+	ctx  context.Context
+	ctrl Controller
+
 	listBox *gtk.ListBox
 	minify  *minifyButton
 
@@ -49,16 +53,15 @@ type Section struct {
 	comparer *roomsort.Comparer
 	current  matrix.RoomID
 
+	sectionDrop *gtk.DropTarget // only for moving sections
+	reordering  *gtk.DropTarget
+
 	minified    bool
 	showPreview bool
 }
 
-type reorderMode struct {
-	drop *gtk.DropTarget
-}
-
 // New creates a new deactivated section.
-func New(name string) *Section {
+func New(ctx context.Context, ctrl Controller, name string) *Section {
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionBrowse)
 	list.SetActivateOnSingleClick(true)
@@ -81,10 +84,11 @@ func New(name string) *Section {
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	box.Append(btn)
 	box.Append(rev)
-	box.SetSensitive(false)
 
-	sect := Section{
+	s := Section{
 		Box:         box,
+		ctx:         ctx,
+		ctrl:        ctrl,
 		minify:      minify,
 		rooms:       make(map[matrix.RoomID]*room.Room),
 		hidden:      make(map[*room.Room]bool),
@@ -99,58 +103,129 @@ func New(name string) *Section {
 
 	gtkutil.BindRightClick(btn, func() {
 		gtkutil.ShowPopoverMenuCustom(btn, gtk.PosBottom, []gtkutil.PopoverMenuItem{
-			{"Sort by", "roomsection.change-sort", sect.sortByBox()},
+			{"Sort by", "roomsection.change-sort", s.sortByBox()},
 			{"Appearance", "---", nil},
-			{"Show Preview", "roomsection.show-preview", sect.showPreviewBox()},
+			{"Show Preview", "roomsection.show-preview", s.showPreviewBox()},
 		})
 	})
 
 	minify.OnToggled(func(minify bool) string {
 		if !minify {
-			sect.Expand()
+			s.Expand()
 			return "Show less"
 		}
 
-		sect.Minimize()
-		return fmt.Sprintf("Show %d more", sect.NHidden())
+		s.Minimize()
+		return fmt.Sprintf("Show %d more", s.NHidden())
 	})
 
-	// Initialize drag-and-drop.
-	// drop := gtkutil.NewListDropTarget(list, glib.TypeString, gdk.ActionMove)
-	// drop.Connect("drop", sect.moveRoom)
+	s.listBox.Connect("row-activated", func(list *gtk.ListBox, row *gtk.ListBoxRow) {
+		s.current = matrix.RoomID(row.Name())
+		ctrl.OpenRoom(s.current)
+	})
 
-	// list.AddController(drop)
+	client := gotktrix.FromContext(ctx)
+	s.comparer = roomsort.NewComparer(client.Offline(), roomsort.SortActivity)
 
-	return &sect
+	s.listBox.SetSortFunc(func(i, j *gtk.ListBoxRow) int {
+		return s.comparer.Compare(
+			matrix.RoomID(i.Name()),
+			matrix.RoomID(j.Name()),
+		)
+	})
+
+	s.listBox.SetFilterFunc(func(row *gtk.ListBoxRow) bool {
+		searching := ctrl.Searching()
+		if searching == "" {
+			return true
+		}
+
+		rm, ok := s.rooms[matrix.RoomID(row.Name())]
+		if !ok {
+			return false
+		}
+
+		return strings.Contains(rm.Name, searching)
+	})
+
+	// default drag-and-drop mode.
+	s.setSectionDropMode()
+
+	return &s
 }
 
-func (s *Section) moveRoom(drop *gtk.DropTarget, v *glib.Value, x, y float64) bool {
-	if s.ParentList == nil {
-		return false
+// BeginReorderMode implements selfbar's.
+func (s *Section) BeginReorderMode() {
+	s.setRoomDropMode()
+}
+
+// EndReorderMode stops reordering mode.
+func (s *Section) EndReorderMode() {
+	s.setSectionDropMode()
+}
+
+func (s *Section) setRoomDropMode() {
+	if s.sectionDrop != nil {
+		s.listBox.RemoveController(s.sectionDrop)
 	}
 
-	row, pos := gtkutil.RowAtY(s.listBox, y)
-	if row == nil {
-		log.Println("no row found at y")
-		return false
+	if s.reordering == nil {
+		s.reordering = gtkutil.NewListDropTarget(s.listBox, glib.TypeString, gdk.ActionMove)
+		s.reordering.Connect("drop", func(_ *gtk.DropTarget, v *glib.Value, x, y float64) bool {
+			r, pos := gtkutil.RowAtY(s.listBox, y)
+			if r == nil {
+				log.Println("no row found at y")
+				return false
+			}
+
+			srcID, ok := roomIDFromValue(v)
+			if !ok {
+				return false
+			}
+
+			dstID := matrix.RoomID(r.Name())
+
+			dstRoom, ok := s.rooms[dstID]
+			if !ok {
+				log.Printf("unknown room dropped upon, ID %s", dstID)
+				return false
+			}
+
+			return s.ctrl.MoveRoom(srcID, dstRoom, pos)
+		})
 	}
 
+	s.listBox.AddController(s.reordering)
+}
+
+func (s *Section) setSectionDropMode() {
+	if s.reordering != nil {
+		s.listBox.RemoveController(s.reordering)
+	}
+
+	if s.sectionDrop == nil {
+		s.sectionDrop = gtk.NewDropTarget(glib.TypeString, gdk.ActionMove)
+		s.sectionDrop.Connect("drop", func(_ *gtk.DropTarget, v *glib.Value) bool {
+			srcID, ok := roomIDFromValue(v)
+			if !ok {
+				return false
+			}
+
+			return s.ctrl.MoveRoomToSection(srcID, s)
+		})
+	}
+
+	s.listBox.AddController(s.sectionDrop)
+}
+
+func roomIDFromValue(v *glib.Value) (matrix.RoomID, bool) {
 	vstr, ok := v.GoValue().(string)
 	if !ok {
 		log.Printf("erroneous value not of type string, but %T", v.GoValue())
-		return false
+		return "", false
 	}
 
-	srcID := matrix.RoomID(vstr)
-	dstID := matrix.RoomID(row.Name())
-
-	dstRoom, ok := s.rooms[dstID]
-	if !ok {
-		log.Printf("unknown room dropped upon, ID %s", dstID)
-		return false
-	}
-
-	return s.ParentList.MoveRoom(srcID, dstRoom, pos)
+	return matrix.RoomID(vstr), true
 }
 
 func (s *Section) showPreviewBox() gtk.Widgetter {
@@ -199,47 +274,15 @@ func (s *Section) sortByBox() gtk.Widgetter {
 	return b
 }
 
-// SetParentList sets the section's parent list and activates it.
-func (s *Section) SetParentList(parent ParentList) {
-	s.ParentList = parent
-	s.Box.SetSensitive(true)
+// OpenRoom calls the parent controller's.
+func (s *Section) OpenRoom(id matrix.RoomID) { s.ctrl.OpenRoom(id) }
 
-	s.listBox.Connect("row-activated", func(list *gtk.ListBox, row *gtk.ListBoxRow) {
-		s.current = matrix.RoomID(row.Name())
-		parent.OpenRoom(s.current)
-	})
-
-	s.comparer = roomsort.NewComparer(parent.Client().Offline(), roomsort.SortActivity)
-
-	s.listBox.SetSortFunc(func(i, j *gtk.ListBoxRow) int {
-		return s.comparer.Compare(
-			matrix.RoomID(i.Name()),
-			matrix.RoomID(j.Name()),
-		)
-	})
-
-	s.listBox.SetFilterFunc(func(row *gtk.ListBoxRow) bool {
-		searching := parent.Searching()
-		if searching == "" {
-			return true
-		}
-
-		rm, ok := s.rooms[matrix.RoomID(row.Name())]
-		if !ok {
-			return false
-		}
-
-		return strings.Contains(rm.Name, searching)
-	})
-}
+// OpenRoomInTab calls the parent controller's.
+func (s *Section) OpenRoomInTab(id matrix.RoomID) { s.ctrl.OpenRoomInTab(id) }
 
 // SetSortMode sets the sorting mode for each room.
 func (s *Section) SetSortMode(mode roomsort.SortMode) {
-	if s.ParentList == nil {
-		log.Panicln("SetSortMode called before SetParentList")
-	}
-
-	s.comparer = roomsort.NewComparer(s.ParentList.Client().Offline(), mode)
+	s.comparer = roomsort.NewComparer(gotktrix.FromContext(s.ctx).Offline(), mode)
 	s.InvalidateSort()
 }
 
@@ -313,8 +356,14 @@ func (s *Section) Remove(room *room.Room) {
 // InvalidateSort invalidates the section's sort. This should be called if any
 // room inside the section has been changed.
 func (s *Section) InvalidateSort() {
+	s.UseRoomPositions(nil)
+}
+
+// UseRoomPositions invalidates the current section's sorting to use the given
+// room positions.
+func (s *Section) UseRoomPositions(pos roomsort.RoomPositions) {
 	s.comparer.InvalidateRoomCache()
-	s.comparer.InvalidatePositions()
+	s.comparer.InvalidatePositions(pos)
 	s.listBox.InvalidateSort()
 	s.Reminify()
 }

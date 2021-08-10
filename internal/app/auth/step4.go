@@ -1,8 +1,7 @@
 package auth
 
 import (
-	"context"
-
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/components/errpopup"
@@ -10,7 +9,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/secret"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 type loginStepData struct {
@@ -64,7 +62,7 @@ func loginStep(a *Assistant, method loginMethod) *assistant.Step {
 	}
 
 	step.Done = func(step *assistant.Step) {
-		ctx := a.CancellableBusy(context.Background())
+		ctx := a.CancellableBusy(a.ctx)
 
 		go func() {
 			client := a.currentClient.WithContext(ctx)

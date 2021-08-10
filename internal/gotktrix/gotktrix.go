@@ -50,6 +50,24 @@ func Cancelled() context.Context {
 	return cancelled
 }
 
+type ctxKey uint
+
+const (
+	clientCtxKey ctxKey = iota
+)
+
+// WithClient injects the given client into a new context.
+func WithClient(ctx context.Context, c *Client) context.Context {
+	return context.WithValue(ctx, clientCtxKey, c)
+}
+
+// FromContext returns the client inside the context wrapped with WithClient. If
+// the context isn't yet wrapped, then nil is returned.
+func FromContext(ctx context.Context) *Client {
+	c, _ := ctx.Value(clientCtxKey).(*Client)
+	return c
+}
+
 type Client struct {
 	*gotrix.Client
 	*handler.Registry
@@ -109,6 +127,8 @@ func (c *Client) Open() error {
 	return c.Client.OpenWithNext(next)
 }
 
+// Close closes the event loop and the internal database, as well as halting all
+// ongoing requests.
 func (c *Client) Close() error {
 	err1 := c.Client.Close()
 	err2 := c.State.Close()
@@ -124,12 +144,14 @@ func (c *Client) Offline() *Client {
 	return c.WithContext(Cancelled())
 }
 
-// Online returns a Client that can use the API. It is meant to be used to
-// guarantee that a synchronous fetching routine is meaningful by using the API.
-func (c *Client) Online() *Client {
-	return c.WithContext(context.Background())
+// Online returns a Client that uses the given context instead of the cancelled
+// context. It is an alias to WithContext; the only difference is that the name
+// implies the client may be offline prior to this call.
+func (c *Client) Online(ctx context.Context) *Client {
+	return c.WithContext(ctx)
 }
 
+// WithContext replaces the client's internal context with the given one.
 func (c *Client) WithContext(ctx context.Context) *Client {
 	return &Client{
 		Client:   c.Client.WithContext(ctx),

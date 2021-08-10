@@ -8,6 +8,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
@@ -16,7 +17,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/secret"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/pkg/errors"
 	"github.com/zalando/go-keyring"
 )
@@ -232,7 +232,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 
 	useExistingAccount := func(row *gtk.ListBoxRow) {
 		acc := a.accounts[row.Index()]
-		ctx := a.CancellableBusy(context.Background())
+		ctx := a.CancellableBusy(a.ctx)
 
 		go func() {
 			client := a.client.WithContext(ctx)
@@ -263,7 +263,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 			}
 
 			glib.IdleAdd(func() {
-				a.currentClient = c.WithContext(context.Background())
+				a.currentClient = c.WithContext(a.ctx)
 				a.finish(acc)
 			})
 		}()

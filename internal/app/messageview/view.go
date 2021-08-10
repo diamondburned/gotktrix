@@ -1,12 +1,12 @@
 package messageview
 
 import (
+	"context"
 	"log"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 )
 
@@ -55,19 +55,19 @@ type View struct {
 	bar   *adw.TabBar
 	empty gtk.Widgetter
 
-	app    Application
+	ctx    context.Context
+	ctrl   Controller
 	client *gotktrix.Client
 
 	pages *pages
 }
 
-type Application interface {
-	app.Applicationer
+type Controller interface {
 	SetSelectedRoom(id matrix.RoomID)
 }
 
 // New creates a new instance of View.
-func New(app Application) *View {
+func New(ctx context.Context, ctrl Controller) *View {
 	view := adw.NewTabView()
 	view.SetVExpand(true)
 
@@ -111,8 +111,9 @@ func New(app Application) *View {
 		view:  view,
 		bar:   bar,
 
-		app:    app,
-		client: app.Client(),
+		ctx:    ctx,
+		ctrl:   ctrl,
+		client: gotktrix.FromContext(ctx),
 
 		pages: pages,
 	}
@@ -159,7 +160,7 @@ func (v *View) openRoom(id matrix.RoomID, newTab bool) *Page {
 		return page.Page
 	}
 
-	page := &tabPage{Page: NewPage(v, id)}
+	page := &tabPage{Page: NewPage(v.ctx, v, id)}
 	page.SetName(string(id))
 
 	v.pages.pages[id] = page

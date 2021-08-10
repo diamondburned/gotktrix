@@ -51,9 +51,9 @@ func (r *Registry) OnSync(f func(*api.SyncResponse)) func() {
 
 // OnSyncCh sends into the channel every sync until the returned callback is
 // called.
-func (r *Registry) OnSyncCh(ch chan<- *api.SyncResponse) func() {
-	ctx, cancel := context.WithCancel(context.Background())
+func (r *Registry) OnSyncCh(ctx context.Context, ch chan<- *api.SyncResponse) {
 	incomingSync := make(chan *api.SyncResponse)
+	rm := r.OnSync(func(sync *api.SyncResponse) { incomingSync <- sync })
 
 	go func() {
 		var sync *api.SyncResponse
@@ -66,16 +66,11 @@ func (r *Registry) OnSyncCh(ch chan<- *api.SyncResponse) func() {
 			case send <- sync:
 				// ok
 			case <-ctx.Done():
+				rm()
 				return
 			}
 		}
 	}()
-
-	rm := r.OnSync(func(sync *api.SyncResponse) { ch <- sync })
-	return func() {
-		rm()
-		cancel()
-	}
 }
 
 // SubscribeTimeline subscribes the given function to the timeline of a room. If

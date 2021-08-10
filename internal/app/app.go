@@ -1,39 +1,61 @@
 package app
 
 import (
+	"context"
 	"log"
 
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/components/errpopup"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
+
+/*
+	_diamondburned_ — Today at 16:52
+		wow ctx abuse is so fun
+		I can't wait until I lose scope of which context has which
+
+	Corporate Shill (SAY NO TO GORM) — Today at 16:58
+		This is why you dont do that
+		Aaaaaaaaa
+		The java compiler does it as well
+		Painful
+*/
 
 // Application describes the state of a Matrix application.
 type Application struct {
 	*gtk.Application
 	window *gtk.ApplicationWindow
 	header *gtk.HeaderBar
-	client *gotktrix.Client
 }
 
-// Applicationer describes the core methods that Application implements.
-type Applicationer interface {
-	Error(...error)
-	Fatal(...error)
-	Window() *gtk.Window
-	Header() *gtk.HeaderBar
-	Client() *gotktrix.Client
-	AddActions(...gio.Actioner) (rm func())
-	AddCallbackAction(string, func())
+type ctxKey uint
+
+const (
+	applicationKey ctxKey = iota
+)
+
+// WithApplication injects the given application instance into a context. The
+// returned context will also be cancelled if the application shuts down.
+func WithApplication(ctx context.Context, app *Application) context.Context {
+	ctx = context.WithValue(ctx, applicationKey, app)
+
+	ctx, cancel := context.WithCancel(ctx)
+	app.Connect("shutdown", cancel)
+
+	return ctx
 }
 
-var _ Applicationer = (*Application)(nil)
+// FromContext pulls the application from the given context. If the given
+// context isn't derived from Application, then nil is returned.
+func FromContext(ctx context.Context) *Application {
+	app, _ := ctx.Value(applicationKey).(*Application)
+	return app
+}
 
 // Wrap wraps a GTK application.
-func Wrap(app *gtk.Application) *Application {
+func Wrap(gtkapp *gtk.Application) *Application {
 	cssutil.ApplyGlobalCSS()
 
 	header := gtk.NewHeaderBar()
@@ -45,16 +67,27 @@ func Wrap(app *gtk.Application) *Application {
 	spinner.SetHAlign(gtk.AlignCenter)
 	spinner.SetVAlign(gtk.AlignCenter)
 
-	window := gtk.NewApplicationWindow(app)
+	window := gtk.NewApplicationWindow(gtkapp)
 	window.SetDefaultSize(600, 400)
 	window.SetChild(spinner)
 	window.SetTitlebar(header)
 
 	return &Application{
-		Application: app,
+		Application: gtkapp,
 		window:      window,
 		header:      header,
 	}
+}
+
+// Error calls Error on the application inside the context. It panics if the
+// context does not have the application.
+func Error(ctx context.Context, err ...error) {
+	FromContext(ctx).Error(err...)
+}
+
+// Fatal is similar to Error, but calls Fatal instead.
+func Fatal(ctx context.Context, err ...error) {
+	FromContext(ctx).Fatal(err...)
 }
 
 // Error shows an error popup.
@@ -75,13 +108,8 @@ func (app *Application) Fatal(err ...error) {
 	errpopup.Fatal(&app.window.Window, err...)
 }
 
-func (app *Application) Window() *gtk.Window      { return &app.window.Window }
-func (app *Application) Header() *gtk.HeaderBar   { return app.header }
-func (app *Application) Client() *gotktrix.Client { return app.client }
-
-func (app *Application) UseClient(c *gotktrix.Client) {
-	app.client = c
-}
+func (app *Application) Window() *gtk.Window    { return &app.window.Window }
+func (app *Application) Header() *gtk.HeaderBar { return app.header }
 
 // AddActions adds multiple actions and returns a callback that removes all of
 // them. Calling the callback is optional.

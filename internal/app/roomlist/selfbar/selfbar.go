@@ -10,7 +10,6 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -21,7 +20,8 @@ import (
 // Bar describes a self bar widget.
 type Bar struct {
 	*gtk.Button
-	app Application
+	ctx    context.Context
+	client *gotktrix.Client
 
 	box    *gtk.Box
 	avatar *adw.Avatar
@@ -45,8 +45,7 @@ var barCSS = cssutil.Applier("selfbar-bar", `
 	}
 `)
 
-type Application interface {
-	app.Applicationer
+type Controller interface {
 	// BeginReorderMode signals the application to put the room list under
 	// reorder mode, or override mode, which would allow the user to arbitrarily
 	// move rooms according to roomsort anchors.
@@ -54,13 +53,15 @@ type Application interface {
 }
 
 // New creates a new self bar instance.
-func New(app Application) *Bar {
+func New(ctx context.Context, ctrl Controller) *Bar {
 	burger := gtk.NewImageFromIconName("open-menu-symbolic")
 	burger.SetTooltipText("Menu")
 	burger.AddCSSClass("selfbar-icon")
 	burger.SetVAlign(gtk.AlignCenter)
 
-	uID, _ := app.Client().Offline().Whoami()
+	client := gotktrix.FromContext(ctx)
+
+	uID, _ := client.Offline().Whoami()
 	username, _, _ := uID.Parse()
 
 	avatar := adw.NewAvatar(avatarSize, username, true)
@@ -70,7 +71,7 @@ func New(app Application) *Bar {
 	name.SetWrapMode(pango.WrapWordChar)
 	name.SetHExpand(true)
 	name.SetXAlign(0)
-	name.SetMarkup(nameMarkup(app.Client().Offline(), uID, mauthor.WithWidgetColor(name)))
+	name.SetMarkup(nameMarkup(client.Offline(), uID, mauthor.WithWidgetColor(name)))
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	box.Append(&avatar.Widget)
@@ -83,17 +84,20 @@ func New(app Application) *Bar {
 	barCSS(button)
 
 	gtkutil.BindActionMap(button, "selfbar", map[string]func(){
-		"begin-reorder-mode": app.BeginReorderMode,
+		"begin-reorder-mode": ctrl.BeginReorderMode,
 	})
 	button.Connect("clicked", func() {
-		gtkutil.ShowPopoverMenu(button, gtk.PosTop, [][2]string{
+		p := gtkutil.ShowPopoverMenu(button, gtk.PosTop, [][2]string{
 			{"_Reorder Rooms", "selfbar.begin-reorder-mode"},
 		})
+		p.SetHasArrow(false)
+		p.SetSizeRequest(200, -1)
 	})
 
 	return &Bar{
 		Button: button,
-		app:    app,
+		ctx:    ctx,
+		client: client,
 
 		box:    box,
 		avatar: avatar,
@@ -105,21 +109,20 @@ func New(app Application) *Bar {
 // everything.
 func (b *Bar) Invalidate() {
 	opt := mauthor.WithWidgetColor(b.name)
-	client := b.app.Client()
 
 	go func() {
-		u, err := client.Whoami()
+		u, err := b.client.Whoami()
 		if err != nil {
 			return // weird
 		}
 
-		markup := nameMarkup(client, u, opt)
+		markup := nameMarkup(b.client, u, opt)
 		glib.IdleAdd(func() { b.name.SetMarkup(markup) })
 
-		mxc, _ := client.AvatarURL(u)
+		mxc, _ := b.client.AvatarURL(u)
 		if mxc != nil {
-			url, _ := client.SquareThumbnail(*mxc, avatarSize)
-			imgutil.AsyncGET(context.Background(), url, b.avatar.SetCustomImage)
+			url, _ := b.client.SquareThumbnail(*mxc, avatarSize)
+			imgutil.AsyncGET(b.ctx, url, b.avatar.SetCustomImage)
 		}
 	}()
 }

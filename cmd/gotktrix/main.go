@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"runtime"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -24,23 +23,21 @@ import (
 )
 
 func main() {
-	runtime.LockOSThread()
-
-	app := gtk.NewApplication(config.AppIDDot("gotktrix"), 0)
-	app.Connect("activate", activate)
-
-	// Ensure the app quits on a panic.
-	defer app.Quit()
-
 	// Quit the application on a SIGINT.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	app := gtk.NewApplication(config.AppIDDot("gotktrix"), 0)
+	app.Connect("activate", func() { activate(ctx, app) })
 
 	go func() {
 		<-ctx.Done()
 		// Quit with high priority.
 		glib.IdleAddPriority(glib.PriorityHigh, func() { app.Quit() })
 	}()
+
+	// Ensure the app quits on a panic.
+	defer app.Quit()
 
 	if code := app.Run(os.Args); code > 0 {
 		log.Println("exit status", code)
@@ -53,56 +50,56 @@ func main() {
 // split a chat view into another window, simply open a new instance, ask it to
 // open the room, and close it on our end.
 
-func activate(gtkapp *gtk.Application) {
-	app := app.Wrap(gtkapp)
-	app.Window().SetDefaultSize(800, 600)
-	app.Window().SetTitle("gotktrix")
-	app.Window().Show()
+func activate(ctx context.Context, gtkapp *gtk.Application) {
+	a := app.Wrap(gtkapp)
+	a.Window().SetDefaultSize(800, 600)
+	a.Window().SetTitle("gotktrix")
+	a.Window().Show()
 
-	authAssistant := auth.New(app.Window())
+	// Inject the app instance.
+	ctx = app.WithApplication(ctx, a)
+
+	authAssistant := auth.New(ctx)
 	authAssistant.Show()
 	authAssistant.OnConnect(func(client *gotktrix.Client, acc *auth.Account) {
-		app.UseClient(client)
+		ctx := gotktrix.WithClient(ctx, client)
 
 		go func() {
-			popup := syncbox.Open(app, acc)
+			popup := syncbox.Open(ctx, acc)
 			popup.QueueSetLabel("Getting rooms...")
 
 			rooms, err := client.Rooms()
 			if err != nil {
-				app.Fatal(err)
+				app.Fatal(ctx, err)
 				return
 			}
 
 			glib.IdleAdd(func() {
-				app := application{Application: app}
-				app.ready(rooms)
+				m := manager{ctx: ctx}
+				m.ready(rooms)
 				popup.Close()
 			})
 		}()
 	})
 }
 
-type application struct {
-	*app.Application
+type manager struct {
+	ctx context.Context
+
 	roomList *roomlist.List
 	msgView  *messageview.View
 }
 
-var (
-	_ roomlist.Application = (*application)(nil)
-)
-
-func (app *application) ready(rooms []matrix.RoomID) {
-	app.roomList = roomlist.New(app)
-	app.roomList.AddRooms(rooms)
+func (m *manager) ready(rooms []matrix.RoomID) {
+	m.roomList = roomlist.New(m.ctx, m)
+	m.roomList.AddRooms(rooms)
 
 	listScroll := gtk.NewScrolledWindow()
 	listScroll.SetVExpand(true)
 	listScroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	listScroll.SetChild(app.roomList)
+	listScroll.SetChild(m.roomList)
 
-	self := selfbar.New(app)
+	self := selfbar.New(m.ctx, m)
 	self.Invalidate()
 
 	leftBox := gtk.NewBox(gtk.OrientationVertical, 0)
@@ -117,12 +114,12 @@ func (app *application) ready(rooms []matrix.RoomID) {
 	welcome.SetTitle("Welcome")
 	welcome.SetDescription("Choose a room on the left panel.")
 
-	app.msgView = messageview.New(app)
-	app.msgView.SetPlaceholder(welcome)
+	m.msgView = messageview.New(m.ctx, m)
+	m.msgView.SetPlaceholder(welcome)
 
 	flap := adw.NewFlap()
 	flap.SetFlap(leftBox)
-	flap.SetContent(app.msgView)
+	flap.SetContent(m.msgView)
 	flap.SetSwipeToOpen(true)
 	flap.SetSwipeToClose(true)
 	flap.SetFoldPolicy(adw.FlapFoldPolicyAuto)
@@ -134,30 +131,31 @@ func (app *application) ready(rooms []matrix.RoomID) {
 		flap.SetRevealFlap(!flap.RevealFlap())
 	})
 
-	app.Window().SetChild(flap)
-	app.Header().PackStart(unflap)
+	a := app.FromContext(m.ctx)
+	a.Window().SetChild(flap)
+	a.Header().PackStart(unflap)
 }
 
-func (app *application) OpenRoom(id matrix.RoomID) {
-	name, _ := app.Client().Offline().RoomName(id)
+func (m *manager) OpenRoom(id matrix.RoomID) {
+	name, _ := gotktrix.FromContext(m.ctx).Offline().RoomName(id)
 	log.Println("opening room", name)
 
-	app.msgView.OpenRoom(id)
-	app.SetSelectedRoom(id)
+	m.msgView.OpenRoom(id)
+	m.SetSelectedRoom(id)
 }
 
-func (app *application) OpenRoomInTab(id matrix.RoomID) {
-	name, _ := app.Client().Offline().RoomName(id)
+func (m *manager) OpenRoomInTab(id matrix.RoomID) {
+	name, _ := gotktrix.FromContext(m.ctx).Offline().RoomName(id)
 	log.Println("opening room", name, "in new tab")
 
-	app.msgView.OpenRoomInNewTab(id)
-	app.SetSelectedRoom(id)
+	m.msgView.OpenRoomInNewTab(id)
+	m.SetSelectedRoom(id)
 }
 
-func (app *application) SetSelectedRoom(id matrix.RoomID) {
-	app.roomList.SetSelectedRoom(id)
+func (m *manager) SetSelectedRoom(id matrix.RoomID) {
+	m.roomList.SetSelectedRoom(id)
 }
 
-func (app *application) BeginReorderMode() {
-	// TODO
+func (m *manager) BeginReorderMode() {
+	m.roomList.BeginReorderMode()
 }

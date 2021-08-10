@@ -2,11 +2,13 @@
 package auth
 
 import (
+	"context"
 	"log"
 
 	"github.com/chanbakjsd/gotrix/api/httputil"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
@@ -22,6 +24,7 @@ var (
 
 type Assistant struct {
 	*assistant.Assistant
+	ctx    context.Context
 	client httputil.Client
 
 	onConnect func(*gotktrix.Client, *Account)
@@ -43,18 +46,21 @@ type discoverStep struct {
 }
 
 // New creates a new authentication assistant with the default HTTP client.
-func New(parent *gtk.Window) *Assistant {
-	return NewWithClient(parent, httputil.NewClient())
+func New(ctx context.Context) *Assistant {
+	return NewWithClient(ctx, httputil.NewClient())
 }
 
 // NewWithClient creates a new authentication assistant with the given HTTP
 // client.
-func NewWithClient(parent *gtk.Window, client httputil.Client) *Assistant {
-	ass := assistant.New(parent, nil)
+func NewWithClient(ctx context.Context, client httputil.Client) *Assistant {
+	window := app.FromContext(ctx).Window()
+
+	ass := assistant.New(window, nil)
 	ass.SetTitle("Getting Started")
 
 	a := Assistant{
 		Assistant: ass,
+		ctx:       ctx,
 		client:    client,
 		keyring:   secret.KeyringDriver(keyringAppID),
 	}
@@ -63,7 +69,7 @@ func NewWithClient(parent *gtk.Window, client httputil.Client) *Assistant {
 		// If the user hasn't chosen to connect to anything yet, then exit the
 		// main window as well.
 		if !a.hasConnected {
-			parent.Close()
+			window.Close()
 		}
 	})
 	ass.AddStep(accountChooserStep(&a))

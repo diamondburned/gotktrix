@@ -40,7 +40,9 @@ type Room struct {
 	ID   matrix.RoomID
 	Name string
 
-	section     Section
+	ctx     context.Context
+	section Section
+
 	showPreview bool
 }
 
@@ -61,9 +63,8 @@ var roomBoxCSS = cssutil.Applier("roomlist-roombox", `
 	}
 `)
 
+// Section is the controller interface that Room holds as its parent section.
 type Section interface {
-	Client() *gotktrix.Client
-
 	Reminify()
 	SortMode() roomsort.SortMode
 	InvalidateSort()
@@ -76,7 +77,7 @@ type Section interface {
 }
 
 // AddTo adds an empty room with the given ID to the given section..
-func AddTo(section Section, roomID matrix.RoomID) *Room {
+func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	nameLabel := gtk.NewLabel(string(roomID))
 	nameLabel.SetSingleLineMode(true)
 	nameLabel.SetXAlign(0)
@@ -110,6 +111,9 @@ func AddTo(section Section, roomID matrix.RoomID) *Room {
 	row.SetChild(box)
 	row.SetName(string(roomID))
 
+	ctx, cancel := context.WithCancel(ctx)
+	row.Connect("destroy", cancel)
+
 	gtkutil.BindActionMap(row, "room", map[string]func(){
 		"open":        func() { section.OpenRoom(roomID) },
 		"open-in-tab": func() { section.OpenRoomInTab(roomID) },
@@ -127,6 +131,7 @@ func AddTo(section Section, roomID matrix.RoomID) *Room {
 		preview:    previewLabel,
 		avatar:     adwAvatar,
 
+		ctx:     ctx,
 		section: section,
 
 		ID:   roomID,
@@ -136,15 +141,18 @@ func AddTo(section Section, roomID matrix.RoomID) *Room {
 	section.Insert(&r)
 
 	// Bind the message handler to update itself.
-	r.Connect("destroy", section.Client().SubscribeTimeline(roomID, func(event.RoomEvent) {
-		glib.IdleAdd(func() {
-			r.InvalidatePreview()
+	r.Connect(
+		"destroy",
+		gotktrix.FromContext(ctx).SubscribeTimeline(roomID, func(event.RoomEvent) {
+			glib.IdleAdd(func() {
+				r.InvalidatePreview()
 
-			if r.section.SortMode() == roomsort.SortActivity {
-				r.section.InvalidateSort()
-			}
-		})
-	}))
+				if r.section.SortMode() == roomsort.SortActivity {
+					r.section.InvalidateSort()
+				}
+			})
+		}),
+	)
 
 	// Initialize drag-and-drop.
 	drag := gtkutil.NewDragSourceWithContent(row, gdk.ActionMove, string(roomID))
@@ -186,9 +194,9 @@ func (r *Room) SetLabel(text string) {
 
 // SetAvatar sets the room's avatar URL.
 func (r *Room) SetAvatarURL(mxc matrix.URL) {
-	client := r.section.Client().Offline()
+	client := gotktrix.FromContext(r.ctx).Offline()
 	url, _ := client.SquareThumbnail(mxc, AvatarSize)
-	imgutil.AsyncGET(context.TODO(), url, r.avatar.SetCustomImage)
+	imgutil.AsyncGET(r.ctx, url, r.avatar.SetCustomImage)
 }
 
 // SetShowMessagePreview sets whether or not the room should show the message
@@ -210,7 +218,7 @@ func (r *Room) InvalidatePreview() {
 		return
 	}
 
-	client := r.section.Client().Offline()
+	client := gotktrix.FromContext(r.ctx).Offline()
 
 	events, err := client.RoomTimeline(r.ID)
 	if err != nil || len(events) == 0 {

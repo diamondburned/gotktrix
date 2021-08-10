@@ -28,15 +28,10 @@ type Canceler struct {
 
 // WidgetVisibilityCanceler creates a new canceler that is canceled when the
 // widget is hidden.
-func WidgetVisibilityCanceler(w gtk.Widgetter) Canceler {
-	c := NewCanceler()
+func WidgetVisibilityCanceler(ctx context.Context, w gtk.Widgetter) Canceler {
+	c := WithCanceler(ctx)
 	w.Connect("unmap", c.Renew)
 	return c
-}
-
-// NewCanceler creates a new Canceler.
-func NewCanceler() Canceler {
-	return WithCanceler(context.Background())
 }
 
 // WithCanceler wraps around a context.

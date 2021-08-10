@@ -9,9 +9,11 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/components/actionbutton"
 	"github.com/diamondburned/gotktrix/internal/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
@@ -21,7 +23,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/uploadutil"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/pkg/errors"
 )
 
@@ -207,19 +208,9 @@ func newActionButton(name, icon string) *gtk.Button {
 }
 
 func newFullActionButton(name, icon string) *gtk.Button {
-	img := gtk.NewImageFromIconName(icon)
-	img.SetPixelSize(14)
-	img.SetMarginEnd(4)
-	img.SetMarginBottom(1)
-
-	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	box.Append(img)
-	box.Append(gtk.NewLabel(name))
-
-	button := gtk.NewButton()
-	button.SetChild(box)
-
-	return button
+	btn := actionbutton.NewButton(name, icon, gtk.PosLeft)
+	btn.Icon.SetPixelSize(14)
+	return btn.Button
 }
 
 // Stop cancels the background context, which cancels any background jobs.
