@@ -4,7 +4,6 @@ import (
 	"container/list"
 	"context"
 	"sync"
-	"sync/atomic"
 
 	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/api"
@@ -22,7 +21,7 @@ type Registry struct {
 	// on-sync handlers
 	sync list.List
 
-	caughtUp uint32
+	caughtUp bool
 }
 
 // New creates a new handler registry.
@@ -143,16 +142,8 @@ func listRemover(mu sync.Locker, l *list.List, e *list.Element) func() {
 	}
 }
 
-// hasCaughtUp returns true if the handlers have caught up.
-func (r *Registry) hasCaughtUp() bool {
-	return atomic.LoadUint32(&r.caughtUp) == 1
-}
-
 // AddEvents satisfies part of gotrix.State.
 func (r *Registry) AddEvents(sync *api.SyncResponse) error {
-	// caughtUp is true if this isn't the first sync.
-	caughtUp := !atomic.CompareAndSwapUint32(&r.caughtUp, 0, 1)
-
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
@@ -167,7 +158,7 @@ func (r *Registry) AddEvents(sync *api.SyncResponse) error {
 		r.invokeRoom(k, v.Ephemeral.Events)
 		r.invokeRoom(k, v.AccountData.Events)
 
-		if caughtUp {
+		if r.caughtUp {
 			r.invokeTimeline(k, v.Timeline.Events)
 		}
 	}
@@ -180,11 +171,12 @@ func (r *Registry) AddEvents(sync *api.SyncResponse) error {
 		r.invokeRoom(k, v.State.Events)
 		r.invokeRoom(k, v.AccountData.Events)
 
-		if caughtUp {
+		if r.caughtUp {
 			r.invokeTimeline(k, v.Timeline.Events)
 		}
 	}
 
+	r.caughtUp = true
 	return nil
 }
 

@@ -102,3 +102,15 @@ func RowAtY(list *gtk.ListBox, y float64) (*gtk.ListBoxRow, gtk.PositionType) {
 	// Default to bottom.
 	return row, gtk.PosBottom
 }
+
+// MapSubscriber maps any subscriber callback that can unsubscribe to a widget's
+// map and unmap signals.
+func MapSubscriber(w gtk.Widgetter, sub func() (unsub func())) {
+	var unsub func()
+	w.Connect("map", func() {
+		unsub = sub()
+	})
+	w.Connect("unmap", func() {
+		unsub()
+	})
+}

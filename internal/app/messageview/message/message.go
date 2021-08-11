@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -68,15 +69,22 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, ev event.RoomEvent)
 	return msg
 }
 
+const maxCozyAge = 10 * time.Minute
+
 func lastIsAuthor(view MessageViewer, ev event.RoomMessageEvent) bool {
 	last := view.LastMessage()
 	// Ensure that the last message IS a cozy OR compact message.
 	switch last := last.(type) {
 	case *cozyMessage:
-		return last.ev.SenderID == ev.SenderID
+		return lastEventIsAuthor(last.ev, &ev)
 	case *collapsedMessage:
-		return last.ev.SenderID == ev.SenderID
+		return lastEventIsAuthor(last.ev, &ev)
 	default:
 		return false
 	}
+}
+
+func lastEventIsAuthor(last, ev *event.RoomMessageEvent) bool {
+	return last.SenderID == ev.SenderID &&
+		ev.OriginTime.Time().Sub(last.OriginTime.Time()) < maxCozyAge
 }

@@ -7,6 +7,8 @@ github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAE
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/cespare/xxhash v1.1.0 h1:a6HrQnmkObjyL+Gs60czilIUGqrzKutQD6XZog3p+ko=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
+github.com/chanbakjsd/gotrix v0.3.2-0.20210808044857-c75ecddb4dda h1:U6Bg3KIyYZl7y9hq/z9G2tnZQDcN2MVNawnAHyHyhks=
+github.com/chanbakjsd/gotrix v0.3.2-0.20210808044857-c75ecddb4dda/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-etcd v2.0.0+incompatible/go.mod h1:Jez6KQU2B/sWsbdaef3ED8NzMklzPG4d5KIOhIy30Tk=
@@ -28,8 +30,8 @@ github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210808051715-e0113f499df6/go
 github.com/diamondburned/gotk4/pkg v0.0.0-20210808051530-0d8563edd9fc/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210808215846-7af4da2ca3a6 h1:B+g7ag9BN2m7LGIRk8FUPNPcHToIQ4zeN0v6pIf4FK0=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210808215846-7af4da2ca3a6/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotrix v0.1.2-0.20210806234701-007163952522 h1:wWYos0woi5peoaMDwTKkadDRTH7wive51SA/estEb+o=
-github.com/diamondburned/gotrix v0.1.2-0.20210806234701-007163952522/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210810231538-8a59194324ad h1:orVFZcBJYsUXfb34kcWBMEZgoR3yypaxPHlqzeLmghU=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210810231538-8a59194324ad/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/fatih/color v1.10.0 h1:s36xzo75JdqLaaWoiEHk767eHiwo0598uUxyfiPkDsg=

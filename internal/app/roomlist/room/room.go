@@ -3,6 +3,7 @@ package room
 import (
 	"context"
 	"fmt"
+	"html"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -11,8 +12,8 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/events/roomsort"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
@@ -40,7 +41,7 @@ type Room struct {
 	ID   matrix.RoomID
 	Name string
 
-	ctx     context.Context
+	ctx     gtkutil.ContextTaker
 	section Section
 
 	showPreview bool
@@ -65,8 +66,8 @@ var roomBoxCSS = cssutil.Applier("roomlist-roombox", `
 
 // Section is the controller interface that Room holds as its parent section.
 type Section interface {
+	Tag() matrix.TagName
 	Reminify()
-	SortMode() roomsort.SortMode
 	InvalidateSort()
 
 	Remove(*Room)
@@ -111,19 +112,6 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	row.SetChild(box)
 	row.SetName(string(roomID))
 
-	ctx, cancel := context.WithCancel(ctx)
-	row.Connect("destroy", cancel)
-
-	gtkutil.BindActionMap(row, "room", map[string]func(){
-		"open":        func() { section.OpenRoom(roomID) },
-		"open-in-tab": func() { section.OpenRoomInTab(roomID) },
-	})
-
-	gtkutil.BindPopoverMenu(row, gtk.PosRight, [][2]string{
-		{"Open", "room.open"},
-		{"Open in New Tab", "room.open-in-tab"},
-	})
-
 	r := Room{
 		ListBoxRow: row,
 		box:        box,
@@ -131,7 +119,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		preview:    previewLabel,
 		avatar:     adwAvatar,
 
-		ctx:     ctx,
+		ctx:     gtkutil.WithWidgetVisibility(ctx, row),
 		section: section,
 
 		ID:   roomID,
@@ -140,19 +128,32 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 
 	section.Insert(&r)
 
+	gtkutil.BindActionMap(row, "room", map[string]func(){
+		"open":        func() { section.OpenRoom(roomID) },
+		"open-in-tab": func() { section.OpenRoomInTab(roomID) },
+		// TODO: prompt-order
+	})
+
+	client := gotktrix.FromContext(r.ctx).Offline()
+
+	gtkutil.BindRightClick(row, func() {
+		actions := [][2]string{
+			{"Open", "room.open"},
+			{"Open in New Tab", "room.open-in-tab"},
+		}
+
+		gtkutil.ShowPopoverMenu(row, gtk.PosBottom, actions)
+	})
+
 	// Bind the message handler to update itself.
-	r.Connect(
-		"destroy",
-		gotktrix.FromContext(ctx).SubscribeTimeline(roomID, func(event.RoomEvent) {
+	gtkutil.MapSubscriber(row, func() func() {
+		return client.SubscribeTimeline(roomID, func(event.RoomEvent) {
 			glib.IdleAdd(func() {
 				r.InvalidatePreview()
-
-				if r.section.SortMode() == roomsort.SortActivity {
-					r.section.InvalidateSort()
-				}
+				r.section.InvalidateSort()
 			})
-		}),
-	)
+		})
+	})
 
 	// Initialize drag-and-drop.
 	drag := gtkutil.NewDragSourceWithContent(row, gdk.ActionMove, string(roomID))
@@ -196,7 +197,7 @@ func (r *Room) SetLabel(text string) {
 func (r *Room) SetAvatarURL(mxc matrix.URL) {
 	client := gotktrix.FromContext(r.ctx).Offline()
 	url, _ := client.SquareThumbnail(mxc, AvatarSize)
-	imgutil.AsyncGET(r.ctx, url, r.avatar.SetCustomImage)
+	imgutil.AsyncGET(r.ctx.Take(), url, r.avatar.SetCustomImage)
 }
 
 // SetShowMessagePreview sets whether or not the room should show the message
@@ -227,8 +228,8 @@ func (r *Room) InvalidatePreview() {
 	}
 
 	preview := generatePreview(client, r.ID, events[len(events)-1])
-	r.preview.SetLabel(preview)
-	r.preview.SetTooltipText(preview)
+	r.preview.SetMarkup(preview)
+	r.preview.SetTooltipMarkup(preview)
 	r.preview.Show()
 }
 
@@ -237,9 +238,9 @@ func generatePreview(c *gotktrix.Client, rID matrix.RoomID, ev event.RoomEvent) 
 
 	switch ev := ev.(type) {
 	case event.RoomMessageEvent:
-		return fmt.Sprintf("%s: %s", name.Name, trimString(ev.Body, 256))
+		return fmt.Sprintf("%s: %s", name.Name, html.EscapeString(trimString(ev.Body, 256)))
 	default:
-		return fmt.Sprintf("%s: %s", name.Name, ev.Type())
+		return fmt.Sprintf("<i>%s %s</i>", name.Name, message.EventMessageTail(ev))
 	}
 }
 

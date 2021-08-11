@@ -38,65 +38,7 @@ func (v messageViewer) EventMessage(ev event.RoomEvent) *eventMessage {
 		mauthor.WithWidgetColor(action),
 	)
 
-	msg := author + " "
-
-	switch ev := ev.(type) {
-	case event.RoomCreateEvent:
-		msg += "created this room."
-	case event.RoomMemberEvent:
-		switch ev.NewState {
-		case event.MemberInvited:
-			msg += "was invited."
-		case event.MemberJoined:
-			msg += "joined."
-		case event.MemberLeft:
-			msg += "left."
-		case event.MemberBanned:
-			msg += "was banned."
-		default:
-			msg += escapef("performed member action %q.", ev.NewState)
-		}
-	case event.RoomPowerLevelsEvent:
-		msg += "changed the room's permissions."
-	case event.RoomJoinRulesEvent:
-		switch ev.JoinRule {
-		case event.JoinPublic:
-			msg += "made the room public."
-		case event.JoinInvite:
-			msg += "made the room invite-only."
-		default:
-			msg += escapef("changed the join rule to %q.", ev.JoinRule)
-		}
-	case event.RoomHistoryVisibilityEvent:
-		switch ev.Visibility {
-		case event.VisibilityInvited:
-			msg += "made the room's history visible to all invited members."
-		case event.VisibilityJoined:
-			msg += "made the room's history visible to all current members."
-		case event.VisibilityShared:
-			msg += "made the room's history visible to all past members."
-		case event.VisibilityWorldReadable:
-			msg += "made the room's history world-readable."
-		default:
-			msg += escapef("changed the room history visibility to %q.", ev.Visibility)
-		}
-	case event.RoomGuestAccessEvent:
-		switch ev.GuestAccess {
-		case event.GuestAccessCanJoin:
-			msg += "allowed guests to join the room."
-		case event.GuestAccessForbidden:
-			msg += "denied guests from joining the room."
-		default:
-			msg += escapef("changed the room's guess access rule to %q.", ev.GuestAccess)
-		}
-	case event.RoomNameEvent:
-		msg += "changed the room's name to <i>" + html.EscapeString(ev.Name) + "</i>."
-	case event.RoomTopicEvent:
-		msg += "changed the room's topic to <i>" + html.EscapeString(ev.Topic) + "</i>."
-	default:
-		msg += fmt.Sprintf("sent a %T event.", ev)
-	}
-
+	msg := author + " " + EventMessageTail(ev)
 	action.SetMarkup(msg)
 
 	messageCSS(action)
@@ -109,6 +51,67 @@ func (v messageViewer) EventMessage(ev event.RoomEvent) *eventMessage {
 
 func escapef(f string, v ...interface{}) string {
 	return html.EscapeString(fmt.Sprintf(f, v...))
+}
+
+// EventMessageTail returns the markup tail of an event message. It does NOT
+// support RoomMessageEvent.
+func EventMessageTail(ev event.Event) string {
+	switch ev := ev.(type) {
+	case event.RoomCreateEvent:
+		return "created this room."
+	case event.RoomMemberEvent:
+		switch ev.NewState {
+		case event.MemberInvited:
+			return "was invited."
+		case event.MemberJoined:
+			return "joined."
+		case event.MemberLeft:
+			return "left."
+		case event.MemberBanned:
+			return "was banned."
+		default:
+			return escapef("performed member action %q.", ev.NewState)
+		}
+	case event.RoomPowerLevelsEvent:
+		return "changed the room's permissions."
+	case event.RoomJoinRulesEvent:
+		switch ev.JoinRule {
+		case event.JoinPublic:
+			return "made the room public."
+		case event.JoinInvite:
+			return "made the room invite-only."
+		default:
+			return escapef("changed the join rule to %q.", ev.JoinRule)
+		}
+	case event.RoomHistoryVisibilityEvent:
+		switch ev.Visibility {
+		case event.VisibilityInvited:
+			return "made the room's history visible to all invited members."
+		case event.VisibilityJoined:
+			return "made the room's history visible to all current members."
+		case event.VisibilityShared:
+			return "made the room's history visible to all past members."
+		case event.VisibilityWorldReadable:
+			return "made the room's history world-readable."
+		default:
+			return escapef("changed the room history visibility to %q.", ev.Visibility)
+		}
+	case event.RoomGuestAccessEvent:
+		switch ev.GuestAccess {
+		case event.GuestAccessCanJoin:
+			return "allowed guests to join the room."
+		case event.GuestAccessForbidden:
+			return "denied guests from joining the room."
+		default:
+			return escapef("changed the room's guess access rule to %q.", ev.GuestAccess)
+		}
+	case event.RoomNameEvent:
+		return "changed the room's name to <i>" + html.EscapeString(ev.Name) + "</i>."
+	case event.RoomTopicEvent:
+		return "changed the room's topic to <i>" + html.EscapeString(ev.Topic) + "</i>."
+	default:
+		return fmt.Sprintf("sent a %T event.", ev)
+	}
 }
 
 func (m *eventMessage) Event() event.RoomEvent { return m.ev }

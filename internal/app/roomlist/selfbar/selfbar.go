@@ -45,12 +45,7 @@ var barCSS = cssutil.Applier("selfbar-bar", `
 	}
 `)
 
-type Controller interface {
-	// BeginReorderMode signals the application to put the room list under
-	// reorder mode, or override mode, which would allow the user to arbitrarily
-	// move rooms according to roomsort anchors.
-	BeginReorderMode()
-}
+type Controller interface{}
 
 // New creates a new self bar instance.
 func New(ctx context.Context, ctrl Controller) *Bar {
@@ -84,11 +79,11 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 	barCSS(button)
 
 	gtkutil.BindActionMap(button, "selfbar", map[string]func(){
-		"begin-reorder-mode": ctrl.BeginReorderMode,
+		// "begin-reorder-mode": ctrl.BeginReorderMode,
 	})
 	button.Connect("clicked", func() {
 		p := gtkutil.ShowPopoverMenu(button, gtk.PosTop, [][2]string{
-			{"_Reorder Rooms", "selfbar.begin-reorder-mode"},
+			// {"_Reorder Rooms", "selfbar.begin-reorder-mode"},
 		})
 		p.SetHasArrow(false)
 		p.SetSizeRequest(200, -1)

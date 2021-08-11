@@ -79,14 +79,13 @@ func (h eventHandlers) addRm(l sync.Locker, typ event.Type, fn interface{}) func
 	}
 }
 
-func (h eventHandlers) remove(typ event.Type, e *list.Element) {
-	ls, ok := h[typ]
-	if !ok {
-		return
-	}
-
-	ls.Remove(e)
-}
+// func (h eventHandlers) remove(typ event.Type, e *list.Element) {
+// 	ls, ok := h[typ]
+// 	if !ok {
+// 		return
+// 	}
+// 	ls.Remove(e)
+// }
 
 func invokeSync(list *list.List, sync *api.SyncResponse) {
 	for v := list.Front(); v != nil; v = v.Next() {
@@ -97,11 +96,6 @@ func invokeSync(list *list.List, sync *api.SyncResponse) {
 type eventInvoker struct {
 	raw    *event.RawEvent
 	parsed event.Event
-}
-
-func invokeFns(list *list.List, rID matrix.RoomID, raw *event.RawEvent) {
-	ivk := eventInvoke(rID, raw)
-	ivk.invoke(list)
 }
 
 func eventInvoke(rID matrix.RoomID, raw *event.RawEvent) eventInvoker {

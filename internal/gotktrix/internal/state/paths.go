@@ -132,10 +132,10 @@ func (p *dbPaths) setTimeline(n db.Node, roomID matrix.RoomID, tl api.SyncTimeli
 		}
 	}
 
-	// // Clean up the timeline events.
-	// if err := tnode.DropExceptLast(TimelineKeepLast); err != nil {
-	// 	log.Printf("failed to clean up Matrix timeline for room %q: %v", roomID, err)
-	// }
+	// Clean up the timeline events.
+	if err := tnode.DropExceptLast(TimelineKeepLast); err != nil {
+		log.Printf("failed to clean up Matrix timeline for room %q: %v", roomID, err)
+	}
 
 	// Write the previous batch string, if any.
 	if tl.PreviousBatch != "" {

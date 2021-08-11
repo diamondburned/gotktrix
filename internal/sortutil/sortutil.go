@@ -15,14 +15,14 @@ func popRune(str *string) rune {
 	return r
 }
 
-// StrlessFold returns true if i < j case-insensitive. See StrcmpFold.
-func StrlessFold(i, j string) bool {
-	return StrcmpFold(i, j) == -1
+// LessFold returns true if i < j case-insensitive. See StrcmpFold.
+func LessFold(i, j string) bool {
+	return CmpFold(i, j) == -1
 }
 
-// StrcmpFold compares 2 strings in a case-insensitive manner. If the string is
+// CmpFold compares 2 strings in a case-insensitive manner. If the string is
 // prefixed with !, then it's put to last.
-func StrcmpFold(i, j string) int {
+func CmpFold(i, j string) int {
 	for {
 		ir := popRune(&i)
 		jr := popRune(&j)

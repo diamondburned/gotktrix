@@ -2,6 +2,8 @@ package gtkutil
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -20,54 +22,98 @@ func IdleCtx(ctx context.Context, f func()) {
 	})
 }
 
-// Canceler wraps around a context and a callback.
-type Canceler struct {
+// ContextTaker describes a context.Context that can be taken.
+type ContextTaker interface {
+	context.Context
+	// Take returns the current context. This is useful for dropping this
+	// context into a background task.
+	Take() context.Context
+}
+
+// Cancellable describes a renewable and cancelable context. It is primarily
+// used to box a context inside a widget for convenience.
+type Cancellable interface {
+	context.Context
+	ContextTaker
+
+	// Renew cancels the previous context, if any, and restarts that context
+	// using the one given into WithCanceller.
+	Renew()
+	// Cancel cancels the canceler. If the canceler is a zero-value, then this
+	// method does nothing.
+	Cancel()
+}
+
+type canceller struct {
+	mu  sync.Mutex
+	old context.Context
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-// WidgetVisibilityCanceler creates a new canceler that is canceled when the
-// widget is hidden.
-func WidgetVisibilityCanceler(ctx context.Context, w gtk.Widgetter) Canceler {
-	c := WithCanceler(ctx)
-	w.Connect("unmap", c.Renew)
+// WithWidgetVisibility creates a new context that is canceled when the widget
+// is hidden. Widgets that use this are assumed that they'll never be reused.
+func WithWidgetVisibility(ctx context.Context, w gtk.Widgetter) ContextTaker {
+	c := WithCanceller(ctx)
+	w.Connect("unmap", c.Cancel)
 	return c
 }
 
-// WithCanceler wraps around a context.
-func WithCanceler(ctx context.Context) Canceler {
-	ctx, cancel := context.WithCancel(ctx)
-	return Canceler{
+// WithCanceller wraps around a context.
+func WithCanceller(ctx context.Context) Cancellable {
+	old := ctx
+	ctx, cancel := context.WithCancel(old)
+
+	return &canceller{
+		old:    old,
 		ctx:    ctx,
 		cancel: cancel,
 	}
 }
 
-// Context returns the current canceler's context.
-func (c Canceler) Context() context.Context {
-	if c.ctx != nil {
-		return c.ctx
-	}
-	return context.Background()
+func (c *canceller) Take() context.Context {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.ctx
 }
 
-// Cancel cancels the canceler. If the canceler is a zero-value, then this
-// method does nothing.
-func (c Canceler) Cancel() {
+func (c *canceller) Cancel() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.cancel != nil {
 		c.cancel()
 	}
 }
 
-// Renew cancels the previous context, if any, and starts a new context.
-func (c *Canceler) Renew() {
-	c.RenewWith(context.Background())
+func (c *canceller) Renew() {
+	ctx, cancel := context.WithCancel(c.old)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.cancel != nil {
+		c.cancel()
+	}
+
+	c.ctx = ctx
+	c.cancel = cancel
 }
 
-// RenewWith renews Canceler with the given parent context.
-func (c *Canceler) RenewWith(ctx context.Context) {
-	c.Cancel()
+func (c *canceller) Done() <-chan struct{} {
+	return c.Take().Done()
+}
 
-	ctx, cancel := context.WithCancel(ctx)
-	c.cancel = cancel
+func (c *canceller) Err() error {
+	return c.Take().Err()
+}
+
+func (c *canceller) Deadline() (time.Time, bool) {
+	return c.old.Deadline()
+}
+
+func (c *canceller) Value(k interface{}) interface{} {
+	return c.old.Value(k)
 }

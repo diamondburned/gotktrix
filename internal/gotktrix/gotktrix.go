@@ -201,6 +201,12 @@ func (c *Client) SquareThumbnail(mURL matrix.URL, size int) (string, error) {
 	return c.MediaThumbnailURL(mURL, true, size, size, api.MediaThumbnailCrop)
 }
 
+// RoomEvent queries the event with the given type. If the event type implies a
+// state event, then the empty key is tried.
+func (c *Client) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, error) {
+	return c.State.RoomEvent(roomID, typ)
+}
+
 // RoomTimeline queries the state cache for the timeline of the given room. If
 // it's not available, the API will be queried directly. The order of these
 // events is guaranteed to be latest last.

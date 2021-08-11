@@ -28,7 +28,7 @@ type Page struct {
 	messages map[matrix.EventID]message.Message
 
 	onTitle func(title string)
-	cancel  gtkutil.Canceler
+	ctx     gtkutil.ContextTaker
 
 	parent *View
 	roomID matrix.RoomID
@@ -89,17 +89,17 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		messages: msgMap,
 
 		onTitle: func(string) {},
-		cancel:  gtkutil.WidgetVisibilityCanceler(ctx, msgList),
+		ctx:     gtkutil.WithWidgetVisibility(ctx, msgList),
 
 		parent: parent,
 		roomID: roomID,
 	}
 
-	msgList.Connect("destroy", parent.client.SubscribeTimeline(roomID,
-		func(r event.RoomEvent) {
+	gtkutil.MapSubscriber(scroll, func() func() {
+		return parent.client.SubscribeTimeline(roomID, func(r event.RoomEvent) {
 			glib.IdleAdd(func() { page.OnRoomEvent(r) })
-		},
-	))
+		})
+	})
 
 	return &page
 }
@@ -182,7 +182,7 @@ func (p *Page) Load(done func()) {
 		return
 	}
 
-	ctx := p.cancel.Context()
+	ctx := p.ctx.Take()
 	client := p.parent.client.WithContext(ctx)
 
 	fetchName := p.name == ""
@@ -201,7 +201,7 @@ func (p *Page) Load(done func()) {
 
 		events, err := client.RoomTimeline(p.roomID)
 		if err != nil {
-			app.Error(p.parent.ctx, errors.Wrap(err, "failed to load timeline"))
+			app.Error(ctx, errors.Wrap(err, "failed to load timeline"))
 			glib.IdleAdd(done)
 			return
 		}

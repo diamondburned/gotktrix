@@ -151,7 +151,3 @@ func (m *manager) OpenRoomInTab(id matrix.RoomID) {
 func (m *manager) SetSelectedRoom(id matrix.RoomID) {
 	m.roomList.SetSelectedRoom(id)
 }
-
-func (m *manager) BeginReorderMode() {
-	m.roomList.BeginReorderMode()
-}
