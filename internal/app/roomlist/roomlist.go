@@ -3,8 +3,8 @@ package roomlist
 import (
 	"context"
 	"log"
-	"sort"
 
+	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -14,7 +14,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/section"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/sortutil"
 	"github.com/pkg/errors"
 )
 
@@ -176,14 +175,6 @@ func sortcmp(i, j matrix.TagName, c func(matrix.TagName) bool) bool {
 	return false
 }
 
-var matrixSectionOrder = map[string]int{
-	"Favorites":     0,
-	"People":        1,
-	"Rooms":         2, // regular room
-	"Low Priority":  3,
-	"Server Notice": 4,
-}
-
 // refreshSections throws away the session box and recreates a new one from the
 // internal list. It will sort the internal sections list.
 func (l *List) refreshSections() {
@@ -192,45 +183,7 @@ func (l *List) refreshSections() {
 		s.Unparent()
 	}
 
-	sort.Slice(l.sections, func(i, j int) bool { // (i < j) -> (i before j)
-		itag := l.sections[i].Tag()
-		jtag := l.sections[j].Tag()
-
-		iname := section.TagName(itag)
-		jname := section.TagName(jtag)
-
-		if section.TagEqNamespace(itag, jtag) {
-			// Sort case insensitive.
-			return sortutil.LessFold(iname, jname)
-		}
-
-		// User tags always go in front.
-		if itag.Namespace("u") {
-			return true
-		}
-		if jtag.Namespace("u") {
-			return false
-		}
-
-		iord, iok := matrixSectionOrder[iname]
-		jord, jok := matrixSectionOrder[jname]
-
-		if iok && jok {
-			return iord < jord
-		}
-
-		// Cannot compare tag, probably because the tag is neither a Matrix or
-		// user tag. Put that tag in last.
-		if iok {
-			return true // jtag is not; itag in front.
-		}
-		if jok {
-			return false // itag is not; jtag in front.
-		}
-
-		// Last resort: sort the tag namespace.
-		return section.TagNamespace(itag) < section.TagNamespace(jtag)
-	})
+	section.SortSections(l.sections)
 
 	l.inner = gtk.NewBox(gtk.OrientationVertical, 0)
 	l.outer.SetChild(l.inner)
@@ -272,7 +225,8 @@ func (l *List) SetSelectedRoom(id matrix.RoomID) {
 	for _, sect := range l.sections {
 		if sect.HasRoom(id) {
 			sect.Select(id)
-			return
+		} else {
+			sect.Unselect()
 		}
 	}
 }
@@ -297,13 +251,43 @@ func (l *List) OpenRoomInTab(id matrix.RoomID) {
 func (l *List) setRoom(id matrix.RoomID) {
 	l.current = id
 
-	if _, ok := l.rooms[id]; !ok {
+	rm, ok := l.rooms[id]
+	if !ok {
 		log.Panicf("room %q not in registry", id)
 	}
 
 	for _, s := range l.sections {
-		s.Unselect(l.current)
+		if s == rm.Section() {
+			continue
+		}
+
+		s.Unselect()
 	}
+}
+
+// MoveRoomToTag moves the room to the new tag.
+func (l *List) MoveRoomToTag(src matrix.RoomID, tag matrix.TagName) bool {
+	oldOrder := -1.0
+	if room, ok := l.rooms[src]; ok {
+		oldOrder = room.Order()
+	}
+
+	section := l.getOrCreateSection(tag)
+
+	if !l.MoveRoomToSection(src, section) {
+		// Undo appending.
+		l.sections[len(l.sections)-1] = nil
+		l.sections = l.sections[:len(l.sections)-1]
+		return false
+	}
+
+	// Restore the room's order number, if any.
+	if oldOrder != -1 {
+		l.rooms[src].SetOrder(oldOrder)
+	}
+
+	l.refreshSections()
+	return true
 }
 
 // MoveRoomToSection moves the room w/ the given ID to the given section. False
@@ -320,33 +304,87 @@ func (l *List) MoveRoomToSection(src matrix.RoomID, dst *section.Section) bool {
 		return false
 	}
 
-	oldTag := srcRoom.Section().Tag()
 	newTag := dst.Tag()
 
 	srcRoom.Move(dst)
 	srcRoom.SetSensitive(false)
 
 	go func() {
-		defer glib.IdleAdd(func() { srcRoom.SetSensitive(true) })
+		defer glib.IdleAdd(func() {
+			dst.InvalidateSort()
+			srcRoom.SetSensitive(true)
+		})
 
 		client := gotktrix.FromContext(l.ctx)
 
-		// TODO: don't delete the room off of favorites.
+		var oldTags map[matrix.TagName]matrix.Tag
 
-		if err := client.TagDelete(src, oldTag); err != nil {
-			app.Error(l.ctx, errors.Wrap(err, "failed to delete old room tag"))
-			return
+		e, err := client.RoomEvent(src, event.TypeTag)
+		if err == nil {
+			oldTags = e.(event.TagEvent).Tags
 		}
 
-		if err := client.TagAdd(src, newTag, matrix.Tag{}); err != nil {
-			app.Error(l.ctx, errors.Wrap(err, "failed to add room tag"))
-			return
+		omitNamespaces := func(nsps ...string) bool {
+			if err := omitNamespaces(client, src, oldTags, nsps); err != nil {
+				app.Error(l.ctx, errors.Wrap(err, "failed to delete old room tag"))
+				return false
+			}
+			return true
 		}
 
-		glib.IdleAdd(func() { dst.InvalidateSort() })
+		switch {
+		case newTag.HasNamespace("m"), section.TagIsIntern(newTag):
+			// New tag has the Matrix namespace. Remove existing tags w/ the
+			// Matrix namespace, since those conflict. Because we also
+			// prioritize user namespaces over Matrix's, we also have to remove
+			// them.
+			if !omitNamespaces("m", "u") {
+				return
+			}
+		// Other tags not in the Matrix namespace can co-exist.
+		case newTag.HasNamespace("u"):
+			// We have to be careful though, because the user has no control
+			// over the deterministic process of sorting tags, so we only keep 1
+			// user tag.
+			if !omitNamespaces("u") {
+				return
+			}
+		}
+
+		// Don't add internal tags.
+		if !section.TagIsIntern(newTag) {
+			if err := client.TagAdd(src, newTag, matrix.Tag{}); err != nil {
+				app.Error(l.ctx, errors.Wrap(err, "failed to add room tag"))
+				return
+			}
+		}
+
+		if err := client.UpdateRoomTags(src); err != nil {
+			app.Error(l.ctx, errors.Wrap(err, "failed to update tag state"))
+			return
+		}
 	}()
 
 	return true
+}
+
+func omitNamespaces(
+	c *gotktrix.Client, room matrix.RoomID,
+	oldTags map[matrix.TagName]matrix.Tag, nsps []string) error {
+
+	for _, nsp := range nsps {
+		for name := range oldTags {
+			if !name.HasNamespace(nsp) {
+				continue
+			}
+			if err := c.TagDelete(room, name); err != nil {
+				return errors.Wrap(err, "failed to delete old room tag")
+			}
+			delete(oldTags, name)
+		}
+	}
+
+	return nil
 }
 
 // canMoveRoom checks that moving the given room to the given section is
@@ -364,7 +402,7 @@ func (l *List) canMoveRoom(room *room.Room, sect *section.Section) bool {
 	}
 
 	// Moving the non-DM room to the regular rooms section is invalid.
-	if isDirect && sect.Tag() == "" {
+	if isDirect && sect.Tag() == section.RoomsSection {
 		return false
 	}
 

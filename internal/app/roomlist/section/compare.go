@@ -25,7 +25,7 @@ type Comparer struct {
 	Mode SortMode
 
 	client   *gotktrix.Client // offline
-	roomTags map[matrix.RoomID]event.TagEvent
+	roomTags map[matrix.RoomID]float64
 	roomData map[matrix.RoomID]interface{} // name or content
 }
 
@@ -35,7 +35,7 @@ func NewComparer(client *gotktrix.Client, mode SortMode, tag matrix.TagName) *Co
 		Tag:      tag,
 		Mode:     mode,
 		client:   client,
-		roomTags: map[matrix.RoomID]event.TagEvent{},
+		roomTags: map[matrix.RoomID]float64{},
 		roomData: map[matrix.RoomID]interface{}{},
 	}
 }
@@ -43,7 +43,7 @@ func NewComparer(client *gotktrix.Client, mode SortMode, tag matrix.TagName) *Co
 // InvalidateRoomCache invalidates the room name/timestamp cache. This is
 // automatically called when Sort is called.
 func (c *Comparer) InvalidateRoomCache() {
-	c.roomTags = make(map[matrix.RoomID]event.TagEvent, len(c.roomTags))
+	c.roomTags = make(map[matrix.RoomID]float64, len(c.roomTags))
 	c.roomData = make(map[matrix.RoomID]interface{}, len(c.roomData))
 }
 
@@ -66,40 +66,41 @@ func (c *Comparer) Compare(iID, jID matrix.RoomID) int {
 	ipos := c.roomOrder(iID)
 	jpos := c.roomOrder(jID)
 
-	if ipos == -1 && jpos == -1 {
-		return c.compare(iID, jID)
+	if ipos != jpos {
+		if ipos < jpos {
+			return -1
+		}
+		if ipos > jpos {
+			return 1
+		}
 	}
 
-	if ipos < jpos {
-		return -1
-	}
-	if ipos == jpos {
-		return 0
-	}
-	return 1
+	return c.compare(iID, jID)
 }
 
 // roomOrder gets the order number of the given room within the range [0, 1]. If
 // the room does not have the order number, then 2 is returned.
 func (c *Comparer) roomOrder(id matrix.RoomID) float64 {
-	tag, ok := c.roomTags[id]
-	if !ok {
-		e, err := c.client.RoomEvent(id, event.TypeTag)
-		if err != nil {
-			// Prevent cache misses on erroneous rooms.
-			c.roomTags[id] = event.TagEvent{}
-			return 2
-		}
-
-		tag := e.(event.TagEvent)
-		c.roomTags[id] = tag
+	o, ok := c.roomTags[id]
+	if ok {
+		return o
 	}
 
-	if o, ok := tag.Tags[c.Tag]; ok && o.Order != nil {
-		return *o.Order
+	e, err := c.client.RoomEvent(id, event.TypeTag)
+	if err != nil {
+		// Prevent cache misses on erroneous rooms.
+		c.roomTags[id] = 2
+		return 2
 	}
 
-	return -1
+	t, ok := e.(event.TagEvent).Tags[c.Tag]
+	if ok && t.Order != nil {
+		c.roomTags[id] = *t.Order
+		return *t.Order
+	} else {
+		c.roomTags[id] = 2
+		return 2
+	}
 }
 
 func (c *Comparer) roomTimestamp(id matrix.RoomID) int64 {
@@ -121,28 +122,28 @@ func (c *Comparer) roomTimestamp(id matrix.RoomID) int64 {
 	return ts
 }
 
-func (comparer *Comparer) roomName(id matrix.RoomID) string {
-	if v, ok := comparer.roomData[id]; ok {
+func (c *Comparer) roomName(id matrix.RoomID) string {
+	if v, ok := c.roomData[id]; ok {
 		s, _ := v.(string)
 		return s
 	}
 
-	name, err := comparer.client.RoomName(id)
+	name, err := c.client.RoomName(id)
 	if err != nil {
 		// Set something just so we don't repetitively hit the API.
-		comparer.roomData[id] = nil
+		c.roomData[id] = nil
 		return ""
 	}
 
-	comparer.roomData[id] = name
+	c.roomData[id] = name
 	return name
 }
 
-func (comparer *Comparer) compare(iID, jID matrix.RoomID) int {
-	switch comparer.Mode {
+func (c *Comparer) compare(iID, jID matrix.RoomID) int {
+	switch c.Mode {
 	case SortActivity:
-		its := comparer.roomTimestamp(iID)
-		jts := comparer.roomTimestamp(jID)
+		its := c.roomTimestamp(iID)
+		jts := c.roomTimestamp(jID)
 
 		if its == 0 {
 			return 1 // put to last
@@ -160,8 +161,8 @@ func (comparer *Comparer) compare(iID, jID matrix.RoomID) int {
 		return -1
 
 	case SortName:
-		iname := comparer.roomName(iID)
-		jname := comparer.roomName(jID)
+		iname := c.roomName(iID)
+		jname := c.roomName(jID)
 
 		if iname == "" {
 			return 1 // put to last

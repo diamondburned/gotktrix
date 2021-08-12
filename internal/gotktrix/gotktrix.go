@@ -2,6 +2,7 @@ package gotktrix
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"math/bits"
 	"sync"
@@ -456,6 +457,31 @@ func (c *Client) MemberNames(roomID matrix.RoomID, userIDs []matrix.UserID) ([]M
 	c.State.EachRoomStateLen(roomID, event.TypeRoomMember, onMember)
 
 	return result, nil
+}
+
+// UpdateRoomTags updates the internal state with the latest room tag
+// information.
+func (c *Client) UpdateRoomTags(roomID matrix.RoomID) error {
+	t, err := c.Client.Tags(roomID)
+	if err != nil {
+		return err
+	}
+
+	b, err := json.Marshal(event.TagEvent{
+		RoomID: roomID,
+		Tags:   t,
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal room tags")
+	}
+
+	c.State.AddRoomEvents(roomID, []event.RawEvent{{
+		Type:    event.TypeTag,
+		Content: b,
+		RoomID:  roomID,
+	}})
+
+	return nil
 }
 
 // IsDirect returns true if the given room is a direct messaging room.

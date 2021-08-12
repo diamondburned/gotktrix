@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -20,118 +19,52 @@ import (
 	"github.com/diamondburned/gotktrix/internal/sortutil"
 )
 
-const nMinified = 8
+// SortSections sorts the given list of sections in a user-friendly way.
+func SortSections(sections []*Section) {
+	sort.Slice(sections, func(i, j int) bool {
+		itag := sections[i].Tag()
+		jtag := sections[j].Tag()
 
-// DMSection is the special pseudo-tag name for the DM section.
-const DMSection matrix.TagName = "xyz.diamondb.gotktrix.dm_section"
-
-// TagName returns the name of the given tag.
-func TagName(name matrix.TagName) string {
-	switch {
-	case name.Namespace("m"):
-		switch name {
-		case matrix.TagFavourites, "m.favourite": // Thanks, Matrix.
-			return "Favorites"
-		case matrix.TagLowPriority:
-			return "Low Priority"
-		case matrix.TagServerNotice:
-			return "Server Notice"
-		}
-	case name.Namespace("u"):
-		return strings.TrimPrefix(string(name), "u.")
-	case name == DMSection:
-		return "People"
-	case name == "":
-		return "Rooms"
-	}
-
-	return string(name)
-}
-
-// TagNamespace returns the tag's namespace.
-func TagNamespace(name matrix.TagName) string {
-	switch {
-	case name.Namespace("m"):
-		return "m"
-	case name.Namespace("u"):
-		return "u"
-	default:
-		return string(name)
-	}
-}
-
-// TagEqNamespace returns true if n1 and n2 are in the same namespace.
-func TagEqNamespace(n1, n2 matrix.TagName) bool {
-	return TagNamespace(n1) == TagNamespace(n2)
-}
-
-// RoomTag queries the client and returns the tag that the room with the given
-// ID is in. It tries its best to be deterministic. If the room should be in the
-// default room section, then an empty string is returned.
-func RoomTag(c *gotktrix.Client, id matrix.RoomID) matrix.TagName {
-	e, err := c.RoomEvent(id, event.TypeTag)
-	if err != nil {
-		return defaultRoomTag(c, id)
-	}
-
-	ev := e.(event.TagEvent)
-	if len(ev.Tags) == 0 {
-		return defaultRoomTag(c, id)
-	}
-
-	type roomTag struct {
-		Name  matrix.TagName
-		Order float64 // 2 if nil
-	}
-
-	// TODO: priorize u. tags
-
-	tags := make([]roomTag, 0, len(ev.Tags))
-	for name, tag := range ev.Tags {
-		order := 2.0
-		if tag.Order != nil {
-			order = *tag.Order
-		}
-
-		tags = append(tags, roomTag{name, order})
-	}
-
-	if len(tags) == 1 {
-		return tags[0].Name
-	}
-
-	// Sort the tags in ascending order. Rooms that are supposed to appear first
-	// will appear first.
-	sort.Slice(tags, func(i, j int) bool {
-		if tags[i].Order != tags[j].Order {
-			// Tag the room so that it will be in the section with the topmost
-			// order.
-			return tags[i].Order < tags[j].Order
-		}
-
-		// Prioritize user tags.
-		if !TagEqNamespace(tags[i].Name, tags[j].Name) {
-			if tags[i].Name.Namespace("u") {
-				return true
-			}
-			if tags[j].Name.Namespace("u") {
-				return false
-			}
-		}
-
-		// Fallback to tag name.
-		return sortutil.LessFold(string(tags[i].Name), string(tags[j].Name))
+		return lessTag(itag, jtag)
 	})
-
-	return tags[0].Name
 }
 
-func defaultRoomTag(c *gotktrix.Client, id matrix.RoomID) matrix.TagName {
-	if c.IsDirect(id) {
-		return DMSection
-	} else {
-		return ""
+// (i < j) -> (i before j)
+func lessTag(itag, jtag matrix.TagName) bool {
+	if TagEqNamespace(itag, jtag) {
+		iname := TagName(itag)
+		jname := TagName(jtag)
+
+		// Sort case insensitive.
+		return sortutil.LessFold(iname, jname)
 	}
+
+	// User tags always go in front.
+	if itag.HasNamespace("u") {
+		return true
+	}
+	if jtag.HasNamespace("u") {
+		return false
+	}
+
+	iord, iok := MatrixSectionOrder[itag]
+	jord, jok := MatrixSectionOrder[jtag]
+
+	if iok && jok {
+		return iord < jord
+	}
+
+	// Cannot compare tag, probably because the tag is neither a Matrix or
+	// user tag. Put that tag in last.
+	if iok {
+		return true // jtag is not; itag in front.
+	}
+	if jok {
+		return false // itag is not; jtag in front.
+	}
+
+	// Last resort: sort the tag namespace.
+	return TagNamespace(itag) < TagNamespace(jtag)
 }
 
 // Controller describes the parent widget that Section controls.
@@ -145,7 +78,12 @@ type Controller interface {
 	// MoveRoomToSection moves a room to another section. The method is expected
 	// to verify that the moving is valid.
 	MoveRoomToSection(src matrix.RoomID, dst *Section) bool
+	// MoveRoomToTag moves the room with the given ID to the given tag name. A
+	// new section must be created if needed.
+	MoveRoomToTag(src matrix.RoomID, tag matrix.TagName) bool
 }
+
+const nMinified = 8
 
 // Section is a room section, such as People or Favorites.
 type Section struct {
@@ -210,9 +148,9 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 
 	gtkutil.BindRightClick(btn, func() {
 		gtkutil.ShowPopoverMenuCustom(btn, gtk.PosBottom, []gtkutil.PopoverMenuItem{
-			{"Sort By", "roomsection.change-sort", s.sortByBox()},
-			{"Appearance", "---", nil},
-			{"Show Preview", "roomsection.show-preview", s.showPreviewBox()},
+			gtkutil.MenuWidget("roomsection.change-sort", s.sortByBox()),
+			gtkutil.MenuSeparator("Appearance"),
+			gtkutil.MenuWidget("roomsection.show-preview", s.showPreviewBox()),
 		})
 	})
 
@@ -334,6 +272,11 @@ func (s *Section) OpenRoom(id matrix.RoomID) { s.ctrl.OpenRoom(id) }
 // OpenRoomInTab calls the parent controller's.
 func (s *Section) OpenRoomInTab(id matrix.RoomID) { s.ctrl.OpenRoomInTab(id) }
 
+// MoveRoomToTag calls the parent controller's.
+func (s *Section) MoveRoomToTag(src matrix.RoomID, tag matrix.TagName) bool {
+	return s.ctrl.MoveRoomToTag(src, tag)
+}
+
 // SetSortMode sets the sorting mode for each room.
 func (s *Section) SetSortMode(mode SortMode) {
 	s.comparer = *NewComparer(gotktrix.FromContext(s.ctx).Offline(), mode, s.comparer.Tag)
@@ -347,10 +290,8 @@ func (s *Section) SortMode() SortMode {
 
 // Unselect unselects the list of the current section. If the given current room
 // ID is the same as what the list has, then nothing is done.
-func (s *Section) Unselect(current matrix.RoomID) {
-	if s.current != current {
-		s.listBox.UnselectAll()
-	}
+func (s *Section) Unselect() {
+	s.listBox.UnselectAll()
 }
 
 // Select selects the room with the given ID. If an unknown ID is given, then

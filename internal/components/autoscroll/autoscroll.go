@@ -1,6 +1,9 @@
 package autoscroll
 
-import "github.com/diamondburned/gotk4/pkg/gtk/v4"
+import (
+	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+)
 
 // Window describes an automatically scrolled window.
 type Window struct {
@@ -41,5 +44,7 @@ func (w *Window) IsBottomed() bool {
 
 // ScrollToBottom scrolls the window to bottom.
 func (w *Window) ScrollToBottom() {
-	w.vadj.SetValue(w.vadj.Upper())
+	glib.IdleAdd(func() {
+		w.vadj.SetValue(w.vadj.Upper())
+	})
 }

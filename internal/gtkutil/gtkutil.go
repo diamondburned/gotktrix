@@ -22,11 +22,9 @@ func NewDragSourceWithContent(w gtk.Widgetter, a gdk.DragAction, v interface{}) 
 	paint := gtk.NewWidgetPaintable(w)
 	drag.Connect("drag-begin", func() {
 		w.AddCSSClass("dragging")
-		// log.Println("dragging", v)
 		drag.SetIcon(paint, 0, 0)
 	})
 	drag.Connect("drag-end", func() {
-		// log.Println("dropped", v)
 		w.RemoveCSSClass("dragging")
 	})
 

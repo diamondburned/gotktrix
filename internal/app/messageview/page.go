@@ -150,8 +150,8 @@ func (p *Page) clean() {
 		return
 	}
 
-	for i := len(p.messages); i >= gotktrix.TimelimeLimit; i-- {
-		row := p.list.RowAtIndex(i)
+	for len(p.messages) >= gotktrix.TimelimeLimit {
+		row := p.list.RowAtIndex(0)
 		if row == nil {
 			continue
 		}

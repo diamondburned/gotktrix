@@ -3,7 +3,7 @@ module github.com/diamondburned/gotktrix
 go 1.17
 
 require (
-	github.com/chanbakjsd/gotrix v0.3.2-0.20210808044857-c75ecddb4dda
+	github.com/chanbakjsd/gotrix v0.3.2-0.20210811082156-39aacea630a7
 	github.com/dgraph-io/badger/v3 v3.2103.0
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210808051715-e0113f499df6
 	github.com/diamondburned/gotk4/pkg v0.0.0-20210810231538-8a59194324ad

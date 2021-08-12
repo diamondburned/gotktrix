@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -12,11 +13,15 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
+	"github.com/diamondburned/gotktrix/internal/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/pkg/errors"
 )
 
 // AvatarSize is the size in pixels of the avatar.
@@ -75,6 +80,10 @@ type Section interface {
 
 	OpenRoom(matrix.RoomID)
 	OpenRoomInTab(matrix.RoomID)
+
+	// MoveRoomToTag moves the room with the given ID to the given tag name. A
+	// new section must be created if needed.
+	MoveRoomToTag(src matrix.RoomID, tag matrix.TagName) bool
 }
 
 // AddTo adds an empty room with the given ID to the given section..
@@ -129,21 +138,25 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	section.Insert(&r)
 
 	gtkutil.BindActionMap(row, "room", map[string]func(){
-		"open":        func() { section.OpenRoom(roomID) },
-		"open-in-tab": func() { section.OpenRoomInTab(roomID) },
-		// TODO: prompt-order
+		"open":            func() { section.OpenRoom(roomID) },
+		"open-in-tab":     func() { section.OpenRoomInTab(roomID) },
+		"prompt-reorder":  func() { r.promptReorder() },
+		"move-to-section": nil,
+	})
+
+	gtkutil.BindPopoverMenuLazy(row, gtk.PosBottom, func() []gtkutil.PopoverMenuItem {
+		return []gtkutil.PopoverMenuItem{
+			gtkutil.MenuItem("Open", "room.open"),
+			gtkutil.MenuItem("Open in New Tab", "room.open-in-tab"),
+			gtkutil.MenuSeparator("Section"),
+			gtkutil.MenuItem("Reorder Room...", "room.prompt-reorder"),
+			gtkutil.Submenu("Move to Section...", []gtkutil.PopoverMenuItem{
+				gtkutil.MenuWidget("room.move-to-section", r.moveToSectionBox()),
+			}),
+		}
 	})
 
 	client := gotktrix.FromContext(r.ctx).Offline()
-
-	gtkutil.BindRightClick(row, func() {
-		actions := [][2]string{
-			{"Open", "room.open"},
-			{"Open in New Tab", "room.open-in-tab"},
-		}
-
-		gtkutil.ShowPopoverMenu(row, gtk.PosBottom, actions)
-	})
 
 	// Bind the message handler to update itself.
 	gtkutil.MapSubscriber(row, func() func() {
@@ -249,4 +262,183 @@ func trimString(s string, maxLen int) string {
 		return s[:maxLen]
 	}
 	return s
+}
+
+// SetOrder sets the room's order within the section it is in. If the order is
+// not within [0.0, 1.0], then it is cleared.
+func (r *Room) SetOrder(order float64) {
+	r.SetSensitive(false)
+
+	go func() {
+		defer glib.IdleAdd(func() {
+			r.SetSensitive(true)
+			r.section.InvalidateSort()
+		})
+
+		client := gotktrix.FromContext(r.ctx)
+
+		tag := matrix.Tag{}
+		if order >= 0 && order <= 1 {
+			tag.Order = &order
+		}
+
+		if err := client.TagAdd(r.ID, r.section.Tag(), tag); err != nil {
+			app.Error(r.ctx, errors.Wrap(err, "failed to update tag"))
+			return
+		}
+
+		if err := client.UpdateRoomTags(r.ID); err != nil {
+			app.Error(r.ctx, errors.Wrap(err, "failed to update tag state"))
+			return
+		}
+	}()
+}
+
+// Order returns the current room's order number, or -1 if the room doesn't have
+// one.
+func (r *Room) Order() float64 {
+	e, err := gotktrix.FromContext(r.ctx).Offline().RoomEvent(r.ID, event.TypeTag)
+	if err == nil {
+		t, ok := e.(event.TagEvent).Tags[r.section.Tag()]
+		if ok && t.Order != nil {
+			return *t.Order
+		}
+	}
+	return -1
+}
+
+const reorderHelp = `A room's order within a section is defined by a number
+going from 0 to 1, or more precisely in interval notation, <tt>[0.0, 1.0]</tt>.
+<b>Rooms with the lowest order (0.0) will be sorted before rooms with a higher
+order.</b> Rooms that have the same order number will use the section's sorting
+(A-Z or Activity).`
+
+var reorderHelpAttrs = markuputil.Attrs(
+	pango.NewAttrScale(0.95),
+)
+
+var reorderDialog = cssutil.Applier("room-reorderdialog", `
+	.room-reorderdialog {
+		padding: 15px;
+	}
+	.room-reorderdialog box.linked {
+		margin: 10px;
+	}
+	.room-reorderdialog spinbutton {
+		padding: 2px;
+	}
+`)
+
+func (r *Room) promptReorder() {
+	help := gtk.NewLabel(clean(reorderHelp))
+	help.SetUseMarkup(true)
+	help.SetXAlign(0)
+	help.SetWrap(true)
+	help.SetWrapMode(pango.WrapWordChar)
+	help.SetAttributes(reorderHelpAttrs)
+
+	spin := gtk.NewSpinButtonWithRange(0, 1, 0.05)
+	spin.SetWidthChars(5) // 0.000
+	spin.SetDigits(3)
+
+	reset := gtk.NewToggleButton()
+	reset.SetIconName("edit-clear-all-symbolic")
+	reset.SetTooltipText("Reset")
+
+	var resetting bool
+
+	reset.Connect("toggled", func() {
+		resetting = reset.Active()
+		// Disable the spinner if we're resetting.
+		spin.SetSensitive(!resetting)
+
+		if resetting {
+			reset.AddCSSClass("destructive-action")
+		} else {
+			reset.RemoveCSSClass("destructive-action")
+		}
+	})
+
+	if order := r.Order(); order != -1 {
+		spin.SetValue(order)
+	} else {
+		reset.SetActive(true)
+	}
+
+	inputBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	inputBox.AddCSSClass("linked")
+	inputBox.SetHAlign(gtk.AlignCenter)
+	inputBox.Append(spin)
+	inputBox.Append(reset)
+
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	box.SetVAlign(gtk.AlignCenter)
+	box.Append(help)
+	box.Append(inputBox)
+	reorderDialog(box)
+
+	dialog := dialogs.New(app.FromContext(r.ctx).Window(), "Discard", "Save")
+	dialog.SetDefaultSize(500, 225)
+	dialog.SetChild(box)
+	dialog.SetTitle("Reorder " + r.Name)
+
+	dialog.Cancel.Connect("clicked", func() {
+		dialog.Close()
+	})
+
+	dialog.OK.Connect("clicked", func() {
+		dialog.Close()
+		if resetting {
+			r.SetOrder(-1)
+		} else {
+			r.SetOrder(spin.Value())
+		}
+	})
+
+	dialog.Show()
+}
+
+var cleaner = strings.NewReplacer(
+	"\n", " ",
+	"\n\n", "\n",
+)
+
+func clean(str string) string {
+	return cleaner.Replace(strings.TrimSpace(str))
+}
+
+var moveToSectionCSS = cssutil.Applier("room-movetosection", `
+	.room-movetosection label {
+		margin: 4px 12px;
+	}
+	.room-movetosection entry {
+		margin:  2px 4px;
+		padding: 0px 4px;
+	}
+`)
+
+func (r *Room) moveToSectionBox() gtk.Widgetter {
+	header := gtk.NewLabel("Section Name")
+	header.SetXAlign(0)
+	header.SetAttributes(markuputil.Attrs(
+		pango.NewAttrWeight(pango.WeightBold),
+	))
+
+	entry := gtk.NewEntry()
+	entry.SetInputPurpose(gtk.InputPurposeFreeForm)
+	entry.SetInputHints(gtk.InputHintSpellcheck | gtk.InputHintEmoji)
+	entry.SetMaxLength(255 - len("u."))
+	entry.Connect("activate", func() {
+		text := entry.Text()
+		if text != "" {
+			r.section.MoveRoomToTag(r.ID, matrix.TagName("u."+string(text)))
+		}
+	})
+
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	box.Append(header)
+	box.Append(entry)
+	moveToSectionCSS(box)
+
+	return box
 }

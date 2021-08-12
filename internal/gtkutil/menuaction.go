@@ -1,6 +1,8 @@
 package gtkutil
 
 import (
+	"log"
+
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -96,12 +98,58 @@ func ShowPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) *
 	return popover
 }
 
-// PopoverMenuItem describes an item in the popover menu. It is the full version
-// of the [][2]string menu pairs.
-type PopoverMenuItem struct {
-	Label  string
-	Action string        // disabled if empty, "---" if separator
-	Widget gtk.Widgetter // optional
+// PopoverMenuItem defines a popover menu item constructed from one of the
+// constructors.
+type PopoverMenuItem interface {
+	menu()
+}
+
+type popoverMenuItem struct {
+	label  string
+	action string
+	widget gtk.Widgetter
+}
+
+func (p popoverMenuItem) menu() {}
+
+// MenuItem creates a simple popover menu item. If action is empty, then the
+// item is disabled; if action is "---", then a new section is created.
+func MenuItem(label, action string) PopoverMenuItem {
+	return popoverMenuItem{
+		label:  label,
+		action: action,
+	}
+}
+
+// MenuWidget creates a new menu item that contains a widget.
+func MenuWidget(action string, w gtk.Widgetter) PopoverMenuItem {
+	return popoverMenuItem{
+		action: action,
+		widget: w,
+	}
+}
+
+// MenuSeparator creates a new menu separator.
+func MenuSeparator(label string) PopoverMenuItem {
+	return popoverMenuItem{
+		label:  label,
+		action: "---",
+	}
+}
+
+type submenu struct {
+	label string
+	items []PopoverMenuItem
+}
+
+func (p submenu) menu() {}
+
+// Submenu creates a popover menu item that is a submenu.
+func Submenu(label string, sub []PopoverMenuItem) PopoverMenuItem {
+	return submenu{
+		label: label,
+		items: sub,
+	}
 }
 
 // BindPopoverMenuCustom works similarly to BindPopoverMenu, but the value type
@@ -110,38 +158,58 @@ func BindPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, pairs []Popove
 	BindRightClick(w, func() { ShowPopoverMenuCustom(w, pos, pairs) })
 }
 
+// BindPopoverMenuLazy is similarl to BindPopoverMenuCustom, except the menu
+// items are lazily created.
+func BindPopoverMenuLazy(w gtk.Widgetter, pos gtk.PositionType, pairsFn func() []PopoverMenuItem) {
+	BindRightClick(w, func() { ShowPopoverMenuCustom(w, pos, pairsFn()) })
+}
+
+func addMenuItems(menu *gio.Menu, items []PopoverMenuItem, widgets map[string]gtk.Widgetter) {
+	section := menu
+
+	for _, item := range items {
+		switch item := item.(type) {
+		case popoverMenuItem:
+			if item.action == "---" {
+				section = gio.NewMenu()
+				menu.AppendSection(item.label, section)
+				continue
+			}
+
+			if item.widget == nil {
+				section.Append(item.label, item.action)
+			} else {
+				widgets[item.action] = item.widget
+				section.AppendItem(NewCustomMenuItem(item.label, item.action))
+			}
+		case submenu:
+			sub := gio.NewMenu()
+			addMenuItems(sub, item.items, widgets)
+			section.AppendSubmenu(item.label, sub)
+		default:
+			log.Panicf("unknown menu item type %T", item)
+		}
+	}
+}
+
 // ShowPopoverMenuCustom is like BindPopoverMenuCustom, but it does not bind a
 // handler. This is useful if the caller does not want pairs to be in memory all
 // the time. If any of the menus cannot be added in, then false is returned, and
 // the popover isn't shown.
-func ShowPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, pairs []PopoverMenuItem) bool {
+func ShowPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, items []PopoverMenuItem) bool {
 	menu := gio.NewMenu()
-	section := menu
+	widgets := make(map[string]gtk.Widgetter)
 
-	for _, pair := range pairs {
-		if pair.Action == "---" {
-			section = gio.NewMenu()
-			menu.AppendSection(pair.Label, section)
-			continue
-		}
-
-		if pair.Widget == nil {
-			section.Append(pair.Label, pair.Action)
-		} else {
-			section.AppendItem(NewCustomMenuItem(pair.Label, pair.Action))
-		}
-	}
+	addMenuItems(menu, items, widgets)
 
 	popover := gtk.NewPopoverMenuFromModel(menu)
 	popover.SetSizeRequest(PopoverWidth, -1)
 	popover.SetPosition(pos)
 	popover.SetParent(w)
 
-	for _, pair := range pairs {
-		if pair.Widget != nil {
-			if !popover.AddChild(pair.Widget, pair.Action) {
-				return false
-			}
+	for action, widget := range widgets {
+		if !popover.AddChild(widget, action) {
+			return false
 		}
 	}
 
