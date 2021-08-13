@@ -8,8 +8,9 @@ import (
 // Window describes an automatically scrolled window.
 type Window struct {
 	*gtk.ScrolledWindow
-	vadj     gtk.Adjustment
-	bottomed bool // :floshed:
+	vadj       gtk.Adjustment
+	bottomed   bool // :floshed:
+	willScroll bool
 }
 
 func NewWindow() *Window {
@@ -44,7 +45,16 @@ func (w *Window) IsBottomed() bool {
 
 // ScrollToBottom scrolls the window to bottom.
 func (w *Window) ScrollToBottom() {
+	if w.willScroll {
+		return
+	}
+
+	w.willScroll = true
+
+	// Delegate this to when the main loop is free again, just so the dimensions
+	// are properly updated.
 	glib.IdleAdd(func() {
 		w.vadj.SetValue(w.vadj.Upper())
+		w.willScroll = false
 	})
 }

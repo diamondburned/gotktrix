@@ -20,7 +20,14 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 
 	_ "github.com/diamondburned/gotktrix/internal/gtkutil/aggressivegc"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
+
+var _ = cssutil.WriteCSS(`
+	.selfbar-bar, .composer {
+		min-height: 46px;
+	}
+`)
 
 func main() {
 	// Quit the application on a SIGINT.

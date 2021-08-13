@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/compose"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/components/autoscroll"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
@@ -21,12 +22,13 @@ import (
 // MessageViewer interface.
 type Page struct {
 	gtk.Widgetter
+	Composer *compose.Composer
 
 	scroll   *autoscroll.Window
 	list     *gtk.ListBox
-	name     string
 	messages map[matrix.EventID]message.Message
 
+	name    string
 	onTitle func(title string)
 	ctx     gtkutil.ContextTaker
 
@@ -44,20 +46,45 @@ var msgListCSS = cssutil.Applier("messageview-msglist", `
 	}
 `)
 
+var rhsCSS = cssutil.Applier("messageview-rhs", `
+	.messageview-rhs > scrolledwindow > viewport {
+		padding-bottom: 10px;
+	}
+	.messageview-rhs {
+		background-image: linear-gradient(to top, @theme_base_color, transparent);
+	}
+`)
+
+const (
+	MessagesMaxWidth   = 1000
+	MessagesClampWidth = 800
+)
+
 // NewPage creates a new page.
 func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
-	msgList := gtk.NewListBox()
-	msgList.SetSelectionMode(gtk.SelectionNone)
-	msgListCSS(msgList)
-
 	name, _ := parent.client.Offline().RoomName(roomID)
 
-	msgMap := map[matrix.EventID]message.Message{}
+	msgList := gtk.NewListBox()
+
+	page := Page{
+		list:     msgList,
+		messages: make(map[matrix.EventID]message.Message),
+
+		onTitle: func(string) {},
+		ctx:     gtkutil.WithWidgetVisibility(ctx, msgList),
+		name:    name,
+
+		parent: parent,
+		roomID: roomID,
+	}
+
+	page.list.SetSelectionMode(gtk.SelectionNone)
+	msgListCSS(page.list)
 
 	// Sort messages according to the timestamp.
 	msgList.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
-		t1 := msgMap[matrix.EventID(r1.Name())].Event().OriginServerTime()
-		t2 := msgMap[matrix.EventID(r2.Name())].Event().OriginServerTime()
+		t1 := page.messages[matrix.EventID(r1.Name())].Event().OriginServerTime()
+		t2 := page.messages[matrix.EventID(r2.Name())].Event().OriginServerTime()
 
 		if t1 < t2 {
 			return -1
@@ -69,33 +96,29 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	})
 
 	clamp := adw.NewClamp()
-	clamp.SetMaximumSize(1000)
-	clamp.SetTighteningThreshold(800)
-	clamp.SetChild(msgList)
+	clamp.SetMaximumSize(MessagesMaxWidth)
+	clamp.SetTighteningThreshold(MessagesClampWidth)
+	clamp.SetChild(page.list)
 
-	scroll := autoscroll.NewWindow()
-	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	scroll.SetChild(clamp)
+	page.scroll = autoscroll.NewWindow()
+	page.scroll.SetVExpand(true)
+	page.scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	page.scroll.SetChild(clamp)
 
 	// Bind the scrolled window for automatic scrolling.
-	msgList.SetAdjustment(scroll.VAdjustment())
+	page.list.SetAdjustment(page.scroll.VAdjustment())
 
-	page := Page{
-		Widgetter: scroll,
+	page.Composer = compose.New(ctx, &page, roomID)
 
-		scroll:   scroll,
-		list:     msgList,
-		name:     name,
-		messages: msgMap,
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	box.Append(page.scroll)
+	box.Append(page.Composer)
+	rhsCSS(box)
 
-		onTitle: func(string) {},
-		ctx:     gtkutil.WithWidgetVisibility(ctx, msgList),
+	// main widget
+	page.Widgetter = box
 
-		parent: parent,
-		roomID: roomID,
-	}
-
-	gtkutil.MapSubscriber(scroll, func() func() {
+	gtkutil.MapSubscriber(page, func() func() {
 		return parent.client.SubscribeTimeline(roomID, func(r event.RoomEvent) {
 			glib.IdleAdd(func() { page.OnRoomEvent(r) })
 		})

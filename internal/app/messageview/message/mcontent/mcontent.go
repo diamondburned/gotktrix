@@ -1,6 +1,8 @@
 package mcontent
 
 import (
+	"strings"
+
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -98,8 +100,10 @@ func newTextContent(msg *event.RoomMessageEvent) textContent {
 	text.SetWrapMode(gtk.WrapWordChar)
 	textContentCSS(text)
 
+	body := strings.Trim(msg.Body, "\n")
+
 	buf := text.Buffer()
-	buf.SetText(msg.Body, len(msg.Body))
+	buf.SetText(body, len(body))
 
 	return textContent{
 		TextView: text,

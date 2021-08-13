@@ -5,8 +5,8 @@ go 1.17
 require (
 	github.com/chanbakjsd/gotrix v0.3.2-0.20210811082156-39aacea630a7
 	github.com/dgraph-io/badger/v3 v3.2103.0
-	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210808051715-e0113f499df6
-	github.com/diamondburned/gotk4/pkg v0.0.0-20210810231538-8a59194324ad
+	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210813074957-d8b7b82c9c68
+	github.com/diamondburned/gotk4/pkg v0.0.0-20210813074859-682b87e45cb6
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/pkg/errors v0.9.1

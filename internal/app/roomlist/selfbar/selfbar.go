@@ -36,7 +36,7 @@ var barCSS = cssutil.Applier("selfbar-bar", `
 		background-color: @theme_bg_color;
 		border: none;
 		border-radius: 0;
-		padding:   4px 8px;
+		padding:   0px 8px;
 		padding-right: 8px;
 	}
 	.selfbar-bar label {

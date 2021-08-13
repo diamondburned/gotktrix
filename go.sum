@@ -25,11 +25,10 @@ github.com/dgraph-io/ristretto v0.0.4-0.20210309073149-3836124cdc5a h1:1cMMkx3ie
 github.com/dgraph-io/ristretto v0.0.4-0.20210309073149-3836124cdc5a/go.mod h1:MIonLggsKgZLUSt414ExgwNtlOL5MuEoAJP514mwGe8=
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 h1:tdlZCpZ/P9DhczCTSixgIKmwPv6+wP5DGjqLYw5SUiA=
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUnsFjfmXRMNPybcSiG0BgUW2AuFH8PAnS2iTw=
-github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210808051715-e0113f499df6 h1:Z5yz2qdNMGY84+tfxexhyVbN53tKE1jt+F+Gaso53Bk=
-github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210808051715-e0113f499df6/go.mod h1:V4eRo6+gCMj4fNth6Xdq8/08XEpuIQTQMHM/Szcf/4c=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210808051530-0d8563edd9fc/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210810231538-8a59194324ad h1:orVFZcBJYsUXfb34kcWBMEZgoR3yypaxPHlqzeLmghU=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210810231538-8a59194324ad/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210813074957-d8b7b82c9c68 h1:wajZXSFuBanmFwIUn2P0985sUD0SzjUl5FRjr9IC9bM=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210813074957-d8b7b82c9c68/go.mod h1:a8E38G9FaIVlLgYKCL0y6GntvY/lWgYnTDk79uSNsUM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210813074859-682b87e45cb6 h1:e8+vgTsZORnmVDmfssdbyJlgZ3Xvj+VkvAr8QFvG5IQ=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210813074859-682b87e45cb6/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/fatih/color v1.10.0 h1:s36xzo75JdqLaaWoiEHk767eHiwo0598uUxyfiPkDsg=
