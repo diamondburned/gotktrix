@@ -21,6 +21,9 @@ type videoContent struct {
 }
 
 var videoCSS = cssutil.Applier("mcontent-video", `
+	.mcontent-video > overlay > image {
+		background-color: black;
+	}
 	.mcontent-videoplay {
 		background-color: alpha(@theme_bg_color, 0.85);
 		border-radius: 999px;
@@ -45,11 +48,18 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 	play.AddCSSClass("mcontent-videoplay")
 
 	client := gotktrix.FromContext(ctx).Offline()
-	thumbURL, _ := client.Thumbnail(v.ThumbnailURL, w, h)
+
+	var fetched bool
 
 	thumbnail := gtk.NewImage()
 	thumbnail.SetSizeRequest(w, h)
-	imgutil.AsyncGET(ctx, thumbURL, thumbnail.SetFromPaintable)
+	thumbnail.Connect("map", func() {
+		if !fetched {
+			url, _ := client.Thumbnail(v.ThumbnailURL, w, h)
+			imgutil.AsyncGET(ctx, url, thumbnail.SetFromPaintable)
+			fetched = true
+		}
+	})
 
 	ov := gtk.NewOverlay()
 	ov.SetHAlign(gtk.AlignStart)

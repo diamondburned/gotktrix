@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	maxWidth  = 400
+	maxWidth  = 300
 	maxHeight = 500
 )
 
@@ -33,20 +33,16 @@ func New(ctx context.Context, msg event.RoomMessageEvent) *Content {
 		parts = []contentPart{newTextContent(msg)}
 	case event.RoomMessageVideo:
 		parts = []contentPart{newVideoContent(ctx, msg)}
-
-	// case event.RoomMessageImage:
-	// parts = []contentPart{}
-
+	case event.RoomMessageImage:
+		parts = []contentPart{newImageContent(ctx, msg)}
 	default:
 		parts = []contentPart{newUnknownContent(msg)}
 
 		// case event.RoomMessageEmote:
 		// case event.RoomMessageNotice:
-		// case event.RoomMessageImage:
 		// case event.RoomMessageFile:
 		// case event.RoomMessageAudio:
 		// case event.RoomMessageLocation:
-		// case event.RoomMessageVideo:
 	}
 
 	if len(parts) == 1 {
