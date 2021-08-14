@@ -11,10 +11,36 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
+type erroneousEvent struct {
+	event.RoomEventInfo
+	raw *event.RawEvent
+	err error
+}
+
+func (e erroneousEvent) Type() event.Type {
+	return e.raw.Type
+}
+
+// WrapErroneousEvent wraps the given raw event into another event that will be
+// rendered as an erroneous event in the EventMessage component.
+func WrapErroneousEvent(raw *event.RawEvent, err error) event.RoomEvent {
+	return erroneousEvent{
+		RoomEventInfo: event.RoomEventInfo{
+			RoomID:     raw.RoomID,
+			EventID:    raw.ID,
+			SenderID:   raw.Sender,
+			OriginTime: raw.OriginServerTime,
+		},
+		raw: raw,
+		err: err,
+	}
+}
+
 // eventMessage is a mini-message.
 type eventMessage struct {
 	*gtk.Label
-	ev event.RoomEvent
+
+	eventBox
 }
 
 var _ = cssutil.WriteCSS(`
@@ -25,7 +51,7 @@ var _ = cssutil.WriteCSS(`
 	}
 `)
 
-func (v messageViewer) EventMessage(ev event.RoomEvent) *eventMessage {
+func (v messageViewer) eventMessage(box eventBox) *eventMessage {
 	action := gtk.NewLabel("")
 	action.SetXAlign(0)
 	action.AddCSSClass("message-event")
@@ -34,18 +60,18 @@ func (v messageViewer) EventMessage(ev event.RoomEvent) *eventMessage {
 	bindExtraMenu(action)
 
 	author := mauthor.Markup(
-		v.client().Offline(), ev.Room(), ev.Sender(),
+		v.client().Offline(), box.raw.RoomID, box.raw.Sender,
 		mauthor.WithWidgetColor(action),
 	)
 
-	msg := author + " " + EventMessageTail(ev)
+	msg := author + " " + EventMessageTail(box.ev)
 	action.SetMarkup(msg)
 
 	messageCSS(action)
 
 	return &eventMessage{
-		Label: action,
-		ev:    ev,
+		Label:    action,
+		eventBox: box,
 	}
 }
 
@@ -109,9 +135,12 @@ func EventMessageTail(ev event.Event) string {
 		return "changed the room's name to <i>" + html.EscapeString(ev.Name) + "</i>."
 	case event.RoomTopicEvent:
 		return "changed the room's topic to <i>" + html.EscapeString(ev.Topic) + "</i>."
+	case erroneousEvent:
+		return fmt.Sprintf(
+			`sent an erroneous event %T: <span color="red">%v</span>.`,
+			ev.raw.Type, ev.err,
+		)
 	default:
 		return fmt.Sprintf("sent a %T event.", ev)
 	}
 }
-
-func (m *eventMessage) Event() event.RoomEvent { return m.ev }

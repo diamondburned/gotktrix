@@ -256,6 +256,7 @@ func (s *State) Rooms() ([]matrix.RoomID, error) {
 			filtered = append(filtered, id)
 		}
 
+		roomIDs = filtered
 		return nil
 	})
 }
@@ -265,9 +266,9 @@ func (s *State) RoomPreviousBatch(roomID matrix.RoomID) (prev string, err error)
 	return prev, s.top.FromPath(s.paths.timelinePath(roomID)).Get("previous_batch", &prev)
 }
 
-// RoomTimeline returns the latest timeline events of a room. The order of the
-// returned events are always guaranteed to be latest last.
-func (s *State) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
+// RoomTimelineRaw returns the latest raw timeline events of a room. The order
+// of the returned events are always guaranteed to be latest last.
+func (s *State) RoomTimelineRaw(roomID matrix.RoomID) ([]event.RawEvent, error) {
 	var raws []event.RawEvent
 
 	if err := s.top.FromPath(s.paths.timelineEventsPath(roomID)).All(&raws, ""); err != nil {
@@ -279,25 +280,7 @@ func (s *State) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 		return nil, errors.New("empty timeline state")
 	}
 
-	events := make([]event.RoomEvent, 0, len(raws))
-
-	for i := range raws {
-		raws[i].RoomID = roomID
-
-		e, err := raws[i].Parse()
-		if err != nil {
-			// Ignore unknown events.
-			continue
-		}
-
-		if e, ok := e.(event.RoomEvent); ok {
-			events = append(events, e)
-		} else {
-			log.Printf("not a room event in timeline state: %T", e)
-		}
-	}
-
-	return events, nil
+	return raws, nil
 }
 
 // UserEvent gets the user event from the given type.

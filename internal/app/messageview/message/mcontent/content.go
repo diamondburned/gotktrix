@@ -1,14 +1,19 @@
 package mcontent
 
 import (
-	"strings"
+	"context"
 
 	"github.com/chanbakjsd/gotrix/event"
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+)
+
+const (
+	maxWidth  = 400
+	maxHeight = 500
 )
 
 // Content is a message content widget.
@@ -20,18 +25,20 @@ type Content struct {
 }
 
 // New parses the given room message event and renders it into a Content widget.
-func New(client *gotktrix.Client, msg *event.RoomMessageEvent) *Content {
+func New(ctx context.Context, msg event.RoomMessageEvent) *Content {
 	var parts []contentPart
 
 	switch msg.MsgType {
 	case event.RoomMessageText:
-		parts = []contentPart{
-			newTextContent(msg),
-		}
+		parts = []contentPart{newTextContent(msg)}
+	case event.RoomMessageVideo:
+		parts = []contentPart{newVideoContent(ctx, msg)}
+
+	// case event.RoomMessageImage:
+	// parts = []contentPart{}
+
 	default:
-		parts = []contentPart{
-			newUnknownContent(msg),
-		}
+		parts = []contentPart{newUnknownContent(msg)}
 
 		// case event.RoomMessageEmote:
 		// case event.RoomMessageNotice:
@@ -81,43 +88,6 @@ type contentPart interface {
 	content()
 }
 
-type textContent struct {
-	*gtk.TextView
-}
-
-var textContentCSS = cssutil.Applier("mcontent-text", `
-	textview.mcontent-text,
-	textview.mcontent-text text {
-		background-color: transparent;
-	}
-`)
-
-func newTextContent(msg *event.RoomMessageEvent) textContent {
-	text := gtk.NewTextView()
-	text.SetCursorVisible(false)
-	text.SetHExpand(true)
-	text.SetEditable(false)
-	text.SetWrapMode(gtk.WrapWordChar)
-	textContentCSS(text)
-
-	body := strings.Trim(msg.Body, "\n")
-
-	buf := text.Buffer()
-	buf.SetText(body, len(body))
-
-	return textContent{
-		TextView: text,
-	}
-}
-
-func (c textContent) content() {}
-
-type imageContent struct {
-	*gtk.Image
-}
-
-func (c imageContent) content() {}
-
 type attachmentContent struct {
 	*gtk.Box
 }
@@ -135,7 +105,7 @@ var unknownContentCSS = cssutil.Applier("mcontent-unknown", `
 	}
 `)
 
-func newUnknownContent(msg *event.RoomMessageEvent) unknownContent {
+func newUnknownContent(msg event.RoomMessageEvent) unknownContent {
 	l := gtk.NewLabel("Unknown message type " + string(msg.MsgType) + ".")
 	l.SetXAlign(0)
 	l.SetWrap(true)
@@ -145,3 +115,17 @@ func newUnknownContent(msg *event.RoomMessageEvent) unknownContent {
 }
 
 func (c unknownContent) content() {}
+
+type erroneousContent struct {
+	*adw.StatusPage
+}
+
+func newErroneousContent(desc string, w, h int) erroneousContent {
+	p := adw.NewStatusPage()
+	p.SetTitle("Content Error")
+	p.SetDescription(desc)
+	p.SetIconName("image-missing")
+	return erroneousContent{p}
+}
+
+func (c erroneousContent) content() {}

@@ -202,6 +202,15 @@ func (c *Client) SquareThumbnail(mURL matrix.URL, size int) (string, error) {
 	return c.MediaThumbnailURL(mURL, true, size, size, api.MediaThumbnailCrop)
 }
 
+// Thumbnail is a helper function around MediaThumbnailURL. It works similarly
+// to SquareThumbnail.
+func (c *Client) Thumbnail(mURL matrix.URL, w, h int) (string, error) {
+	w *= thumbnailScale
+	h *= thumbnailScale
+
+	return c.MediaThumbnailURL(mURL, true, w, h, api.MediaThumbnailScale)
+}
+
 // RoomEvent queries the event with the given type. If the event type implies a
 // state event, then the empty key is tried.
 func (c *Client) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, error) {
@@ -212,7 +221,33 @@ func (c *Client) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, e
 // it's not available, the API will be queried directly. The order of these
 // events is guaranteed to be latest last.
 func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
-	if events, err := c.State.RoomTimeline(roomID); err == nil {
+	rawEvents, err := c.RoomTimelineRaw(roomID)
+	if err != nil {
+		return nil, err
+	}
+
+	events := make([]event.RoomEvent, 0, len(rawEvents))
+
+	for i := range rawEvents {
+		rawEvents[i].RoomID = roomID
+
+		e, err := rawEvents[i].Parse()
+		if err != nil {
+			continue
+		}
+
+		state, ok := e.(event.RoomEvent)
+		if ok {
+			events = append(events, state)
+		}
+	}
+
+	return events, nil
+}
+
+// RoomTimelineRaw is RoomTimeline, except events are returned unparsed.
+func (c *Client) RoomTimelineRaw(roomID matrix.RoomID) ([]event.RawEvent, error) {
+	if events, err := c.State.RoomTimelineRaw(roomID); err == nil {
 		return events, nil
 	}
 
@@ -224,7 +259,7 @@ func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 
 	// Re-check the state for the timeline, because we don't want to miss out
 	// any events whil we were fetching the previous_batch string.
-	if events, err := c.State.RoomTimeline(roomID); err == nil {
+	if events, err := c.State.RoomTimelineRaw(roomID); err == nil {
 		return events, nil
 	}
 
@@ -237,25 +272,7 @@ func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 		return nil, errors.Wrapf(err, "failed to get messages for room %q", roomID)
 	}
 
-	// c.State.AddRoomMessages(roomID, &r)
-
-	events := make([]event.RoomEvent, 0, len(r.Chunk))
-
-	for i := range r.Chunk {
-		r.Chunk[i].RoomID = roomID
-
-		e, err := r.Chunk[i].Parse()
-		if err != nil {
-			continue
-		}
-
-		state, ok := e.(event.RoomEvent)
-		if ok {
-			events = append(events, state)
-		}
-	}
-
-	return events, nil
+	return r.Chunk, nil
 }
 
 // LatestMessage finds the latest room message event from the given list of

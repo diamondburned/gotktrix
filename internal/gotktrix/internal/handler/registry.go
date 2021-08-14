@@ -78,6 +78,11 @@ func (r *Registry) SubscribeTimeline(rID matrix.RoomID, f func(event.RoomEvent))
 	return r.subscribeTimeline(rID, f)
 }
 
+// SubscribeTimelineRaw is SubscribeTimeline, but the given event is unparsed.
+func (r *Registry) SubscribeTimelineRaw(rID matrix.RoomID, f func(*event.RawEvent)) func() {
+	return r.subscribeTimeline(rID, f)
+}
+
 func (r *Registry) subscribeTimeline(rID matrix.RoomID, f interface{}) func() {
 	r.mut.Lock()
 	defer r.mut.Unlock()

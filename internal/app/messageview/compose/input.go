@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"log"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -59,7 +58,6 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 		"key-pressed",
 		func(_ *gtk.EventControllerKey, val, code uint, state gdk.ModifierType) bool {
 			// Enter (without holding Shift) sends the message.
-			log.Println("mask =", state, "val =", val, "code =", code)
 			if val == gdk.KEY_Return && !state.Has(gdk.ShiftMask) {
 				return send.Activate()
 			}

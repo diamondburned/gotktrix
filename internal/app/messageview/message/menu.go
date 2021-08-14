@@ -21,7 +21,9 @@ var messageMenuItems = [][2]string{
 
 func bind(ctx context.Context, m Message) {
 	actions := map[string]func(){
-		"show-source": func() { showMsgSource(app.FromContext(ctx).Window(), m.Event()) },
+		"show-source": func() {
+			showMsgSource(app.FromContext(ctx).Window(), m.RawEvent())
+		},
 	}
 
 	gtkutil.BindActionMap(m, "message", actions)
@@ -51,8 +53,8 @@ var sourceCSS = cssutil.Applier("message-source", `
 	}
 `)
 
-func showMsgSource(w *gtk.Window, ev event.Event) {
-	j, err := json.MarshalIndent(ev, "", "  ")
+func showMsgSource(w *gtk.Window, raw *event.RawEvent) {
+	j, err := json.MarshalIndent(raw, "", "  ")
 	if err != nil {
 		errpopup.Show(w, []error{err}, func() {})
 		return
@@ -81,22 +83,3 @@ func showMsgSource(w *gtk.Window, ev event.Event) {
 
 	d.Show()
 }
-
-// func rawEvent(ev event.Event) *event.RawEvent {
-// 	raw := event.RawEvent{
-// 		Type: ev.Type(),
-// 	}
-
-// 	if room, ok := ev.(event.RoomEvent); ok {
-// 		raw.ID = room.ID()
-// 		raw.RoomID = room.Room()
-// 		raw.Sender = room.Sender()
-// 		raw.OriginServerTime = room.OriginServerTime()
-// 	}
-
-// 	if state, ok := ev.(event.StateEvent); ok {
-// 		raw.StateKey = state.StateKey()
-// 	}
-
-// 	j, err := json.Marshal()
-// }

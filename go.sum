@@ -27,8 +27,12 @@ github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 h1:tdlZCpZ/P9DhczC
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUnsFjfmXRMNPybcSiG0BgUW2AuFH8PAnS2iTw=
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210813074957-d8b7b82c9c68 h1:wajZXSFuBanmFwIUn2P0985sUD0SzjUl5FRjr9IC9bM=
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210813074957-d8b7b82c9c68/go.mod h1:a8E38G9FaIVlLgYKCL0y6GntvY/lWgYnTDk79uSNsUM=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210813205840-ce0da05a4a57 h1:8K3NVlPMVq1IMLG+LcqdTg/du+s4uDvvlc5drQaglOw=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210813205840-ce0da05a4a57/go.mod h1:b5BCN7yJe3Zx48XiK5+jTNs5pFV47pVI6e6jdD/cuVY=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210813074859-682b87e45cb6 h1:e8+vgTsZORnmVDmfssdbyJlgZ3Xvj+VkvAr8QFvG5IQ=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210813074859-682b87e45cb6/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210813205752-5e6959447f1a h1:2+DdeNf4TTegiQXsNKgeZbBsqUdxaraWAykea7k7IhM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210813205752-5e6959447f1a/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/fatih/color v1.10.0 h1:s36xzo75JdqLaaWoiEHk767eHiwo0598uUxyfiPkDsg=

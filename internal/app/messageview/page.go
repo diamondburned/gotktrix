@@ -119,7 +119,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	page.Widgetter = box
 
 	gtkutil.MapSubscriber(page, func() func() {
-		return parent.client.SubscribeTimeline(roomID, func(r event.RoomEvent) {
+		return parent.client.SubscribeTimelineRaw(roomID, func(r *event.RawEvent) {
 			glib.IdleAdd(func() { page.OnRoomEvent(r) })
 		})
 	})
@@ -159,12 +159,12 @@ func (p *Page) RoomID() matrix.RoomID {
 }
 
 // OnRoomEvent is called on every room event belonging to this room.
-func (p *Page) OnRoomEvent(ev event.RoomEvent) {
-	if ev.Room() != p.roomID {
+func (p *Page) OnRoomEvent(raw *event.RawEvent) {
+	if raw.RoomID != p.roomID {
 		return
 	}
 
-	p.onRoomEvent(ev)
+	p.onRoomEvent(raw)
 	p.clean()
 }
 
@@ -184,14 +184,13 @@ func (p *Page) clean() {
 	}
 }
 
-func (p *Page) onRoomEvent(ev event.RoomEvent) {
-	m := message.NewCozyMessage(p.parent.ctx, p, ev)
+func (p *Page) onRoomEvent(raw *event.RawEvent) {
+	m := message.NewCozyMessage(p.parent.ctx, p, raw)
 
-	eventID := m.Event().ID()
-	p.messages[eventID] = m
+	p.messages[raw.ID] = m
 
 	row := gtk.NewListBoxRow()
-	row.SetName(string(eventID))
+	row.SetName(string(raw.ID))
 	row.SetChild(m)
 
 	p.list.Append(row)
@@ -222,7 +221,7 @@ func (p *Page) Load(done func()) {
 			}
 		}
 
-		events, err := client.RoomTimeline(p.roomID)
+		events, err := client.RoomTimelineRaw(p.roomID)
 		if err != nil {
 			app.Error(ctx, errors.Wrap(err, "failed to load timeline"))
 			glib.IdleAdd(done)
@@ -230,8 +229,8 @@ func (p *Page) Load(done func()) {
 		}
 
 		glib.IdleAdd(func() {
-			for _, ev := range events {
-				p.onRoomEvent(ev)
+			for i := range events {
+				p.onRoomEvent(&events[i])
 			}
 
 			p.loaded = true

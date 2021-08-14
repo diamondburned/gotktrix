@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -13,8 +14,10 @@ import (
 // Message describes a generic message type.
 type Message interface {
 	gtk.Widgetter
-	// Event returns the origin room event.
+	// Event returns the original room event.
 	Event() event.RoomEvent
+	// RawEvent returns the raw unparsed room event.
+	RawEvent() *event.RawEvent
 }
 
 var messageCSS = cssutil.Applier("message-message", `
@@ -39,30 +42,62 @@ type MessageViewer interface {
 type messageViewer struct {
 	MessageViewer
 	context.Context
+
+	raw *event.RawEvent
 }
 
 func (v messageViewer) client() *gotktrix.Client {
 	return gotktrix.FromContext(v)
 }
 
+type eventBox struct {
+	raw *event.RawEvent
+	ev  event.RoomEvent
+}
+
+func (b eventBox) Event() event.RoomEvent    { return b.ev }
+func (b eventBox) RawEvent() *event.RawEvent { return b.raw }
+
 // NewCozyMessage creates a new cozy or collapsed message.
-func NewCozyMessage(ctx context.Context, view MessageViewer, ev event.RoomEvent) Message {
+func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent) Message {
 	viewer := messageViewer{
 		Context:       ctx,
 		MessageViewer: view,
+
+		raw: raw,
 	}
 
 	var msg Message
 
-	switch ev := ev.(type) {
-	case event.RoomMessageEvent:
-		if lastIsAuthor(view, ev) {
-			msg = viewer.CollapsedMessage(&ev)
+	e, err := raw.Parse()
+	if err != nil {
+		return viewer.eventMessage(eventBox{
+			raw: raw,
+			ev:  WrapErroneousEvent(raw, err),
+		})
+	}
+
+	ev, ok := e.(event.RoomEvent)
+	if !ok {
+		return viewer.eventMessage(eventBox{
+			raw: raw,
+			ev:  WrapErroneousEvent(raw, fmt.Errorf("event %T is not a room event", e)),
+		})
+	}
+
+	evbox := eventBox{
+		raw: raw,
+		ev:  ev,
+	}
+
+	if _, ok := e.(event.RoomMessageEvent); ok {
+		if lastIsAuthor(view, raw) {
+			msg = viewer.collapsedMessage(evbox)
 		} else {
-			msg = viewer.CozyMessage(&ev)
+			msg = viewer.cozyMessage(evbox)
 		}
-	default:
-		msg = viewer.EventMessage(ev)
+	} else {
+		msg = viewer.eventMessage(evbox)
 	}
 
 	bind(ctx, msg)
@@ -71,20 +106,21 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, ev event.RoomEvent)
 
 const maxCozyAge = 10 * time.Minute
 
-func lastIsAuthor(view MessageViewer, ev event.RoomMessageEvent) bool {
+func lastIsAuthor(view MessageViewer, ev *event.RawEvent) bool {
 	last := view.LastMessage()
+
 	// Ensure that the last message IS a cozy OR compact message.
-	switch last := last.(type) {
-	case *cozyMessage:
-		return lastEventIsAuthor(last.ev, &ev)
-	case *collapsedMessage:
-		return lastEventIsAuthor(last.ev, &ev)
+	switch last.(type) {
+	case *cozyMessage, *collapsedMessage:
+		// ok
 	default:
 		return false
 	}
+
+	return lastEventIsAuthor(last.RawEvent(), ev)
 }
 
-func lastEventIsAuthor(last, ev *event.RoomMessageEvent) bool {
-	return last.SenderID == ev.SenderID &&
-		ev.OriginTime.Time().Sub(last.OriginTime.Time()) < maxCozyAge
+func lastEventIsAuthor(last, ev *event.RawEvent) bool {
+	return last.Sender == ev.Sender &&
+		ev.OriginServerTime.Time().Sub(last.OriginServerTime.Time()) < maxCozyAge
 }

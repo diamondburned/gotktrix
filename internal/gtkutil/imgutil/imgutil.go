@@ -9,10 +9,10 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotktrix/internal/config"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/gregjones/httpcache"
 	"github.com/gregjones/httpcache/diskcache"
 	"github.com/pkg/errors"
@@ -148,40 +148,3 @@ func (w *pixbufLoaderWriter) Write(b []byte) (int, error) {
 	}
 	return len(b), nil
 }
-
-/*
-type inputStream struct {
-	*gio.UnixInputStream
-	readFile *os.File
-}
-
-var bytePool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 2<<20) // 2MB buffer
-	},
-}
-
-func newInputStream(r io.Reader, onErr func(err error)) (inputStream, error) {
-	rp, wp, err := os.Pipe()
-	if err != nil {
-		return inputStream{}, errors.Wrap(err, "failed to mkpipe")
-	}
-
-	go func() {
-		defer wp.Close()
-
-		buffer := bytePool.Get().([]byte)
-		defer bytePool.Put(buffer)
-
-		_, err := wp.ReadFrom(r)
-		if err != nil {
-			onErr(errors.Wrap(err, "error copying to gio.UnixInputStream"))
-		}
-	}()
-
-	return inputStream{
-		UnixInputStream: gio.NewUnixInputStream(int(rp.Fd()), true),
-		readFile:        rp,
-	}, nil
-}
-*/
