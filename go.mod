@@ -5,13 +5,14 @@ go 1.17
 require (
 	github.com/chanbakjsd/gotrix v0.3.2-0.20210811082156-39aacea630a7
 	github.com/dgraph-io/badger/v3 v3.2103.0
-	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210813205840-ce0da05a4a57
-	github.com/diamondburned/gotk4/pkg v0.0.0-20210813205752-5e6959447f1a
+	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210814064620-7515dd3811d0
+	github.com/diamondburned/gotk4/pkg v0.0.0-20210814064455-aa7ccd93e62d
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/pkg/errors v0.9.1
 	github.com/zalando/go-keyring v0.1.1
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
+	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
 
@@ -35,6 +36,5 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opencensus.io v0.22.5 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063 // indirect
-	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110 // indirect
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
 )

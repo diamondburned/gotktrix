@@ -30,19 +30,19 @@ func New(ctx context.Context, msg event.RoomMessageEvent) *Content {
 
 	switch msg.MsgType {
 	case event.RoomMessageText:
-		parts = []contentPart{newTextContent(msg)}
+		parts = []contentPart{newTextContent(ctx, msg)}
 	case event.RoomMessageVideo:
 		parts = []contentPart{newVideoContent(ctx, msg)}
 	case event.RoomMessageImage:
 		parts = []contentPart{newImageContent(ctx, msg)}
+
+	// case event.RoomMessageEmote:
+	// case event.RoomMessageNotice:
+	// case event.RoomMessageFile:
+	// case event.RoomMessageAudio:
+	// case event.RoomMessageLocation:
 	default:
 		parts = []contentPart{newUnknownContent(msg)}
-
-		// case event.RoomMessageEmote:
-		// case event.RoomMessageNotice:
-		// case event.RoomMessageFile:
-		// case event.RoomMessageAudio:
-		// case event.RoomMessageLocation:
 	}
 
 	if len(parts) == 1 {

@@ -51,7 +51,7 @@ var rhsCSS = cssutil.Applier("messageview-rhs", `
 		padding-bottom: 10px;
 	}
 	.messageview-rhs {
-		background-image: linear-gradient(to top, @theme_base_color, transparent);
+		background-image: linear-gradient(to top, @theme_base_color 0px, transparent 40px);
 	}
 `)
 

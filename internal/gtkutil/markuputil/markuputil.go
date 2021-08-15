@@ -1,8 +1,11 @@
 package markuputil
 
 import (
+	"encoding/base64"
 	"fmt"
+	"hash/fnv"
 	"html"
+	"log"
 	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -37,4 +40,62 @@ func ErrorLabel(markup string) *gtk.Label {
 	errLabel.SetCSSClasses([]string{"error"})
 	errLabel.SetAttributes(Attrs(pango.NewAttrInsertHyphens(false)))
 	return errLabel
+}
+
+// TextTagsMap describes a map of tag names to its attributes. It is used to
+// declaratively construct a TextTagTable using NewTextTags.
+type TextTagsMap map[string]TextTag
+
+// TextTag describes a map of attribute/property name to its value for a
+// TextTag. Attributes that need a -set suffix will be set to true
+// automatically.
+type TextTag map[string]interface{}
+
+// TextTagTableFactory creates a function that allocates a new TextTagTable when
+// called. The tag tables all share the same allocated tags.
+func TextTagTableFactory(m TextTagsMap) func() *gtk.TextTagTable {
+	return func() *gtk.TextTagTable {
+		table := gtk.NewTextTagTable()
+
+		for name, attrs := range m {
+			tag := gtk.NewTextTag(name)
+			for k, v := range attrs {
+				tag.SetObjectProperty(k, v)
+			}
+
+			if !table.Add(tag) {
+				log.Panicf("BUG: tag %q not added", name)
+			}
+		}
+
+		return table
+	}
+}
+
+// Tag creates a new text tag from the attributes.
+func (t TextTag) Tag(name string) *gtk.TextTag {
+	tag := gtk.NewTextTag(name)
+
+	for k, v := range t {
+		// Edge case.
+		if v, ok := v.(string); ok && v == "" {
+			continue
+		}
+		tag.SetObjectProperty(k, v)
+	}
+
+	return tag
+}
+
+// Hash returns a 24-byte string of the text tag hashed.
+func (t TextTag) Hash() string {
+	hash := fnv.New128a()
+
+	for k, v := range t {
+		hash.Write([]byte(k))
+		hash.Write([]byte(":"))
+		fmt.Fprintln(hash, v)
+	}
+
+	return base64.StdEncoding.EncodeToString(hash.Sum(nil))
 }

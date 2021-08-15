@@ -203,12 +203,9 @@ func (c *Client) SquareThumbnail(mURL matrix.URL, size int) (string, error) {
 }
 
 // Thumbnail is a helper function around MediaThumbnailURL. It works similarly
-// to SquareThumbnail.
+// to SquareThumbnail, except the dimensions are unchanged.
 func (c *Client) Thumbnail(mURL matrix.URL, w, h int) (string, error) {
-	w *= thumbnailScale
-	h *= thumbnailScale
-
-	return c.MediaThumbnailURL(mURL, true, w, h, api.MediaThumbnailScale)
+	return c.MediaThumbnailURL(mURL, true, w, h, api.MediaThumbnailCrop)
 }
 
 // RoomEvent queries the event with the given type. If the event type implies a
