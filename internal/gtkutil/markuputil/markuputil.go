@@ -99,3 +99,22 @@ func (t TextTag) Hash() string {
 
 	return base64.StdEncoding.EncodeToString(hash.Sum(nil))
 }
+
+// HashTag creates a tag inside the text tag table using the hash of the text
+// tag attributes as the name. If the same tag has already been created, then it
+// is returned.
+func HashTag(table *gtk.TextTagTable, attrs TextTag) *gtk.TextTag {
+	hash := "custom." + attrs.Hash()
+
+	if t := table.Lookup(hash); t != nil {
+		return t
+	}
+
+	tag := attrs.Tag(hash)
+
+	if !table.Add(tag) {
+		log.Panicf("text tag hash collision %q", hash)
+	}
+
+	return tag
+}

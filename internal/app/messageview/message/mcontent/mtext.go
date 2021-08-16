@@ -31,7 +31,9 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 	}
 `)
 
-var textTags = markuputil.TextTagTableFactory(markuputil.TextTagsMap{
+// TextTags contains the tag table mapping most Matrix HTML tags to GTK
+// TextTags.
+var TextTags = markuputil.TextTagTableFactory(markuputil.TextTagsMap{
 	// https://www.w3schools.com/cssref/css_default_values.asp
 	"h1":     htag(1.75),
 	"h2":     htag(1.50),
@@ -80,7 +82,7 @@ func htag(scale float64) markuputil.TextTag {
 func newTextContent(ctx context.Context, msg event.RoomMessageEvent) textContent {
 	body := strings.Trim(msg.Body, "\n")
 
-	buf := gtk.NewTextBuffer(textTags())
+	buf := gtk.NewTextBuffer(TextTags())
 
 	text := gtk.NewTextViewWithBuffer(buf)
 	text.SetCursorVisible(false)
@@ -246,7 +248,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		case "font", "span": // data-mx-bg-color, data-mx-color
 			s.renderChildrenTagged(
 				n,
-				hashTag(s.buf.TagTable(), markuputil.TextTag{
+				markuputil.HashTag(s.buf.TagTable(), markuputil.TextTag{
 					"foreground": nodeAttr(n, "data-mx-color", "color"),
 					"background": nodeAttr(n, "data-mx-bg-color"),
 				}),
@@ -391,22 +393,6 @@ func (s *renderState) insertInvisible(str string) {
 
 	startIter := s.buf.IterAtOffset(start)
 	s.buf.ApplyTagByName("invisible", &startIter, s.iter)
-}
-
-func hashTag(table *gtk.TextTagTable, attrs markuputil.TextTag) *gtk.TextTag {
-	hash := "custom:" + attrs.Hash()
-
-	if t := table.Lookup(hash); t != nil {
-		return t
-	}
-
-	tag := attrs.Tag(hash)
-
-	if !table.Add(tag) {
-		log.Panicf("text tag hash collision %q", hash)
-	}
-
-	return tag
 }
 
 func nodeAttr(n *html.Node, keys ...string) string {
