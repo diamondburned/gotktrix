@@ -46,6 +46,37 @@ func ErrorLabel(markup string) *gtk.Label {
 // declaratively construct a TextTagTable using NewTextTags.
 type TextTagsMap map[string]TextTag
 
+// Combine adds all tags from other into m. If m already contains a tag that
+// appears in other, then the tag is not overridden.
+func (m TextTagsMap) Combine(other TextTagsMap) {
+	for k, v := range other {
+		if _, ok := m[k]; !ok {
+			m[k] = v
+		}
+	}
+}
+
+// FromTable gets the tag with the given name from the given tag table, or if
+// the tag doesn't exist, then a new one is added instead. If the name isn't
+// known in either the table or the map, then the function will panic.
+func (m TextTagsMap) FromTable(table *gtk.TextTagTable, name string) *gtk.TextTag {
+	tag := table.Lookup(name)
+	if tag != nil {
+		return tag
+	}
+
+	tt, ok := m[name]
+	if !ok {
+		log.Panicln("unknown tag name", name)
+		return nil
+	}
+
+	tag = tt.Tag(name)
+	table.Add(tag)
+
+	return tag
+}
+
 // TextTag describes a map of attribute/property name to its value for a
 // TextTag. Attributes that need a -set suffix will be set to true
 // automatically.

@@ -12,6 +12,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
@@ -49,11 +50,22 @@ var sendCSS = cssutil.Applier("composer-send", `
 	}
 `)
 
+func init() {
+	mcontent.TextTags.Combine(markuputil.TextTagsMap{
+		// Not HTML tags.
+		"_htmltag": {
+			"family":     "Monospace",
+			"foreground": "#808080",
+		},
+	})
+}
+
 var defParser = parser.NewParser(
 	parser.WithInlineParsers(
 		markutil.Prioritized(parser.NewLinkParser(), 0),
 		markutil.Prioritized(parser.NewEmphasisParser(), 1),
 		markutil.Prioritized(parser.NewCodeSpanParser(), 2),
+		markutil.Prioritized(parser.NewRawHTMLParser(), 3),
 	),
 	parser.WithBlockParsers(
 		markutil.Prioritized(parser.NewParagraphParser(), 0),
@@ -70,7 +82,20 @@ func parseAndWalk(src []byte, w ast.Walker) error {
 
 // NewInput creates a new Input instance.
 func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
-	buffer := gtk.NewTextBuffer(mcontent.TextTags())
+	tview := gtk.NewTextView()
+	tview.SetWrapMode(gtk.WrapWordChar)
+	tview.SetAcceptsTab(true)
+	tview.SetHExpand(true)
+	tview.SetInputHints(0 |
+		gtk.InputHintEmoji |
+		gtk.InputHintInhibitOSK |
+		gtk.InputHintSpellcheck |
+		gtk.InputHintWordCompletion |
+		gtk.InputHintUppercaseSentences,
+	)
+	inputCSS(tview)
+
+	buffer := tview.Buffer()
 	buffer.Connect("changed", func() {
 		head := buffer.StartIter()
 		tail := buffer.EndIter()
@@ -88,19 +113,6 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 			return
 		}
 	})
-
-	tview := gtk.NewTextViewWithBuffer(buffer)
-	tview.SetWrapMode(gtk.WrapWordChar)
-	tview.SetAcceptsTab(true)
-	tview.SetHExpand(true)
-	tview.SetInputHints(0 |
-		gtk.InputHintEmoji |
-		gtk.InputHintInhibitOSK |
-		gtk.InputHintSpellcheck |
-		gtk.InputHintWordCompletion |
-		gtk.InputHintUppercaseSentences,
-	)
-	inputCSS(tview)
 
 	send := gtk.NewButtonFromIconName("document-send-symbolic")
 	send.SetTooltipText("Send")
@@ -152,7 +164,9 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 }
 
 type walker struct {
-	buf  *gtk.TextBuffer
+	buf   *gtk.TextBuffer
+	table *gtk.TextTagTable
+
 	head *gtk.TextIter
 	tail *gtk.TextIter
 }
@@ -211,18 +225,38 @@ func (w *walker) enter(n ast.Node) ast.WalkStatus {
 		w.markText(n, "code")
 		return ast.WalkSkipChildren
 
+	case *ast.RawHTML:
+		segments := n.Segments.Sliced(0, n.Segments.Len())
+		for _, seg := range segments {
+			w.markBounds(seg.Start, seg.Stop, "_htmltag")
+		}
+
 	case *ast.FencedCodeBlock:
 		lines := n.Lines()
 		if len := lines.Len(); len > 0 {
-			w.head.SetOffset(lines.At(0).Start)
-			w.tail.SetOffset(lines.At(len - 1).Stop)
-
-			w.buf.ApplyTagByName("code", w.head, w.tail)
+			w.markBounds(lines.At(0).Start, lines.At(len-1).Stop, "code")
 			return ast.WalkSkipChildren
 		}
 	}
 
 	return ast.WalkContinue
+}
+
+func (w *walker) tag(tagName string) *gtk.TextTag {
+	if w.table == nil {
+		w.table = w.buf.TagTable()
+	}
+
+	return mcontent.TextTags.FromTable(w.table, tagName)
+}
+
+func (w *walker) markBounds(i, j int, names ...string) {
+	w.head.SetOffset(i)
+	w.tail.SetOffset(j)
+
+	for _, name := range names {
+		w.buf.ApplyTag(w.tag(name), w.head, w.tail)
+	}
 }
 
 // markText walks n's children and marks all its ast.Texts with the given tag.
@@ -248,7 +282,7 @@ func (w *walker) markTextFunc(n ast.Node, names []string, f func(h, t *gtk.TextI
 		}
 
 		for _, name := range names {
-			w.buf.ApplyTagByName(name, w.head, w.tail)
+			w.buf.ApplyTag(w.tag(name), w.head, w.tail)
 		}
 
 		return ast.WalkContinue, nil

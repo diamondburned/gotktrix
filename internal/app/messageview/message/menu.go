@@ -66,6 +66,7 @@ func showMsgSource(w *gtk.Window, raw *event.RawEvent) {
 	d.SetDefaultSize(400, 300)
 
 	l := gtk.NewLabel(string(j))
+	l.SetSelectable(true)
 	l.SetAttributes(msgSourceAttrs)
 	l.SetWrap(true)
 	l.SetWrapMode(pango.WrapWordChar)

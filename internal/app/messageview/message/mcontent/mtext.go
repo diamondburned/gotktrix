@@ -33,7 +33,7 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 
 // TextTags contains the tag table mapping most Matrix HTML tags to GTK
 // TextTags.
-var TextTags = markuputil.TextTagTableFactory(markuputil.TextTagsMap{
+var TextTags = markuputil.TextTagsMap{
 	// https://www.w3schools.com/cssref/css_default_values.asp
 	"h1":     htag(1.75),
 	"h2":     htag(1.50),
@@ -69,8 +69,9 @@ var TextTags = markuputil.TextTagTableFactory(markuputil.TextTagsMap{
 	},
 
 	// Not HTML tag.
-	"invisible": {"invisible": true},
-})
+	"_invisible": {"invisible": true},
+	"_ligatures": {"font-features": "dlig=1"},
+}
 
 func htag(scale float64) markuputil.TextTag {
 	return markuputil.TextTag{
@@ -82,14 +83,14 @@ func htag(scale float64) markuputil.TextTag {
 func newTextContent(ctx context.Context, msg event.RoomMessageEvent) textContent {
 	body := strings.Trim(msg.Body, "\n")
 
-	buf := gtk.NewTextBuffer(TextTags())
-
-	text := gtk.NewTextViewWithBuffer(buf)
+	text := gtk.NewTextView()
 	text.SetCursorVisible(false)
 	text.SetHExpand(true)
 	text.SetEditable(false)
 	text.SetWrapMode(gtk.WrapWordChar)
 	textContentCSS(text)
+
+	buf := text.Buffer()
 
 	switch msg.Format {
 	case event.FormatHTML:
@@ -114,10 +115,11 @@ func renderIntoBuffer(ctx context.Context, buf *gtk.TextBuffer, nodes []*html.No
 	iter := buf.StartIter()
 
 	state := renderState{
-		buf:  buf,
-		iter: &iter,
-		ctx:  ctx,
-		list: 0,
+		buf:   buf,
+		table: buf.TagTable(),
+		iter:  &iter,
+		ctx:   ctx,
+		list:  0,
 	}
 
 	for _, n := range nodes {
@@ -170,8 +172,9 @@ const (
 )
 
 type renderState struct {
-	buf  *gtk.TextBuffer
-	iter *gtk.TextIter
+	buf   *gtk.TextBuffer
+	table *gtk.TextTagTable
+	iter  *gtk.TextIter
 
 	ctx  context.Context
 	list int
@@ -286,7 +289,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		case "ol": // start
 			s.list = 1
-			s.renderChildren(n)
+			s.traverseSiblings(n.FirstChild)
 			s.list = 0
 			return traverseSkipChildren
 
@@ -376,6 +379,10 @@ func (s *renderState) renderChildrenTagged(n *html.Node, tag *gtk.TextTag) {
 	s.buf.ApplyTag(tag, &startIter, s.iter)
 }
 
+func (s *renderState) tag(tagName string) *gtk.TextTag {
+	return TextTags.FromTable(s.table, tagName)
+}
+
 // renderChildrenTagName is similar to renderChildrenTagged, except the tag name
 // is used.
 func (s *renderState) renderChildrenTagName(n *html.Node, tagName string) {
@@ -383,7 +390,7 @@ func (s *renderState) renderChildrenTagName(n *html.Node, tagName string) {
 	s.traverseSiblings(n.FirstChild)
 
 	startIter := s.buf.IterAtOffset(start)
-	s.buf.ApplyTagByName(tagName, &startIter, s.iter)
+	s.buf.ApplyTag(s.tag(tagName), &startIter, s.iter)
 }
 
 // insertInvisible inserts the given invisible.
@@ -392,7 +399,7 @@ func (s *renderState) insertInvisible(str string) {
 	s.buf.Insert(s.iter, str, len(str))
 
 	startIter := s.buf.IterAtOffset(start)
-	s.buf.ApplyTagByName("invisible", &startIter, s.iter)
+	s.buf.ApplyTag(s.tag("_invisible"), &startIter, s.iter)
 }
 
 func nodeAttr(n *html.Node, keys ...string) string {
