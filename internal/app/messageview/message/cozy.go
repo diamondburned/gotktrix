@@ -19,8 +19,15 @@ import (
 
 var _ = cssutil.WriteCSS(`
 	.message-timestamp {
-		font-size: .8em;
+		font-size: 0.80em;
 		color: alpha(@theme_fg_color, 0.55);
+	}
+	.message-collapsed .message-timestamp {
+		min-height: 1.65em;
+		opacity: 0;
+	}
+	.message-collapsed:hover .message-timestamp {
+		opacity: 1;
 	}
 `)
 
@@ -35,6 +42,7 @@ func newTimestamp(ts matrix.Timestamp, long bool) *gtk.Label {
 	}
 
 	l := gtk.NewLabel(t)
+	l.SetTooltipText(ts.Time().Format(time.StampMilli))
 	l.AddCSSClass("message-timestamp")
 
 	return l
@@ -58,6 +66,8 @@ const (
 func (v messageViewer) collapsedMessage(evbox eventBox) *collapsedMessage {
 	timestamp := newTimestamp(evbox.raw.OriginServerTime, false)
 	timestamp.SetSizeRequest(avatarWidth, -1)
+	timestamp.SetVAlign(gtk.AlignStart)
+	timestamp.SetYAlign(1)
 
 	content := mcontent.New(v.Context, evbox.ev.(event.RoomMessageEvent))
 	bindExtraMenu(content)
