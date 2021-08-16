@@ -258,10 +258,20 @@ func generatePreview(c *gotktrix.Client, rID matrix.RoomID, ev event.RoomEvent) 
 }
 
 func trimString(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen]
+	lines := strings.SplitN(s, "\n", 2)
+	if len(lines) == 0 {
+		return ""
 	}
-	return s
+
+	if len(lines[0]) > maxLen {
+		return lines[0][:maxLen] + "…"
+	}
+
+	if len(lines) > 1 || len(lines[0]) > maxLen {
+		return lines[0] + "…"
+	}
+
+	return lines[0]
 }
 
 // SetOrder sets the room's order within the section it is in. If the order is

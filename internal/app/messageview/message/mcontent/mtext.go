@@ -33,7 +33,7 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 
 var textTags = markuputil.TextTagTableFactory(markuputil.TextTagsMap{
 	// https://www.w3schools.com/cssref/css_default_values.asp
-	"h1":     htag(2.00),
+	"h1":     htag(1.75),
 	"h2":     htag(1.50),
 	"h3":     htag(1.17),
 	"h4":     htag(1.00),
@@ -62,6 +62,11 @@ var textTags = markuputil.TextTagTableFactory(markuputil.TextTagsMap{
 		"style":  pango.StyleItalic,
 		"scale":  0.8,
 	},
+	"li": {
+		"left-margin": 18, // px
+	},
+
+	// Not HTML tag.
 	"invisible": {"invisible": true},
 })
 
@@ -120,21 +125,38 @@ func renderIntoBuffer(ctx context.Context, buf *gtk.TextBuffer, nodes []*html.No
 	}
 
 	// Trim trailing new lines.
-	{
-		tail := buf.EndIter()
-		head := buf.StartIter()
-		text := buf.Slice(&head, &iter, true)
-
-		if strings.HasSuffix(text, "\n") {
-			head.SetOffset(
-				// Calculate the new tail to trim the rest off.
-				tail.Offset() - (len(text) - len(strings.TrimRight(text, "\n"))),
-			)
-			buf.Delete(&head, &tail)
-		}
-	}
+	trimBufferNewLineRight(buf)
+	trimBufferNewLineLeft(buf)
 
 	return true
+}
+
+func trimBufferNewLineRight(buf *gtk.TextBuffer) {
+	tail := buf.EndIter()
+	head := buf.StartIter()
+	text := buf.Slice(&head, &tail, true)
+
+	if !strings.HasSuffix(text, "\n") {
+		return
+	}
+
+	// Calculate the new tail to trim the rest off.
+	head.SetOffset(tail.Offset() - (len(text) - len(strings.TrimRight(text, "\n"))))
+	buf.Delete(&head, &tail)
+}
+
+func trimBufferNewLineLeft(buf *gtk.TextBuffer) {
+	tail := buf.EndIter()
+	head := buf.StartIter()
+	text := buf.Slice(&head, &tail, true)
+
+	if !strings.HasPrefix(text, "\n") {
+		return
+	}
+
+	// Calculate the new tail to trim the rest off.
+	tail.SetOffset(len(text) - len(strings.TrimLeft(text, "\n")))
+	buf.Delete(&head, &tail)
 }
 
 type traverseStatus uint8
@@ -171,10 +193,48 @@ func (s *renderState) traverseSiblings(first *html.Node) traverseStatus {
 	return traverseOK
 }
 
+// nTrailingNewLine counts the number of trailing new lines up to 2.
+func (s *renderState) nTrailingNewLine() int {
+	head := s.buf.IterAtOffset(s.iter.Offset() - 2)
+	text := s.buf.Slice(&head, s.iter, true)
+	return strings.Count(text, "\n")
+}
+
+// p starts a paragraph by padding the current text with at most 2 new lines.
+func (s *renderState) p() {
+	n := s.nTrailingNewLine()
+	if n < 2 {
+		s.buf.Insert(s.iter, strings.Repeat("\n", 2-n), -1)
+	}
+}
+
+// line ensures that we're on a new line.
+func (s *renderState) line() {
+	if s.nTrailingNewLine() == 0 {
+		s.buf.Insert(s.iter, "\n", 1)
+	}
+}
+
+func trimNewLines(str string) (string, int) {
+	new := strings.TrimRight(str, "\n")
+	return new, len(str) - len(new)
+}
+
 func (s *renderState) renderNode(n *html.Node) traverseStatus {
 	switch n.Type {
 	case html.TextNode:
-		s.buf.Insert(s.iter, n.Data, len(n.Data))
+		text, newLines := trimNewLines(n.Data)
+		s.buf.Insert(s.iter, text, len(text))
+
+		// Calculate the actual number of new lines that we need while
+		// accounting for ones that are already in the buffer.
+		if n := s.nTrailingNewLine(); n > 0 {
+			newLines -= n
+		}
+		if newLines > 0 {
+			s.buf.Insert(s.iter, strings.Repeat("\n", newLines), -1)
+		}
+
 		return traverseOK
 
 	case html.ElementNode:
@@ -212,18 +272,8 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		// Block Elements.
 		case "p", "pre", "div":
-			if n.PrevSibling != nil {
-				// Prepend new line.
-				s.buf.Insert(s.iter, "\n", 1)
-			}
-
 			s.traverseSiblings(n.FirstChild)
-
-			if n.NextSibling != nil {
-				// Append new line.
-				s.buf.Insert(s.iter, "\n", 1)
-			}
-
+			s.p()
 			return traverseSkipChildren
 
 		// Inline.
@@ -232,15 +282,35 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			s.renderChildren(n)
 			return traverseSkipChildren
 
-		case "ul":
 		case "ol": // start
+			s.list = 1
+			s.renderChildren(n)
+			s.list = 0
+			return traverseSkipChildren
+
+		case "ul":
+			s.list = 0
+			// No need to reset s.list.
+			return traverseOK
+
 		case "li":
+			bullet := "● "
+			if s.list != 0 {
+				bullet = strconv.Itoa(s.list) + ". "
+				s.list++
+			}
+
+			nodePrependText(n, bullet)
+			s.renderChildren(n)
+			return traverseSkipChildren
 
 		case "hr":
-			s.buf.Insert(s.iter, "\n---\n", -1)
+			s.line()
+			s.buf.Insert(s.iter, "―――", -1)
+			s.line()
 			return traverseOK
 		case "br":
-			s.buf.Insert(s.iter, "\n\n", -1)
+			s.p()
 			return traverseOK
 
 		case "img": // width, height, alt, title, src(mxc)
@@ -291,11 +361,7 @@ func parseIntOr(intv string, or int) int {
 // the given iterator. The iterator will be moved to the last written position
 // when done.
 func (s *renderState) renderChildren(n *html.Node) {
-	start := s.iter.Offset()
-	s.traverseSiblings(n.FirstChild)
-
-	startIter := s.buf.IterAtOffset(start)
-	s.buf.ApplyTagByName(n.Data, &startIter, s.iter)
+	s.renderChildrenTagName(n, n.Data)
 }
 
 // renderChildrenTagged is similar to renderChild, except the tag is given
@@ -306,6 +372,16 @@ func (s *renderState) renderChildrenTagged(n *html.Node, tag *gtk.TextTag) {
 
 	startIter := s.buf.IterAtOffset(start)
 	s.buf.ApplyTag(tag, &startIter, s.iter)
+}
+
+// renderChildrenTagName is similar to renderChildrenTagged, except the tag name
+// is used.
+func (s *renderState) renderChildrenTagName(n *html.Node, tagName string) {
+	start := s.iter.Offset()
+	s.traverseSiblings(n.FirstChild)
+
+	startIter := s.buf.IterAtOffset(start)
+	s.buf.ApplyTagByName(tagName, &startIter, s.iter)
 }
 
 // insertInvisible inserts the given invisible.
@@ -342,4 +418,12 @@ func nodeAttr(n *html.Node, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func nodePrependText(n *html.Node, text string) {
+	node := &html.Node{
+		Type: html.TextNode,
+		Data: text,
+	}
+	n.InsertBefore(node, n.FirstChild)
 }

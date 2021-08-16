@@ -42,7 +42,15 @@ var sendCSS = cssutil.Applier("composer-send", `
 // NewInput creates a new Input instance.
 func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 	text := gtk.NewTextView()
+	text.SetAcceptsTab(true)
 	text.SetHExpand(true)
+	text.SetInputHints(0 |
+		gtk.InputHintEmoji |
+		gtk.InputHintInhibitOSK |
+		gtk.InputHintSpellcheck |
+		gtk.InputHintWordCompletion |
+		gtk.InputHintUppercaseSentences,
+	)
 	inputCSS(text)
 
 	send := gtk.NewButtonFromIconName("document-send-symbolic")
