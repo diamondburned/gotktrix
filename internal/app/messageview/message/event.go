@@ -94,7 +94,7 @@ func EventMessageTail(ev event.Event) string {
 		case event.MemberLeft:
 			return "left."
 		case event.MemberBanned:
-			return "was banned."
+			return "banned someone."
 		default:
 			return escapef("performed member action %q.", ev.NewState)
 		}
