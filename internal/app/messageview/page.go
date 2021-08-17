@@ -158,6 +158,11 @@ func (p *Page) RoomID() matrix.RoomID {
 	return p.roomID
 }
 
+// RoomName returns this page's room name.
+func (p *Page) RoomName() string {
+	return p.name
+}
+
 // OnRoomEvent is called on every room event belonging to this room.
 func (p *Page) OnRoomEvent(raw *event.RawEvent) {
 	if raw.RoomID != p.roomID {

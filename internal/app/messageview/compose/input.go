@@ -6,19 +6,18 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent"
+	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/md"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/md/hl"
-
+	"github.com/pkg/errors"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
-	markutil "github.com/yuin/goldmark/util"
 )
 
 // Input is the input component of the message composer.
@@ -52,7 +51,7 @@ var sendCSS = cssutil.Applier("composer-send", `
 `)
 
 func init() {
-	mcontent.TextTags.Combine(markuputil.TextTagsMap{
+	md.TextTags.Combine(markuputil.TextTagsMap{
 		// Not HTML tags.
 		"_htmltag": {
 			"family":     "Monospace",
@@ -61,24 +60,49 @@ func init() {
 	})
 }
 
-var defParser = parser.NewParser(
-	parser.WithInlineParsers(
-		markutil.Prioritized(parser.NewLinkParser(), 0),
-		markutil.Prioritized(parser.NewEmphasisParser(), 1),
-		markutil.Prioritized(parser.NewCodeSpanParser(), 2),
-		markutil.Prioritized(parser.NewRawHTMLParser(), 3),
-	),
-	parser.WithBlockParsers(
-		markutil.Prioritized(parser.NewParagraphParser(), 0),
-		markutil.Prioritized(parser.NewBlockquoteParser(), 1),
-		markutil.Prioritized(parser.NewATXHeadingParser(), 2),
-		markutil.Prioritized(parser.NewFencedCodeBlockParser(), 3),
-	),
-)
+func copyMessage(buffer *gtk.TextBuffer, roomID matrix.RoomID) event.RoomMessageEvent {
+	head := buffer.StartIter()
+	tail := buffer.EndIter()
 
-func parseAndWalk(src []byte, w ast.Walker) error {
-	n := defParser.Parse(text.NewReader(src))
-	return ast.Walk(n, w)
+	input := buffer.Text(&head, &tail, true)
+
+	ev := event.RoomMessageEvent{
+		RoomEventInfo: event.RoomEventInfo{RoomID: roomID},
+		Body:          input,
+		MsgType:       event.RoomMessageText,
+	}
+
+	var html strings.Builder
+
+	if err := md.Converter.Convert([]byte(input), &html); err == nil {
+		ev.Format = event.FormatHTML
+		ev.FormattedBody = html.String()
+	}
+
+	return ev
+}
+
+func highlightBuffer(ctx context.Context, buffer *gtk.TextBuffer) {
+	head := buffer.StartIter()
+	tail := buffer.EndIter()
+
+	// Be careful to include anything hidden, since we want the offsets that
+	// goldmark processes to be the exact same as what's in the buffer.
+	input := []byte(buffer.Slice(&head, &tail, true))
+
+	// Remove all tags before recreating them all.
+	buffer.RemoveAllTags(&head, &tail)
+
+	w := walker{
+		ctx: ctx,
+		buf: buffer,
+		src: input,
+	}
+
+	if err := md.ParseAndWalk(input, w.walker); err != nil {
+		log.Println("markdown input error:", err)
+		return
+	}
 }
 
 // NewInput creates a new Input instance.
@@ -89,7 +113,6 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 	tview.SetHExpand(true)
 	tview.SetInputHints(0 |
 		gtk.InputHintEmoji |
-		gtk.InputHintInhibitOSK |
 		gtk.InputHintSpellcheck |
 		gtk.InputHintWordCompletion |
 		gtk.InputHintUppercaseSentences,
@@ -97,27 +120,8 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 	inputCSS(tview)
 
 	buffer := tview.Buffer()
-	buffer.Connect("changed", func() {
-		head := buffer.StartIter()
-		tail := buffer.EndIter()
-
-		// Be careful to include anything hidden, since we want the offsets that
-		// goldmark processes to be the exact same as what's in the buffer.
-		input := []byte(buffer.Slice(&head, &tail, true))
-
-		// Remove all tags before recreating them all.
-		buffer.RemoveAllTags(&head, &tail)
-
-		w := walker{
-			ctx: ctx,
-			buf: buffer,
-			src: input,
-		}
-
-		if err := parseAndWalk(input, w.walker); err != nil {
-			log.Println("markdown input error:", err)
-			return
-		}
+	buffer.Connect("changed", func(buffer *gtk.TextBuffer) {
+		highlightBuffer(ctx, buffer)
 	})
 
 	send := gtk.NewButtonFromIconName("document-send-symbolic")
@@ -125,6 +129,17 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 	send.SetHasFrame(false)
 	send.SetSizeRequest(AvatarWidth, -1)
 	sendCSS(send)
+
+	send.Connect("activate", func() {
+		ev := copyMessage(buffer, roomID)
+		go func() {
+			client := gotktrix.FromContext(ctx)
+			_, err := client.RoomEventSend(ev.RoomID, ev.Type(), ev)
+			if err != nil {
+				app.Error(ctx, errors.Wrap(err, "failed to send message"))
+			}
+		}()
+	})
 
 	enterKeyer := gtk.NewEventControllerKey()
 	enterKeyer.Connect(
@@ -266,7 +281,7 @@ func (w *walker) tag(tagName string) *gtk.TextTag {
 		w.table = w.buf.TagTable()
 	}
 
-	return mcontent.TextTags.FromTable(w.table, tagName)
+	return md.TextTags.FromTable(w.table, tagName)
 }
 
 func (w *walker) markBounds(i, j int, names ...string) {
@@ -287,7 +302,7 @@ func (w *walker) markText(n ast.Node, names ...string) {
 // head and tail iterators before the tags are applied. This is useful for block
 // elements.
 func (w *walker) markTextFunc(n ast.Node, names []string, f func(h, t *gtk.TextIter)) {
-	walkChildren(n, func(n ast.Node, enter bool) (ast.WalkStatus, error) {
+	md.WalkChildren(n, func(n ast.Node, enter bool) (ast.WalkStatus, error) {
 		text, ok := n.(*ast.Text)
 		if !ok {
 			return ast.WalkContinue, nil
@@ -306,13 +321,4 @@ func (w *walker) markTextFunc(n ast.Node, names []string, f func(h, t *gtk.TextI
 
 		return ast.WalkContinue, nil
 	})
-}
-
-// walkChildren walks n's children nodes using the given walker.
-// WalkSkipChildren is returned unless the walker fails.
-func walkChildren(n ast.Node, walker ast.Walker) ast.WalkStatus {
-	for n := n.FirstChild(); n != nil; n = n.NextSibling() {
-		ast.Walk(n, walker)
-	}
-	return ast.WalkSkipChildren
 }

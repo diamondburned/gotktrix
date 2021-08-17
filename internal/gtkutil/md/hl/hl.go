@@ -129,9 +129,10 @@ func styleEntryToTag(e chroma.StyleEntry) markuputil.TextTag {
 	return attrs
 }
 
+// Styles used if the user hasn't set a style in the config.
 const (
-	darkStyle  = "native"
-	lightStyle = "github"
+	DefaultDarkStyle  = "monokai"
+	DefaultLightStyle = "solarized-light"
 )
 
 var (
@@ -145,9 +146,9 @@ var (
 func defaultStyle(dark bool) tagMap {
 	if dark {
 		darkStyleOnce.Do(func() {
-			s, err := findStyle(darkStyle)
+			s, err := findStyle(DefaultDarkStyle)
 			if err != nil {
-				log.Println("hl: built-in dark style", darkStyle, "not found")
+				log.Println("hl: built-in dark style", DefaultDarkStyle, "not found")
 				s = styles.Fallback
 			}
 			darkStyleMap = convertStyle(s)
@@ -156,9 +157,9 @@ func defaultStyle(dark bool) tagMap {
 		return darkStyleMap
 	} else {
 		lightStyleOnce.Do(func() {
-			s, err := findStyle(lightStyle)
+			s, err := findStyle(DefaultLightStyle)
 			if err != nil {
-				log.Println("hl: built-in dark style", lightStyle, "not found")
+				log.Println("hl: built-in dark style", DefaultLightStyle, "not found")
 				s = styles.Fallback
 			}
 			lightStyleMap = convertStyle(s)

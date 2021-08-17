@@ -11,11 +11,12 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/md"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/md/hl"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
 	"golang.org/x/net/html"
 )
@@ -31,77 +32,28 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 	}
 `)
 
-// TextTags contains the tag table mapping most Matrix HTML tags to GTK
-// TextTags.
-var TextTags = markuputil.TextTagsMap{
-	// https://www.w3schools.com/cssref/css_default_values.asp
-	"h1":     htag(1.75),
-	"h2":     htag(1.50),
-	"h3":     htag(1.17),
-	"h4":     htag(1.00),
-	"h5":     htag(0.83),
-	"h6":     htag(0.67),
-	"em":     {"style": pango.StyleItalic},
-	"i":      {"style": pango.StyleItalic},
-	"strong": {"weight": pango.WeightBold},
-	"b":      {"weight": pango.WeightBold},
-	"u":      {"underline": pango.UnderlineSingle},
-	"strike": {"strikethrough": true},
-	"del":    {"strikethrough": true},
-	"sup":    {"rise": +1000, "scale": 0.50},
-	"sub":    {"rise": -1000, "scale": 0.50},
-	"code": {
-		"family":         "Monospace",
-		"insert-hyphens": false,
-	},
-	"a": {
-		"foreground":     "#238cf5",
-		"underline":      pango.UnderlineSingle,
-		"insert-hyphens": false,
-	},
-	"caption": {
-		"weight": pango.WeightLight,
-		"style":  pango.StyleItalic,
-		"scale":  0.8,
-	},
-	"li": {
-		"left-margin": 18, // px
-	},
-
-	// Not HTML tag.
-	"_invisible": {"invisible": true},
-	"_ligatures": {"font-features": "dlig=1"},
-}
-
-func htag(scale float64) markuputil.TextTag {
-	return markuputil.TextTag{
-		"scale":  scale,
-		"weight": pango.WeightBold,
-	}
-}
-
 func newTextContent(ctx context.Context, msg event.RoomMessageEvent) textContent {
 	body := strings.Trim(msg.Body, "\n")
 
 	text := gtk.NewTextView()
-	text.SetCursorVisible(false)
 	text.SetHExpand(true)
 	text.SetEditable(false)
+	text.SetAcceptsTab(false)
+	text.SetCursorVisible(false)
 	text.SetWrapMode(gtk.WrapWordChar)
+	text.Show()
 	textContentCSS(text)
-
-	buf := text.Buffer()
 
 	switch msg.Format {
 	case event.FormatHTML:
-		n, err := html.ParseFragment(strings.NewReader(msg.FormattedBody), nil)
-		if err == nil && renderIntoBuffer(ctx, buf, n) {
+		n, err := html.Parse(strings.NewReader(msg.FormattedBody))
+		if err == nil && renderIntoBuffer(ctx, text, n) {
 			goto rendered
 		}
 	}
 
 	// fallback
-	buf.SetText(body, len(body))
+	text.Buffer().SetText(body, len(body))
 
 rendered:
 	return textContent{
@@ -111,10 +63,12 @@ rendered:
 
 func (c textContent) content() {}
 
-func renderIntoBuffer(ctx context.Context, buf *gtk.TextBuffer, nodes []*html.Node) bool {
+func renderIntoBuffer(ctx context.Context, tview *gtk.TextView, node *html.Node) bool {
+	buf := tview.Buffer()
 	iter := buf.StartIter()
 
 	state := renderState{
+		tview: tview,
 		buf:   buf,
 		table: buf.TagTable(),
 		iter:  &iter,
@@ -122,10 +76,8 @@ func renderIntoBuffer(ctx context.Context, buf *gtk.TextBuffer, nodes []*html.No
 		list:  0,
 	}
 
-	for _, n := range nodes {
-		if state.traverseSiblings(n) == traverseFailed {
-			return false
-		}
+	if state.traverseSiblings(node) == traverseFailed {
+		return false
 	}
 
 	// Trim trailing new lines.
@@ -137,30 +89,58 @@ func renderIntoBuffer(ctx context.Context, buf *gtk.TextBuffer, nodes []*html.No
 
 func trimBufferNewLineRight(buf *gtk.TextBuffer) {
 	tail := buf.EndIter()
-	head := buf.StartIter()
-	text := buf.Slice(&head, &tail, true)
-
-	if !strings.HasSuffix(text, "\n") {
+	// Move from the end to the last character.
+	if !tail.BackwardChar() {
+		return
+	}
+	if rune(tail.Char()) != '\n' {
 		return
 	}
 
-	// Calculate the new tail to trim the rest off.
-	head.SetOffset(tail.Offset() - (len(text) - len(strings.TrimRight(text, "\n"))))
+	head := buf.IterAtOffset(tail.Offset() - 1)
 	buf.Delete(&head, &tail)
+
+	// 	text := buf.Slice(&head, &tail, true)
+	// 	if !strings.HasSuffix(text, "\n") {
+	// 		return &tail
+	// 	}
+
+	// 	trim := len(strings.TrimRight(text, "\n"))
+
+	// 	log.Printf("text      = %q", text)
+	// 	log.Printf("trimming  = %d", trim)
+	// 	log.Printf("trim text = %q", text[:trim])
+	// 	log.Printf("end bound = %d", tail.Offset()-(len(text)-len(strings.TrimRight(text, "\n"))))
+
+	// 	// Calculate the new tail to trim the rest off.
+	// 	head.SetOffset(trim)
+	// 	buf.Delete(&head, &tail)
+
+	// 	return &tail
 }
 
 func trimBufferNewLineLeft(buf *gtk.TextBuffer) {
-	tail := buf.EndIter()
 	head := buf.StartIter()
-	text := buf.Slice(&head, &tail, true)
-
-	if !strings.HasPrefix(text, "\n") {
+	if rune(head.Char()) != '\n' {
 		return
 	}
 
-	// Calculate the new tail to trim the rest off.
-	tail.SetOffset(len(text) - len(strings.TrimLeft(text, "\n")))
+	tail := buf.IterAtOffset(1)
 	buf.Delete(&head, &tail)
+
+	// tail := buf.EndIter()
+	// head := buf.StartIter()
+	// text := buf.Slice(&head, &tail, true)
+
+	// if !strings.HasPrefix(text, "\n") {
+	// 	return &head
+	// }
+
+	// // Calculate the new tail to trim the rest off.
+	// tail.SetOffset(len(text) - len(strings.TrimLeft(text, "\n")))
+	// buf.Delete(&head, &tail)
+
+	// return &head
 }
 
 type traverseStatus uint8
@@ -172,6 +152,7 @@ const (
 )
 
 type renderState struct {
+	tview *gtk.TextView
 	buf   *gtk.TextBuffer
 	table *gtk.TextTagTable
 	iter  *gtk.TextIter
@@ -180,12 +161,16 @@ type renderState struct {
 	list int
 }
 
+func (s *renderState) traverseChildren(n *html.Node) traverseStatus {
+	return s.traverseSiblings(n.FirstChild)
+}
+
 func (s *renderState) traverseSiblings(first *html.Node) traverseStatus {
 	for n := first; n != nil; n = n.NextSibling {
 		switch s.renderNode(n) {
 		case traverseOK:
-			// traverseSiblings never returns traverseSkipChildren.
-			if s.traverseSiblings(n.FirstChild) == traverseFailed {
+			// traverseChildren never returns traverseSkipChildren.
+			if s.traverseChildren(n) == traverseFailed {
 				return traverseFailed
 			}
 		case traverseSkipChildren:
@@ -266,8 +251,14 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		// Inline.
 		case "code":
-			// TODO: syntax highlighting
+			start := s.iter.Offset()
 			s.renderChildren(n)
+
+			if lang := strings.TrimPrefix(nodeAttr(n, "class"), "language-"); lang != "" {
+				startIter := s.buf.IterAtOffset(start)
+				hl.Highlight(s.ctx, &startIter, s.iter, lang)
+			}
+
 			return traverseSkipChildren
 
 		// Block Elements.
@@ -277,7 +268,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		// Block Elements.
 		case "p", "pre", "div":
-			s.traverseSiblings(n.FirstChild)
+			s.traverseChildren(n)
 			s.p()
 			return traverseSkipChildren
 
@@ -289,7 +280,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		case "ol": // start
 			s.list = 1
-			s.traverseSiblings(n.FirstChild)
+			s.traverseChildren(n)
 			s.list = 0
 			return traverseSkipChildren
 
@@ -311,7 +302,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		case "hr":
 			s.line()
-			s.buf.Insert(s.iter, "―――", -1)
+			md.AddWidgetAt(s.tview, s.iter, md.NewSeparator())
 			s.line()
 			return traverseOK
 		case "br":
@@ -344,7 +335,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		default:
 			log.Println("unknown tag", n.Data)
-			return s.traverseSiblings(n.FirstChild)
+			return s.traverseChildren(n)
 		}
 
 	case html.ErrorNode:
@@ -380,7 +371,7 @@ func (s *renderState) renderChildrenTagged(n *html.Node, tag *gtk.TextTag) {
 }
 
 func (s *renderState) tag(tagName string) *gtk.TextTag {
-	return TextTags.FromTable(s.table, tagName)
+	return md.TextTags.FromTable(s.table, tagName)
 }
 
 // renderChildrenTagName is similar to renderChildrenTagged, except the tag name

@@ -2,11 +2,13 @@ package messageview
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 )
 
@@ -28,12 +30,15 @@ type tabPage struct {
 }
 
 // SetVisible sets the active room ID and verify that it's present.
-func (p *pages) SetVisible(visible matrix.RoomID) {
+func (p *pages) SetVisible(visible matrix.RoomID) *Page {
 	p.visible = visible
 
-	if _, ok := p.pages[visible]; !ok {
+	pg, ok := p.pages[visible]
+	if !ok {
 		log.Panicf("selected room %s not in page registry", visible)
 	}
+
+	return pg.Page
 }
 
 func (p *pages) PopVisible() *tabPage {
@@ -87,7 +92,10 @@ func New(ctx context.Context, ctrl Controller) *View {
 
 	view.Connect("notify::selected-page", func() {
 		child := view.SelectedPage().Child()
-		pages.SetVisible(matrix.RoomID(child.Name()))
+		rpage := pages.SetVisible(matrix.RoomID(child.Name()))
+
+		window := app.FromContext(ctx).Window()
+		window.SetTitle(fmt.Sprintf("%s - gotktrix", rpage.RoomName()))
 	})
 
 	view.Connect("close-page", func(view *adw.TabView, page *adw.TabPage) {
