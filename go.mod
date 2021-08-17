@@ -3,10 +3,11 @@ module github.com/diamondburned/gotktrix
 go 1.17
 
 require (
+	github.com/alecthomas/chroma v0.9.2
 	github.com/chanbakjsd/gotrix v0.3.2-0.20210811082156-39aacea630a7
 	github.com/dgraph-io/badger/v3 v3.2103.0
-	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210814064620-7515dd3811d0
-	github.com/diamondburned/gotk4/pkg v0.0.0-20210814064455-aa7ccd93e62d
+	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210817015741-1dbbb48cf18c
+	github.com/diamondburned/gotk4/pkg v0.0.0-20210817015659-c5cf7077b644
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/pkg/errors v0.9.1
@@ -21,7 +22,9 @@ require (
 	github.com/DataDog/zstd v1.4.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/danieljoos/wincred v1.1.0 // indirect
+	github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964 // indirect
 	github.com/dgraph-io/ristretto v0.0.4-0.20210309073149-3836124cdc5a // indirect
+	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fatih/color v1.10.0 // indirect
 	github.com/godbus/dbus/v5 v5.0.3 // indirect

@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"html"
 	"log"
+	"math"
 	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -148,4 +149,35 @@ func HashTag(table *gtk.TextTagTable, attrs TextTag) *gtk.TextTag {
 	}
 
 	return tag
+}
+
+// darkThreshold is DarkColorHasher's value.
+const darkThreshold = 0.65
+
+// rgbIsDark determines if the given RGB colors are dark or not. It takes in
+// colors of range [0.0, 1.0].
+func rgbIsDark(r, g, b float64) bool {
+	// Determine the value in the HSV colorspace. Code taken from
+	// lucasb-eyer/go-colorful.
+	v := math.Max(math.Max(r, g), b)
+	return v <= darkThreshold
+}
+
+// IsDarkTheme returns true if the given widget is inside an application with a
+// dark theme. A dark theme implies the background color is dark.
+func IsDarkTheme(w gtk.Widgetter) bool {
+	styles := w.StyleContext()
+
+	var darkBg bool // default light theme
+
+	bgcolor, ok := styles.LookupColor("theme_bg_color")
+	if ok {
+		darkBg = rgbIsDark(
+			float64(bgcolor.Red()),
+			float64(bgcolor.Green()),
+			float64(bgcolor.Blue()),
+		)
+	}
+
+	return darkBg
 }

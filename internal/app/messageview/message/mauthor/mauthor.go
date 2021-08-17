@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/pronouns"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
 type markupOpts struct {
@@ -49,20 +50,7 @@ func WithColorHasher(hasher ColorHasher) MarkupMod {
 // should beware to call this function in the main thread to not cause a race
 // condition.
 func WithWidgetColor(w gtk.Widgetter) MarkupMod {
-	styles := w.StyleContext()
-
-	var darkBg bool // default light theme
-
-	bgcolor, ok := styles.LookupColor("theme_bg_color")
-	if ok {
-		darkBg = rgbIsDark(
-			float64(bgcolor.Red()),
-			float64(bgcolor.Green()),
-			float64(bgcolor.Blue()),
-		)
-	}
-
-	if darkBg {
+	if markuputil.IsDarkTheme(w) {
 		return WithColorHasher(LightColorHasher)
 	} else {
 		return WithColorHasher(DarkColorHasher)

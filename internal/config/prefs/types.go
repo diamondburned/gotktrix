@@ -47,6 +47,65 @@ func boolToUint32(b bool) (u uint32) {
 	return
 }
 
+// String is a preference property of type string.
+type String struct {
+	Pubsub
+	StringMeta
+	val string
+	mut sync.Mutex
+}
+
+// StringMeta is the metadata of a string.
+type StringMeta struct {
+	PropMeta
+	Validate func(string) error
+}
+
+// NewString creates a new String instance.
+func NewString(def string, prop StringMeta) *String {
+	l := &String{
+		Pubsub:     *NewPubsub(),
+		StringMeta: prop,
+
+		val: def,
+	}
+
+	if prop.Validate != nil {
+		if err := prop.Validate(def); err != nil {
+			log.Panicf("default value %q fails validation: %v", def, err)
+		}
+	}
+
+	registerProp(l)
+
+	return l
+}
+
+// Publish publishes the new string value. An error is returned and nothing is
+// published if the string fails the verifier.
+func (s *String) Publish(v string) error {
+	if s.Validate != nil {
+		if err := s.Validate(v); err != nil {
+			return err
+		}
+	}
+
+	s.mut.Lock()
+	s.val = v
+	s.mut.Unlock()
+
+	s.Pubsub.Publish()
+	return nil
+}
+
+// Value returns the internal string value.
+func (s *String) Value() string {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	return s.val
+}
+
 // EnumList is a preference property of type stringer.
 type EnumList struct {
 	Pubsub

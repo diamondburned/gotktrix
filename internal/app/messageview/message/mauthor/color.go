@@ -14,9 +14,6 @@ type ColorHasher interface {
 	Hash(name string) color.RGBA
 }
 
-// darkThreshold is DarkColorHasher's value.
-const darkThreshold = 0.65
-
 var (
 	// FNVHasher is the string hasher used for color hashing.
 	FNVHasher = func() hash.Hash32 { return fnv.New32a() }
@@ -33,15 +30,6 @@ var (
 // is ignored.
 func RGBHex(c color.RGBA) string {
 	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
-}
-
-// rgbIsDark determines if the given RGB colors are dark or not. It takes in
-// colors of range [0.0, 1.0].
-func rgbIsDark(r, g, b float64) bool {
-	// Determine the value in the HSV colorspace. Code taken from
-	// lucasb-eyer/go-colorful.
-	v := math.Max(math.Max(r, g), b)
-	return v <= darkThreshold
 }
 
 // HSVHasher describes a color hasher that accepts saturation and value

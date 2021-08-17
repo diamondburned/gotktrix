@@ -13,6 +13,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/md/hl"
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
@@ -107,7 +108,12 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 		// Remove all tags before recreating them all.
 		buffer.RemoveAllTags(&head, &tail)
 
-		w := walker{buf: buffer}
+		w := walker{
+			ctx: ctx,
+			buf: buffer,
+			src: input,
+		}
+
 		if err := parseAndWalk(input, w.walker); err != nil {
 			log.Println("markdown input error:", err)
 			return
@@ -164,11 +170,14 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 }
 
 type walker struct {
+	ctx   context.Context
 	buf   *gtk.TextBuffer
 	table *gtk.TextTagTable
 
 	head *gtk.TextIter
 	tail *gtk.TextIter
+
+	src []byte
 }
 
 func (w *walker) walker(n ast.Node, enter bool) (ast.WalkStatus, error) {
@@ -233,10 +242,20 @@ func (w *walker) enter(n ast.Node) ast.WalkStatus {
 
 	case *ast.FencedCodeBlock:
 		lines := n.Lines()
-		if len := lines.Len(); len > 0 {
-			w.markBounds(lines.At(0).Start, lines.At(len-1).Stop, "code")
+
+		len := lines.Len()
+		if len == 0 {
 			return ast.WalkSkipChildren
 		}
+
+		w.markBounds(lines.At(0).Start, lines.At(len-1).Stop, "code")
+
+		if lang := string(n.Language(w.src)); lang != "" {
+			// Use markBounds' head and tail iterators.
+			hl.Highlight(w.ctx, w.head, w.tail, lang)
+		}
+
+		return ast.WalkSkipChildren
 	}
 
 	return ast.WalkContinue

@@ -96,7 +96,7 @@ func EnumerateProperties(defaultSection string) map[SectionID][]Prop {
 
 	for _, props := range enumerated {
 		sort.Slice(props, func(i, j int) bool {
-			return sortutil.StrlessFold(
+			return sortutil.LessFold(
 				string(props[i].ID()),
 				string(props[j].ID()),
 			)
