@@ -74,16 +74,7 @@ func (r *Registry) OnSyncCh(ctx context.Context, ch chan<- *api.SyncResponse) {
 
 // SubscribeTimeline subscribes the given function to the timeline of a room. If
 // the returned callback is called, then the room is removed from the handlers.
-func (r *Registry) SubscribeTimeline(rID matrix.RoomID, f func(event.RoomEvent)) func() {
-	return r.subscribeTimeline(rID, f)
-}
-
-// SubscribeTimelineRaw is SubscribeTimeline, but the given event is unparsed.
-func (r *Registry) SubscribeTimelineRaw(rID matrix.RoomID, f func(*event.RawEvent)) func() {
-	return r.subscribeTimeline(rID, f)
-}
-
-func (r *Registry) subscribeTimeline(rID matrix.RoomID, f interface{}) func() {
+func (r *Registry) SubscribeTimeline(rID matrix.RoomID, f interface{}) func() {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
@@ -99,11 +90,7 @@ func (r *Registry) subscribeTimeline(rID matrix.RoomID, f interface{}) func() {
 
 // SubscribeUser subscribes the given function with the given event type to be
 // called on each user event. If typ is "*", then all events are called w/ it.
-func (r *Registry) SubscribeUser(typ event.Type, f func(event.Event)) func() {
-	return r.subscribeUser(typ, f)
-}
-
-func (r *Registry) subscribeUser(typ event.Type, f interface{}) func() {
+func (r *Registry) SubscribeUser(typ event.Type, f interface{}) func() {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
@@ -112,21 +99,15 @@ func (r *Registry) subscribeUser(typ event.Type, f interface{}) func() {
 
 // SubscribeRoomState subscribes the given function to a room's state and
 // ephemeral event.
-func (r *Registry) SubscribeRoom(
-	rID matrix.RoomID, typ event.Type, f func(event.StateEvent)) func() {
-
-	return r.subscribeRoom(rID, []event.Type{typ}, f)
+func (r *Registry) SubscribeRoom(rID matrix.RoomID, typ event.Type, f interface{}) func() {
+	return r.SubscribeRoomEvents(rID, []event.Type{typ}, f)
 }
 
 // SubscribeRoomEvents is like SubscribeRoom but registers multiple events at
 // once.
 func (r *Registry) SubscribeRoomEvents(
-	rID matrix.RoomID, types []event.Type, f func(event.StateEvent)) func() {
+	rID matrix.RoomID, types []event.Type, f interface{}) func() {
 
-	return r.subscribeRoom(rID, types, f)
-}
-
-func (r *Registry) subscribeRoom(rID matrix.RoomID, types []event.Type, f interface{}) func() {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
@@ -136,7 +117,7 @@ func (r *Registry) subscribeRoom(rID matrix.RoomID, types []event.Type, f interf
 		r.roomFns[rID] = sh
 	}
 
-	return sh.addEvsRm(&r.mut, types, sh)
+	return sh.addEvsRm(&r.mut, types, f)
 }
 
 func listRemover(mu sync.Locker, l *list.List, e *list.Element) func() {

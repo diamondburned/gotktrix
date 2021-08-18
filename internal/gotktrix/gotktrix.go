@@ -15,6 +15,7 @@ import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/config"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/handler"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
 	"github.com/pkg/errors"
@@ -279,6 +280,79 @@ func (c *Client) MessageMediaURL(msg event.RoomMessageEvent) (string, error) {
 // state event, then the empty key is tried.
 func (c *Client) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, error) {
 	return c.State.RoomEvent(roomID, typ)
+}
+
+// RoomIsUnread returns true if the room with the given ID has not been read by
+// this user. The result of the unread boolean will always be valid, but if ok
+// is false, then it might not be accurate.
+func (c *Client) RoomIsUnread(roomID matrix.RoomID) (unread, ok bool) {
+	t, err := c.RoomTimeline(roomID)
+	if err != nil || len(t) == 0 {
+		// Nothing in the timeline. Assume the user has already caught up, since
+		// the room is empty.
+		return false, false
+	}
+
+	seen, ok := c.hasSeenEvent(roomID, t[len(t)-1].ID())
+	return !seen, ok
+}
+
+func (c *Client) hasSeenEvent(roomID matrix.RoomID, eventID matrix.EventID) (seen, ok bool) {
+	e, err := c.RoomEvent(roomID, m.FullyReadEventType)
+	if err == nil {
+		fullyRead := e.(m.FullyReadEvent)
+		// Assume that the user has caught up to the room if the latest event's
+		// ID matches. Technically, there shouldn't ever be a case where the
+		// fully read event would point to an event in the future, so this
+		// should work.
+		return fullyRead.EventID == eventID, true
+	}
+
+	u, err := c.Whoami()
+	if err != nil {
+		// Can't get the current user, so just assume that the room is unread.
+		// This would be a bug, but whatever.
+		return false, false
+	}
+
+	e, err = c.RoomEvent(roomID, event.TypeReceipt)
+	if err == nil {
+		// Query to see if the current user has read the latest message.
+		e := e.(event.ReceiptEvent)
+
+		rc, ok := e.Events[eventID]
+		if !ok {
+			// Nobody has read the latest message, including the current user.
+			return false, true
+		}
+
+		_, read := rc.Read[u]
+		return read, true
+	}
+
+	return false, false
+}
+
+// MarkRoomAsRead sends to the server that the current user has seen up to the
+// given event in the given room.
+func (c *Client) MarkRoomAsRead(roomID matrix.RoomID, eventID matrix.EventID) error {
+	if seen, ok := c.hasSeenEvent(roomID, eventID); ok && seen {
+		// Room is already seen; don't waste an API call.
+		return nil
+	}
+
+	var request struct {
+		FullyRead matrix.EventID `json:"m.fully_read"`
+		Read      matrix.EventID `json:"m.read,omitempty"`
+	}
+
+	request.FullyRead = eventID
+	request.Read = eventID
+
+	return c.Request(
+		"POST", api.EndpointRoom(roomID)+"/read_markers",
+		nil, httputil.WithJSONBody(request),
+	)
 }
 
 // RoomEnsureMembers ensures that the given room has all its members fetched.

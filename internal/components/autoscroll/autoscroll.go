@@ -19,15 +19,15 @@ func NewWindow() *Window {
 	sw.SetPropagateNaturalHeight(true)
 	sw.SetPlacement(gtk.CornerBottomLeft)
 
-	sw.vadj.Connect("notify::upper", func() {
-		// We can't really trust Gtk to be competent.
-		if sw.bottomed {
-			sw.vadj.SetValue(sw.vadj.Upper())
-		}
-	})
+	// sw.vadj.Connect("notify::upper", func() {
+	// 	// We can't really trust Gtk to be competent.
+	// 	if sw.bottomed {
+	// 		sw.vadj.SetValue(sw.vadj.Upper())
+	// 	}
+	// })
 	sw.vadj.Connect("value-changed", func() {
 		// Manually check if we're anchored on scroll.
-		sw.bottomed = (sw.vadj.Upper() - sw.vadj.PageSize()) <= sw.vadj.Value()
+		sw.bottomed = sw.vadj.Value() >= (sw.vadj.Upper() - sw.vadj.PageSize())
 	})
 
 	return &sw

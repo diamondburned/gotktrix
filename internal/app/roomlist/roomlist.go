@@ -103,11 +103,7 @@ func (l *List) Search(str string) {
 // AddRooms adds the rooms with the given IDs.
 func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 	// Prefetch everything offline first.
-	client := gotktrix.FromContext(l.ctx)
-	state := client.Offline()
-	retry := make([]matrix.RoomID, 0, len(roomIDs))
-
-	defer l.refreshSections()
+	client := gotktrix.FromContext(l.ctx).Offline()
 
 	for _, roomID := range roomIDs {
 		// Ignore duplicate rooms.
@@ -119,35 +115,10 @@ func (l *List) AddRooms(roomIDs []matrix.RoomID) {
 		tagName := section.RoomTag(client, roomID)
 		section := l.getOrCreateSection(tagName)
 
-		r := room.AddTo(l.ctx, section, roomID)
-		l.rooms[roomID] = r
-
-		name, err := state.RoomName(roomID)
-		if err != nil {
-			// No known room names; delegate to later.
-			retry = append(retry, roomID)
-			// Don't bother fetching the avatar if we can't fetch the name.
-			continue
-		}
-
-		// Update the room name.
-		r.SetLabel(name)
-
-		u, err := state.RoomAvatar(roomID)
-		if err != nil {
-			// No avatar found from querying; delegate.
-			retry = append(retry, roomID)
-			continue
-		}
-
-		if u != nil {
-			r.SetAvatarURL(*u)
-		}
+		l.rooms[roomID] = room.AddTo(l.ctx, section, roomID)
 	}
 
-	if len(retry) > 0 {
-		go func() { l.syncAddRooms(retry) }()
-	}
+	l.refreshSections()
 }
 
 func (l *List) getOrCreateSection(tag matrix.TagName) *section.Section {
@@ -162,17 +133,6 @@ func (l *List) getOrCreateSection(tag matrix.TagName) *section.Section {
 	l.sections = append(l.sections, sect)
 
 	return sect
-}
-
-// sortcmp is a helper function that reverses the c comparison operation on j.
-func sortcmp(i, j matrix.TagName, c func(matrix.TagName) bool) bool {
-	if c(i) {
-		return true
-	}
-	if c(j) {
-		return false
-	}
-	return false
 }
 
 // refreshSections throws away the session box and recreates a new one from the
@@ -191,31 +151,6 @@ func (l *List) refreshSections() {
 	// Insert the previous sections into the new box.
 	for _, s := range l.sections {
 		l.inner.Append(s)
-	}
-}
-
-func (l *List) syncAddRooms(roomIDs []matrix.RoomID) {
-	client := gotktrix.FromContext(l.ctx)
-
-	for _, roomID := range roomIDs {
-		room, ok := l.rooms[roomID]
-		if !ok {
-			continue
-		}
-
-		// TODO: don't fetch avatar twice.
-		u, _ := client.RoomAvatar(roomID)
-		if u != nil {
-			room.SetAvatarURL(*u)
-		}
-
-		roomName, _ := client.RoomName(roomID)
-
-		glib.IdleAdd(func() {
-			if roomName != "" {
-				room.SetLabel(roomName)
-			}
-		})
 	}
 }
 

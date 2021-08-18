@@ -36,6 +36,9 @@ var sema = semaphore.NewWeighted(int64(runtime.GOMAXPROCS(-1)) * parallelMult)
 // AsyncGET GETs the given URL and calls f in the main loop. If the context is
 // cancelled by the time GET is done, then f will not be called. If the given
 // URL is nil, then the function does nothing.
+//
+// This function can be called from any thread. It will synchronize accordingly
+// by itself.
 func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler)) {
 	if url == "" {
 		return
@@ -101,7 +104,12 @@ func GET(ctx context.Context, url string) (gdk.Paintabler, error) {
 	return gdk.NewTextureForPixbuf(pixbuf), nil
 }
 
+// GETPixbuf gets the Pixbuf directly.
 func GETPixbuf(ctx context.Context, url string) (*gdkpixbuf.Pixbuf, error) {
+	if url == "" {
+		return nil, nil
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create request %q", url)

@@ -79,14 +79,6 @@ func (h eventHandlers) addRm(l sync.Locker, typ event.Type, fn interface{}) func
 	}
 }
 
-// func (h eventHandlers) remove(typ event.Type, e *list.Element) {
-// 	ls, ok := h[typ]
-// 	if !ok {
-// 		return
-// 	}
-// 	ls.Remove(e)
-// }
-
 func invokeSync(list *list.List, sync *api.SyncResponse) {
 	for v := list.Front(); v != nil; v = v.Next() {
 		v.Value.(func(*api.SyncResponse))(sync)
@@ -163,6 +155,6 @@ func (i *eventInvoker) invoke(f interface{}) {
 	case func(*eventInvoker):
 		fn(i)
 	default:
-		log.Panicf("BUG: unreachable unknown handler type %T", fn)
+		log.Panicf("BUG: unknown handler type %T", fn)
 	}
 }

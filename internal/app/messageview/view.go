@@ -93,6 +93,7 @@ func New(ctx context.Context, ctrl Controller) *View {
 	view.Connect("notify::selected-page", func() {
 		child := view.SelectedPage().Child()
 		rpage := pages.SetVisible(matrix.RoomID(child.Name()))
+		rpage.MarkAsRead()
 
 		window := app.FromContext(ctx).Window()
 		window.SetTitle(fmt.Sprintf("%s - gotktrix", rpage.RoomName()))

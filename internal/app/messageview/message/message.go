@@ -32,11 +32,6 @@ type MessageViewer interface {
 	LastMessage() Message
 }
 
-// TODO
-// type compactMessage struct{
-// 	content *gtk.TextView
-// }
-
 // messageViewer fuses MessageViewer into Context. It's only used internally;
 // doing this publicly is quite ugly.
 type messageViewer struct {

@@ -2,6 +2,7 @@ package messageview
 
 import (
 	"context"
+	"log"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -119,12 +120,17 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	page.Widgetter = box
 
 	gtkutil.MapSubscriber(page, func() func() {
-		return parent.client.SubscribeTimelineRaw(roomID, func(r *event.RawEvent) {
+		return parent.client.SubscribeTimeline(roomID, func(r *event.RawEvent) {
 			glib.IdleAdd(func() { page.OnRoomEvent(r) })
 		})
 	})
 
 	return &page
+}
+
+// IsActive returns true if this page is the one the user is viewing.
+func (p *Page) IsActive() bool {
+	return p.parent.pages.visible == p.roomID
 }
 
 // OnTitle subscribes to the page's title changes.
@@ -171,6 +177,30 @@ func (p *Page) OnRoomEvent(raw *event.RawEvent) {
 
 	p.onRoomEvent(raw)
 	p.clean()
+	p.MarkAsRead()
+}
+
+// MarkAsRead marks the room as read.
+func (p *Page) MarkAsRead() {
+	if !p.IsActive() || len(p.messages) == 0 {
+		return
+	}
+
+	row := p.list.RowAtIndex(len(p.messages) - 1)
+	if row == nil {
+		// No row found despite p.messages having something. This is a bug.
+		return
+	}
+
+	client := gotktrix.FromContext(p.ctx.Take())
+	latest := matrix.EventID(row.Name())
+
+	go func() {
+		if err := client.MarkRoomAsRead(p.roomID, latest); err != nil {
+			// No need to interrupt the user for this.
+			log.Println("failed to mark room as read:", err)
+		}
+	}()
 }
 
 func (p *Page) clean() {

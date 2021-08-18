@@ -17,6 +17,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
@@ -26,13 +27,6 @@ import (
 
 // AvatarSize is the size in pixels of the avatar.
 const AvatarSize = 32
-
-// // ShowMessagePreview determines if a room shows a preview of its latest
-// // message.
-// var ShowMessagePreview = prefs.NewBool(true, prefs.PropMeta{
-// 	Name:        "Preview Message",
-// 	Description: "Whether or not to show a preview of the latest message.",
-// })
 
 // Room is a single room row.
 type Room struct {
@@ -49,23 +43,34 @@ type Room struct {
 	ctx     gtkutil.ContextTaker
 	section Section
 
+	isUnread    bool
 	showPreview bool
 }
 
-var avatarCSS = cssutil.Applier("roomlist-avatar", `
-	.roomlist-avatar {}
+var avatarCSS = cssutil.Applier("room-avatar", `
+	.room-avatar {}
 `)
 
-var roomBoxCSS = cssutil.Applier("roomlist-roombox", `
-	.roomlist-roombox {
+var roomBoxCSS = cssutil.Applier("room-box", `
+	.room-box {
 		padding: 2px 6px;
+		border-right: 2px solid transparent;
 	}
-	.roomlist-roomright {
+	.room-unread .room-box {
+		border-right: 2px solid @theme_fg_color;
+	}
+	.room-right {
 		margin-left: 6px;
 	}
-	.roomlist-roompreview {
+	.room-preview {
 		font-size: 0.8em;
-		color: alpha(@theme_fg_color, 0.9);
+	}
+	.room-unread {
+		background-image: linear-gradient(
+			to right,
+			alpha(@accent_bg_color, 0.1),
+			alpha(@accent_bg_color, 0.3)
+		);
 	}
 `)
 
@@ -86,28 +91,38 @@ type Section interface {
 	MoveRoomToTag(src matrix.RoomID, tag matrix.TagName) bool
 }
 
-// AddTo adds an empty room with the given ID to the given section..
+// roomEvents is the list of room state events to subscribe to.
+var roomEvents = []event.Type{
+	event.TypeRoomName,
+	event.TypeRoomCanonicalAlias,
+	event.TypeRoomAvatar,
+	m.FullyReadEventType,
+}
+
+// AddTo adds an empty room with the given ID to the given section Rooms created
+// using this constructor will automatically update itself as soon as it's added
+// into a parent, so the caller does not have to trigger the Invalidate methods.
 func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	nameLabel := gtk.NewLabel(string(roomID))
 	nameLabel.SetSingleLineMode(true)
 	nameLabel.SetXAlign(0)
 	nameLabel.SetHExpand(true)
 	nameLabel.SetEllipsize(pango.EllipsizeEnd)
-	nameLabel.AddCSSClass("roomlist-roomname")
+	nameLabel.AddCSSClass("room-name")
 
 	previewLabel := gtk.NewLabel("")
 	previewLabel.SetSingleLineMode(true)
 	previewLabel.SetXAlign(0)
 	previewLabel.SetHExpand(true)
 	previewLabel.SetEllipsize(pango.EllipsizeEnd)
+	previewLabel.AddCSSClass("room-preview")
 	previewLabel.Hide()
-	previewLabel.AddCSSClass("roomlist-roompreview")
 
 	rightBox := gtk.NewBox(gtk.OrientationVertical, 0)
 	rightBox.SetVAlign(gtk.AlignCenter)
 	rightBox.Append(nameLabel)
 	rightBox.Append(previewLabel)
-	rightBox.AddCSSClass("roomlist-roomright")
+	rightBox.AddCSSClass("room-right")
 
 	adwAvatar := adw.NewAvatar(AvatarSize, string(roomID), false)
 	avatarCSS(&adwAvatar.Widget)
@@ -120,6 +135,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	row := gtk.NewListBoxRow()
 	row.SetChild(box)
 	row.SetName(string(roomID))
+	row.AddCSSClass("room-row")
 
 	r := Room{
 		ListBoxRow: row,
@@ -160,10 +176,32 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 
 	// Bind the message handler to update itself.
 	gtkutil.MapSubscriber(row, func() func() {
+		r.InvalidatePreview()
+
 		return client.SubscribeTimeline(roomID, func(event.RoomEvent) {
 			glib.IdleAdd(func() {
 				r.InvalidatePreview()
 				r.section.InvalidateSort()
+			})
+		})
+	})
+
+	gtkutil.MapSubscriber(row, func() func() {
+		r.InvalidateRead()
+		r.InvalidateName()
+		r.InvalidateAvatar()
+
+		return client.SubscribeRoomEvents(roomID, roomEvents, func(ev event.Event) {
+			glib.IdleAdd(func() {
+				switch ev.(type) {
+				case event.RoomNameEvent, event.RoomCanonicalAliasEvent:
+					r.InvalidateName()
+				case event.RoomAvatarEvent:
+					r.InvalidateAvatar()
+				case m.FullyReadEvent:
+					r.InvalidateRead()
+					r.section.InvalidateSort()
+				}
 			})
 		})
 	})
@@ -198,19 +236,53 @@ func (r *Room) Changed() {
 	r.section.Reminify()
 }
 
-func (r *Room) SetLabel(text string) {
+// InvalidateName invalidates the room's name and refetches them from the state
+// or API.
+func (r *Room) InvalidateName() {
+	client := gotktrix.FromContext(r.ctx)
+
+	n, err := client.Offline().RoomName(r.ID)
+	if err == nil {
+		r.setLabel(n)
+		return
+	}
+
+	// Goroutines are cheap as hell!
+	go func() {
+		n, err := client.RoomName(r.ID)
+		if err == nil {
+			glib.IdleAdd(func() { r.setLabel(n) })
+		}
+	}()
+}
+
+// InvalidateAvatar invalidates the room's avatar.
+func (r *Room) InvalidateAvatar() {
+	client := gotktrix.FromContext(r.ctx)
+	ctx := r.ctx.Take()
+
+	go func() {
+		mxc, _ := client.RoomAvatar(r.ID)
+		if mxc == nil {
+			return
+		}
+
+		url, _ := client.SquareThumbnail(*mxc, AvatarSize)
+
+		p, err := imgutil.GET(ctx, url)
+		if err == nil {
+			glib.IdleAdd(func() { r.avatar.SetCustomImage(p) })
+		}
+	}()
+}
+
+// setLabel sets the room name.
+func (r *Room) setLabel(text string) {
 	r.Name = text
 	r.name.SetLabel(text)
 	r.name.SetTooltipText(text)
 	r.avatar.SetName(text)
 	r.avatar.SetTooltipText(text)
-}
-
-// SetAvatar sets the room's avatar URL.
-func (r *Room) SetAvatarURL(mxc matrix.URL) {
-	client := gotktrix.FromContext(r.ctx).Offline()
-	url, _ := client.SquareThumbnail(mxc, AvatarSize)
-	imgutil.AsyncGET(r.ctx.Take(), url, r.avatar.SetCustomImage)
 }
 
 // SetShowMessagePreview sets whether or not the room should show the message
@@ -225,7 +297,7 @@ func (r *Room) erasePreview() {
 	r.preview.Hide()
 }
 
-// InvalidatePreview invalidate the room's preview.
+// InvalidatePreview invalidate the room's preview. It only queries the state.
 func (r *Room) InvalidatePreview() {
 	if !r.showPreview {
 		r.erasePreview()
@@ -247,13 +319,20 @@ func (r *Room) InvalidatePreview() {
 }
 
 func generatePreview(c *gotktrix.Client, rID matrix.RoomID, ev event.RoomEvent) string {
-	name, _ := c.MemberName(rID, ev.Sender())
+	memberName, _ := c.MemberName(rID, ev.Sender())
+	name := html.EscapeString(memberName.Name)
 
 	switch ev := ev.(type) {
 	case event.RoomMessageEvent:
-		return fmt.Sprintf("%s: %s", name.Name, html.EscapeString(trimString(ev.Body, 256)))
+		return fmt.Sprintf(
+			`%s: <span alpha="85%%">%s</span>`,
+			name, html.EscapeString(trimString(ev.Body, 256)),
+		)
 	default:
-		return fmt.Sprintf("<i>%s %s</i>", name.Name, message.EventMessageTail(ev))
+		return fmt.Sprintf(
+			`<span alpha="85%%"><i>%s %s</i></span>`,
+			name, message.EventMessageTail(ev),
+		)
 	}
 }
 
@@ -272,6 +351,44 @@ func trimString(s string, maxLen int) string {
 	}
 
 	return lines[0]
+}
+
+// InvalidateRead invalidates the read state of this room.
+func (r *Room) InvalidateRead() {
+	client := gotktrix.FromContext(r.ctx)
+
+	if unread, ok := client.Offline().RoomIsUnread(r.ID); ok {
+		r.setUnread(unread)
+		return
+	}
+
+	go func() {
+		unread, ok := client.RoomIsUnread(r.ID)
+		if ok {
+			glib.IdleAdd(func() { r.setUnread(unread) })
+		}
+	}()
+}
+
+func (r *Room) setUnread(unread bool) {
+	if r.isUnread == unread {
+		return
+	}
+
+	r.isUnread = unread
+
+	if unread {
+		r.AddCSSClass("room-unread")
+	} else {
+		r.RemoveCSSClass("room-unread")
+	}
+}
+
+// IsUnread returns true if the room is currently not read. If the room is not
+// yet mapped, then it'll always be false. The room will invoke InvalidateSort
+// on its parent section if this boolean changes.
+func (r *Room) IsUnread() bool {
+	return r.isUnread
 }
 
 // SetOrder sets the room's order within the section it is in. If the order is
