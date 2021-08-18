@@ -3,8 +3,6 @@ package mcontent
 import (
 	"context"
 	"log"
-	"mime"
-	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -13,7 +11,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
 )
 
 type videoContent struct {
@@ -40,73 +37,57 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 		return newErroneousContent(err.Error(), -1, -1)
 	}
 
-	w, h := mediautil.MaxSize(v.Width, v.Height, maxWidth, maxHeight)
+	w, h := gotktrix.MaxSize(v.Width, v.Height, maxWidth, maxHeight)
+
+	client := gotktrix.FromContext(ctx).Offline()
+
+	var fetched bool
+
+	preview := gtk.NewPicture()
+	preview.SetSizeRequest(-1, h) // allow flexible width
+	preview.SetCanShrink(true)
+	preview.SetKeepAspectRatio(true)
+
+	if w > 0 && h > 0 {
+		w *= thumbnailScale
+		h *= thumbnailScale
+
+		if blur := renderBlurhash(msg.Info, w, h); blur != nil {
+			preview.SetPaintable(blur)
+		}
+	}
+
+	preview.Connect("map", func() {
+		if !fetched {
+			fetched = true
+
+			url, _ := client.ScaledThumbnail(v.ThumbnailURL, w, h)
+			imgutil.AsyncGET(ctx, url, preview.SetPaintable)
+		}
+	})
 
 	play := gtk.NewButtonFromIconName("media-playback-start-symbolic")
 	play.SetHAlign(gtk.AlignCenter)
 	play.SetVAlign(gtk.AlignCenter)
 	play.AddCSSClass("mcontent-videoplay")
 
-	client := gotktrix.FromContext(ctx).Offline()
-
-	var fetched bool
-
-	thumbnail := gtk.NewImage()
-	thumbnail.SetSizeRequest(w, h)
-	thumbnail.Connect("map", func() {
-		if !fetched {
-			url, _ := client.Thumbnail(v.ThumbnailURL, w, h)
-			imgutil.AsyncGET(ctx, url, thumbnail.SetFromPaintable)
-			fetched = true
-		}
-	})
-
 	ov := gtk.NewOverlay()
-	ov.SetHAlign(gtk.AlignStart)
 	ov.AddOverlay(play)
-	ov.SetChild(thumbnail)
+	ov.SetChild(preview)
 
 	bin := adw.NewBin()
+	bin.SetHAlign(gtk.AlignStart)
 	bin.SetChild(ov)
 	videoCSS(bin)
 
 	play.Connect("clicked", func() {
-		filename := msg.Body
-
-		if filename == "" {
-			t, err := mime.ExtensionsByType(v.MimeType)
-			if err == nil && t != nil {
-				filename = "video" + t[0]
-			}
-		}
-
-		u, err := client.MediaDownloadURL(msg.URL, true, filename)
+		u, err := client.MessageMediaURL(msg)
 		if err != nil {
 			log.Println("video URL error:", err)
 			return
 		}
 
-		ts := uint32(time.Now().Unix())
-		gtk.ShowURI(app.FromContext(ctx).Window(), u, ts)
-
-		/*
-			url, e := client.MediaDownloadURL(msg.URL, true, "")
-			if e != nil {
-				log.Println("failed to get media URL:", err)
-				return
-			}
-
-			log.Println("got video URL", url)
-			stream := mediautil.Stream(ctx, url)
-
-			v := gtk.NewVideoForMediaStream(stream)
-			v.SetAutoplay(true)
-			bin.SetChild(v)
-
-			// The button is no longer needed anymore.
-			play.SetSensitive(false)
-			play.Unparent()
-		*/
+		app.OpenURI(ctx, u)
 	})
 
 	return videoContent{

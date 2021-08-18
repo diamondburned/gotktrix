@@ -79,24 +79,6 @@ func Stream(ctx context.Context, url string) gtk.MediaStreamer {
 	return mfile
 }
 
-// MaxSize returns the maximum size that can fit within the given max width and
-// height. Aspect ratio is preserved.
-func MaxSize(w, h, maxW, maxH int) (int, int) {
-	if w < maxW && h < maxH {
-		return w, h
-	}
-
-	if w > h {
-		h = h * maxW / w
-		w = maxW
-	} else {
-		w = w * maxH / h
-		h = maxH
-	}
-
-	return w, h
-}
-
 func init() {
 	mime.AddExtensionType(".3gp", "video/3gpp")
 	mime.AddExtensionType(".3gpp", "video/3gpp")

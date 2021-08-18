@@ -22,6 +22,9 @@ var _ = cssutil.WriteCSS(`
 		font-size: 0.80em;
 		color: alpha(@theme_fg_color, 0.55);
 	}
+	.message-collapsed {
+		margin-right: 10px;
+	}
 	.message-collapsed .message-timestamp {
 		min-height: 1.65em;
 		opacity: 0;
@@ -148,7 +151,6 @@ func (v messageViewer) cozyMessage(box eventBox) *cozyMessage {
 	bindExtraMenu(content)
 
 	rightBox := gtk.NewBox(gtk.OrientationVertical, 0)
-	rightBox.SetHExpand(true)
 	rightBox.Append(authorTsBox)
 	rightBox.Append(content)
 

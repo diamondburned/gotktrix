@@ -107,6 +107,8 @@ func highlightBuffer(ctx context.Context, buffer *gtk.TextBuffer) {
 
 // NewInput creates a new Input instance.
 func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
+	go requestAllMembers(ctx, roomID)
+
 	tview := gtk.NewTextView()
 	tview.SetWrapMode(gtk.WrapWordChar)
 	tview.SetAcceptsTab(true)
@@ -132,6 +134,11 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 
 	send.Connect("activate", func() {
 		ev := copyMessage(buffer, roomID)
+
+		head := buffer.StartIter()
+		tail := buffer.EndIter()
+		buffer.Delete(&head, &tail)
+
 		go func() {
 			client := gotktrix.FromContext(ctx)
 			_, err := client.RoomEventSend(ev.RoomID, ev.Type(), ev)
@@ -181,6 +188,16 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 		buffer: buffer,
 		ctx:    ctx,
 		roomID: roomID,
+	}
+}
+
+// requestAllMembers asynchronously fills up the local state with the given
+// room's members.
+func requestAllMembers(ctx context.Context, roomID matrix.RoomID) {
+	client := gotktrix.FromContext(ctx)
+
+	if err := client.RoomEnsureMembers(roomID); err != nil {
+		app.Error(ctx, errors.Wrap(err, "failed to prefetch members"))
 	}
 }
 

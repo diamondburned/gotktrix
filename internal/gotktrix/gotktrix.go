@@ -3,8 +3,10 @@ package gotktrix
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/bits"
+	"mime"
 	"sync"
 
 	"github.com/chanbakjsd/gotrix"
@@ -208,10 +210,99 @@ func (c *Client) Thumbnail(mURL matrix.URL, w, h int) (string, error) {
 	return c.MediaThumbnailURL(mURL, true, w, h, api.MediaThumbnailCrop)
 }
 
+// ScaledThumbnail is like Thumbnaill, except the image URL in the image
+// respects the original aspect ratio and not the requested one.
+func (c *Client) ScaledThumbnail(mURL matrix.URL, w, h int) (string, error) {
+	return c.MediaThumbnailURL(mURL, true, w, h, api.MediaThumbnailScale)
+}
+
+// ImageThumbnail gets the thumbnail or direct URL of the image from the
+// message.
+func (c *Client) ImageThumbnail(msg event.RoomMessageEvent, maxW, maxH int) (string, error) {
+	i, err := msg.ImageInfo()
+	if err == nil {
+		maxW, maxH = MaxSize(i.Width, i.Height, maxW, maxH)
+
+		if i.ThumbnailURL != "" {
+			return c.ScaledThumbnail(i.ThumbnailURL, maxW, maxH)
+		}
+	}
+
+	if msg.MsgType != event.RoomMessageImage {
+		return "", errors.New("message is not image")
+	}
+
+	return c.ScaledThumbnail(msg.URL, maxW, maxH)
+}
+
+// MaxSize returns the maximum size that can fit within the given max width and
+// height. Aspect ratio is preserved.
+func MaxSize(w, h, maxW, maxH int) (int, int) {
+	if w < maxW && h < maxH {
+		return w, h
+	}
+
+	if w > h {
+		h = h * maxW / w
+		w = maxW
+	} else {
+		w = w * maxH / h
+		h = maxH
+	}
+
+	return w, h
+}
+
+// MessageMediaURL gets the message's media URL, if any.
+func (c *Client) MessageMediaURL(msg event.RoomMessageEvent) (string, error) {
+	filename := msg.Body
+
+	if filename == "" {
+		i, err := msg.FileInfo()
+		if err == nil {
+			t, err := mime.ExtensionsByType(i.MimeType)
+			if err == nil && t != nil {
+				filename = "video" + t[0]
+			}
+		}
+	}
+
+	u, err := c.MediaDownloadURL(msg.URL, true, filename)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get download URL")
+	}
+
+	return u, nil
+}
+
 // RoomEvent queries the event with the given type. If the event type implies a
 // state event, then the empty key is tried.
 func (c *Client) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, error) {
 	return c.State.RoomEvent(roomID, typ)
+}
+
+// RoomEnsureMembers ensures that the given room has all its members fetched.
+func (c *Client) RoomEnsureMembers(roomID matrix.RoomID) error {
+	const key = "ensure-members"
+
+	if !c.State.SetRoom(roomID, key) {
+		return nil
+	}
+
+	p, err := c.State.RoomPreviousBatch(roomID)
+	if err != nil {
+		c.State.ResetRoom(roomID, key)
+		return fmt.Errorf("no previous_batch for room %q found", roomID)
+	}
+
+	e, err := c.Client.RoomMembers(roomID, api.RoomMemberFilter{At: p})
+	if err != nil {
+		c.State.ResetRoom(roomID, key)
+		return errors.Wrap(err, "failed to fetch members")
+	}
+
+	c.State.AddRoomEvents(roomID, e)
+	return nil
 }
 
 // RoomTimeline queries the state cache for the timeline of the given room. If

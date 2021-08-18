@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -54,6 +55,12 @@ func FromContext(ctx context.Context) *Application {
 	return app
 }
 
+// OpenURI opens the given URI using the system's default application.
+func OpenURI(ctx context.Context, uri string) {
+	ts := uint32(time.Now().Unix())
+	gtk.ShowURI(FromContext(ctx).Window(), uri, ts)
+}
+
 // Wrap wraps a GTK application.
 func Wrap(gtkapp *gtk.Application) *Application {
 	cssutil.ApplyGlobalCSS()
@@ -81,13 +88,27 @@ func Wrap(gtkapp *gtk.Application) *Application {
 
 // Error calls Error on the application inside the context. It panics if the
 // context does not have the application.
-func Error(ctx context.Context, err ...error) {
-	FromContext(ctx).Error(err...)
+func Error(ctx context.Context, errs ...error) {
+	for _, err := range errs {
+		log.Println("error:", err)
+	}
+
+	if app := FromContext(ctx); app != nil {
+		app.Error(errs...)
+	}
 }
 
 // Fatal is similar to Error, but calls Fatal instead.
-func Fatal(ctx context.Context, err ...error) {
-	FromContext(ctx).Fatal(err...)
+func Fatal(ctx context.Context, errs ...error) {
+	for _, err := range errs {
+		log.Println("fatal:", err)
+	}
+
+	if app := FromContext(ctx); app != nil {
+		app.Fatal(errs...)
+	} else {
+		panic("fatal error(s) occured")
+	}
 }
 
 // Error shows an error popup.

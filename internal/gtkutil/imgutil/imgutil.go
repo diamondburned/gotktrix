@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"runtime"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/gregjones/httpcache"
 	"github.com/gregjones/httpcache/diskcache"
@@ -72,17 +72,15 @@ func async(ctx context.Context, do func() (func(), error)) {
 		if err := sema.Acquire(ctx, 1); err != nil {
 			return
 		}
+		defer sema.Release(1)
 
 		f, err := do()
 		if err != nil {
-			log.Println("async GET error:", err)
+			app.Error(ctx, errors.Wrap(err, "imgutil GET"))
 			return
 		}
 
 		glib.IdleAdd(func() {
-			// Don't release until the callback is done.
-			defer sema.Release(1)
-
 			select {
 			case <-ctx.Done():
 				// don't call f if cancelledd

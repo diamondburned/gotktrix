@@ -98,6 +98,49 @@ func (s *State) SetWhoami(uID matrix.UserID) {
 	s.idMut.Unlock()
 }
 
+// RoomIsSet gets an arbitrary boolean assigned to each room using the given
+// key. It's mostly used for lazy fetching in gotktrix.
+func (s *State) RoomIsSet(roomID matrix.RoomID, key string) bool {
+	var v bool
+	s.top.FromPath(s.paths.rooms.Tail(string(roomID), "_roombool")).Get(key, &v)
+	return v
+}
+
+// SetRoom sets the room's boolean key, unless if the key is already set before,
+// then false is returned, otherwise true.
+//
+// Atomically, it can be described as an atomic compare-and-swap instruction:
+//
+//    atomic.CompareAndSwapUint32(&v, 0, 1) -> set:bool
+//
+func (s *State) SetRoom(roomID matrix.RoomID, key string) (set bool) {
+	// Premature check using a RO transaction.
+	if s.RoomIsSet(roomID, key) {
+		return false
+	}
+
+	n := s.top.FromPath(s.paths.rooms.Tail(string(roomID), "_roombool"))
+	n.TxUpdate(func(n db.Node) error {
+		// Double-check the database to avoid racing other callers.
+		if err := n.Get(key, &set); err == nil {
+			// set == true, so we exit.
+			set = false
+			return err
+		}
+
+		set = true
+		return n.Set(key, set)
+	})
+
+	return
+}
+
+// ResetRoom resets the room's boolean key. After this call, RoomIsSet will
+// return false.
+func (s *State) ResetRoom(roomID matrix.RoomID, key string) {
+	s.top.FromPath(s.paths.rooms.Tail(string(roomID), "_roombool")).Delete(key)
+}
+
 // RoomEvent queries the event with the given type. If the event type implies a
 // state event, then the empty key is tried.
 func (s *State) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, error) {

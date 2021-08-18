@@ -17,7 +17,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/md"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/md/hl"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
 	"golang.org/x/net/html"
 )
 
@@ -89,58 +88,30 @@ func renderIntoBuffer(ctx context.Context, tview *gtk.TextView, node *html.Node)
 
 func trimBufferNewLineRight(buf *gtk.TextBuffer) {
 	tail := buf.EndIter()
-	// Move from the end to the last character.
-	if !tail.BackwardChar() {
-		return
+	head := tail.Copy()
+
+	// Move from the end to the last character with BackwardChar. Make sure to
+	// not delete characters within a tag, since that will screw up the
+	// rendering.
+	for tail.BackwardChar() && rune(tail.Char()) == '\n' && len(tail.Tags()) == 0 {
+		// We had to rewind tail to read the last character, so the head can
+		// start there.
+		head.SetOffset(tail.Offset())
+		// Move tail back to the end.
+		tail.ForwardToEnd()
+
+		buf.Delete(head, &tail)
 	}
-	if rune(tail.Char()) != '\n' {
-		return
-	}
-
-	head := buf.IterAtOffset(tail.Offset() - 1)
-	buf.Delete(&head, &tail)
-
-	// 	text := buf.Slice(&head, &tail, true)
-	// 	if !strings.HasSuffix(text, "\n") {
-	// 		return &tail
-	// 	}
-
-	// 	trim := len(strings.TrimRight(text, "\n"))
-
-	// 	log.Printf("text      = %q", text)
-	// 	log.Printf("trimming  = %d", trim)
-	// 	log.Printf("trim text = %q", text[:trim])
-	// 	log.Printf("end bound = %d", tail.Offset()-(len(text)-len(strings.TrimRight(text, "\n"))))
-
-	// 	// Calculate the new tail to trim the rest off.
-	// 	head.SetOffset(trim)
-	// 	buf.Delete(&head, &tail)
-
-	// 	return &tail
 }
 
 func trimBufferNewLineLeft(buf *gtk.TextBuffer) {
 	head := buf.StartIter()
-	if rune(head.Char()) != '\n' {
-		return
+	tail := head.Copy()
+
+	for rune(head.Char()) == '\n' && len(head.Tags()) == 0 {
+		tail.SetOffset(1)
+		buf.Delete(&head, tail)
 	}
-
-	tail := buf.IterAtOffset(1)
-	buf.Delete(&head, &tail)
-
-	// tail := buf.EndIter()
-	// head := buf.StartIter()
-	// text := buf.Slice(&head, &tail, true)
-
-	// if !strings.HasPrefix(text, "\n") {
-	// 	return &head
-	// }
-
-	// // Calculate the new tail to trim the rest off.
-	// tail.SetOffset(len(text) - len(strings.TrimLeft(text, "\n")))
-	// buf.Delete(&head, &tail)
-
-	// return &head
 }
 
 type traverseStatus uint8
@@ -324,7 +295,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 			reqw := parseIntOr(nodeAttr(n, "width"), maxWidth)
 			reqh := parseIntOr(nodeAttr(n, "height"), maxHeight)
-			w, h := mediautil.MaxSize(reqw, reqh, maxWidth, maxHeight)
+			w, h := gotktrix.MaxSize(reqw, reqh, maxWidth, maxHeight)
 
 			thumbnail, _ := gotktrix.FromContext(s.ctx).Offline().Thumbnail(src, w, h)
 			imgutil.AsyncGET(s.ctx, thumbnail, func(p gdk.Paintabler) {
