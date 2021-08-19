@@ -125,6 +125,14 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		})
 	})
 
+	page.scroll.OnBottomed(func(bottomed bool) {
+		if bottomed {
+			// Mark the latest message as read everytime the user scrolls down
+			// to the bottom.
+			page.MarkAsRead()
+		}
+	})
+
 	return &page
 }
 
@@ -185,7 +193,7 @@ func (p *Page) OnRoomEvent(raw *event.RawEvent) {
 
 // MarkAsRead marks the room as read.
 func (p *Page) MarkAsRead() {
-	if !p.IsActive() || len(p.messages) == 0 {
+	if !p.IsActive() || !p.scroll.IsBottomed() || len(p.messages) == 0 {
 		return
 	}
 

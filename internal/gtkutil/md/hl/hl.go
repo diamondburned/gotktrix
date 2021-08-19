@@ -176,9 +176,13 @@ func ChangeStyle(styleName string) error {
 }
 
 // Highlight highlights the code section starting from start to end using the
-// lexer of the given language. The start and end iterators will be invalidated
-// to undefined positions inbetween start and end.
+// lexer of the given language. The start and end iterators will be invalidated,
+// but the end iterator will have its previous offset restored.
 func Highlight(ctx context.Context, start, end *gtk.TextIter, language string) {
+	// Store this so we can restore it.
+	endOffset := end.Offset()
+
+	// Memorize the offset of the end iterator.
 	buf := start.Buffer()
 	txt := buf.Slice(start, end, true)
 
@@ -192,6 +196,8 @@ func Highlight(ctx context.Context, start, end *gtk.TextIter, language string) {
 	f := newFormatter(ctx, buf, start, end, language)
 	f.do(i)
 	f.discard()
+
+	end.SetOffset(endOffset)
 }
 
 func lexer(lang string) chroma.Lexer {
@@ -236,9 +242,9 @@ type state struct {
 
 var statePool = sync.Pool{
 	New: func() interface{} {
-		state := &state{}
-		state.ranges = make([][2]int, 0, 10)
-		return state
+		return &state{
+			ranges: make([][2]int, 0, 10),
+		}
 	},
 }
 

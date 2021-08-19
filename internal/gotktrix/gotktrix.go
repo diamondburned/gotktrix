@@ -381,7 +381,7 @@ func (c *Client) MarkRoomAsRead(roomID matrix.RoomID, eventID matrix.EventID) er
 
 	return c.Request(
 		"POST", api.EndpointRoom(roomID)+"/read_markers",
-		nil, httputil.WithJSONBody(request),
+		nil, httputil.WithToken(), httputil.WithJSONBody(request),
 	)
 }
 

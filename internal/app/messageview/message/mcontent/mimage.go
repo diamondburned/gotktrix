@@ -23,6 +23,10 @@ type imageContent struct {
 }
 
 var imageCSS = cssutil.Applier("mcontent-image", `
+	.mcontent-image {
+		background-color: @theme_bg_color;
+		border: 1px solid @theme_base_color;
+	}
 	.mcontent-image button {
 		border-radius: 0;
 		padding: 0;

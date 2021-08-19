@@ -5,10 +5,17 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
+type bottomedFunc struct {
+	f func(bool)
+}
+
 // Window describes an automatically scrolled window.
 type Window struct {
 	*gtk.ScrolledWindow
-	vadj       gtk.Adjustment
+	vadj gtk.Adjustment
+
+	onBottomed map[*bottomedFunc]struct{}
+
 	bottomed   bool // :floshed:
 	willScroll bool
 }
@@ -19,15 +26,20 @@ func NewWindow() *Window {
 	sw.SetPropagateNaturalHeight(true)
 	sw.SetPlacement(gtk.CornerBottomLeft)
 
-	// sw.vadj.Connect("notify::upper", func() {
-	// 	// We can't really trust Gtk to be competent.
-	// 	if sw.bottomed {
-	// 		sw.vadj.SetValue(sw.vadj.Upper())
-	// 	}
-	// })
+	sw.vadj.Connect("notify::upper", func() {
+		// If the upper value changed, then update the current value
+		// accordingly.
+		if sw.bottomed {
+			sw.vadj.SetValue(sw.vadj.Upper())
+		}
+	})
 	sw.vadj.Connect("value-changed", func() {
 		// Manually check if we're anchored on scroll.
 		sw.bottomed = sw.vadj.Value() >= (sw.vadj.Upper() - sw.vadj.PageSize())
+
+		for box := range sw.onBottomed {
+			box.f(sw.bottomed)
+		}
 	})
 
 	return &sw
@@ -57,4 +69,17 @@ func (w *Window) ScrollToBottom() {
 		w.vadj.SetValue(w.vadj.Upper())
 		w.willScroll = false
 	})
+}
+
+// OnBottomed registers the given function to be called when the user bottoms
+// out the scrolled window or not.
+func (w *Window) OnBottomed(f func(bottomed bool)) func() {
+	if w.onBottomed == nil {
+		w.onBottomed = make(map[*bottomedFunc]struct{}, 1)
+	}
+
+	box := &bottomedFunc{f}
+	w.onBottomed[box] = struct{}{}
+
+	return func() { delete(w.onBottomed, box) }
 }

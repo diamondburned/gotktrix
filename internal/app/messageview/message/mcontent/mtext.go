@@ -156,9 +156,15 @@ func (s *renderState) traverseSiblings(first *html.Node) traverseStatus {
 
 // nTrailingNewLine counts the number of trailing new lines up to 2.
 func (s *renderState) nTrailingNewLine() int {
-	head := s.buf.IterAtOffset(s.iter.Offset() - 2)
-	text := s.buf.Slice(&head, s.iter, true)
-	return strings.Count(text, "\n")
+	seeker := s.iter.Copy()
+
+	for i := 0; i < 2; i++ {
+		if !seeker.BackwardChar() || rune(seeker.Char()) != '\n' {
+			return i
+		}
+	}
+
+	return 2
 }
 
 // p starts a paragraph by padding the current text with at most 2 new lines.
@@ -193,6 +199,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			newLines -= n
 		}
 		if newLines > 0 {
+			log.Printf("making up newLines = %d for text %q", newLines, text)
 			s.buf.Insert(s.iter, strings.Repeat("\n", newLines), -1)
 		}
 

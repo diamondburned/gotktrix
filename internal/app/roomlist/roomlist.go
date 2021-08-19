@@ -45,7 +45,7 @@ var listCSS = cssutil.Applier("roomlist-list", `
 		background: inherit;
 	}
 	.roomlist-section list row:selected {
-		background-color: alpha(@accent_color, 0.2);
+		background-color: alpha(@accent_color, 0.35);
 		color: mix(@accent_color, @theme_fg_color, 0.25);
 	}
 

@@ -3,7 +3,6 @@ package mauthor
 import (
 	"fmt"
 	"hash"
-	"hash/fnv"
 	"image/color"
 	"math"
 	"sync"
@@ -15,15 +14,17 @@ type ColorHasher interface {
 }
 
 var (
-	// FNVHasher is the string hasher used for color hashing.
-	FNVHasher = func() hash.Hash32 { return fnv.New32a() }
+	// FNVHasher  = func() hash.Hash32 { return fnv.New32a() }
+
+	// DJB2Hasher is the string hasher used for color hashing.
+	DJB2Hasher = newDJB32
 
 	// LightColorHasher generates a pastel color name for use with a dark
 	// background.
-	LightColorHasher ColorHasher = HSVHasher{FNVHasher, 0.32, 0.97}
+	LightColorHasher ColorHasher = HSVHasher{DJB2Hasher, 0.32, 0.97}
 	// DarkColorHasher generates a darker, stronger color name for use with a
 	// light background.
-	DarkColorHasher ColorHasher = HSVHasher{FNVHasher, 1.00, 0.65}
+	DarkColorHasher ColorHasher = HSVHasher{DJB2Hasher, 1.00, 0.65}
 )
 
 // RGBHex converts the given color to a HTML hex color string. The alpha value

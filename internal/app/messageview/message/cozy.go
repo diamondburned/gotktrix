@@ -63,7 +63,7 @@ type collapsedMessage struct {
 
 const (
 	avatarSize  = 36
-	avatarWidth = 36 + 10*2 // keep consistent with CSS
+	avatarWidth = avatarSize + 10*2 // keep consistent with CSS
 )
 
 func (v messageViewer) collapsedMessage(evbox eventBox) *collapsedMessage {

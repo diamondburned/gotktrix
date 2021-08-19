@@ -2,8 +2,6 @@ package room
 
 import (
 	"context"
-	"fmt"
-	"html"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -68,8 +66,8 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 	.room-unread {
 		background-image: linear-gradient(
 			to right,
-			alpha(@accent_bg_color, 0.1),
-			alpha(@accent_bg_color, 0.3)
+			alpha(@accent_bg_color, 0.05),
+			alpha(@accent_bg_color, 0.15)
 		);
 	}
 `)
@@ -306,51 +304,16 @@ func (r *Room) InvalidatePreview() {
 
 	client := gotktrix.FromContext(r.ctx).Offline()
 
-	events, err := client.RoomTimeline(r.ID)
+	events, err := client.RoomTimelineRaw(r.ID)
 	if err != nil || len(events) == 0 {
 		r.erasePreview()
 		return
 	}
 
-	preview := generatePreview(client, r.ID, events[len(events)-1])
+	preview := message.RenderEvent(r.ctx, &events[len(events)-1])
 	r.preview.SetMarkup(preview)
 	r.preview.SetTooltipMarkup(preview)
 	r.preview.Show()
-}
-
-func generatePreview(c *gotktrix.Client, rID matrix.RoomID, ev event.RoomEvent) string {
-	memberName, _ := c.MemberName(rID, ev.Sender())
-	name := html.EscapeString(memberName.Name)
-
-	switch ev := ev.(type) {
-	case event.RoomMessageEvent:
-		return fmt.Sprintf(
-			`%s: <span alpha="75%%">%s</span>`,
-			name, html.EscapeString(trimString(ev.Body, 256)),
-		)
-	default:
-		return fmt.Sprintf(
-			`<span alpha="75%%"><i>%s %s</i></span>`,
-			name, message.EventMessageTail(c, ev),
-		)
-	}
-}
-
-func trimString(s string, maxLen int) string {
-	lines := strings.SplitN(s, "\n", 2)
-	if len(lines) == 0 {
-		return ""
-	}
-
-	if len(lines[0]) > maxLen {
-		return lines[0][:maxLen] + "…"
-	}
-
-	if len(lines) > 1 || len(lines[0]) > maxLen {
-		return lines[0] + "…"
-	}
-
-	return lines[0]
 }
 
 // InvalidateRead invalidates the read state of this room.

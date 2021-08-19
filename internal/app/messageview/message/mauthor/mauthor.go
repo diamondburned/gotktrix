@@ -88,7 +88,7 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 	color := opts.hasher.Hash(string(uID))
 
 	b := strings.Builder{}
-	b.Grow(1024)
+	b.Grow(512)
 	b.WriteString(fmt.Sprintf(
 		`<span color="%s">%s</span>`,
 		RGBHex(color), html.EscapeString(name),
