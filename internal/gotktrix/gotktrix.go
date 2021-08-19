@@ -2,6 +2,7 @@ package gotktrix
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -72,28 +73,61 @@ func FromContext(ctx context.Context) *Client {
 	return c
 }
 
+// ClientAuth holds a partial client.
+type ClientAuth struct {
+	c *gotrix.Client
+}
+
+// Discover wraps around gotrix.DiscoverWithClienT.
+func Discover(hcl httputil.Client, serverName string) (*ClientAuth, error) {
+	c, err := gotrix.DiscoverWithClient(hcl, serverName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ClientAuth{c}, nil
+}
+
+// WithContext creates a copy of ClientAuth that uses the provided context.
+func (a *ClientAuth) WithContext(ctx context.Context) *ClientAuth {
+	return &ClientAuth{c: a.c.WithContext(ctx)}
+}
+
+// LoginPassword authenticates the client using the provided username and
+// password.
+func (a *ClientAuth) LoginPassword(username, password string) (*Client, error) {
+	if err := a.c.LoginPassword(username, password); err != nil {
+		return nil, err
+	}
+
+	return wrapClient(a.c)
+}
+
+// LoginToken authenticates the client using the provided token.
+func (a *ClientAuth) LoginToken(token string) (*Client, error) {
+	if err := a.c.LoginToken(token); err != nil {
+		return nil, err
+	}
+	return wrapClient(a.c)
+}
+
 type Client struct {
 	*gotrix.Client
 	*handler.Registry
 	State *state.State
+
+	userID matrix.UserID
 }
 
 // New wraps around gotrix.NewWithClient.
-func New(httpClient httputil.Client, serverName string) (*Client, error) {
-	c, err := gotrix.NewWithClient(httpClient, serverName)
+func New(hcl httputil.Client, serverName string, uID matrix.UserID, token string) (*Client, error) {
+	c, err := gotrix.NewWithClient(hcl, serverName)
 	if err != nil {
 		return nil, err
 	}
 
-	return wrapClient(c)
-}
-
-// Discover wraps around gotrix.DiscoverWithClienT.
-func Discover(httpClient httputil.Client, serverName string) (*Client, error) {
-	c, err := gotrix.DiscoverWithClient(httpClient, serverName)
-	if err != nil {
-		return nil, err
-	}
+	c.UserID = uID
+	c.AccessToken = token
 
 	return wrapClient(c)
 }
@@ -101,7 +135,15 @@ func Discover(httpClient httputil.Client, serverName string) (*Client, error) {
 func wrapClient(c *gotrix.Client) (*Client, error) {
 	logInit()
 
-	state, err := state.New(config.Path("matrix-state"))
+	u, err := c.Whoami()
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid user account")
+	}
+
+	// URLEncoding is path-safe; StdEncoding is not.
+	b64Username := base64.URLEncoding.EncodeToString([]byte(u))
+
+	state, err := state.New(config.Path("matrix-state", b64Username), u)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make state db")
 	}
@@ -115,6 +157,7 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 		Client:   c,
 		Registry: registry,
 		State:    state,
+		userID:   u,
 	}, nil
 }
 
@@ -161,26 +204,13 @@ func (c *Client) WithContext(ctx context.Context) *Client {
 		Client:   c.Client.WithContext(ctx),
 		Registry: c.Registry,
 		State:    c.State,
+		userID:   c.userID,
 	}
 }
 
 // Whoami is a cached version of the Whoami method.
 func (c *Client) Whoami() (matrix.UserID, error) {
-	u, err := c.State.Whoami()
-	if err == nil {
-		return u, nil
-	}
-
-	u, err = c.Client.Whoami()
-	if err != nil {
-		return "", err
-	}
-
-	// TODO: cache stampede problem, yadda yadda. That shouldn't even be a
-	// problem most of the time if the method is called before anything else.
-
-	c.State.SetWhoami(u)
-	return u, nil
+	return c.userID, nil
 }
 
 // thumbnailScale determines the sacle at which square/round thumbnails will be

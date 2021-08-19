@@ -166,6 +166,9 @@ func (p *Page) RoomID() matrix.RoomID {
 
 // RoomName returns this page's room name.
 func (p *Page) RoomName() string {
+	if p.name == "" {
+		return string(p.roomID)
+	}
 	return p.name
 }
 

@@ -112,7 +112,7 @@ func timelineEventKey(ev *event.RawEvent) string {
 		str = i64ZeroPadding[len(i64ZeroPadding)-len(str):] + str
 	} else {
 		// Account for negative number.
-		str = "-" + i64ZeroPadding[len(i64ZeroPadding)-len(str)-1:] + str[1:]
+		str = "-" + i64ZeroPadding[len(i64ZeroPadding)-len(str)-2:] + str[1:]
 	}
 
 	// use \x01 to avoid colliding delimiter

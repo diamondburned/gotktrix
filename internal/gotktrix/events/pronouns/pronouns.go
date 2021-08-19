@@ -157,6 +157,18 @@ func (p PronounForms) String() string {
 	}
 }
 
+// SubjectObject is similar to String, except the Possessive form is omitted.
+func (p PronounForms) SubjectObject() string {
+	switch {
+	case p.Subject == "":
+		return ""
+	case p.Object == "":
+		return p.Subject
+	default:
+		return p.Subject + "/" + p.Object
+	}
+}
+
 // SelfPronouns fetches the current user's preferred pronouns. A zero-value
 // Preferred instance is returned if the user has none.
 func SelfPronouns(c *gotktrix.Client) Preferred {

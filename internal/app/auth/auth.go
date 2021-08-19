@@ -31,7 +31,7 @@ type Assistant struct {
 
 	// states, can be nil depending on the steps
 	accounts      []*Account
-	currentClient *gotktrix.Client
+	currentClient *gotktrix.ClientAuth
 
 	keyring *secret.Keyring
 	encrypt *secret.EncryptedFile
@@ -98,7 +98,7 @@ func (a *Assistant) signinPage() {
 }
 
 // step 2 activate
-func (a *Assistant) chooseHomeserver(client *gotktrix.Client) {
+func (a *Assistant) chooseHomeserver(client *gotktrix.ClientAuth) {
 	a.currentClient = client
 	a.NextStep() // step 2 -> 3
 }
@@ -111,7 +111,7 @@ func (a *Assistant) chooseLoginMethod(method loginMethod) {
 }
 
 // finish should be called once a.currentClient has been logged on.
-func (a *Assistant) finish(acc *Account) {
+func (a *Assistant) finish(c *gotktrix.Client, acc *Account) {
 	if a.onConnect == nil {
 		log.Println("onConnect handler not attached")
 		return
@@ -120,7 +120,7 @@ func (a *Assistant) finish(acc *Account) {
 	a.hasConnected = true
 	a.Continue()
 	a.Close()
-	a.onConnect(a.currentClient, acc)
+	a.onConnect(c, acc)
 }
 
 var inputBoxCSS = cssutil.Applier("auth-input-box", `

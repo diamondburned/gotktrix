@@ -325,13 +325,13 @@ func generatePreview(c *gotktrix.Client, rID matrix.RoomID, ev event.RoomEvent) 
 	switch ev := ev.(type) {
 	case event.RoomMessageEvent:
 		return fmt.Sprintf(
-			`%s: <span alpha="85%%">%s</span>`,
+			`%s: <span alpha="75%%">%s</span>`,
 			name, html.EscapeString(trimString(ev.Body, 256)),
 		)
 	default:
 		return fmt.Sprintf(
-			`<span alpha="85%%"><i>%s %s</i></span>`,
-			name, message.EventMessageTail(ev),
+			`<span alpha="75%%"><i>%s %s</i></span>`,
+			name, message.EventMessageTail(c, ev),
 		)
 	}
 }

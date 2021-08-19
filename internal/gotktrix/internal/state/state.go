@@ -3,7 +3,6 @@ package state
 import (
 	"encoding/json"
 	"log"
-	"sync"
 
 	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/api"
@@ -26,27 +25,24 @@ const (
 // get multiple events will ignore unknown events, while methods that get a
 // single event will error out when that happens.
 type State struct {
-	db    *db.KV
-	top   db.Node
-	paths dbPaths
-
-	idErr  error
-	idUser matrix.UserID
-	idMut  sync.RWMutex
+	db     *db.KV
+	top    db.Node
+	paths  dbPaths
+	userID matrix.UserID
 }
 
 // New creates a new State using bbolt pointing to the given path.
-func New(path string) (*State, error) {
+func New(path string, userID matrix.UserID) (*State, error) {
 	kv, err := db.NewKVFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewWithDatabase(kv)
+	return NewWithDatabase(kv, userID)
 }
 
 // NewWithDatabase creates a new State with the given kvpack database.
-func NewWithDatabase(kv *db.KV) (*State, error) {
+func NewWithDatabase(kv *db.KV, userID matrix.UserID) (*State, error) {
 	topPath := db.NewNodePath("gotktrix")
 	topNode := kv.NodeFromPath(topPath)
 
@@ -54,7 +50,7 @@ func NewWithDatabase(kv *db.KV) (*State, error) {
 	var version int
 
 	// Version is provided, so old database.
-	if err := topNode.Get("version", &version); err == nil && version < Version {
+	if err := topNode.Get("version", &version); err == nil && version != Version {
 		// Database is too outdated; wipe it.
 		if err := kv.DropPrefix(topPath); err != nil {
 			return nil, errors.Wrap(err, "failed to wipe old state")
@@ -67,35 +63,16 @@ func NewWithDatabase(kv *db.KV) (*State, error) {
 	}
 
 	return &State{
-		db:    kv,
-		top:   kv.NodeFromPath(topPath),
-		paths: newDBPaths(topPath),
+		db:     kv,
+		top:    kv.NodeFromPath(topPath),
+		paths:  newDBPaths(topPath),
+		userID: userID,
 	}, nil
 }
 
 // Close closes the internal database.
 func (s *State) Close() error {
 	return s.db.Close()
-}
-
-// Whoami returns the cached user ID. An error is returned if nothing is yet
-// cached.
-func (s *State) Whoami() (matrix.UserID, error) {
-	s.idMut.RLock()
-	defer s.idMut.RUnlock()
-
-	if s.idUser == "" && s.idErr == nil {
-		return "", errors.New("whoami not fetched")
-	}
-
-	return s.idUser, s.idErr
-}
-
-// SetWhoami sets the internal user ID.
-func (s *State) SetWhoami(uID matrix.UserID) {
-	s.idMut.Lock()
-	s.idUser = uID
-	s.idMut.Unlock()
 }
 
 // RoomIsSet gets an arbitrary boolean assigned to each room using the given
@@ -158,7 +135,23 @@ func (s *State) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, er
 
 // RoomState returns the last event set by RoomEventSet. It never returns an
 // error as it does not forget state.
-func (s *State) RoomState(roomID matrix.RoomID, typ event.Type, key string) (event.StateEvent, error) {
+func (s *State) RoomState(
+	roomID matrix.RoomID, typ event.Type, key string) (event.StateEvent, error) {
+
+	return s.roomState(roomID, typ, key, false)
+}
+
+// // PastRoomState is similar to RoomState, except the function fetches the event
+// // stored before the current event that RoomState would return.
+// func (s *State) PastRoomState(
+// 	roomID matrix.RoomID, typ event.Type, key string) (event.StateEvent, error) {
+
+// 	return s.roomState(roomID, typ, key, true)
+// }
+
+func (s *State) roomState(
+	roomID matrix.RoomID, typ event.Type, key string, past bool) (event.StateEvent, error) {
+
 	raw := event.RawEvent{RoomID: roomID}
 
 	var dbKey string
@@ -169,7 +162,17 @@ func (s *State) RoomState(roomID matrix.RoomID, typ event.Type, key string) (eve
 		dbKey = db.Keys(string(roomID), string(typ))
 	}
 
-	if err := s.db.NodeFromPath(s.paths.rooms).Get(dbKey, &raw); err != nil {
+	node := s.db.NodeFromPath(s.paths.rooms)
+
+	err := node.Get(dbKey, &raw)
+
+	// var err error
+	// if past {
+	// } else {
+	// 	err = node.GetOld(dbKey, &raw)
+	// }
+
+	if err != nil {
 		return nil, err
 	}
 
@@ -187,7 +190,9 @@ func (s *State) RoomState(roomID matrix.RoomID, typ event.Type, key string) (eve
 }
 
 // RoomStates returns the last set of events set by RoomEventSet.
-func (s *State) RoomStates(roomID matrix.RoomID, typ event.Type) (map[string]event.StateEvent, error) {
+func (s *State) RoomStates(
+	roomID matrix.RoomID, typ event.Type) (map[string]event.StateEvent, error) {
+
 	var states map[string]event.StateEvent
 
 	return states, s.EachRoomStateLen(roomID, typ, func(e event.Event, total int) error {
@@ -291,7 +296,7 @@ func (s *State) Rooms() ([]matrix.RoomID, error) {
 		filtered := roomIDs[:0]
 
 		for _, id := range roomIDs {
-			memberKey := db.Keys(string(id), string(event.TypeRoomMember), string(s.idUser))
+			memberKey := db.Keys(string(id), string(event.TypeRoomMember), string(s.userID))
 			if !n.Exists(memberKey) {
 				continue
 			}
@@ -418,17 +423,10 @@ func (s *State) IsDirect(roomID matrix.RoomID) (is, ok bool) {
 			return nil
 		}
 
-		// Query a RoomMemberEvent second, but we need the current user's ID to
-		// do so. Exit otherwise.
-		u, err := s.Whoami()
-		if err != nil {
-			return err
-		}
-
-		key := db.Keys(string(roomID), string(event.TypeRoomMember), string(u))
+		key := db.Keys(string(roomID), string(event.TypeRoomMember), string(s.userID))
 		raw := event.RawEvent{
 			RoomID:   roomID,
-			StateKey: string(u),
+			StateKey: string(s.userID),
 		}
 
 		if err := s.db.NodeFromPath(s.paths.rooms).Get(key, &raw); err != nil {

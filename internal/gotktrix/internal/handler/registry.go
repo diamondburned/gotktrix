@@ -143,10 +143,6 @@ func (r *Registry) AddEvents(sync *api.SyncResponse) error {
 		r.invokeRoom(k, v.State.Events)
 		r.invokeRoom(k, v.Ephemeral.Events)
 		r.invokeRoom(k, v.AccountData.Events)
-
-		if r.caughtUp {
-			r.invokeTimeline(k, v.Timeline.Events)
-		}
 	}
 
 	for k, v := range sync.Rooms.Invited {
@@ -156,13 +152,19 @@ func (r *Registry) AddEvents(sync *api.SyncResponse) error {
 	for k, v := range sync.Rooms.Left {
 		r.invokeRoom(k, v.State.Events)
 		r.invokeRoom(k, v.AccountData.Events)
-
-		if r.caughtUp {
-			r.invokeTimeline(k, v.Timeline.Events)
-		}
 	}
 
-	r.caughtUp = true
+	if r.caughtUp {
+		for k, v := range sync.Rooms.Joined {
+			r.invokeTimeline(k, v.Timeline.Events)
+		}
+		for k, v := range sync.Rooms.Left {
+			r.invokeTimeline(k, v.Timeline.Events)
+		}
+	} else {
+		r.caughtUp = true
+	}
+
 	return nil
 }
 

@@ -2,8 +2,11 @@ module github.com/diamondburned/gotktrix
 
 go 1.17
 
+replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix v0.1.2-0.20210819072645-8881a4857172
+
 require (
 	github.com/alecthomas/chroma v0.9.2
+	github.com/bbrks/go-blurhash v1.1.1
 	github.com/chanbakjsd/gotrix v0.3.2-0.20210817050109-2a02defa4929
 	github.com/dgraph-io/badger/v3 v3.2103.0
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210818012540-1532a1fd9205
@@ -20,7 +23,6 @@ require (
 
 require (
 	github.com/DataDog/zstd v1.4.1 // indirect
-	github.com/bbrks/go-blurhash v1.1.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/danieljoos/wincred v1.1.0 // indirect
 	github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964 // indirect

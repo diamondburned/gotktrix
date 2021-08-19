@@ -138,7 +138,7 @@ func (v messageViewer) cozyMessage(box eventBox) *cozyMessage {
 	avatar.SetVAlign(gtk.AlignStart)
 	avatar.SetMarginTop(2)
 
-	mxc, _ := client.AvatarURL(box.raw.Sender)
+	mxc, _ := client.MemberAvatar(box.raw.RoomID, box.raw.Sender)
 	if mxc != nil {
 		setAvatar(v, avatar, client, *mxc)
 	}
@@ -183,7 +183,7 @@ func (m *cozyMessage) asyncFetch() {
 		markup := mauthor.Markup(m.parent.client(), m.parent.raw.RoomID, m.parent.raw.Sender, opt)
 		glib.IdleAdd(func() { m.sender.SetMarkup(markup) })
 
-		mxc, _ := m.parent.client().AvatarURL(m.parent.raw.Sender)
+		mxc, _ := m.parent.client().MemberAvatar(m.parent.raw.RoomID, m.parent.raw.Sender)
 		if mxc != nil {
 			setAvatar(m.parent, m.avatar, m.parent.client(), *mxc)
 		}

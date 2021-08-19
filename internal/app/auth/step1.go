@@ -237,7 +237,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 		go func() {
 			client := a.client.WithContext(ctx)
 
-			c, err := gotktrix.New(client, acc.Server)
+			c, err := gotktrix.New(client, acc.Server, matrix.UserID(acc.UserID), acc.Token)
 			if err != nil {
 				err = errors.Wrap(err, "server error")
 				glib.IdleAdd(func() {
@@ -249,22 +249,8 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 				return
 			}
 
-			// Set the credentials.
-			c.UserID = matrix.UserID(acc.UserID)
-			c.AccessToken = acc.Token
-
-			if _, err := c.Whoami(); err != nil {
-				err = errors.Wrap(err, "whoami error")
-				glib.IdleAdd(func() {
-					row.SetSensitive(false)
-					onError(err)
-				})
-				return
-			}
-
 			glib.IdleAdd(func() {
-				a.currentClient = c.WithContext(a.ctx)
-				a.finish(acc)
+				a.finish(c.WithContext(a.ctx), acc)
 			})
 		}()
 	}

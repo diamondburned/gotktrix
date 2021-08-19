@@ -83,6 +83,7 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 	})
 	button.Connect("clicked", func() {
 		p := gtkutil.ShowPopoverMenu(button, gtk.PosTop, [][2]string{
+			{"Nothing here yet.", ""},
 			// {"_Reorder Rooms", "selfbar.begin-reorder-mode"},
 		})
 		p.SetHasArrow(false)

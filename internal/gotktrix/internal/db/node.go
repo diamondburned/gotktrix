@@ -71,14 +71,6 @@ func convertKey(prefix [][]byte, key string) []byte {
 	return buf.Bytes()
 }
 
-func convertPrefix(prefix [][]byte) []byte {
-	return bytes.Join(prefix, []byte(delimiter))
-}
-
-func appendString(bts []byte, str string) []byte {
-	return append(bts, []byte(str)...)
-}
-
 func wrapErr(str string, err error) error {
 	if err == nil {
 		return nil
@@ -284,6 +276,36 @@ func (n Node) Get(k string, v interface{}) error {
 		},
 	))
 }
+
+/*
+// GetOld is like Get, but the previous version of the key is given. This can be
+// useful for stateful events.
+func (n Node) GetOld(k string, v interface{}) error {
+	key := convertKey(n.prefixes, k)
+
+	return wrapErr("failed to get from db", n.TxView(
+		func(n Node) error {
+			iter := n.txn.NewKeyIterator(key, badger.IteratorOptions{
+				PrefetchValues: true,
+				PrefetchSize:   1,
+			})
+			defer iter.Close()
+
+			for iter.Rewind(); iter.Valid(); iter.Next() {
+				// Grab right from the first iteration.
+				return iter.Item().Value(func(b []byte) error {
+					if err := n.kv.Unmarshal(b, v); err != nil {
+						return errors.Wrap(err, "failed to unmarshal")
+					}
+					return nil
+				})
+			}
+
+			return badger.ErrKeyNotFound
+		},
+	))
+}
+*/
 
 func (n Node) Delete(k string) error {
 	key := convertKey(n.prefixes, k)

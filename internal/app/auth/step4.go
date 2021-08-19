@@ -13,7 +13,7 @@ import (
 
 type loginStepData struct {
 	InputBox gtk.Widgetter
-	Login    func(client *gotktrix.Client) error
+	Login    func(client *gotktrix.ClientAuth) (*gotktrix.Client, error)
 }
 
 func loginStep(a *Assistant, method loginMethod) *assistant.Step {
@@ -27,7 +27,7 @@ func loginStep(a *Assistant, method loginMethod) *assistant.Step {
 		inputs[1].SetVisibility(false)
 
 		data.InputBox = inputBox
-		data.Login = func(client *gotktrix.Client) error {
+		data.Login = func(client *gotktrix.ClientAuth) (*gotktrix.Client, error) {
 			return client.LoginPassword(inputs[0].Text(), inputs[1].Text())
 		}
 	case loginToken:
@@ -36,7 +36,7 @@ func loginStep(a *Assistant, method loginMethod) *assistant.Step {
 		inputs[0].SetVisibility(false)
 
 		data.InputBox = inputBox
-		data.Login = func(client *gotktrix.Client) error {
+		data.Login = func(client *gotktrix.ClientAuth) (*gotktrix.Client, error) {
 			return client.LoginToken(inputs[0].Text())
 		}
 	}
@@ -67,12 +67,13 @@ func loginStep(a *Assistant, method loginMethod) *assistant.Step {
 		go func() {
 			client := a.currentClient.WithContext(ctx)
 
-			if err := data.Login(client); err != nil {
+			c, err := data.Login(client)
+			if err != nil {
 				glib.IdleAdd(func() { onError(err) })
 				return
 			}
 
-			acc, err := copyAccount(client)
+			acc, err := copyAccount(c)
 			if err != nil {
 				glib.IdleAdd(func() { onError(err) })
 				return
@@ -80,7 +81,7 @@ func loginStep(a *Assistant, method loginMethod) *assistant.Step {
 
 			glib.IdleAdd(func() {
 				// Assistant is still busy at this point.
-				rememberMe.saveAndFinish(a, acc)
+				rememberMe.saveAndFinish(c, a, acc)
 			})
 		}()
 	}
@@ -226,7 +227,7 @@ func newRememberMeBox(a *Assistant) *rememberMeBox {
 	return &state
 }
 
-func (r *rememberMeBox) saveAndFinish(a *Assistant, acc *Account) {
+func (r *rememberMeBox) saveAndFinish(c *gotktrix.Client, a *Assistant, acc *Account) {
 	go func() {
 		var errors []error
 
@@ -245,7 +246,7 @@ func (r *rememberMeBox) saveAndFinish(a *Assistant, acc *Account) {
 		glib.IdleAdd(func() {
 			errpopup.Show(a.Window, errors, func() {
 				a.Continue()
-				a.finish(acc)
+				a.finish(c, acc)
 			})
 		})
 	}()
