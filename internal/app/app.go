@@ -53,6 +53,11 @@ func SetTitle(ctx context.Context, title string) {
 	FromContext(ctx).Window().SetTitle(title)
 }
 
+// Window returns the context's window.
+func Window(ctx context.Context) *gtk.Window {
+	return FromContext(ctx).Window()
+}
+
 // FromContext pulls the application from the given context. If the given
 // context isn't derived from Application, then nil is returned.
 func FromContext(ctx context.Context) *Application {

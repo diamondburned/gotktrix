@@ -2,9 +2,10 @@ package mcontent
 
 import (
 	"context"
+	"fmt"
+	"html"
 
 	"github.com/chanbakjsd/gotrix/event"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -115,15 +116,24 @@ func newUnknownContent(msg event.RoomMessageEvent) unknownContent {
 func (c unknownContent) content() {}
 
 type erroneousContent struct {
-	*adw.StatusPage
+	*gtk.Box
 }
 
 func newErroneousContent(desc string, w, h int) erroneousContent {
-	p := adw.NewStatusPage()
-	p.SetTitle("Content Error")
-	p.SetDescription(desc)
-	p.SetIconName("image-missing")
-	return erroneousContent{p}
+	l := gtk.NewLabel("")
+	l.SetMarkup(fmt.Sprintf(
+		`<span color="red">Content error:</span> %s`,
+		html.EscapeString(desc),
+	))
+
+	img := gtk.NewImageFromIconName("image-missing-symbolic")
+	img.SetIconSize(gtk.IconSizeNormal)
+
+	b := gtk.NewBox(gtk.OrientationHorizontal, 2)
+	b.Append(img)
+	b.Append(l)
+
+	return erroneousContent{b}
 }
 
 func (c erroneousContent) content() {}

@@ -9,8 +9,8 @@ require (
 	github.com/bbrks/go-blurhash v1.1.1
 	github.com/chanbakjsd/gotrix v0.3.2-0.20210817050109-2a02defa4929
 	github.com/dgraph-io/badger/v3 v3.2103.0
-	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210818012540-1532a1fd9205
-	github.com/diamondburned/gotk4/pkg v0.0.0-20210818012446-d1a4715f57d4
+	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210820075947-94b0a0fecdc0
+	github.com/diamondburned/gotk4/pkg v0.0.0-20210820075903-8cbc5d9033e7
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/pkg/errors v0.9.1

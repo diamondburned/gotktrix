@@ -11,6 +11,7 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
@@ -110,6 +111,6 @@ func renderBlurhash(rawInfo json.RawMessage, w, h int) gdk.Paintabler {
 	}
 
 	return gdk.NewTextureForPixbuf(gdkpixbuf.NewPixbufFromBytes(
-		nrgba.Pix, gdkpixbuf.ColorspaceRGB, true, 8, w, h, nrgba.Stride,
+		glib.UseBytes(nrgba.Pix), gdkpixbuf.ColorspaceRGB, true, 8, w, h, nrgba.Stride,
 	))
 }

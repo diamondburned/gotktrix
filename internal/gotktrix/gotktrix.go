@@ -70,7 +70,10 @@ func WithClient(ctx context.Context, c *Client) context.Context {
 // the context isn't yet wrapped, then nil is returned.
 func FromContext(ctx context.Context) *Client {
 	c, _ := ctx.Value(clientCtxKey).(*Client)
-	return c
+	if c != nil {
+		return c.WithContext(ctx)
+	}
+	return nil
 }
 
 // ClientAuth holds a partial client.

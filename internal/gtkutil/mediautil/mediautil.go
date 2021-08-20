@@ -26,6 +26,24 @@ var Client = http.Client{
 	),
 }
 
+// MIME tries to get the MIME type off a seekable reader. The reader is seeked
+// back to before bytes were read.
+func MIME(f io.ReadSeeker) string {
+	buf := make([]byte, 512)
+
+	n, err := f.Read(buf)
+	if err != nil {
+		return ""
+	}
+
+	defer f.Seek(-int64(n), io.SeekCurrent)
+
+	typ := http.DetectContentType(buf)
+	// Trim the charset stuff off.
+	mime, _, _ := mime.ParseMediaType(typ)
+	return mime
+}
+
 // Stream creates a media streamer that asynchronously fetches the given URL.
 //
 // This function currently panics, because stream playback of GtkVideo is

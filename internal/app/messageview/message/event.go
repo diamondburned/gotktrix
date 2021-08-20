@@ -17,6 +17,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
+// TODO: deprecate this.
+
 type erroneousEvent struct {
 	event.RoomEventInfo
 	raw *event.RawEvent
