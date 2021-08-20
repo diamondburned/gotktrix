@@ -98,7 +98,6 @@ type Section struct {
 	hidden map[*room.Room]bool
 
 	comparer Comparer
-	current  matrix.RoomID
 
 	minified    bool
 	showPreview bool
@@ -107,7 +106,7 @@ type Section struct {
 // New creates a new deactivated section.
 func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	list := gtk.NewListBox()
-	list.SetSelectionMode(gtk.SelectionBrowse)
+	list.SetSelectionMode(gtk.SelectionSingle)
 	list.SetActivateOnSingleClick(true)
 	list.SetPlaceholder(gtk.NewLabel("No rooms yet..."))
 
@@ -165,8 +164,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	})
 
 	s.listBox.Connect("row-activated", func(list *gtk.ListBox, row *gtk.ListBoxRow) {
-		s.current = matrix.RoomID(row.Name())
-		ctrl.OpenRoom(s.current)
+		ctrl.OpenRoom(matrix.RoomID(row.Name()))
 	})
 
 	client := gotktrix.FromContext(ctx)
@@ -288,8 +286,7 @@ func (s *Section) SortMode() SortMode {
 	return s.comparer.Mode
 }
 
-// Unselect unselects the list of the current section. If the given current room
-// ID is the same as what the list has, then nothing is done.
+// Unselect unselects the list of the current section.
 func (s *Section) Unselect() {
 	s.listBox.UnselectAll()
 }

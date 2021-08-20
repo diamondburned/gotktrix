@@ -28,6 +28,7 @@ var iconButtonCSS = cssutil.Applier("roomlist-iconbutton", `
 	}
 
 	.roomlist-showmore {
+		font-weight: initial;
 		background: none;
 	}
 	.roomlist-showmore * {

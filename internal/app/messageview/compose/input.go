@@ -2,8 +2,6 @@ package compose
 
 import (
 	"context"
-	"log"
-	"strconv"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -14,10 +12,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/md"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/md/hl"
+	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/pkg/errors"
-	"github.com/yuin/goldmark/ast"
 )
 
 // Input is the input component of the message composer.
@@ -82,29 +78,6 @@ func copyMessage(buffer *gtk.TextBuffer, roomID matrix.RoomID) event.RoomMessage
 	return ev
 }
 
-func highlightBuffer(ctx context.Context, buffer *gtk.TextBuffer) {
-	head := buffer.StartIter()
-	tail := buffer.EndIter()
-
-	// Be careful to include anything hidden, since we want the offsets that
-	// goldmark processes to be the exact same as what's in the buffer.
-	input := []byte(buffer.Slice(&head, &tail, true))
-
-	// Remove all tags before recreating them all.
-	buffer.RemoveAllTags(&head, &tail)
-
-	w := walker{
-		ctx: ctx,
-		buf: buffer,
-		src: input,
-	}
-
-	if err := md.ParseAndWalk(input, w.walker); err != nil {
-		log.Println("markdown input error:", err)
-		return
-	}
-}
-
 // NewInput creates a new Input instance.
 func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 	go requestAllMembers(ctx, roomID)
@@ -123,7 +96,8 @@ func NewInput(ctx context.Context, roomID matrix.RoomID) *Input {
 
 	buffer := tview.Buffer()
 	buffer.Connect("changed", func(buffer *gtk.TextBuffer) {
-		highlightBuffer(ctx, buffer)
+		md.WYSIWYG(ctx, buffer)
+		autocomplete(ctx, roomID, buffer)
 	})
 
 	send := gtk.NewButtonFromIconName("document-send-symbolic")
@@ -201,141 +175,6 @@ func requestAllMembers(ctx context.Context, roomID matrix.RoomID) {
 	}
 }
 
-type walker struct {
-	ctx   context.Context
-	buf   *gtk.TextBuffer
-	table *gtk.TextTagTable
+func autocomplete(ctx context.Context, roomID matrix.RoomID, buf *gtk.TextBuffer) {
 
-	head *gtk.TextIter
-	tail *gtk.TextIter
-
-	src []byte
-}
-
-func (w *walker) walker(n ast.Node, enter bool) (ast.WalkStatus, error) {
-	if !enter {
-		return ast.WalkContinue, nil
-	}
-
-	// Pre-allocate iters.
-	if w.head == nil && w.tail == nil {
-		head := w.buf.StartIter()
-		tail := w.buf.EndIter()
-
-		w.head = &head
-		w.tail = &tail
-	}
-
-	return w.enter(n), nil
-}
-
-func (w *walker) enter(n ast.Node) ast.WalkStatus {
-	switch n := n.(type) {
-	case *ast.Emphasis:
-		var tag string
-		switch n.Level {
-		case 1:
-			tag = "i"
-		case 2:
-			tag = "b"
-		default:
-			return ast.WalkContinue
-		}
-
-		w.markText(n, tag)
-		return ast.WalkSkipChildren
-
-	case *ast.Heading:
-		// h1 ~ h6
-		if n.Level >= 1 && n.Level <= 6 {
-			w.markTextFunc(n, []string{"h" + strconv.Itoa(n.Level)},
-				func(head, tail *gtk.TextIter) {
-					// Seek head to the start of the line to account for the
-					// hash ("#").
-					head.BackwardFindChar(func(ch uint32) bool { return rune(ch) == '\n' }, nil)
-				},
-			)
-			return ast.WalkSkipChildren
-		}
-
-	case *ast.Link:
-		w.markText(n, "a")
-		return ast.WalkSkipChildren
-
-	case *ast.CodeSpan:
-		w.markText(n, "code")
-		return ast.WalkSkipChildren
-
-	case *ast.RawHTML:
-		segments := n.Segments.Sliced(0, n.Segments.Len())
-		for _, seg := range segments {
-			w.markBounds(seg.Start, seg.Stop, "_htmltag")
-		}
-
-	case *ast.FencedCodeBlock:
-		lines := n.Lines()
-
-		len := lines.Len()
-		if len == 0 {
-			return ast.WalkSkipChildren
-		}
-
-		w.markBounds(lines.At(0).Start, lines.At(len-1).Stop, "code")
-
-		if lang := string(n.Language(w.src)); lang != "" {
-			// Use markBounds' head and tail iterators.
-			hl.Highlight(w.ctx, w.head, w.tail, lang)
-		}
-
-		return ast.WalkSkipChildren
-	}
-
-	return ast.WalkContinue
-}
-
-func (w *walker) tag(tagName string) *gtk.TextTag {
-	if w.table == nil {
-		w.table = w.buf.TagTable()
-	}
-
-	return md.TextTags.FromTable(w.table, tagName)
-}
-
-func (w *walker) markBounds(i, j int, names ...string) {
-	w.head.SetOffset(i)
-	w.tail.SetOffset(j)
-
-	for _, name := range names {
-		w.buf.ApplyTag(w.tag(name), w.head, w.tail)
-	}
-}
-
-// markText walks n's children and marks all its ast.Texts with the given tag.
-func (w *walker) markText(n ast.Node, names ...string) {
-	w.markTextFunc(n, names, nil)
-}
-
-// markTextFunc is similar to markText, except the caller has control over the
-// head and tail iterators before the tags are applied. This is useful for block
-// elements.
-func (w *walker) markTextFunc(n ast.Node, names []string, f func(h, t *gtk.TextIter)) {
-	md.WalkChildren(n, func(n ast.Node, enter bool) (ast.WalkStatus, error) {
-		text, ok := n.(*ast.Text)
-		if !ok {
-			return ast.WalkContinue, nil
-		}
-
-		w.head.SetOffset(text.Segment.Start)
-		w.tail.SetOffset(text.Segment.Stop)
-
-		if f != nil {
-			f(w.head, w.tail)
-		}
-
-		for _, name := range names {
-			w.buf.ApplyTag(w.tag(name), w.head, w.tail)
-		}
-
-		return ast.WalkContinue, nil
-	})
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 )
 
 type pages struct {
@@ -33,6 +34,10 @@ type tabPage struct {
 func (p *pages) SetVisible(visible matrix.RoomID) *Page {
 	p.visible = visible
 
+	if visible == "" {
+		return nil
+	}
+
 	pg, ok := p.pages[visible]
 	if !ok {
 		log.Panicf("selected room %s not in page registry", visible)
@@ -41,8 +46,13 @@ func (p *pages) SetVisible(visible matrix.RoomID) *Page {
 	return pg.Page
 }
 
-func (p *pages) PopVisible() *tabPage {
-	return p.Pop(p.visible)
+func (p *pages) FromTab(tab *adw.TabPage) *tabPage {
+	child := tab.Child()
+	return p.pages[matrix.RoomID(child.Name())]
+}
+
+func (p *pages) Visible() *tabPage {
+	return p.pages[p.visible]
 }
 
 func (p *pages) Pop(id matrix.RoomID) *tabPage {
@@ -90,28 +100,49 @@ func New(ctx context.Context, ctrl Controller) *View {
 
 	pages := newPages()
 
+	setTitle := func(tab *adw.TabPage) {
+		if tab != nil {
+			app.SetTitle(ctx, fmt.Sprintf("%s — gotktrix", tab.Title()))
+		} else {
+			app.SetTitle(ctx, "gotktrix")
+		}
+	}
+
+	// Keep track of the last signal handler with the last page that's used to
+	// update the window title.
+	pageToggler := gtkutil.SignalToggler("notify::title", setTitle)
+
 	view.Connect("notify::selected-page", func() {
-		child := view.SelectedPage().Child()
+		stack.SetVisibleChild(box)
+
+		selected := view.SelectedPage()
+
+		if selected == nil {
+			setTitle(nil)
+			pageToggler(nil)
+
+			ctrl.SetSelectedRoom("")
+			pages.SetVisible("")
+			return
+		}
+
+		setTitle(selected)
+		pageToggler(selected)
+
+		child := selected.Child()
 		rpage := pages.SetVisible(matrix.RoomID(child.Name()))
 		rpage.MarkAsRead()
 
-		window := app.FromContext(ctx).Window()
-		window.SetTitle(fmt.Sprintf("%s - gotktrix", rpage.RoomName()))
+		ctrl.SetSelectedRoom(rpage.roomID)
 	})
 
 	view.Connect("close-page", func(view *adw.TabView, page *adw.TabPage) {
 		// Delete the page from the page registry.
 		child := page.Child()
 		pages.Pop(matrix.RoomID(child.Name()))
+
 		// Finish closing the page.
 		view.ClosePageFinish(page, true)
-
-		if view.NPages() == 0 {
-			// Restore the stack to the placeholder if available.
-			if empty := stack.ChildByName("empty"); empty != nil {
-				stack.SetVisibleChild(empty)
-			}
-		}
 	})
 
 	return &View{
@@ -126,6 +157,9 @@ func New(ctx context.Context, ctrl Controller) *View {
 
 		pages: pages,
 	}
+}
+
+func updateWindowTitle(ctx context.Context, page *Page) {
 }
 
 // SetPlaceholder sets the placeholder widget.
@@ -157,38 +191,42 @@ func (v *View) OpenRoomInNewTab(id matrix.RoomID) *Page {
 }
 
 func (v *View) openRoom(id matrix.RoomID, newTab bool) *Page {
+	visible := v.pages.Visible()
+
 	// Break up a potential infinite call recursion.
-	if v.pages.visible == id {
-		return v.pages.pages[id].Page
+	if visible != nil && visible.roomID == id {
+		return visible.Page
 	}
 
-	v.Stack.SetVisibleChild(v.box)
+	page, ok := v.pages.pages[id]
+	if !ok {
+		page = &tabPage{Page: NewPage(v.ctx, v, id)}
+		page.SetName(string(id))
 
-	if page, ok := v.pages.pages[id]; ok {
-		v.view.SetSelectedPage(page.tab)
-		return page.Page
-	}
+		v.pages.pages[id] = page
 
-	page := &tabPage{Page: NewPage(v.ctx, v, id)}
-	page.SetName(string(id))
-
-	v.pages.pages[id] = page
-
-	if v.pages.visible != "" && !newTab {
-		last := v.pages.PopVisible()
-
-		page.tab = v.view.AddPage(page.Page, last.tab)
-		v.view.SetSelectedPage(page.tab)
-		v.view.ClosePage(last.tab)
-	} else {
+		// Why does Append trigger a selected-page signal? I have no idea. But
+		// it does, so we have to add the page into the registry before this.
 		page.tab = v.view.Append(page)
-		v.view.SetSelectedPage(page.tab)
+
+		page.OnTitle(func(title string) {
+			page.tab.SetTitle(title)
+
+			if v.pages.visible == page.roomID {
+				updateWindowTitle(v.ctx, page.Page)
+			}
+		})
+
+		page.tab.SetLoading(true)
+		page.Load(func() { page.tab.SetLoading(false) })
+
+		// Close the previous tab if we're not opening in a new tab.
+		if visible != nil && !newTab {
+			v.view.ClosePage(visible.tab)
+		}
 	}
 
-	page.OnTitle(page.tab.SetTitle)
-
-	page.tab.SetLoading(true)
-	page.Load(func() { page.tab.SetLoading(false) })
+	v.view.SetSelectedPage(page.tab)
 
 	return page.Page
 }

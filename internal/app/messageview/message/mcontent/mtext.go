@@ -15,8 +15,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/md"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/md/hl"
+	"github.com/diamondburned/gotktrix/internal/md"
+	"github.com/diamondburned/gotktrix/internal/md/hl"
 	"golang.org/x/net/html"
 )
 

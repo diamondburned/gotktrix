@@ -48,6 +48,11 @@ func WithApplication(ctx context.Context, app *Application) context.Context {
 	return ctx
 }
 
+// SetTitle sets the main window's title.
+func SetTitle(ctx context.Context, title string) {
+	FromContext(ctx).Window().SetTitle(title)
+}
+
 // FromContext pulls the application from the given context. If the given
 // context isn't derived from Application, then nil is returned.
 func FromContext(ctx context.Context) *Application {

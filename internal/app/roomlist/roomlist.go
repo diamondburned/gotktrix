@@ -2,7 +2,6 @@ package roomlist
 
 import (
 	"context"
-	"log"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -45,8 +44,7 @@ var listCSS = cssutil.Applier("roomlist-list", `
 		background: inherit;
 	}
 	.roomlist-section list row:selected {
-		background-color: alpha(@accent_color, 0.35);
-		color: mix(@accent_color, @theme_fg_color, 0.25);
+		background-color: alpha(@accent_color, 0.45);
 	}
 
 	.roomlist-reorderactions {
@@ -168,35 +166,15 @@ func (l *List) SetSelectedRoom(id matrix.RoomID) {
 
 // OpenRoom opens the given room.
 func (l *List) OpenRoom(id matrix.RoomID) {
-	l.setRoom(id)
 	l.ctrl.OpenRoom(id)
 }
 
 // OpenRoomInTab opens the given room in a new tab.
 func (l *List) OpenRoomInTab(id matrix.RoomID) {
-	l.setRoom(id)
-
 	if opener, ok := l.ctrl.(RoomTabOpener); ok {
 		opener.OpenRoomInTab(id)
 	} else {
 		l.ctrl.OpenRoom(id)
-	}
-}
-
-func (l *List) setRoom(id matrix.RoomID) {
-	l.current = id
-
-	rm, ok := l.rooms[id]
-	if !ok {
-		log.Panicf("room %q not in registry", id)
-	}
-
-	for _, s := range l.sections {
-		if s == rm.Section() {
-			continue
-		}
-
-		s.Unselect()
 	}
 }
 

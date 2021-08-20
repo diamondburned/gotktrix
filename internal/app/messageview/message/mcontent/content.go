@@ -29,6 +29,8 @@ func New(ctx context.Context, msg event.RoomMessageEvent) *Content {
 	var parts []contentPart
 
 	switch msg.MsgType {
+	case event.RoomMessageNotice:
+		fallthrough // treat the same as m.text
 	case event.RoomMessageText:
 		parts = []contentPart{newTextContent(ctx, msg)}
 	case event.RoomMessageVideo:

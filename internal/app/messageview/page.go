@@ -144,12 +144,7 @@ func (p *Page) IsActive() bool {
 // OnTitle subscribes to the page's title changes.
 func (p *Page) OnTitle(f func(string)) {
 	p.onTitle = f
-
-	if p.name == "" {
-		f(string(p.roomID))
-	} else {
-		f(p.name)
-	}
+	f(p.RoomName())
 }
 
 // LastMessage satisfies MessageViewer.

@@ -112,3 +112,25 @@ func MapSubscriber(w gtk.Widgetter, sub func() (unsub func())) {
 		unsub()
 	})
 }
+
+// SignalToggler is a small helper to allow binding the same signal to different
+// objects while unbinding the previous one.
+func SignalToggler(signal string, f interface{}) func(obj glib.Objector) {
+	var lastObj glib.Objector
+	var lastSig glib.SignalHandle
+
+	return func(obj glib.Objector) {
+		if lastObj != nil && lastSig != 0 {
+			lastObj.HandlerDisconnect(lastSig)
+		}
+
+		if obj == nil {
+			lastObj = nil
+			lastSig = 0
+			return
+		}
+
+		lastObj = obj
+		lastSig = obj.Connect(signal, f)
+	}
+}
