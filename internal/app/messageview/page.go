@@ -101,10 +101,14 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	clamp.SetTighteningThreshold(MessagesClampWidth)
 	clamp.SetChild(page.list)
 
+	vp := gtk.NewViewport(nil, nil)
+	vp.SetVScrollPolicy(gtk.ScrollNatural)
+	vp.SetChild(clamp)
+
 	page.scroll = autoscroll.NewWindow()
 	page.scroll.SetVExpand(true)
 	page.scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	page.scroll.SetChild(clamp)
+	page.scroll.SetChild(vp)
 
 	// Bind the scrolled window for automatic scrolling.
 	page.list.SetAdjustment(page.scroll.VAdjustment())

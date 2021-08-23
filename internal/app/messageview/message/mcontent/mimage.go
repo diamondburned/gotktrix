@@ -38,24 +38,26 @@ var imageCSS = cssutil.Applier("mcontent-image", `
 const thumbnailScale = 2
 
 func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPart {
-	i, err := msg.ImageInfo()
-	if err != nil {
-		return newErroneousContent(err.Error(), -1, -1)
-	}
-
-	w, h := gotktrix.MaxSize(i.Width, i.Height, maxWidth, maxHeight)
-
 	var fetched bool
 
 	pic := gtk.NewPicture()
-	pic.SetSizeRequest(-1, h) // allow flexible width
+	pic.SetSizeRequest(100, 50)
 	pic.SetCanShrink(true)
 	pic.SetKeepAspectRatio(true)
 
-	if w > 0 && h > 0 {
-		w *= thumbnailScale
-		h *= thumbnailScale
+	w := maxWidth * thumbnailScale
+	h := maxHeight * thumbnailScale
 
+	i, err := msg.ImageInfo()
+	if err == nil {
+		w, h = gotktrix.MaxSize(i.Width, i.Height, w, h)
+
+		// Recalcualte the max dimensions without scaling.
+		_, actualHeight := gotktrix.MaxSize(i.Width, i.Height, maxWidth, maxHeight)
+		pic.SetSizeRequest(100, actualHeight)
+	}
+
+	if w > 0 && h > 0 {
 		if blur := renderBlurhash(msg.Info, w, h); blur != nil {
 			pic.SetPaintable(blur)
 		}

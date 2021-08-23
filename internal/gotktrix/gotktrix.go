@@ -296,7 +296,7 @@ func (c *Client) MessageMediaURL(msg event.RoomMessageEvent) (string, error) {
 		if err == nil {
 			t, err := mime.ExtensionsByType(i.MimeType)
 			if err == nil && t != nil {
-				filename = "video" + t[0]
+				filename = "file" + t[0]
 			}
 		}
 	}

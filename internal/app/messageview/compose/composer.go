@@ -3,14 +3,12 @@ package compose
 
 import (
 	"context"
-	"log"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/core/gioutil"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -29,7 +27,9 @@ type Composer struct {
 }
 
 // Controller describes the parent component that the Composer controls.
-type Controller interface{}
+type Controller interface {
+	// AddEphemeralMessage(txID string, g gtk.Widgetter)
+}
 
 const (
 	ComposerMaxWidth   = 1000
@@ -55,7 +55,7 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 	attach.AddCSSClass("composer-attach")
 	attach.Connect("clicked", func() { uploader(ctx, ctrl, roomID) })
 
-	input := NewInput(ctx, roomID)
+	input := NewInput(ctx, ctrl, roomID)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	box.Append(attach)
@@ -91,39 +91,20 @@ func uploader(ctx context.Context, ctrl Controller, roomID matrix.RoomID) {
 			return
 		}
 
-		list := chooser.Files()
-		length := list.NItems()
-		if length == 0 {
-			return
-		}
-
-		for i := uint(0); i < length; i++ {
-			f := gio.File{Object: list.Item(i)}
-			go upload(ctx, ctrl, roomID, f.Path())
-		}
+		go upload(ctx, ctrl, roomID, chooser.File())
 	})
 	chooser.Show()
 }
 
-func upload(ctx context.Context, ctrl Controller, roomID matrix.RoomID, path string) {
-	f, err := os.Open(path)
+func upload(ctx context.Context, ctrl Controller, roomID matrix.RoomID, f gio.Filer) {
+	s, err := f.Read(ctx)
 	if err != nil {
-		app.Error(ctx, errors.Wrap(err, "failed to open uploading file"))
+		app.Error(ctx, errors.Wrap(err, "failed to open file stream"))
 		return
 	}
+	defer s.Close(ctx)
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// Ensure the file is closed when the context is cancelled. This will
-	// interrupt the download.
-	go func() {
-		<-ctx.Done()
-		f.Close()
-	}()
-
-	mime := mediautil.MIME(f)
-	log.Println("mime type:", mime)
+	mime := mediautil.FileMIME(ctx, s)
 	client := gotktrix.FromContext(ctx)
 
 	var uploader func(matrix.RoomID, gotrix.File) (matrix.EventID, error)
@@ -140,8 +121,8 @@ func upload(ctx context.Context, ctrl Controller, roomID matrix.RoomID, path str
 	}
 
 	_, err = uploader(roomID, gotrix.File{
-		Name:     filepath.Base(path),
-		Content:  f,
+		Name:     f.Basename(),
+		Content:  gioutil.Reader(ctx, s),
 		MIMEType: mime,
 	})
 	if err != nil {

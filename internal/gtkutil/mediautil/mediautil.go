@@ -16,6 +16,8 @@ import (
 	"github.com/gregjones/httpcache"
 	"github.com/gregjones/httpcache/diskcache"
 	"github.com/pkg/errors"
+
+	gioglib "github.com/diamondburned/gotk4/pkg/glib/v2"
 )
 
 // Client is the HTTP client used to fetch all images.
@@ -38,7 +40,32 @@ func MIME(f io.ReadSeeker) string {
 
 	defer f.Seek(-int64(n), io.SeekCurrent)
 
-	typ := http.DetectContentType(buf)
+	return detectCT(buf)
+}
+
+// FileMIME tries to get the MIME type of the given GIO file.
+func FileMIME(ctx context.Context, f *gio.FileInputStream) string {
+	info, err := f.QueryInfo(ctx, gio.FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE)
+	if err == nil {
+		if mime := gio.ContentTypeGetMIMEType(info.ContentType()); mime != "" {
+			return mime
+		}
+	}
+
+	buf := make([]byte, 512)
+
+	n, err := f.Read(ctx, buf)
+	if err != nil {
+		return ""
+	}
+
+	f.Seek(ctx, int64(n), gioglib.SeekCur)
+
+	return detectCT(buf)
+}
+
+func detectCT(b []byte) string {
+	typ := http.DetectContentType(b)
 	// Trim the charset stuff off.
 	mime, _, _ := mime.ParseMediaType(typ)
 	return mime

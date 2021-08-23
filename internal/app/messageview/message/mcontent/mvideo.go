@@ -32,26 +32,28 @@ var videoCSS = cssutil.Applier("mcontent-video", `
 `)
 
 func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPart {
-	v, err := msg.VideoInfo()
-	if err != nil {
-		return newErroneousContent(err.Error(), -1, -1)
-	}
-
-	w, h := gotktrix.MaxSize(v.Width, v.Height, maxWidth, maxHeight)
-
 	client := gotktrix.FromContext(ctx).Offline()
 
 	var fetched bool
 
 	preview := gtk.NewPicture()
-	preview.SetSizeRequest(-1, h) // allow flexible width
+	preview.SetSizeRequest(100, 100)
 	preview.SetCanShrink(true)
 	preview.SetKeepAspectRatio(true)
 
-	if w > 0 && h > 0 {
-		w *= thumbnailScale
-		h *= thumbnailScale
+	w := maxWidth * thumbnailScale
+	h := maxHeight * thumbnailScale
 
+	v, err := msg.VideoInfo()
+	if err == nil {
+		w, h = gotktrix.MaxSize(v.Width, v.Height, w, h)
+
+		// Recalcualte the max dimensions without scaling.
+		_, actualHeight := gotktrix.MaxSize(v.Width, v.Height, maxWidth, maxHeight)
+		preview.SetSizeRequest(100, actualHeight)
+	}
+
+	if w > 0 && h > 0 {
 		if blur := renderBlurhash(msg.Info, w, h); blur != nil {
 			preview.SetPaintable(blur)
 		}

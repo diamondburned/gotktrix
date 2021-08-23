@@ -24,15 +24,29 @@ func Show(parent *gtk.Window, errors []error, done func()) {
 	glib.IdleAdd(func() { show(parent, errors, done) })
 }
 
+type dialogState struct {
+	next   *gtk.Button
+	errors []string
+}
+
+var windows = make(map[*gtk.Window]*dialogState)
+
 func show(parent *gtk.Window, errors []error, done func()) {
 	if len(errors) == 0 {
 		done()
 		return
 	}
 
-	strings := make([]string, len(errors))
-	for i := range strings {
-		strings[i] = markuputil.Error(errors[i].Error())
+	errStrings := make([]string, len(errors))
+	for i := range errStrings {
+		errStrings[i] = markuputil.IndentError(errors[i].Error())
+	}
+
+	state, ok := windows[parent]
+	if ok {
+		state.errors = append(state.errors, errStrings...)
+		state.next.SetLabel("Next")
+		return
 	}
 
 	dialog := gtk.NewDialog()
@@ -42,38 +56,54 @@ func show(parent *gtk.Window, errors []error, done func()) {
 	dialog.SetModal(true)
 
 	errorStack := gtk.NewStack()
+	errorStack.SetVAlign(gtk.AlignStart)
 	errorStack.SetTransitionType(gtk.StackTransitionTypeSlideLeftRight)
+
+	scroll := gtk.NewScrolledWindow()
+	scroll.SetHExpand(true)
+	scroll.SetChild(errorStack)
+	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 
 	content := dialog.ContentArea()
 	content.SetVExpand(true)
-	content.SetVAlign(gtk.AlignStart)
-	content.Append(errorStack)
+	content.Append(scroll)
 	css(content)
-
-	errLabels := make([]*gtk.Label, len(errors))
-	for i := range errors {
-		errLabels[i] = markuputil.ErrorLabel(markuputil.Error(errors[i].Error()))
-		errorStack.AddChild(errLabels[i])
-	}
 
 	nextButton := dialog.AddButton("Next", int(gtk.ResponseOK)).(*gtk.Button)
 	dialog.SetDefaultWidget(nextButton)
 
+	state = &dialogState{
+		next:   nextButton,
+		errors: errStrings,
+	}
+
+	windows[parent] = state
+
 	var ix int
 
 	cycle := func() {
-		if ix == len(errors) {
+		if ix == len(state.errors) {
 			dialog.Close()
 			done()
+
+			delete(windows, parent)
 			return
 		}
 
-		if ix == len(errors)-1 {
+		if ix == len(state.errors)-1 {
 			// Showing last one.
 			nextButton.SetLabel("OK")
 		}
 
-		errorStack.SetVisibleChild(errLabels[ix])
+		// Set error.
+		label := markuputil.ErrorLabel(state.errors[ix])
+		errorStack.AddChild(label)
+		errorStack.SetVisibleChild(label)
+
+		// Scroll up.
+		vadj := scroll.VAdjustment()
+		vadj.SetValue(0)
+
 		ix++
 	}
 	// Show the first error.

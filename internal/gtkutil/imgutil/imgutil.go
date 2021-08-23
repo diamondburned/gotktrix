@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"runtime"
 	"time"
 
+	"github.com/diamondburned/gotk4/pkg/core/gioutil"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
-	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/gregjones/httpcache"
 	"github.com/gregjones/httpcache/diskcache"
@@ -32,6 +33,37 @@ const parallelMult = 4
 
 // sema is used to throttle concurrent downloads.
 var sema = semaphore.NewWeighted(int64(runtime.GOMAXPROCS(-1)) * parallelMult)
+
+// AsyncRead reads the given reader asynchronously into a paintable.
+func AsyncRead(ctx context.Context, r io.ReadCloser, f func(gdk.Paintabler)) {
+	ctx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		<-ctx.Done()
+		r.Close()
+	}()
+
+	async(ctx, func() (func(), error) {
+		defer cancel()
+
+		p, err := Read(r)
+		if err != nil {
+			return nil, err
+		}
+
+		return func() { f(p) }, nil
+	})
+}
+
+// Read synchronously reads the reader into a paintable.
+func Read(r io.Reader) (gdk.Paintabler, error) {
+	p, err := readPixbuf(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return gdk.NewTextureForPixbuf(p), nil
+}
 
 // AsyncGET GETs the given URL and calls f in the main loop. If the context is
 // cancelled by the time GET is done, then f will not be called. If the given
@@ -79,7 +111,7 @@ func async(ctx context.Context, do func() (func(), error)) {
 
 		f, err := do()
 		if err != nil {
-			app.Error(ctx, errors.Wrap(err, "imgutil GET"))
+			log.Println("imgutil GET:", err)
 			return
 		}
 
@@ -121,23 +153,30 @@ func GETPixbuf(ctx context.Context, url string) (*gdkpixbuf.Pixbuf, error) {
 	}
 	defer r.Body.Close()
 
+	p, err := readPixbuf(r.Body)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to read %q", url)
+	}
+
+	return p, nil
+}
+
+func readPixbuf(r io.Reader) (*gdkpixbuf.Pixbuf, error) {
 	loader := gdkpixbuf.NewPixbufLoader()
-	if err := pixbufLoaderReadFrom(loader, r.Body); err != nil {
-		return nil, errors.Wrapf(err, "failed to read response %q", url)
+	if err := pixbufLoaderReadFrom(loader, r); err != nil {
+		return nil, errors.Wrap(err, "reader error")
 	}
 
 	pixbuf := loader.Pixbuf()
 	if pixbuf == nil {
-		return nil, fmt.Errorf("no pixbuf rendered for %q", url)
+		return nil, errors.New("nil pixbuf")
 	}
 
 	return pixbuf, nil
 }
 
-type pixbufLoaderWriter gdkpixbuf.PixbufLoader
-
 func pixbufLoaderReadFrom(l *gdkpixbuf.PixbufLoader, r io.Reader) error {
-	_, err := io.Copy((*pixbufLoaderWriter)(l), r)
+	_, err := io.Copy(gioutil.PixbufLoaderWriter(l), r)
 	if err != nil {
 		l.Close()
 		return err
@@ -146,11 +185,4 @@ func pixbufLoaderReadFrom(l *gdkpixbuf.PixbufLoader, r io.Reader) error {
 		return fmt.Errorf("failed to close PixbufLoader: %w", err)
 	}
 	return nil
-}
-
-func (w *pixbufLoaderWriter) Write(b []byte) (int, error) {
-	if err := (*gdkpixbuf.PixbufLoader)(w).Write(b); err != nil {
-		return 0, err
-	}
-	return len(b), nil
 }

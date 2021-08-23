@@ -26,10 +26,31 @@ func Attrs(attrs ...*pango.Attribute) *pango.AttrList {
 func Error(msg string) string {
 	msg = strings.TrimPrefix(msg, "error ")
 	return fmt.Sprintf(
-		`<span color="#FF0033"><b>Error:</b> %s</span>`,
+		`<span color="#FF0033"><b>Error!</b></span> %s`,
 		html.EscapeString(msg),
 	)
 }
+
+// IndentError formats a multiline error message.
+func IndentError(msg string) string {
+	parts := strings.Split(msg, ": ")
+
+	var builder strings.Builder
+	builder.WriteString(`<span color="#FF0033"><b>Error</b></span>:`)
+
+	for i, part := range parts {
+		builder.WriteByte('\n')
+		builder.WriteString(strings.Repeat(" ", (i+1)*3))
+		builder.WriteString("- ")
+		builder.WriteString(html.EscapeString(part))
+	}
+
+	return builder.String()
+}
+
+var errorAttrs = Attrs(
+	pango.NewAttrInsertHyphens(false),
+)
 
 // ErrorLabel makes a new label with the class `.error'.
 func ErrorLabel(markup string) *gtk.Label {
@@ -39,7 +60,7 @@ func ErrorLabel(markup string) *gtk.Label {
 	errLabel.SetWrap(true)
 	errLabel.SetWrapMode(pango.WrapWordChar)
 	errLabel.SetCSSClasses([]string{"error"})
-	errLabel.SetAttributes(Attrs(pango.NewAttrInsertHyphens(false)))
+	errLabel.SetAttributes(errorAttrs)
 	return errLabel
 }
 

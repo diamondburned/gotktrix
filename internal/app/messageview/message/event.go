@@ -221,7 +221,7 @@ func memberEventTail(raw *event.RawEvent, ev event.RoomMemberEvent) string {
 			switch {
 			case past.AvatarURL != ev.AvatarURL:
 				return "changed their avatar."
-			case ev.DisplayName != nil && *past.DisplayName != *ev.DisplayName:
+			case !sameDisplayName(past.DisplayName, ev.DisplayName):
 				return "changed their name."
 			default:
 				return "updated their information."
@@ -243,6 +243,16 @@ func memberEventTail(raw *event.RawEvent, ev event.RoomMemberEvent) string {
 	}
 
 	return basicMemberEventTail(ev)
+}
+
+func sameDisplayName(n1, n2 *string) bool {
+	if n1 == nil {
+		return n2 == nil
+	}
+	if n2 == nil {
+		return n1 == nil
+	}
+	return *n1 == *n2
 }
 
 func basicMemberEventTail(ev event.RoomMemberEvent) string {
