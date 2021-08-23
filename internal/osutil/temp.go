@@ -85,7 +85,17 @@ func (t *TempFile) Close() error {
 // temporary file when it is closed. This is useful for creating simultaneous
 // readers on the same file.
 func (t *TempFile) Open() (*os.File, error) {
-	return os.Open(t.Name())
+	f, err := os.Open(t.Name())
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to open same file")
+	}
+
+	o, err := t.Seek(0, io.SeekCurrent)
+	if err == nil {
+		f.Seek(o, io.SeekStart)
+	}
+
+	return f, nil
 }
 
 // Rewind resets the file reader cursor to the start position. This is a

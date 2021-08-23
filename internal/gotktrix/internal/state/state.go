@@ -18,7 +18,7 @@ const (
 	TimelineKeepLast = 50
 	// Version is the incremental database version number. It is incremented
 	// when a breaking change is made in the database that breaks old databases.
-	Version = 1
+	Version = 2
 )
 
 // State is a disk-based database of the Matrix state. Note that methods that

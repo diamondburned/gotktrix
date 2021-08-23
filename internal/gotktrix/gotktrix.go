@@ -17,6 +17,7 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/handler"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
 	"github.com/pkg/errors"
@@ -118,6 +119,7 @@ type Client struct {
 	*gotrix.Client
 	*handler.Registry
 	State *state.State
+	Index *indexer.Indexer
 
 	userID matrix.UserID
 }
@@ -151,6 +153,17 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 		return nil, errors.Wrap(err, "failed to make state db")
 	}
 
+	idx, err := indexer.Open(config.Path("matrix-index", b64Username))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to make indexer")
+	}
+
+	c.AddHandler(func(c *gotrix.Client, member event.RoomMemberEvent) {
+		b := idx.Begin()
+		b.IndexRoomMember(member)
+		b.Commit()
+	})
+
 	registry := handler.New()
 
 	c.State = registry.Wrap(state)
@@ -160,6 +173,7 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 		Client:   c,
 		Registry: registry,
 		State:    state,
+		Index:    idx,
 		userID:   u,
 	}, nil
 }
@@ -207,6 +221,7 @@ func (c *Client) WithContext(ctx context.Context) *Client {
 		Client:   c.Client.WithContext(ctx),
 		Registry: c.Registry,
 		State:    c.State,
+		Index:    c.Index,
 		userID:   c.userID,
 	}
 }
@@ -402,13 +417,36 @@ func (c *Client) RoomEnsureMembers(roomID matrix.RoomID) error {
 		return fmt.Errorf("no previous_batch for room %q found", roomID)
 	}
 
-	e, err := c.Client.RoomMembers(roomID, api.RoomMemberFilter{At: p})
+	e, err := c.Client.RoomMembers(roomID, api.RoomMemberFilter{
+		At:         p,
+		Membership: event.MemberJoined,
+	})
 	if err != nil {
 		c.State.ResetRoom(roomID, key)
 		return errors.Wrap(err, "failed to fetch members")
 	}
 
 	c.State.AddRoomEvents(roomID, e)
+
+	batch := c.Index.Begin()
+	defer batch.Commit()
+
+	for _, raw := range e {
+		e, err := raw.Parse()
+		if err != nil {
+			log.Println("error parsing RoomMembers event:", err)
+			continue
+		}
+
+		me, ok := e.(event.RoomMemberEvent)
+		if !ok {
+			log.Printf("error: RoomMember event is of unexpected type %T", e)
+			continue
+		}
+
+		batch.IndexRoomMember(me)
+	}
+
 	return nil
 }
 

@@ -3,19 +3,11 @@ package compose
 
 import (
 	"context"
-	"strings"
 
-	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
-	"github.com/diamondburned/gotk4/pkg/core/gioutil"
-	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/app"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
-	"github.com/pkg/errors"
 )
 
 // Composer is a message composer.
@@ -72,60 +64,5 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 		box:    box,
 		attach: attach,
 		input:  input,
-	}
-}
-
-func uploader(ctx context.Context, ctrl Controller, roomID matrix.RoomID) {
-	chooser := gtk.NewFileChooserNative(
-		"Upload File",
-		app.Window(ctx),
-		gtk.FileChooserActionOpen,
-		"Upload", "Cancel",
-	)
-	chooser.SetSelectMultiple(false)
-
-	// Cannot use chooser.File(); see
-	// https://github.com/diamondburned/gotk4/issues/29.
-	chooser.Connect("response", func(chooser *gtk.FileChooserNative, resp int) {
-		if resp != int(gtk.ResponseAccept) {
-			return
-		}
-
-		go upload(ctx, ctrl, roomID, chooser.File())
-	})
-	chooser.Show()
-}
-
-func upload(ctx context.Context, ctrl Controller, roomID matrix.RoomID, f gio.Filer) {
-	s, err := f.Read(ctx)
-	if err != nil {
-		app.Error(ctx, errors.Wrap(err, "failed to open file stream"))
-		return
-	}
-	defer s.Close(ctx)
-
-	mime := mediautil.FileMIME(ctx, s)
-	client := gotktrix.FromContext(ctx)
-
-	var uploader func(matrix.RoomID, gotrix.File) (matrix.EventID, error)
-
-	switch strings.Split(mime, "/")[0] {
-	case "image":
-		uploader = client.SendImage
-	case "video":
-		uploader = client.SendVideo
-	case "audio":
-		uploader = client.SendAudio
-	default:
-		uploader = client.SendFile
-	}
-
-	_, err = uploader(roomID, gotrix.File{
-		Name:     f.Basename(),
-		Content:  gioutil.Reader(ctx, s),
-		MIMEType: mime,
-	})
-	if err != nil {
-		app.Error(ctx, errors.Wrap(err, "failed to upload file"))
 	}
 }
