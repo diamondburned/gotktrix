@@ -1,6 +1,7 @@
 package indexer
 
 import (
+	"context"
 	"log"
 
 	"github.com/blevesearch/bleve/v2"
@@ -92,7 +93,8 @@ type RoomMemberSearcher struct {
 	// state
 	res []IndexedRoomMember
 	req *bleve.SearchRequest
-	qry *query.FuzzyQuery
+
+	queries []query.Query
 }
 
 // SearchRoomMember returns a new instance of RoomMemberSearcher that the client
@@ -107,22 +109,35 @@ func (idx *Indexer) SearchRoomMember(roomID matrix.RoomID) RoomMemberSearcher {
 
 // Search looks up the indexing database and searches for the given string. The
 // returned list of IDs is valid until the next time Search is called.
-func (s *RoomMemberSearcher) Search(str string) []IndexedRoomMember {
-	if s.qry != nil {
-		s.qry.Term = str
+func (s *RoomMemberSearcher) Search(ctx context.Context, str string) []IndexedRoomMember {
+	if s.queries != nil {
+		// Set all known queries.
+		for _, qry := range s.queries {
+			switch qry := qry.(type) {
+			case *query.FuzzyQuery:
+				qry.Term = str
+			case *query.TermQuery:
+				qry.Term = str
+			default:
+				log.Panicf("unknown query type %T", qry)
+			}
+		}
 	} else {
-		s.qry = query.NewFuzzyQuery(str)
-		s.qry.FieldVal = "name"
+		s.queries = []query.Query{
+			&query.TermQuery{Term: str, FieldVal: "id"},
+			&query.FuzzyQuery{Term: str, FieldVal: "name", Fuzziness: 1},
+		}
 
 		// Create an AND match so that only queries matching the RoomID is
-		// searched on.
+		// searched on. It is written as (roomID AND (id OR name)).
 		and := query.NewConjunctionQuery([]query.Query{
 			&query.MatchQuery{
 				Match:    string(s.room),
 				Prefix:   len(s.room),
 				FieldVal: "room_id",
 			},
-			s.qry,
+			// id OR name
+			query.NewDisjunctionQuery(s.queries),
 		})
 
 		s.req = bleve.NewSearchRequestOptions(and, s.size, 0, false)
@@ -130,7 +145,7 @@ func (s *RoomMemberSearcher) Search(str string) []IndexedRoomMember {
 		s.req.Fields = []string{"id", "room_id", "name"}
 	}
 
-	results, err := s.idx.Search(s.req)
+	results, err := s.idx.SearchInContext(ctx, s.req)
 	if err != nil {
 		log.Println("indexer: query error:", err)
 		return nil

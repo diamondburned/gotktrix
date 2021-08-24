@@ -73,11 +73,10 @@ github.com/dgraph-io/ristretto v0.0.4-0.20210309073149-3836124cdc5a h1:1cMMkx3ie
 github.com/dgraph-io/ristretto v0.0.4-0.20210309073149-3836124cdc5a/go.mod h1:MIonLggsKgZLUSt414ExgwNtlOL5MuEoAJP514mwGe8=
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 h1:tdlZCpZ/P9DhczCTSixgIKmwPv6+wP5DGjqLYw5SUiA=
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUnsFjfmXRMNPybcSiG0BgUW2AuFH8PAnS2iTw=
-github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210821013923-5ee8b720169e h1:cSl2TPwU/WF7mdq3jncEBMZFO8Fl5xnjYg0mUWkf5RQ=
-github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210821013923-5ee8b720169e/go.mod h1:H1/Ta6w9JLpaUY/f7mOM55eZqf/Z7aOfuoF8+k3K3gg=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210821013848-e07dfa2d23cb/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210822212111-9ca8639aeefb h1:KZUq751NTcD6CU/3L2OsVuj4pOYeTndK4gr3N+eBS5Y=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210822212111-9ca8639aeefb/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210824052008-5f3302d4ae36 h1:D4Y5jZsueyWAwFEbnr85hQ42i5jx53n5PHvMV7MOb1g=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210824052008-5f3302d4ae36/go.mod h1:mb0p7u28bp1QOHlUcyIeY/Gi5h7vZPv6NCfvzTA6PLE=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210824051836-cf3f6994d2e2 h1:Pm07F9hlsjp2pSTJ4Bz9CTiET/dBpCT10Yza6+h27Gc=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210824051836-cf3f6994d2e2/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/diamondburned/gotrix v0.1.2-0.20210819072645-8881a4857172 h1:6OAz6CfWhK1fKkkOd3UvDC6E6XVfrAnYK4ESlxz8ivM=
 github.com/diamondburned/gotrix v0.1.2-0.20210819072645-8881a4857172/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/dlclark/regexp2 v1.4.0 h1:F1rxgk7p4uKjwIQxBs9oAXe5CqrXlCduYEJvrF4u93E=

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -12,8 +13,8 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/compose/autocomplete"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/md"
@@ -98,13 +99,27 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	)
 	inputCSS(tview)
 
+	onAutocompletion := func(row autocomplete.SelectedData) bool {
+		switch data := row.Data.(type) {
+		case autocomplete.RoomMemberData:
+			log.Println("chose", data.ID)
+		}
+
+		return true
+	}
+
+	ac := autocomplete.New(tview, onAutocompletion)
+	ac.Use(autocomplete.NewRoomMemberSearcher(ctx, roomID))
+
 	buffer := tview.Buffer()
-
-	ac := newAutocompleter(ctx, buffer, roomID)
-
 	buffer.Connect("changed", func(buffer *gtk.TextBuffer) {
 		md.WYSIWYG(ctx, buffer)
-		ac.autocomplete(context.TODO())
+
+		// 100ms max for autocompletion.
+		ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+
+		ac.Autocomplete(ctx)
 	})
 
 	send := gtk.NewButtonFromIconName("document-send-symbolic")
@@ -135,6 +150,11 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 		func(_ *gtk.EventControllerKey, val, code uint, state gdk.ModifierType) bool {
 			switch val {
 			case gdk.KEY_Return:
+				if ac.IsVisible() {
+					ac.Select()
+					return true
+				}
+
 				// TODO: find a better way to do this. goldmark won't try to
 				// parse an incomplete codeblock (I think), but the changed
 				// signal will be fired after this signal.
@@ -151,6 +171,15 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 				if !state.Has(gdk.ShiftMask) && !withinCodeblock {
 					return send.Activate()
 				}
+			case gdk.KEY_Escape:
+				if ac.IsVisible() {
+					ac.Clear()
+					return true
+				}
+			case gdk.KEY_Up:
+				return ac.MoveUp()
+			case gdk.KEY_Down:
+				return ac.MoveDown()
 			}
 
 			return false
@@ -198,6 +227,10 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	}
 }
 
+// func addAutocompletion(cursor *gtk.TextIter, row *autocompleteRow) bool {
+
+// }
+
 // requestAllMembers asynchronously fills up the local state with the given
 // room's members.
 func requestAllMembers(ctx context.Context, roomID matrix.RoomID) {
@@ -206,35 +239,4 @@ func requestAllMembers(ctx context.Context, roomID matrix.RoomID) {
 	if err := client.RoomEnsureMembers(roomID); err != nil {
 		app.Error(ctx, errors.Wrap(err, "failed to prefetch members"))
 	}
-}
-
-type autocompleter struct {
-	client *gotktrix.Client
-	buffer *gtk.TextBuffer
-	search *indexer.RoomMemberSearcher
-}
-
-func newAutocompleter(ctx context.Context, buf *gtk.TextBuffer, rID matrix.RoomID) autocompleter {
-	client := gotktrix.FromContext(ctx)
-	idxer := client.Index.SearchRoomMember(rID)
-
-	return autocompleter{
-		client: client,
-		buffer: buf,
-		search: &idxer,
-	}
-}
-
-func (a *autocompleter) autocomplete(ctx context.Context) {
-	cursor := a.buffer.IterAtOffset(a.buffer.ObjectProperty("cursor-position").(int))
-
-	start := cursor.Copy()
-	if !start.BackwardVisibleWordStart() {
-		return
-	}
-
-	text := a.buffer.Text(start, &cursor, false)
-
-	results := a.search.Search(text)
-	log.Printf("got results %v", results)
 }
