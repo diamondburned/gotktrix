@@ -96,6 +96,11 @@ var TextTags = markuputil.TextTagsMap{
 	},
 
 	// Not HTML tag.
+	"htmltag": {
+		"family":     "Monospace",
+		"foreground": "#808080",
+	},
+	// Meta tags.
 	"_invisible": {"invisible": true},
 }
 

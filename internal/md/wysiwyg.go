@@ -3,6 +3,7 @@ package md
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/md/hl"
@@ -33,7 +34,7 @@ func WYSIWYG(ctx context.Context, buffer *gtk.TextBuffer) {
 	w.table.Foreach(func(tag *gtk.TextTag) {
 		// DO NOT REMOVE INVISIBLE TAGS! They're used by the caller for
 		// additional data and should NEVER used by us.
-		if tag.ObjectProperty("name").(string) != "_invisible" {
+		if !strings.HasPrefix(tag.ObjectProperty("name").(string), "_") {
 			removeTags = append(removeTags, tag)
 		}
 	})
@@ -116,7 +117,7 @@ func (w *wysiwyg) enter(n ast.Node) ast.WalkStatus {
 	case *ast.RawHTML:
 		segments := n.Segments.Sliced(0, n.Segments.Len())
 		for _, seg := range segments {
-			w.markBounds(seg.Start, seg.Stop, "_htmltag")
+			w.markBounds(seg.Start, seg.Stop, "htmltag")
 		}
 
 	case *ast.FencedCodeBlock:
@@ -141,10 +142,6 @@ func (w *wysiwyg) enter(n ast.Node) ast.WalkStatus {
 }
 
 func (w *wysiwyg) tag(tagName string) *gtk.TextTag {
-	if w.table == nil {
-		w.table = w.buf.TagTable()
-	}
-
 	return TextTags.FromTable(w.table, tagName)
 }
 

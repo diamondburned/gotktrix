@@ -268,15 +268,14 @@ func newFormatter(
 		tokenTags = defaultStyle(isDark)
 	}
 
-	f := formatter{
+	return formatter{
 		buf:       buf,
+		tags:      buf.TagTable(),
 		start:     start,
 		end:       end,
 		tokenTags: tokenTags,
 		state:     statePool.Get().(*state),
 	}
-	f.tags = f.buf.TagTable()
-	return f
 }
 
 func (f *formatter) discard() {
@@ -289,21 +288,34 @@ func (f *formatter) do(iter chroma.Iterator) {
 
 	for _, token := range iter.Tokens() {
 		end := offset + len(token.Value)
-		attr := f.tagAttrs(token.Type)
+		tag := f.tag(token.Type)
 
-		if attr != nil {
-			// TODO: assess anonymous tags vs. hashed tags.
-			tag := attr.Tag("")
-			f.tags.Add(tag)
-
+		if tag != nil {
 			f.start.SetOffset(offset)
 			f.end.SetOffset(end)
-
 			f.buf.ApplyTag(tag, f.start, f.end)
 		}
 
 		offset = end
 	}
+}
+
+func (f *formatter) tag(tt chroma.TokenType) *gtk.TextTag {
+	attrs := f.tagAttrs(tt)
+	if attrs == nil {
+		return nil
+	}
+
+	tname := "hl-" + attrs.Hash()
+
+	if tag := f.tags.Lookup(tname); tag != nil {
+		return tag
+	}
+
+	tag := attrs.Tag("hl-" + attrs.Hash())
+	f.tags.Add(tag)
+
+	return tag
 }
 
 func (f *formatter) tagAttrs(tt chroma.TokenType) markuputil.TextTag {

@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"strings"
+	"sync"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -68,10 +69,17 @@ func ErrorLabel(markup string) *gtk.Label {
 // declaratively construct a TextTagTable using NewTextTags.
 type TextTagsMap map[string]TextTag
 
+func isInternalKey(k string) bool { return strings.HasPrefix(k, "__internal") }
+
 // Combine adds all tags from other into m. If m already contains a tag that
 // appears in other, then the tag is not overridden.
 func (m TextTagsMap) Combine(other TextTagsMap) {
 	for k, v := range other {
+		// Ignore internals.
+		if isInternalKey(k) {
+			continue
+		}
+
 		if _, ok := m[k]; !ok {
 			m[k] = v
 		}
@@ -82,6 +90,11 @@ func (m TextTagsMap) Combine(other TextTagsMap) {
 // the tag doesn't exist, then a new one is added instead. If the name isn't
 // known in either the table or the map, then the function will panic.
 func (m TextTagsMap) FromTable(table *gtk.TextTagTable, name string) *gtk.TextTag {
+	// Don't allow internal tags.
+	if isInternalKey(name) {
+		return nil
+	}
+
 	tag := table.Lookup(name)
 	if tag != nil {
 		return tag
@@ -104,29 +117,17 @@ func (m TextTagsMap) FromTable(table *gtk.TextTagTable, name string) *gtk.TextTa
 // automatically.
 type TextTag map[string]interface{}
 
-// TextTagTableFactory creates a function that allocates a new TextTagTable when
-// called. The tag tables all share the same allocated tags.
-func TextTagTableFactory(m TextTagsMap) func() *gtk.TextTagTable {
-	return func() *gtk.TextTagTable {
-		table := gtk.NewTextTagTable()
-
-		for name, attrs := range m {
-			tag := gtk.NewTextTag(name)
-			for k, v := range attrs {
-				tag.SetObjectProperty(k, v)
-			}
-
-			if !table.Add(tag) {
-				log.Panicf("BUG: tag %q not added", name)
-			}
-		}
-
-		return table
-	}
-}
-
 // Tag creates a new text tag from the attributes.
 func (t TextTag) Tag(name string) *gtk.TextTag {
+	if isInternalKey(name) {
+		log.Println("caller wants internal tag", name)
+		return nil
+	}
+
+	if name == "" {
+		name = t.Hash()
+	}
+
 	tag := gtk.NewTextTag(name)
 
 	for k, v := range t {
@@ -140,11 +141,44 @@ func (t TextTag) Tag(name string) *gtk.TextTag {
 	return tag
 }
 
+// hack to guarantee thread safety while hashing. This is fine in most cases,
+// because GTK is single-threaded. It is also fine when hashing is reasonably
+// fast, and the initial slowdown time is barely noticeable in the first place.
+var hashMutex sync.RWMutex
+
 // Hash returns a 24-byte string of the text tag hashed.
 func (t TextTag) Hash() string {
+	const key = "__internal_hashcache"
+
+	hashMutex.RLock()
+	h, ok := t[key]
+	hashMutex.RUnlock()
+
+	if ok {
+		return h.(string)
+	}
+
+	hashMutex.Lock()
+	defer hashMutex.Unlock()
+
+	// Double-check after acquisition.
+	if h, ok := t[key]; ok {
+		return h.(string)
+	}
+
+	hash := t.hashOnce()
+	t[key] = hash
+	return hash
+}
+
+func (t TextTag) hashOnce() string {
 	hash := fnv.New128a()
 
 	for k, v := range t {
+		if isInternalKey(k) {
+			continue
+		}
+
 		hash.Write([]byte(k))
 		hash.Write([]byte(":"))
 		fmt.Fprintln(hash, v)
@@ -157,7 +191,7 @@ func (t TextTag) Hash() string {
 // tag attributes as the name. If the same tag has already been created, then it
 // is returned.
 func HashTag(table *gtk.TextTagTable, attrs TextTag) *gtk.TextTag {
-	hash := "custom." + attrs.Hash()
+	hash := "custom-" + attrs.Hash()
 
 	if t := table.Lookup(hash); t != nil {
 		return t

@@ -19,7 +19,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/pkg/errors"
 )
@@ -53,16 +52,6 @@ var sendCSS = cssutil.Applier("composer-send", `
 		border-radius: 0;
 	}
 `)
-
-func init() {
-	md.TextTags.Combine(markuputil.TextTagsMap{
-		// Not HTML tags.
-		"_htmltag": {
-			"family":     "Monospace",
-			"foreground": "#808080",
-		},
-	})
-}
 
 func copyMessage(buffer *gtk.TextBuffer, roomID matrix.RoomID) (event.RoomMessageEvent, bool) {
 	head := buffer.StartIter()
