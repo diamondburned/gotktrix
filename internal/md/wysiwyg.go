@@ -19,15 +19,28 @@ func WYSIWYG(ctx context.Context, buffer *gtk.TextBuffer) {
 	// goldmark processes to be the exact same as what's in the buffer.
 	input := []byte(buffer.Slice(&head, &tail, true))
 
-	// Remove all tags before recreating them all.
-	buffer.RemoveAllTags(&head, &tail)
-
 	w := wysiwyg{
-		ctx:  ctx,
-		buf:  buffer,
-		src:  input,
-		head: &head,
-		tail: &tail,
+		ctx:   ctx,
+		buf:   buffer,
+		table: buffer.TagTable(),
+		src:   input,
+		head:  &head,
+		tail:  &tail,
+	}
+
+	removeTags := make([]*gtk.TextTag, 0, w.table.Size())
+
+	w.table.Foreach(func(tag *gtk.TextTag) {
+		// DO NOT REMOVE INVISIBLE TAGS! They're used by the caller for
+		// additional data and should NEVER used by us.
+		if tag.ObjectProperty("name").(string) != "_invisible" {
+			removeTags = append(removeTags, tag)
+		}
+	})
+
+	// Ensure that the WYSIWYG tags are all gone.
+	for _, tag := range removeTags {
+		buffer.RemoveTag(tag, &head, &tail)
 	}
 
 	// Error is not important.

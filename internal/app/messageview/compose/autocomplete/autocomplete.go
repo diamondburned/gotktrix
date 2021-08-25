@@ -15,9 +15,10 @@ import (
 // SelectedData wraps around a Data to provide additional metadata that could be
 // useful for the user.
 type SelectedData struct {
-	// Cursor is the iterator that sits at the current cursor location at the
-	// time this data was found.
-	Cursor *gtk.TextIter
+	// Bounds contains the iterators that sit around the word used for
+	// searching. The iterators are guaranteed to be valid until the callback
+	// returns.
+	Bounds [2]*gtk.TextIter
 	// Data is the selected entry's data.
 	Data Data
 }
@@ -31,7 +32,9 @@ type SelectedFunc func(SelectedData) bool
 type Autocompleter struct {
 	tview  *gtk.TextView
 	buffer *gtk.TextBuffer
-	cursor *gtk.TextIter
+
+	start *gtk.TextIter
+	end   *gtk.TextIter
 
 	onSelect SelectedFunc
 
@@ -135,14 +138,17 @@ func (a *Autocompleter) Autocomplete(ctx context.Context) {
 
 	a.clear()
 
-	cursor := a.buffer.IterAtOffset(a.buffer.ObjectProperty("cursor-position").(int))
-	a.cursor = &cursor
+	cursor := a.buffer.ObjectProperty("cursor-position").(int)
+
+	start := a.buffer.IterAtOffset(cursor)
+	a.start = &start
+
+	end := a.buffer.IterAtOffset(cursor)
+	a.end = &end
 
 	var searcher Searcher
 
-	start := a.cursor.Copy()
-
-	if !start.BackwardFindChar(func(ch uint32) bool {
+	if !a.start.BackwardFindChar(func(ch uint32) bool {
 		r := rune(ch)
 		if unicode.IsSpace(r) {
 			return false
@@ -156,7 +162,7 @@ func (a *Autocompleter) Autocomplete(ctx context.Context) {
 		return
 	}
 
-	text := a.buffer.Text(start, a.cursor, false)
+	text := a.buffer.Text(a.start, a.end, false)
 	first, text := popRune(text)
 
 	searcher, ok := a.searchers[first]
@@ -210,12 +216,12 @@ func (a *Autocompleter) selectRow(row *gtk.ListBoxRow) {
 	}
 
 	data := SelectedData{
-		Cursor: a.cursor,
+		Bounds: [2]*gtk.TextIter{a.start, a.end},
 		Data:   a.listRows[row.Index()].data,
 	}
 
 	if a.onSelect(data) {
-		a.buffer.Insert(data.Cursor, " ", 1)
+		a.buffer.Insert(data.Bounds[1], " ", 1)
 		a.Clear()
 		return
 	}
@@ -232,7 +238,7 @@ func (a *Autocompleter) hide() {
 }
 
 func (a *Autocompleter) show() {
-	rect := a.tview.IterLocation(a.cursor)
+	rect := a.tview.IterLocation(a.end)
 	x, y := a.tview.BufferToWindowCoords(gtk.TextWindowWidget, rect.X(), rect.Y())
 
 	ptTo := gdk.NewRectangle(x, y, 1, 1)

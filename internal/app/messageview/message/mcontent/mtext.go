@@ -9,7 +9,6 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -18,6 +17,11 @@ import (
 	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/diamondburned/gotktrix/internal/md/hl"
 	"golang.org/x/net/html"
+)
+
+const (
+	smallEmojiSize = 20
+	largeEmojiSize = 42
 )
 
 type textContent struct {
@@ -73,6 +77,8 @@ func renderIntoBuffer(ctx context.Context, tview *gtk.TextView, node *html.Node)
 		iter:  &iter,
 		ctx:   ctx,
 		list:  0,
+		// TODO: detect unicode emojis.
+		large: !nodeHasText(node),
 	}
 
 	if state.traverseSiblings(node) == traverseFailed {
@@ -130,7 +136,7 @@ type renderState struct {
 
 	ctx   context.Context
 	list  int
-	quote bool
+	large bool
 }
 
 func (s *renderState) traverseChildren(n *html.Node) traverseStatus {
@@ -168,11 +174,9 @@ func (s *renderState) nTrailingNewLine() int {
 	return 2
 }
 
-// p starts a paragraph by padding the current text with at most 2 new lines.
-func (s *renderState) p() {
-	n := s.nTrailingNewLine()
-	if n < 2 {
-		s.buf.Insert(s.iter, strings.Repeat("\n", 2-n), -1)
+func (s *renderState) lineIfText(n *html.Node) {
+	if s.nTrailingNewLine() == 0 && (!s.large && nodeHasText(n)) {
+		s.buf.Insert(s.iter, "\n", 1)
 	}
 }
 
@@ -200,7 +204,6 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			newLines -= n
 		}
 		if newLines > 0 {
-			log.Printf("making up newLines = %d for text %q", newLines, text)
 			s.buf.Insert(s.iter, strings.Repeat("\n", newLines), -1)
 		}
 
@@ -243,13 +246,13 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		// Block Elements.
 		case "blockquote":
 			s.renderChildren(n)
-			s.line()
+			s.lineIfText(n)
 			return traverseSkipChildren
 
 		// Block Elements.
 		case "p", "pre", "div":
 			s.traverseChildren(n)
-			s.line()
+			s.lineIfText(n)
 			return traverseSkipChildren
 
 		// Inline.
@@ -299,18 +302,30 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				return traverseOK
 			}
 
-			offset := s.iter.Offset()
-			s.insertInvisible(nodeAttr(n, "title"))
+			// TODO: figure out a way to insert a nice text representation of an
+			// emoji that's invisible, so it's clipboard-and-TTS friendly. This
+			// way doesn't work.
+			// s.insertInvisible(nodeAttr(n, "title"))
 
-			reqw := parseIntOr(nodeAttr(n, "width"), maxWidth)
-			reqh := parseIntOr(nodeAttr(n, "height"), maxHeight)
-			w, h := gotktrix.MaxSize(reqw, reqh, maxWidth, maxHeight)
+			var w, h int
+			if nodeHasAttr(n, "data-mx-emoticon") {
+				// If this image is a custom emoji, then we can make it big.
+				if s.large {
+					w, h = largeEmojiSize, largeEmojiSize
+				} else {
+					w, h = smallEmojiSize, smallEmojiSize
+				}
+			} else {
+				w, h = gotktrix.MaxSize(
+					parseIntOr(nodeAttr(n, "width"), maxWidth),
+					parseIntOr(nodeAttr(n, "height"), maxHeight),
+					maxWidth,
+					maxHeight,
+				)
+			}
 
 			thumbnail, _ := gotktrix.FromContext(s.ctx).Offline().Thumbnail(src, w, h)
-			imgutil.AsyncGET(s.ctx, thumbnail, func(p gdk.Paintabler) {
-				iter := s.buf.IterAtOffset(offset)
-				s.buf.InsertPaintable(&iter, p)
-			})
+			md.AsyncInsertImage(s.ctx, s.iter, thumbnail, imgutil.WithRescale(w, h))
 			return traverseOK
 
 		default:
@@ -385,10 +400,31 @@ func nodeAttr(n *html.Node, keys ...string) string {
 	return ""
 }
 
+func nodeHasAttr(n *html.Node, key string) bool {
+	for _, attr := range n.Attr {
+		if attr.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
 func nodePrependText(n *html.Node, text string) {
 	node := &html.Node{
 		Type: html.TextNode,
 		Data: text,
 	}
 	n.InsertBefore(node, n.FirstChild)
+}
+
+func nodeHasText(n *html.Node) bool {
+	if n.Type == html.TextNode {
+		return true
+	}
+	for n := n.FirstChild; n != nil; n = n.NextSibling {
+		if nodeHasText(n) {
+			return true
+		}
+	}
+	return false
 }

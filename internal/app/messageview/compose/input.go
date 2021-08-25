@@ -2,6 +2,8 @@ package compose
 
 import (
 	"context"
+	"fmt"
+	"html"
 	"log"
 	"strings"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/compose/autocomplete"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/pkg/errors"
@@ -92,6 +95,20 @@ func copyMessage(buffer *gtk.TextBuffer, roomID matrix.RoomID) (event.RoomMessag
 	return ev, true
 }
 
+func customEmojiHTML(emoji autocomplete.EmojiData) string {
+	if emoji.Unicode != "" {
+		return emoji.Unicode
+	}
+
+	return fmt.Sprintf(
+		`<img alt="%s" title="%[1]s" width="32" height="32" src="%s" data-mxc-emoticon/>`,
+		html.EscapeString(string(emoji.Name)),
+		html.EscapeString(string(emoji.Custom.URL)),
+	)
+}
+
+const inlineEmojiSize = 18
+
 // NewInput creates a new Input instance.
 func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input {
 	go requestAllMembers(ctx, roomID)
@@ -108,23 +125,22 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	)
 	inputCSS(tview)
 
-	onAutocompletion := func(row autocomplete.SelectedData) bool {
-		switch data := row.Data.(type) {
-		case autocomplete.RoomMemberData:
-			log.Println("chose", data.ID)
-		}
+	buffer := tview.Buffer()
 
-		return true
-	}
-
-	ac := autocomplete.New(tview, onAutocompletion)
+	ac := autocomplete.New(tview, func(row autocomplete.SelectedData) bool {
+		return finishAutocomplete(ctx, buffer, row)
+	})
 	ac.SetTimeout(time.Second)
 	ac.Use(
 		autocomplete.NewRoomMemberSearcher(ctx, roomID), // @
 		autocomplete.NewEmojiSearcher(ctx, roomID),      // :
 	)
 
-	buffer := tview.Buffer()
+	// Ugh. We have to be EXTREMELY careful with this context, because if it's
+	// misused, it will put the input buffer into a very inconsistent state.
+	// It must be invalidated every time to buffer changes, because we don't
+	// want to risk
+
 	buffer.Connect("changed", func(buffer *gtk.TextBuffer) {
 		md.WYSIWYG(ctx, buffer)
 		ac.Autocomplete(ctx)
@@ -238,9 +254,34 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	}
 }
 
-// func addAutocompletion(cursor *gtk.TextIter, row *autocompleteRow) bool {
+func finishAutocomplete(
+	ctx context.Context, buffer *gtk.TextBuffer, row autocomplete.SelectedData) bool {
 
-// }
+	switch data := row.Data.(type) {
+	case autocomplete.RoomMemberData:
+		log.Println("chose", data.ID)
+
+	case autocomplete.EmojiData:
+		// Delete the inserted text, which will equalize the two bounds. The
+		// caller will use bounds[1], so we use that to revalidate it.
+		buffer.Delete(row.Bounds[0], row.Bounds[1])
+		if data.Unicode != "" {
+			// Unicode emoji means we can just insert it in plain text.
+			buffer.Insert(row.Bounds[1], data.Unicode, len(data.Unicode))
+		} else {
+			// Queue inserting the pixbuf.
+			client := gotktrix.FromContext(ctx).Offline()
+			url, _ := client.SquareThumbnail(data.Custom.URL, inlineEmojiSize)
+			md.AsyncInsertImage(ctx, row.Bounds[1], url, imgutil.WithRectRescale(inlineEmojiSize))
+			// Insert the HTML.
+			md.InsertInvisible(row.Bounds[1], customEmojiHTML(data))
+		}
+	default:
+		return false
+	}
+
+	return true
+}
 
 // requestAllMembers asynchronously fills up the local state with the given
 // room's members.

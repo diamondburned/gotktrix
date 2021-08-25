@@ -2,9 +2,13 @@
 package md
 
 import (
+	"context"
+
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 
 	"github.com/yuin/goldmark"
@@ -136,4 +140,71 @@ func WalkChildren(n ast.Node, walker ast.Walker) ast.WalkStatus {
 func ParseAndWalk(src []byte, w ast.Walker) error {
 	n := Parser.Parse(text.NewReader(src))
 	return ast.Walk(n, w)
+}
+
+// InsertInvisible inserts an invisible string of text into the buffer. This is
+// useful for inserting invisible textual data during editing.
+func InsertInvisible(pos *gtk.TextIter, txt string) {
+	buf := pos.Buffer()
+	insertInvisible(buf, pos, txt)
+}
+
+func insertInvisible(buf *gtk.TextBuffer, pos *gtk.TextIter, txt string) {
+	tbl := buf.TagTable()
+	tag := TextTags.FromTable(tbl, "_invisible")
+
+	start := pos.Offset()
+	buf.Insert(pos, txt, len(txt))
+
+	startIter := buf.IterAtOffset(start)
+	buf.ApplyTag(tag, &startIter, pos)
+}
+
+// AsyncInsertImage asynchronously inserts an image paintable. It does so in a
+// way that the text position of the text buffer is not scrambled.
+//
+// Note that the caller should be careful when using this function: only modify
+// the text buffer once the given context is cancelled. If that isn't done, then
+// the function might incorrectly insert an image when it's not needed anymore.
+// This is only a concern if the text buffer is mutable, however.
+func AsyncInsertImage(ctx context.Context, iter *gtk.TextIter, url string, opts ...imgutil.Opts) {
+	buf := iter.Buffer()
+
+	offset := iter.Offset()
+	// Insert a placeholder character right at the offset.
+	insertInvisible(buf, iter, "\uFFFC")
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	// Handle mutating the buffer.
+	buf.Connect("changed", func(buf *gtk.TextBuffer) {
+		iter := buf.IterAtOffset(offset)
+		next := buf.IterAtOffset(offset + 1)
+
+		if d := buf.Slice(&iter, &next, true); d != "\uFFFC" {
+			cancel()
+			return
+		}
+	})
+
+	setImg := func(p gdk.Paintabler) {
+		iter := buf.IterAtOffset(offset)
+		next := buf.IterAtOffset(offset + 1)
+
+		// Verify that the character at the buffer is still the intended one.
+		if d := buf.Slice(&iter, &next, true); d != "\uFFFC" {
+			// Character is different; don't modify the buffer.
+			return
+		}
+
+		// Delete the 0xFFFC character that we temporarily inserted into
+		// the buffer to reserve the offset.
+		buf.Delete(&iter, &next)
+		// Insert the pixbuf.
+		buf.InsertPaintable(&iter, p)
+		// Clean up the context.
+		cancel()
+	}
+
+	imgutil.AsyncGET(ctx, url, setImg, opts...)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotktrix/internal/config"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/gregjones/httpcache"
 	"github.com/gregjones/httpcache/diskcache"
 	"github.com/pkg/errors"
@@ -34,8 +35,37 @@ const parallelMult = 4
 // sema is used to throttle concurrent downloads.
 var sema = semaphore.NewWeighted(int64(runtime.GOMAXPROCS(-1)) * parallelMult)
 
+type opts struct {
+	w, h int
+}
+
+// Opts is a type that can optionally modify the default internal options for
+// each call.
+type Opts func(*opts)
+
+func processOpts(optFuncs []Opts) opts {
+	var o opts
+	for _, opt := range optFuncs {
+		opt(&o)
+	}
+	return o
+}
+
+// WithRectRescale is a convenient function around WithRescale for rectangular
+// or circular images.
+func WithRectRescale(size int) Opts {
+	return WithRescale(size, size)
+}
+
+// WithRescale rescales the image to the given max width and height while
+// respecting its aspect ratio. The given sizes will be used as the maximum
+// sizes.
+func WithRescale(w, h int) Opts {
+	return func(o *opts) { o.w, o.h = w, h }
+}
+
 // AsyncRead reads the given reader asynchronously into a paintable.
-func AsyncRead(ctx context.Context, r io.ReadCloser, f func(gdk.Paintabler)) {
+func AsyncRead(ctx context.Context, r io.ReadCloser, f func(gdk.Paintabler), opts ...Opts) {
 	ctx, cancel := context.WithCancel(ctx)
 
 	go func() {
@@ -56,8 +86,10 @@ func AsyncRead(ctx context.Context, r io.ReadCloser, f func(gdk.Paintabler)) {
 }
 
 // Read synchronously reads the reader into a paintable.
-func Read(r io.Reader) (gdk.Paintabler, error) {
-	p, err := readPixbuf(r)
+func Read(r io.Reader, opts ...Opts) (gdk.Paintabler, error) {
+	o := processOpts(opts)
+
+	p, err := readPixbuf(r, &o)
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +103,13 @@ func Read(r io.Reader) (gdk.Paintabler, error) {
 //
 // This function can be called from any thread. It will synchronize accordingly
 // by itself.
-func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler)) {
+func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler), opts ...Opts) {
 	if url == "" {
 		return
 	}
 
 	async(ctx, func() (func(), error) {
-		p, err := GET(ctx, url)
+		p, err := GET(ctx, url, opts...)
 		if err != nil {
 			return nil, errors.Wrap(err, "async GET error")
 		}
@@ -87,13 +119,13 @@ func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler)) {
 }
 
 // AsyncPixbuf fetches a pixbuf.
-func AsyncPixbuf(ctx context.Context, url string, f func(*gdkpixbuf.Pixbuf)) {
+func AsyncPixbuf(ctx context.Context, url string, f func(*gdkpixbuf.Pixbuf), opts ...Opts) {
 	if url == "" {
 		return
 	}
 
 	async(ctx, func() (func(), error) {
-		p, err := GETPixbuf(ctx, url)
+		p, err := GETPixbuf(ctx, url, opts...)
 		if err != nil {
 			return nil, errors.Wrap(err, "async GET error")
 		}
@@ -127,8 +159,8 @@ func async(ctx context.Context, do func() (func(), error)) {
 }
 
 // GET gets the given URL into a Paintable.
-func GET(ctx context.Context, url string) (gdk.Paintabler, error) {
-	pixbuf, err := GETPixbuf(ctx, url)
+func GET(ctx context.Context, url string, opts ...Opts) (gdk.Paintabler, error) {
+	pixbuf, err := GETPixbuf(ctx, url, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -137,9 +169,22 @@ func GET(ctx context.Context, url string) (gdk.Paintabler, error) {
 }
 
 // GETPixbuf gets the Pixbuf directly.
-func GETPixbuf(ctx context.Context, url string) (*gdkpixbuf.Pixbuf, error) {
+func GETPixbuf(ctx context.Context, url string, opts ...Opts) (*gdkpixbuf.Pixbuf, error) {
 	if url == "" {
 		return nil, nil
+	}
+
+	// Be careful when using the given context. There's a chance that it might
+	// be cancelled to quickly, but then the same resource might be fetched
+	// again. This will cause a lot of server straining. It's best that we
+	// impose our own timeout on requests, if possible.
+	rqctx := context.Background()
+
+	if deadline, ok := ctx.Deadline(); ok {
+		ctx, cancel := context.WithDeadline(rqctx, deadline)
+		defer cancel()
+
+		rqctx = ctx
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -153,7 +198,9 @@ func GETPixbuf(ctx context.Context, url string) (*gdkpixbuf.Pixbuf, error) {
 	}
 	defer r.Body.Close()
 
-	p, err := readPixbuf(r.Body)
+	o := processOpts(opts)
+
+	p, err := readPixbuf(r.Body, &o)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read %q", url)
 	}
@@ -161,8 +208,16 @@ func GETPixbuf(ctx context.Context, url string) (*gdkpixbuf.Pixbuf, error) {
 	return p, nil
 }
 
-func readPixbuf(r io.Reader) (*gdkpixbuf.Pixbuf, error) {
+func readPixbuf(r io.Reader, opts *opts) (*gdkpixbuf.Pixbuf, error) {
 	loader := gdkpixbuf.NewPixbufLoader()
+	if opts.w > 0 && opts.h > 0 {
+		loader.Connect("size-prepared", func(loader *gdkpixbuf.PixbufLoader, w, h int) {
+			if w != opts.w || h != opts.h {
+				loader.SetSize(gotktrix.MaxSize(w, h, opts.w, opts.h))
+			}
+		})
+	}
+
 	if err := pixbufLoaderReadFrom(loader, r); err != nil {
 		return nil, errors.Wrap(err, "reader error")
 	}
