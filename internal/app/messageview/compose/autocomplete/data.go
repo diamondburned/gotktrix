@@ -2,15 +2,23 @@ package autocomplete
 
 import (
 	"context"
+	"log"
+	"time"
 
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	unicodeemoji "github.com/enescakir/emoji"
+	"github.com/sahilm/fuzzy"
 )
 
 // Searcher is the interface for anything that can handle searching up a
@@ -27,7 +35,7 @@ type Searcher interface {
 // constructing a new ListBoxRow.
 type Data interface {
 	// Row constructs a new ListBoxRow for display inside the list.
-	Row() *gtk.ListBoxRow
+	Row(context.Context) *gtk.ListBoxRow
 }
 
 // dataList is for internal use only.
@@ -45,10 +53,7 @@ func (l *dataList) add(data Data) {
 }
 
 // RoomMemberData is the data for each room member. It implements Data.
-type RoomMemberData struct {
-	indexer.IndexedRoomMember
-	ctx context.Context
-}
+type RoomMemberData indexer.IndexedRoomMember
 
 var subNameAttrs = markuputil.Attrs(
 	pango.NewAttrScale(0.85),
@@ -56,10 +61,10 @@ var subNameAttrs = markuputil.Attrs(
 )
 
 // Row implements Data.
-func (d RoomMemberData) Row() *gtk.ListBoxRow {
-	client := gotktrix.FromContext(d.ctx).Offline()
+func (d RoomMemberData) Row(ctx context.Context) *gtk.ListBoxRow {
+	client := gotktrix.FromContext(ctx).Offline()
 	author := mauthor.Markup(client, d.Room, d.ID,
-		mauthor.WithWidgetColor(&app.Window(d.ctx).Widget),
+		mauthor.WithWidgetColor(&app.Window(ctx).Widget),
 		mauthor.WithMinimal(),
 	)
 
@@ -87,8 +92,8 @@ func (d RoomMemberData) Row() *gtk.ListBoxRow {
 // room members for the given room. It matches using '@'.
 func NewRoomMemberSearcher(ctx context.Context, roomID matrix.RoomID) Searcher {
 	return &roomMemberSearcher{
-		rms: gotktrix.FromContext(ctx).Index.SearchRoomMember(roomID),
-		res: make([]Data, 0, indexer.QuerySize),
+		rms: gotktrix.FromContext(ctx).Index.SearchRoomMember(roomID, MaxResults),
+		res: make([]Data, 0, MaxResults),
 	}
 }
 
@@ -107,11 +112,191 @@ func (s *roomMemberSearcher) Search(ctx context.Context, str string) []Data {
 
 	s.res.clear()
 	for _, result := range results {
-		s.res.add(RoomMemberData{
-			IndexedRoomMember: result,
-			ctx:               ctx,
-		})
+		s.res.add(RoomMemberData(result))
 	}
 
 	return s.res
+}
+
+// NewEmojiSearcher creates a new emoji searcher.
+func NewEmojiSearcher(ctx context.Context, roomID matrix.RoomID) Searcher {
+	return &emojiSearcher{
+		client: gotktrix.FromContext(ctx).Offline(),
+		roomID: roomID,
+		res:    make(dataList, 0, MaxResults),
+	}
+}
+
+type emojiSearcher struct {
+	client *gotktrix.Client
+	roomID matrix.RoomID
+
+	res dataList
+
+	emotes  map[emojis.EmojiName]emojis.Emoji
+	matches []string
+	updated time.Time
+	fetched bool
+}
+
+func (s *emojiSearcher) Rune() rune { return ':' }
+
+const cacheExpiry = time.Minute
+
+func (s *emojiSearcher) update() {
+	now := time.Now()
+	if s.matches != nil && s.updated.Add(cacheExpiry).After(now) {
+		return
+	}
+
+	s.updated = now
+
+	userEmotes, err1 := emojis.UserEmotes(s.client)
+	roomEmotes, err2 := emojis.RoomEmotes(s.client, s.roomID)
+	if !s.fetched && (err1 != nil || err2 != nil) {
+		// Asynchronously fetch the API.
+		s.fetched = true
+		go func() {
+			client := s.client.Online(context.Background())
+			emojis.UserEmotes(client)
+			emojis.RoomEmotes(client, s.roomID)
+			// Invalidate the updated marker so we can recreate the cache.
+			glib.IdleAdd(func() { s.updated = time.Time{} })
+		}()
+	}
+
+	// It's likely cheaper to just reallocate the emojis object if the length
+	// does not match. We can allow some cache inconsistency; it doesn't impact
+	// that significantly.
+	if t := len(userEmotes.Emoticons) + len(roomEmotes.Emoticons); t != len(s.emotes) {
+		s.emotes = make(map[emojis.EmojiName]emojis.Emoji, t)
+	}
+
+	// Keep track of changes, so we can reconstruct the matcher object if
+	// needed.
+	var changed bool
+
+	// Prioritize user emotes over room emotes.
+	for name, emote := range userEmotes.Emoticons {
+		log.Println("user emote", name)
+		if _, ok := s.emotes[name]; ok {
+			continue
+		}
+		s.emotes[name] = emote
+		changed = true
+	}
+
+	for name, emote := range roomEmotes.Emoticons {
+		log.Println("room emote", name)
+		if _, ok := s.emotes[name]; ok {
+			continue
+		}
+		s.emotes[name] = emote
+		changed = true
+	}
+
+	if changed {
+		s.updateMatches()
+	}
+}
+
+var unicodeEmojis = unicodeemoji.Map()
+
+// updateMatches is fairly expensive!
+func (s *emojiSearcher) updateMatches() {
+	if s.matches == nil {
+		s.matches = make([]string, 0, len(s.emotes)+len(unicodeEmojis))
+		for name := range unicodeEmojis {
+			s.matches = append(s.matches, name)
+		}
+	} else {
+		s.matches = s.matches[:len(unicodeEmojis)]
+	}
+
+	for name := range s.emotes {
+		s.matches = append(s.matches, string(name))
+	}
+}
+
+func (s *emojiSearcher) Search(ctx context.Context, str string) []Data {
+	s.update()
+	s.res.clear()
+
+	matches := fuzzy.Find(str, s.matches)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	if len(matches) > MaxResults {
+		matches = matches[:MaxResults]
+	}
+
+	for _, match := range matches {
+		d := EmojiData{Name: match.Str}
+
+		if custom, ok := s.emotes[emojis.EmojiName(d.Name)]; ok {
+			d.Custom = custom
+			goto gotData
+		}
+
+		if u, ok := unicodeEmojis[d.Name]; ok {
+			d.Unicode = u
+			goto gotData
+		}
+
+		continue
+	gotData:
+		s.res.add(d)
+	}
+
+	return s.res
+}
+
+// EmojiData is the Data structure for each emoji.
+type EmojiData struct {
+	Name string
+
+	// either or
+	Unicode string
+	Custom  emojis.Emoji
+}
+
+const emojiSize = 32 // px
+
+var _ = cssutil.WriteCSS(`
+	.autocompleter-unicode {
+		font-size: 26px;
+	}
+`)
+
+func (d EmojiData) Row(ctx context.Context) *gtk.ListBoxRow {
+	b := gtk.NewBox(gtk.OrientationHorizontal, 4)
+
+	if d.Unicode != "" {
+		l := gtk.NewLabel(d.Unicode)
+		l.AddCSSClass("autocompleter-unicode")
+
+		b.Append(l)
+	} else {
+		i := gtk.NewImage()
+		i.AddCSSClass("autocompleter-custom")
+		i.SetSizeRequest(emojiSize, emojiSize)
+
+		client := gotktrix.FromContext(ctx).Offline()
+		url, _ := client.SquareThumbnail(d.Custom.URL, emojiSize)
+		imgutil.AsyncGET(ctx, url, i.SetFromPaintable)
+
+		b.Append(i)
+	}
+
+	l := gtk.NewLabel(d.Name)
+	l.SetMaxWidthChars(35)
+	l.SetEllipsize(pango.EllipsizeMiddle)
+	b.Append(l)
+
+	r := gtk.NewListBoxRow()
+	r.AddCSSClass("autocomplete-emoji")
+	r.SetChild(b)
+
+	return r
 }

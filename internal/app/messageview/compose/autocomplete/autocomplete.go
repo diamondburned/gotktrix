@@ -2,12 +2,13 @@ package autocomplete
 
 import (
 	"context"
+	"runtime"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
@@ -39,6 +40,9 @@ type Autocompleter struct {
 	listRows []row
 
 	searchers map[rune]Searcher
+
+	cancel  context.CancelFunc
+	timeout time.Duration
 }
 
 type row struct {
@@ -61,6 +65,9 @@ var _ = cssutil.WriteCSS(`
 // AutocompleterWidth is the minimum width of the popped up autocompleter.
 const AutocompleterWidth = 250
 
+// MaxResults is the maximum number of search results.
+const MaxResults = 8
+
 // New creates a new instance of autocompleter.
 func New(text *gtk.TextView, f SelectedFunc) *Autocompleter {
 	list := gtk.NewListBox()
@@ -68,21 +75,11 @@ func New(text *gtk.TextView, f SelectedFunc) *Autocompleter {
 	list.SetActivateOnSingleClick(true)
 	list.SetSelectionMode(gtk.SelectionBrowse)
 
-	viewport := gtk.NewViewport(nil, nil)
-	viewport.SetChild(list)
-	viewport.SetVAlign(gtk.AlignStart)
-	viewport.SetVExpand(true)
-	viewport.SetVScrollPolicy(gtk.ScrollNatural)
-
-	scroll := gtk.NewScrolledWindow()
-	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	scroll.SetChild(viewport)
-
 	popover := gtk.NewPopover()
 	popover.AddCSSClass("autocomplete-popover")
 	popover.SetSizeRequest(AutocompleterWidth, 250)
 	popover.SetParent(text)
-	popover.SetChild(scroll)
+	popover.SetChild(list)
 	popover.SetPosition(gtk.PosTop)
 	popover.SetAutohide(false)
 	popover.Hide()
@@ -93,7 +90,7 @@ func New(text *gtk.TextView, f SelectedFunc) *Autocompleter {
 		onSelect:  f,
 		popover:   popover,
 		listBox:   list,
-		listRows:  make([]row, 0, indexer.QuerySize),
+		listRows:  make([]row, 0, MaxResults),
 		searchers: make(map[rune]Searcher),
 	}
 
@@ -101,7 +98,19 @@ func New(text *gtk.TextView, f SelectedFunc) *Autocompleter {
 		ac.selectRow(row)
 	})
 
+	// Ensure the context is cleaned up.
+	runtime.SetFinalizer(&ac, func(ac *Autocompleter) {
+		if ac.cancel != nil {
+			ac.cancel()
+		}
+	})
+
 	return &ac
+}
+
+// SetTimeout sets the timeout for each autocompletion.
+func (a *Autocompleter) SetTimeout(d time.Duration) {
+	a.timeout = d
 }
 
 // Use registers the given searcher instance into the autocompleter.
@@ -119,6 +128,11 @@ func popRune(s string) (rune, string) {
 // Autocomplete updates the Autocompleter popover to show what the internal
 // input buffer has.
 func (a *Autocompleter) Autocomplete(ctx context.Context) {
+	if a.cancel != nil {
+		a.cancel()
+		a.cancel = nil
+	}
+
 	a.clear()
 
 	cursor := a.buffer.IterAtOffset(a.buffer.ObjectProperty("cursor-position").(int))
@@ -151,7 +165,13 @@ func (a *Autocompleter) Autocomplete(ctx context.Context) {
 		return
 	}
 
-	results := searcher.Search(ctx, text)
+	// cancelled on next run
+	ctx, a.cancel = context.WithCancel(ctx)
+
+	searchCtx, cancel := context.WithTimeout(ctx, a.timeout)
+	defer cancel()
+
+	results := searcher.Search(searchCtx, text)
 	if len(results) == 0 {
 		a.hide()
 		return
@@ -159,7 +179,7 @@ func (a *Autocompleter) Autocomplete(ctx context.Context) {
 
 	for _, result := range results {
 		r := row{
-			ListBoxRow: result.Row(),
+			ListBoxRow: result.Row(ctx),
 			data:       result,
 		}
 

@@ -10,7 +10,10 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
+	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 	markutil "github.com/yuin/goldmark/util"
 )
 
@@ -30,8 +33,22 @@ var Parser = parser.NewParser(
 	),
 )
 
+var Renderer = html.NewRenderer(
+	html.WithHardWraps(),
+	html.WithUnsafe(),
+)
+
 // Converter is the default converter that outputs HTML.
-var Converter = goldmark.New(goldmark.WithParser(Parser))
+var Converter = goldmark.New(
+	goldmark.WithParser(Parser),
+	goldmark.WithRenderer(
+		renderer.NewRenderer(
+			renderer.WithNodeRenderers(
+				util.Prioritized(Renderer, 1000),
+			),
+		),
+	),
+)
 
 // TextTags contains the tag table mapping most Matrix HTML tags to GTK
 // TextTags.
@@ -50,8 +67,8 @@ var TextTags = markuputil.TextTagsMap{
 	"u":      {"underline": pango.UnderlineSingle},
 	"strike": {"strikethrough": true},
 	"del":    {"strikethrough": true},
-	"sup":    {"rise": +1000, "scale": 0.50},
-	"sub":    {"rise": -1000, "scale": 0.50},
+	"sup":    {"rise": +6000, "scale": 0.7},
+	"sub":    {"rise": -2000, "scale": 0.7},
 	"code": {
 		"family":         "Monospace",
 		"insert-hyphens": false,
@@ -67,12 +84,15 @@ var TextTags = markuputil.TextTagsMap{
 		"scale":  0.8,
 	},
 	"li": {
-		"left-margin": 18, // px
+		"left-margin": 16, // px
+	},
+	"blockquote": {
+		"foreground":  "#789922",
+		"left-margin": 8, // px
 	},
 
 	// Not HTML tag.
 	"_invisible": {"invisible": true},
-	"_ligatures": {"font-features": "dlig=1"},
 }
 
 func htag(scale float64) markuputil.TextTag {

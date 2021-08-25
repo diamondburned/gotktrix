@@ -128,8 +128,9 @@ type renderState struct {
 	table *gtk.TextTagTable
 	iter  *gtk.TextIter
 
-	ctx  context.Context
-	list int
+	ctx   context.Context
+	list  int
+	quote bool
 }
 
 func (s *renderState) traverseChildren(n *html.Node) traverseStatus {
@@ -241,13 +242,14 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		// Block Elements.
 		case "blockquote":
-			// TODO: ">" prefix, green texting.
-			fallthrough
+			s.renderChildren(n)
+			s.line()
+			return traverseSkipChildren
 
 		// Block Elements.
 		case "p", "pre", "div":
 			s.traverseChildren(n)
-			s.p()
+			s.line()
 			return traverseSkipChildren
 
 		// Inline.
@@ -284,7 +286,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			s.line()
 			return traverseOK
 		case "br":
-			s.p()
+			s.line()
 			return traverseOK
 
 		case "img": // width, height, alt, title, src(mxc)
@@ -313,7 +315,8 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		default:
 			log.Println("unknown tag", n.Data)
-			return s.traverseChildren(n)
+			s.traverseChildren(n)
+			return traverseSkipChildren
 		}
 
 	case html.ErrorNode:

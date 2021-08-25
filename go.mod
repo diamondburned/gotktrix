@@ -12,9 +12,11 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.0
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210824052008-5f3302d4ae36
 	github.com/diamondburned/gotk4/pkg v0.0.0-20210824051836-cf3f6994d2e2
+	github.com/enescakir/emoji v1.0.0
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/pkg/errors v0.9.1
+	github.com/sahilm/fuzzy v0.1.0
 	github.com/yuin/goldmark v1.4.0
 	github.com/zalando/go-keyring v0.1.1
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97
@@ -53,6 +55,7 @@ require (
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/flatbuffers v1.12.0 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect

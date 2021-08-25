@@ -11,9 +11,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// QuerySize is the default size of each query.
-const QuerySize = 25
-
 // Indexer provides indexing of many types of Matrix data for querying.
 type Indexer struct {
 	idx bleve.Index
@@ -99,11 +96,11 @@ type RoomMemberSearcher struct {
 
 // SearchRoomMember returns a new instance of RoomMemberSearcher that the client
 // can use to search room members.
-func (idx *Indexer) SearchRoomMember(roomID matrix.RoomID) RoomMemberSearcher {
+func (idx *Indexer) SearchRoomMember(roomID matrix.RoomID, limit int) RoomMemberSearcher {
 	return RoomMemberSearcher{
 		idx:  idx.idx,
 		room: roomID,
-		size: QuerySize,
+		size: limit,
 	}
 }
 
@@ -125,6 +122,7 @@ func (s *RoomMemberSearcher) Search(ctx context.Context, str string) []IndexedRo
 	} else {
 		s.queries = []query.Query{
 			&query.TermQuery{Term: str, FieldVal: "id"},
+			&query.TermQuery{Term: str, FieldVal: "name"},
 			&query.FuzzyQuery{Term: str, FieldVal: "name", Fuzziness: 1},
 		}
 
@@ -141,7 +139,7 @@ func (s *RoomMemberSearcher) Search(ctx context.Context, str string) []IndexedRo
 		})
 
 		s.req = bleve.NewSearchRequestOptions(and, s.size, 0, false)
-		s.req.SortBy([]string{"_score"})
+		s.req.SortBy([]string{"-_score"})
 		s.req.Fields = []string{"id", "room_id", "name"}
 	}
 

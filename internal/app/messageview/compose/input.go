@@ -61,11 +61,14 @@ func init() {
 	})
 }
 
-func copyMessage(buffer *gtk.TextBuffer, roomID matrix.RoomID) event.RoomMessageEvent {
+func copyMessage(buffer *gtk.TextBuffer, roomID matrix.RoomID) (event.RoomMessageEvent, bool) {
 	head := buffer.StartIter()
 	tail := buffer.EndIter()
 
 	input := buffer.Text(&head, &tail, true)
+	if input == "" {
+		return event.RoomMessageEvent{}, false
+	}
 
 	ev := event.RoomMessageEvent{
 		RoomEventInfo: event.RoomEventInfo{RoomID: roomID},
@@ -76,11 +79,17 @@ func copyMessage(buffer *gtk.TextBuffer, roomID matrix.RoomID) event.RoomMessage
 	var html strings.Builder
 
 	if err := md.Converter.Convert([]byte(input), &html); err == nil {
+		var out string
+		out = html.String()
+		out = strings.TrimSpace(out)
+		out = strings.TrimPrefix(out, "<p>") // we don't need these tags
+		out = strings.TrimSuffix(out, "</p>")
+
 		ev.Format = event.FormatHTML
-		ev.FormattedBody = html.String()
+		ev.FormattedBody = out
 	}
 
-	return ev
+	return ev, true
 }
 
 // NewInput creates a new Input instance.
@@ -109,16 +118,15 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	}
 
 	ac := autocomplete.New(tview, onAutocompletion)
-	ac.Use(autocomplete.NewRoomMemberSearcher(ctx, roomID))
+	ac.SetTimeout(time.Second)
+	ac.Use(
+		autocomplete.NewRoomMemberSearcher(ctx, roomID), // @
+		autocomplete.NewEmojiSearcher(ctx, roomID),      // :
+	)
 
 	buffer := tview.Buffer()
 	buffer.Connect("changed", func(buffer *gtk.TextBuffer) {
 		md.WYSIWYG(ctx, buffer)
-
-		// 100ms max for autocompletion.
-		ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-		defer cancel()
-
 		ac.Autocomplete(ctx)
 	})
 
@@ -129,7 +137,10 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	sendCSS(send)
 
 	send.Connect("activate", func() {
-		ev := copyMessage(buffer, roomID)
+		ev, ok := copyMessage(buffer, roomID)
+		if !ok {
+			return
+		}
 
 		head := buffer.StartIter()
 		tail := buffer.EndIter()

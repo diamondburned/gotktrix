@@ -104,9 +104,9 @@ func RoomHasEmotes(c *gotktrix.Client, roomID matrix.RoomID) bool {
 
 // RoomEmotes gets the room's emojis.
 func RoomEmotes(c *gotktrix.Client, roomID matrix.RoomID) (RoomEmotesEvent, error) {
-	e, err := c.RoomState(roomID, UserEmotesEventType, "")
+	e, err := c.RoomState(roomID, RoomEmotesEventType, "")
 	if err != nil {
-		return RoomEmotesEvent{}, nil
+		return RoomEmotesEvent{}, err
 	}
 
 	return e.(RoomEmotesEvent), nil
