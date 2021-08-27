@@ -27,7 +27,7 @@ type Page struct {
 
 	scroll   *autoscroll.Window
 	list     *gtk.ListBox
-	messages map[matrix.EventID]message.Message
+	messages map[matrix.EventID]messageRow
 
 	name    string
 	onTitle func(title string)
@@ -36,7 +36,14 @@ type Page struct {
 	parent *View
 	roomID matrix.RoomID
 
+	replyingTo matrix.EventID
+
 	loaded bool
+}
+
+type messageRow struct {
+	message.Message
+	row *gtk.ListBoxRow
 }
 
 var _ message.MessageViewer = (*Page)(nil)
@@ -44,6 +51,17 @@ var _ message.MessageViewer = (*Page)(nil)
 var msgListCSS = cssutil.Applier("messageview-msglist", `
 	.messageview-msglist {
 		background: none;
+	}
+	.messageview-msglist > * {
+		border-right: 2px solid transparent;
+	}
+	.messageview-replyingto {
+		border-right: 2px solid @accent_fg_color;
+		background-color: alpha(@accent_bg_color, 0.35);
+		background-image: linear-gradient(to left, alpha(@accent_fg_color, 0.15), transparent);
+	}
+	.messageview-replyingto:hover {
+		background-color: alpha(@accent_bg_color, 0.45);
 	}
 `)
 
@@ -69,7 +87,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 	page := Page{
 		list:     msgList,
-		messages: make(map[matrix.EventID]message.Message),
+		messages: make(map[matrix.EventID]messageRow),
 
 		onTitle: func(string) {},
 		ctx:     gtkutil.WithWidgetVisibility(ctx, msgList),
@@ -232,11 +250,14 @@ func (p *Page) clean() {
 func (p *Page) onRoomEvent(raw *event.RawEvent) {
 	m := message.NewCozyMessage(p.parent.ctx, p, raw)
 
-	p.messages[raw.ID] = m
-
 	row := gtk.NewListBoxRow()
 	row.SetName(string(raw.ID))
 	row.SetChild(m)
+
+	p.messages[raw.ID] = messageRow{
+		Message: m,
+		row:     row,
+	}
 
 	p.list.Append(row)
 }
@@ -283,4 +304,29 @@ func (p *Page) Load(done func()) {
 			done()
 		})
 	}()
+}
+
+// ReplyTo sets the event ID that the user wants to reply to.
+func (p *Page) ReplyTo(eventID matrix.EventID) {
+	input := p.Composer.Input()
+	const class = "messageview-replyingto"
+
+	if p.replyingTo != "" {
+		r, ok := p.messages[p.replyingTo]
+		if ok {
+			r.row.RemoveCSSClass(class)
+		}
+		p.replyingTo = ""
+	}
+
+	mr, ok := p.messages[eventID]
+	if !ok {
+		input.ReplyTo("")
+		return
+	}
+
+	input.ReplyTo(eventID)
+	mr.row.AddCSSClass(class)
+
+	p.replyingTo = eventID
 }

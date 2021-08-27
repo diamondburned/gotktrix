@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"log"
@@ -35,6 +36,8 @@ type Input struct {
 
 	ctx    context.Context
 	roomID matrix.RoomID
+
+	replyingTo matrix.EventID
 }
 
 var inputCSS = cssutil.Applier("composer-input", `
@@ -55,43 +58,6 @@ var sendCSS = cssutil.Applier("composer-send", `
 	}
 `)
 
-func copyMessage(buffer *gtk.TextBuffer, roomID matrix.RoomID) (event.RoomMessageEvent, bool) {
-	head := buffer.StartIter()
-	tail := buffer.EndIter()
-
-	// Get the buffer without any invisible segments, since those segments
-	// contain HTML.
-	plain := buffer.Text(&head, &tail, false)
-	if plain == "" {
-		return event.RoomMessageEvent{}, false
-	}
-
-	ev := event.RoomMessageEvent{
-		RoomEventInfo: event.RoomEventInfo{RoomID: roomID},
-		Body:          plain,
-		MsgType:       event.RoomMessageText,
-	}
-
-	var html strings.Builder
-
-	// Get the buffer WITH the invisible HTML segments.
-	inputHTML := buffer.Text(&head, &tail, true)
-
-	if err := md.Converter.Convert([]byte(inputHTML), &html); err == nil {
-		var out string
-		out = html.String()
-		out = strings.TrimSpace(out)
-		out = strings.TrimPrefix(out, "<p>") // we don't need these tags
-		out = strings.TrimSuffix(out, "</p>")
-		out = strings.TrimSpace(out)
-
-		ev.Format = event.FormatHTML
-		ev.FormattedBody = out
-	}
-
-	return ev, true
-}
-
 func customEmojiHTML(emoji autocomplete.EmojiData) string {
 	if emoji.Unicode != "" {
 		return emoji.Unicode
@@ -104,7 +70,12 @@ func customEmojiHTML(emoji autocomplete.EmojiData) string {
 	)
 }
 
-const inlineEmojiSize = 18
+const (
+	inlineEmojiSize = 18
+
+	sendIcon  = "document-send-symbolic"
+	replyIcon = "mail-reply-sender-symbolic"
+)
 
 // NewInput creates a new Input instance.
 func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input {
@@ -143,30 +114,11 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 		ac.Autocomplete(ctx)
 	})
 
-	send := gtk.NewButtonFromIconName("document-send-symbolic")
+	send := gtk.NewButtonFromIconName(sendIcon)
 	send.SetTooltipText("Send")
 	send.SetHasFrame(false)
 	send.SetSizeRequest(AvatarWidth, -1)
 	sendCSS(send)
-
-	send.Connect("activate", func() {
-		ev, ok := copyMessage(buffer, roomID)
-		if !ok {
-			return
-		}
-
-		head := buffer.StartIter()
-		tail := buffer.EndIter()
-		buffer.Delete(&head, &tail)
-
-		go func() {
-			client := gotktrix.FromContext(ctx)
-			_, err := client.RoomEventSend(ev.RoomID, ev.Type(), ev)
-			if err != nil {
-				app.Error(ctx, errors.Wrap(err, "failed to send message"))
-			}
-		}()
-	})
 
 	enterKeyer := gtk.NewEventControllerKey()
 	enterKeyer.Connect(
@@ -248,13 +200,112 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	box.Append(tview)
 	box.Append(send)
 
-	return &Input{
+	input := Input{
 		Box:    box,
 		text:   tview,
+		send:   send,
 		buffer: buffer,
 		ctx:    ctx,
 		roomID: roomID,
 	}
+
+	send.Connect("activate", func() {
+		ev, ok := input.put()
+		if !ok {
+			return
+		}
+
+		go func() {
+			client := gotktrix.FromContext(ctx)
+			_, err := client.RoomEventSend(ev.RoomID, ev.Type(), ev)
+			if err != nil {
+				app.Error(ctx, errors.Wrap(err, "failed to send message"))
+			}
+		}()
+
+		head := buffer.StartIter()
+		tail := buffer.EndIter()
+		buffer.Delete(&head, &tail)
+
+		// Call the controller's ReplyTo method and expect it to rebubble it
+		// up to us.
+		ctrl.ReplyTo("")
+	})
+
+	return &input
+}
+
+// ReplyTo sets the event ID that the to-be-sent message is supposed to be
+// replying to. It replaces the previously-set event ID. The event ID is cleared
+// when the message is sent. An empty string clears the replying state.
+func (i *Input) ReplyTo(eventID matrix.EventID) {
+	i.replyingTo = eventID
+
+	if i.replyingTo != "" {
+		i.send.SetIconName(replyIcon)
+	} else {
+		i.send.SetIconName(sendIcon)
+	}
+}
+
+// put steals the buffer and puts it into a message event. The buffer is reset.
+func (i *Input) put() (event.RoomMessageEvent, bool) {
+	head := i.buffer.StartIter()
+	tail := i.buffer.EndIter()
+
+	// Get the buffer without any invisible segments, since those segments
+	// contain HTML.
+	plain := i.buffer.Text(&head, &tail, false)
+	if plain == "" {
+		return event.RoomMessageEvent{}, false
+	}
+
+	ev := event.RoomMessageEvent{
+		RoomEventInfo: event.RoomEventInfo{RoomID: i.roomID},
+		Body:          plain,
+		MsgType:       event.RoomMessageText,
+		RelatesTo:     inReplyTo(i.replyingTo),
+	}
+
+	var html strings.Builder
+
+	// Get the buffer WITH the invisible HTML segments.
+	inputHTML := i.buffer.Text(&head, &tail, true)
+
+	if err := md.Converter.Convert([]byte(inputHTML), &html); err == nil {
+		var out string
+		out = html.String()
+		out = strings.TrimSpace(out)
+		out = strings.TrimPrefix(out, "<p>") // we don't need these tags
+		out = strings.TrimSuffix(out, "</p>")
+		out = strings.TrimSpace(out)
+
+		ev.Format = event.FormatHTML
+		ev.FormattedBody = out
+	}
+
+	return ev, true
+}
+
+func inReplyTo(eventID matrix.EventID) json.RawMessage {
+	if eventID == "" {
+		return nil
+	}
+
+	var relatesTo struct {
+		InReplyTo struct {
+			EventID matrix.EventID `json:"event_id"`
+		} `json:"m.in_reply_to"`
+	}
+
+	relatesTo.InReplyTo.EventID = eventID
+
+	b, err := json.Marshal(relatesTo)
+	if err != nil {
+		log.Panicf("error marshaling relatesTo: %v", err) // bug
+	}
+
+	return b
 }
 
 func finishAutocomplete(

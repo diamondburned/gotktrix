@@ -1,7 +1,6 @@
 package message
 
 import (
-	"context"
 	"encoding/json"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -16,13 +15,17 @@ import (
 )
 
 var messageMenuItems = [][2]string{
+	{"Reply", "message.reply"},
 	{"Show Source", "message.show-source"},
 }
 
-func bind(ctx context.Context, m Message) {
+func bind(v messageViewer, m Message) {
 	actions := map[string]func(){
 		"show-source": func() {
-			showMsgSource(app.FromContext(ctx).Window(), m.RawEvent())
+			showMsgSource(app.FromContext(v.Context).Window(), m.RawEvent())
+		},
+		"reply": func() {
+			v.MessageViewer.ReplyTo(v.raw.ID)
 		},
 	}
 

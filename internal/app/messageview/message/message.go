@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
+	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -30,6 +31,8 @@ var messageCSS = cssutil.Applier("message-message", `
 type MessageViewer interface {
 	// LastMessage returns the latest message.
 	LastMessage() Message
+	// ReplyTo sets the message event ID that the user wants to reply to.
+	ReplyTo(matrix.EventID)
 }
 
 // messageViewer fuses MessageViewer into Context. It's only used internally;
@@ -95,7 +98,7 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent
 		msg = viewer.eventMessage(evbox)
 	}
 
-	bind(ctx, msg)
+	bind(viewer, msg)
 	return msg
 }
 

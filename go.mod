@@ -2,7 +2,7 @@ module github.com/diamondburned/gotktrix
 
 go 1.17
 
-replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix v0.1.2-0.20210819072645-8881a4857172
+replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix v0.1.2-0.20210827204655-1f7d03696843
 
 require (
 	github.com/alecthomas/chroma v0.9.2

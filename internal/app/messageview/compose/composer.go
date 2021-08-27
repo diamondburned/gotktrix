@@ -21,6 +21,7 @@ type Composer struct {
 // Controller describes the parent component that the Composer controls.
 type Controller interface {
 	// AddEphemeralMessage(txID string, g gtk.Widgetter)
+	ReplyTo(matrix.EventID)
 }
 
 const (
@@ -65,4 +66,9 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 		attach: attach,
 		input:  input,
 	}
+}
+
+// Input returns the composer's input.
+func (c *Composer) Input() *Input {
+	return c.input
 }
