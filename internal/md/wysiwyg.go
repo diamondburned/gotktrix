@@ -6,9 +6,20 @@ import (
 	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/md/hl"
 	"github.com/yuin/goldmark/ast"
 )
+
+const wysiwygPrefix = "_wysiwyg_"
+
+var wysiwygTags = make(markuputil.TextTagsMap, len(TextTags))
+
+func init() {
+	for name, attrs := range TextTags {
+		wysiwygTags[wysiwygPrefix+name] = attrs
+	}
+}
 
 // WYSIWYG styles the given text buffer according to the Markdown content inside
 // it. It is not fully What-You-See-Is-What-You-Get, but it is mostly so.
@@ -32,9 +43,7 @@ func WYSIWYG(ctx context.Context, buffer *gtk.TextBuffer) {
 	removeTags := make([]*gtk.TextTag, 0, w.table.Size())
 
 	w.table.Foreach(func(tag *gtk.TextTag) {
-		// DO NOT REMOVE INVISIBLE TAGS! They're used by the caller for
-		// additional data and should NEVER used by us.
-		if !strings.HasPrefix(tag.ObjectProperty("name").(string), "_") {
+		if strings.HasPrefix(tag.ObjectProperty("name").(string), wysiwygPrefix) {
 			removeTags = append(removeTags, tag)
 		}
 	})
@@ -142,7 +151,7 @@ func (w *wysiwyg) enter(n ast.Node) ast.WalkStatus {
 }
 
 func (w *wysiwyg) tag(tagName string) *gtk.TextTag {
-	return TextTags.FromTable(w.table, tagName)
+	return wysiwygTags.FromTable(w.table, wysiwygPrefix+tagName)
 }
 
 func (w *wysiwyg) markBounds(i, j int, names ...string) {

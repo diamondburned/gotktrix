@@ -95,14 +95,8 @@ func (f *uploadingFile) Close() error {
 }
 
 func promptUpload(ctx context.Context, room matrix.RoomID, f uploadingFile) {
-	typ, _, err := mime.ParseMediaType(f.mime)
-	if err != nil {
-		app.Error(ctx, errors.Wrapf(err, "clipboard contains invalid MIME %q", f.mime))
-		return
-	}
-
 	// Add a file extension if needed.
-	if exts, _ := mime.ExtensionsByType(typ); len(exts) > 0 {
+	if exts, _ := mime.ExtensionsByType(f.mime); len(exts) > 0 {
 		f.name += exts[0]
 	}
 

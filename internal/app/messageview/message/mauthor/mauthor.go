@@ -15,6 +15,7 @@ import (
 
 type markupOpts struct {
 	hasher    ColorHasher
+	at        bool
 	minimal   bool
 	multiline bool
 }
@@ -46,6 +47,13 @@ func WithColorHasher(hasher ColorHasher) MarkupMod {
 	}
 }
 
+// WithMention makes the renderer prefix an at ("@") symbol.
+func WithMention() MarkupMod {
+	return func(opts *markupOpts) {
+		opts.at = true
+	}
+}
+
 // WithWidgetColor determines the best hasher from the given widget. The caller
 // should beware to call this function in the main thread to not cause a race
 // condition.
@@ -57,6 +65,18 @@ func WithWidgetColor(w gtk.Widgetter) MarkupMod {
 	}
 }
 
+func mkopts(mods []MarkupMod) markupOpts {
+	opts := markupOpts{
+		hasher: DefaultColorHasher(),
+	}
+
+	for _, mod := range mods {
+		mod(&opts)
+	}
+
+	return opts
+}
+
 // Markup renders the markup string for the given user inside the given room.
 // The markup format follows the Pango markup format.
 //
@@ -66,13 +86,7 @@ func WithWidgetColor(w gtk.Widgetter) MarkupMod {
 func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...MarkupMod) string {
 	// TODO: maybe bridge role colors?
 
-	opts := markupOpts{
-		hasher: DefaultColorHasher(),
-	}
-
-	for _, mod := range mods {
-		mod(&opts)
-	}
+	opts := mkopts(mods)
 
 	name, _, _ := uID.Parse()
 	var ambiguous bool
@@ -83,6 +97,10 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 			name = n.Name
 			ambiguous = n.Ambiguous
 		}
+	}
+
+	if opts.at {
+		name = "@" + name
 	}
 
 	color := opts.hasher.Hash(string(uID))
@@ -123,4 +141,45 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 	}
 
 	return b.String()
+}
+
+// Text renders the author's name into a rich text buffer. Tje written string is
+// always minimal. The inserted tags have the "_mauthor" prefix.
+func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.UserID, mods ...MarkupMod) {
+	opts := mkopts(mods)
+
+	name, _, _ := uID.Parse()
+
+	if rID != "" {
+		n, err := c.MemberName(rID, uID)
+		if err == nil {
+			name = n.Name
+		}
+	}
+
+	if opts.at {
+		name = "@" + name
+	}
+
+	start := iter.Offset()
+
+	color := opts.hasher.Hash(string(uID))
+
+	buf := iter.Buffer()
+	buf.Insert(iter, name, len(name))
+
+	startIter := buf.IterAtOffset(start)
+
+	tags := buf.TagTable()
+
+	tag := tags.Lookup("_mauthor_" + string(uID))
+	if tag == nil {
+		attrs := markuputil.TextTag{
+			"foreground": RGBHex(color),
+		}
+		tag = attrs.Tag("_mauthor_" + string(uID))
+		tags.Add(tag)
+	}
+
+	buf.ApplyTag(tag, &startIter, iter)
 }

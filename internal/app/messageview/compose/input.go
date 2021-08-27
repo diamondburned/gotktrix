@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"mime"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/compose/autocomplete"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
@@ -57,25 +59,31 @@ func copyMessage(buffer *gtk.TextBuffer, roomID matrix.RoomID) (event.RoomMessag
 	head := buffer.StartIter()
 	tail := buffer.EndIter()
 
-	input := buffer.Text(&head, &tail, true)
-	if input == "" {
+	// Get the buffer without any invisible segments, since those segments
+	// contain HTML.
+	plain := buffer.Text(&head, &tail, false)
+	if plain == "" {
 		return event.RoomMessageEvent{}, false
 	}
 
 	ev := event.RoomMessageEvent{
 		RoomEventInfo: event.RoomEventInfo{RoomID: roomID},
-		Body:          input,
+		Body:          plain,
 		MsgType:       event.RoomMessageText,
 	}
 
 	var html strings.Builder
 
-	if err := md.Converter.Convert([]byte(input), &html); err == nil {
+	// Get the buffer WITH the invisible HTML segments.
+	inputHTML := buffer.Text(&head, &tail, true)
+
+	if err := md.Converter.Convert([]byte(inputHTML), &html); err == nil {
 		var out string
 		out = html.String()
 		out = strings.TrimSpace(out)
 		out = strings.TrimPrefix(out, "<p>") // we don't need these tags
 		out = strings.TrimSuffix(out, "</p>")
+		out = strings.TrimSpace(out)
 
 		ev.Format = event.FormatHTML
 		ev.FormattedBody = out
@@ -117,7 +125,7 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	buffer := tview.Buffer()
 
 	ac := autocomplete.New(tview, func(row autocomplete.SelectedData) bool {
-		return finishAutocomplete(ctx, buffer, row)
+		return finishAutocomplete(ctx, tview, buffer, row)
 	})
 	ac.SetTimeout(time.Second)
 	ac.Use(
@@ -209,13 +217,19 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 
 		clipboard := display.Clipboard()
 		clipboard.ReadAsync(ctx, clipboard.Formats().MIMETypes(), 0, func(res gio.AsyncResulter) {
-			mime, stream, err := clipboard.ReadFinish(res)
+			typ, stream, err := clipboard.ReadFinish(res)
 			if err != nil {
 				app.Error(ctx, errors.Wrap(err, "failed to read clipboard"))
 				return
 			}
 
-			if strings.Contains(mime, "text/plain") {
+			mime, _, err := mime.ParseMediaType(typ)
+			if err != nil {
+				app.Error(ctx, errors.Wrapf(err, "clipboard contains invalid MIME %q", typ))
+				return
+			}
+
+			if strings.HasPrefix(mime, "text") {
 				// Ignore texts.
 				stream.Close(ctx)
 				return
@@ -244,16 +258,35 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 }
 
 func finishAutocomplete(
-	ctx context.Context, buffer *gtk.TextBuffer, row autocomplete.SelectedData) bool {
+	ctx context.Context,
+	text *gtk.TextView,
+	buffer *gtk.TextBuffer,
+	row autocomplete.SelectedData) bool {
+
+	buffer.BeginUserAction()
+	defer buffer.EndUserAction()
+
+	// Delete the inserted text, which will equalize the two bounds. The
+	// caller will use bounds[1], so we use that to revalidate it.
+	buffer.Delete(row.Bounds[0], row.Bounds[1])
+
+	// TODO: use TextMarks instead, maybe?
 
 	switch data := row.Data.(type) {
 	case autocomplete.RoomMemberData:
-		log.Println("chose", data.ID)
+		client := gotktrix.FromContext(ctx).Offline()
+
+		md.InsertInvisible(row.Bounds[1], fmt.Sprintf(
+			`<a href="https://matrix.to/#/%s">`,
+			html.EscapeString(string(data.ID)),
+		))
+		mauthor.Text(
+			client, row.Bounds[1], data.Room, data.ID,
+			mauthor.WithWidgetColor(text), mauthor.WithMention(),
+		)
+		md.InsertInvisible(row.Bounds[1], "</a>")
 
 	case autocomplete.EmojiData:
-		// Delete the inserted text, which will equalize the two bounds. The
-		// caller will use bounds[1], so we use that to revalidate it.
-		buffer.Delete(row.Bounds[0], row.Bounds[1])
 		if data.Unicode != "" {
 			// Unicode emoji means we can just insert it in plain text.
 			buffer.Insert(row.Bounds[1], data.Unicode, len(data.Unicode))
@@ -266,7 +299,7 @@ func finishAutocomplete(
 			md.InsertInvisible(row.Bounds[1], customEmojiHTML(data))
 		}
 	default:
-		return false
+		log.Panicf("unknown data type %T", data)
 	}
 
 	return true
