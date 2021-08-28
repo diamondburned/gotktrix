@@ -198,6 +198,10 @@ func GETPixbuf(ctx context.Context, url string, opts ...Opts) (*gdkpixbuf.Pixbuf
 	}
 	defer r.Body.Close()
 
+	if r.StatusCode < 200 || r.StatusCode > 299 {
+		return nil, fmt.Errorf("unexpected status code %d getting %q", r.StatusCode, url)
+	}
+
 	o := processOpts(opts)
 
 	p, err := readPixbuf(r.Body, &o)

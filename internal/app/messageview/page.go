@@ -42,7 +42,7 @@ type Page struct {
 }
 
 type messageRow struct {
-	message.Message
+	msg message.Message
 	row *gtk.ListBoxRow
 }
 
@@ -102,8 +102,8 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 	// Sort messages according to the timestamp.
 	msgList.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
-		t1 := page.messages[matrix.EventID(r1.Name())].Event().OriginServerTime()
-		t2 := page.messages[matrix.EventID(r2.Name())].Event().OriginServerTime()
+		t1 := page.messages[matrix.EventID(r1.Name())].msg.Event().OriginServerTime()
+		t2 := page.messages[matrix.EventID(r2.Name())].msg.Event().OriginServerTime()
 
 		if t1 < t2 {
 			return -1
@@ -177,8 +177,8 @@ func (p *Page) LastMessage() message.Message {
 
 	lastRow := p.list.RowAtIndex(len(p.messages) - 1)
 
-	if msg, ok := p.messages[matrix.EventID(lastRow.Name())]; ok {
-		return msg
+	if row, ok := p.messages[matrix.EventID(lastRow.Name())]; ok {
+		return row.msg
 	}
 
 	return nil
@@ -255,8 +255,8 @@ func (p *Page) onRoomEvent(raw *event.RawEvent) {
 	row.SetChild(m)
 
 	p.messages[raw.ID] = messageRow{
-		Message: m,
-		row:     row,
+		msg: m,
+		row: row,
 	}
 
 	p.list.Append(row)

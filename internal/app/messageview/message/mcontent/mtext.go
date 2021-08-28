@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	smallEmojiSize = 20
-	largeEmojiSize = 42
+	smallEmojiSize = 18
+	largeEmojiSize = 48
 )
 
 type textContent struct {

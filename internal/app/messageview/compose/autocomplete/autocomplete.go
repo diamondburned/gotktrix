@@ -205,8 +205,12 @@ func (a *Autocompleter) IsVisible() bool {
 }
 
 // Select selects the current Autocompleter entry.
-func (a *Autocompleter) Select() {
+func (a *Autocompleter) Select() bool {
+	if len(a.listRows) == 0 || !a.IsVisible() {
+		return false
+	}
 	a.selectRow(a.listBox.SelectedRow())
+	return true
 }
 
 func (a *Autocompleter) selectRow(row *gtk.ListBoxRow) {
@@ -228,9 +232,14 @@ func (a *Autocompleter) selectRow(row *gtk.ListBoxRow) {
 }
 
 // Clear clears the Autocompleter and hides it.
-func (a *Autocompleter) Clear() {
+func (a *Autocompleter) Clear() bool {
+	if !a.IsVisible() {
+		return false
+	}
+
 	a.clear()
 	a.hide()
+	return true
 }
 
 func (a *Autocompleter) hide() {

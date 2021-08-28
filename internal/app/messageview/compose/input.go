@@ -126,8 +126,7 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 		func(_ *gtk.EventControllerKey, val, code uint, state gdk.ModifierType) bool {
 			switch val {
 			case gdk.KEY_Return:
-				if ac.IsVisible() {
-					ac.Select()
+				if ac.Select() {
 					return true
 				}
 
@@ -147,11 +146,10 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 				if !state.Has(gdk.ShiftMask) && !withinCodeblock {
 					return send.Activate()
 				}
+			case gdk.KEY_Tab:
+				return ac.Select()
 			case gdk.KEY_Escape:
-				if ac.IsVisible() {
-					ac.Clear()
-					return true
-				}
+				return ac.Clear()
 			case gdk.KEY_Up:
 				return ac.MoveUp()
 			case gdk.KEY_Down:

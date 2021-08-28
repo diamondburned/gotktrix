@@ -33,6 +33,10 @@ func WriteCSS(css string) struct{} {
 	return struct{}{}
 }
 
+var _ = WriteCSS(`
+	avatar { border-radius: 999px; }
+`)
+
 // AddClass adds classes.
 func AddClass(w gtk.Widgetter, classes ...string) {
 	ctx := w.StyleContext()
