@@ -28,13 +28,11 @@ import (
 
 // Input is the input component of the message composer.
 type Input struct {
-	*gtk.Box
-	text *gtk.TextView
-	send *gtk.Button
-
+	*gtk.TextView
 	buffer *gtk.TextBuffer
 
 	ctx    context.Context
+	ctrl   Controller
 	roomID matrix.RoomID
 
 	replyingTo matrix.EventID
@@ -47,6 +45,8 @@ var inputCSS = cssutil.Applier("composer-input", `
 	}
 	.composer-input {
 		padding: 12px 2px;
+		padding-bottom: 0;
+		margin-top: 10px;
 	}
 `)
 
@@ -114,52 +114,7 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 		ac.Autocomplete(ctx)
 	})
 
-	send := gtk.NewButtonFromIconName(sendIcon)
-	send.SetTooltipText("Send")
-	send.SetHasFrame(false)
-	send.SetSizeRequest(AvatarWidth, -1)
-	sendCSS(send)
-
 	enterKeyer := gtk.NewEventControllerKey()
-	enterKeyer.Connect(
-		"key-pressed",
-		func(_ *gtk.EventControllerKey, val, code uint, state gdk.ModifierType) bool {
-			switch val {
-			case gdk.KEY_Return:
-				if ac.Select() {
-					return true
-				}
-
-				// TODO: find a better way to do this. goldmark won't try to
-				// parse an incomplete codeblock (I think), but the changed
-				// signal will be fired after this signal.
-				//
-				// Perhaps we could use the FindChar method to avoid allocating
-				// a new string (twice) on each keypress.
-				head := buffer.StartIter()
-				tail := buffer.IterAtOffset(buffer.ObjectProperty("cursor-position").(int))
-				uinput := buffer.Text(&head, &tail, false)
-
-				withinCodeblock := strings.Count(uinput, "```")%2 != 0
-
-				// Enter (without holding Shift) sends the message.
-				if !state.Has(gdk.ShiftMask) && !withinCodeblock {
-					return send.Activate()
-				}
-			case gdk.KEY_Tab:
-				return ac.Select()
-			case gdk.KEY_Escape:
-				return ac.Clear()
-			case gdk.KEY_Up:
-				return ac.MoveUp()
-			case gdk.KEY_Down:
-				return ac.MoveDown()
-			}
-
-			return false
-		},
-	)
-
 	tview.AddController(enterKeyer)
 
 	tview.Connect("paste-clipboard", func() {
@@ -194,56 +149,79 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 		})
 	})
 
-	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	box.Append(tview)
-	box.Append(send)
-
 	input := Input{
-		Box:    box,
-		text:   tview,
-		send:   send,
-		buffer: buffer,
-		ctx:    ctx,
-		roomID: roomID,
+		TextView: tview,
+		buffer:   buffer,
+		ctx:      ctx,
+		ctrl:     ctrl,
+		roomID:   roomID,
 	}
 
-	send.Connect("activate", func() {
-		ev, ok := input.put()
-		if !ok {
-			return
-		}
+	enterKeyer.Connect(
+		"key-pressed",
+		func(_ *gtk.EventControllerKey, val, code uint, state gdk.ModifierType) bool {
+			switch val {
+			case gdk.KEY_Return:
+				if ac.Select() {
+					return true
+				}
 
-		go func() {
-			client := gotktrix.FromContext(ctx)
-			_, err := client.RoomEventSend(ev.RoomID, ev.Type(), ev)
-			if err != nil {
-				app.Error(ctx, errors.Wrap(err, "failed to send message"))
+				// TODO: find a better way to do this. goldmark won't try to
+				// parse an incomplete codeblock (I think), but the changed
+				// signal will be fired after this signal.
+				//
+				// Perhaps we could use the FindChar method to avoid allocating
+				// a new string (twice) on each keypress.
+				head := buffer.StartIter()
+				tail := buffer.IterAtOffset(buffer.ObjectProperty("cursor-position").(int))
+				uinput := buffer.Text(&head, &tail, false)
+
+				withinCodeblock := strings.Count(uinput, "```")%2 != 0
+
+				// Enter (without holding Shift) sends the message.
+				if !state.Has(gdk.ShiftMask) && !withinCodeblock {
+					return input.Send()
+				}
+			case gdk.KEY_Tab:
+				return ac.Select()
+			case gdk.KEY_Escape:
+				return ac.Clear()
+			case gdk.KEY_Up:
+				return ac.MoveUp()
+			case gdk.KEY_Down:
+				return ac.MoveDown()
 			}
-		}()
 
-		head := buffer.StartIter()
-		tail := buffer.EndIter()
-		buffer.Delete(&head, &tail)
-
-		// Call the controller's ReplyTo method and expect it to rebubble it
-		// up to us.
-		ctrl.ReplyTo("")
-	})
+			return false
+		},
+	)
 
 	return &input
 }
 
-// ReplyTo sets the event ID that the to-be-sent message is supposed to be
-// replying to. It replaces the previously-set event ID. The event ID is cleared
-// when the message is sent. An empty string clears the replying state.
-func (i *Input) ReplyTo(eventID matrix.EventID) {
-	i.replyingTo = eventID
-
-	if i.replyingTo != "" {
-		i.send.SetIconName(replyIcon)
-	} else {
-		i.send.SetIconName(sendIcon)
+// Send sends the message inside the input off.
+func (i *Input) Send() bool {
+	ev, ok := i.put()
+	if !ok {
+		return false
 	}
+
+	go func() {
+		client := gotktrix.FromContext(i.ctx)
+		_, err := client.RoomEventSend(ev.RoomID, ev.Type(), ev)
+		if err != nil {
+			app.Error(i.ctx, errors.Wrap(err, "failed to send message"))
+		}
+	}()
+
+	head := i.buffer.StartIter()
+	tail := i.buffer.EndIter()
+	i.buffer.Delete(&head, &tail)
+
+	// Call the controller's ReplyTo method and expect it to rebubble it
+	// up to us.
+	i.ctrl.ReplyTo("")
+	return true
 }
 
 // put steals the buffer and puts it into a message event. The buffer is reset.

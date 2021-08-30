@@ -36,6 +36,7 @@ type Page struct {
 	parent *View
 	roomID matrix.RoomID
 
+	editing    matrix.EventID
 	replyingTo matrix.EventID
 
 	loaded bool
@@ -58,7 +59,10 @@ var msgListCSS = cssutil.Applier("messageview-msglist", `
 	.messageview-replyingto {
 		border-right: 2px solid @accent_fg_color;
 		background-color: alpha(@accent_bg_color, 0.35);
-		background-image: linear-gradient(to left, alpha(@accent_fg_color, 0.15), transparent);
+		background-image: -gtk-icontheme("mail-reply-sender-symbolic");
+		background-size: 18px;
+		background-repeat: no-repeat;
+		background-position: calc(100% - 5px) 5px;
 	}
 	.messageview-replyingto:hover {
 		background-color: alpha(@accent_bg_color, 0.45);
@@ -66,9 +70,6 @@ var msgListCSS = cssutil.Applier("messageview-msglist", `
 `)
 
 var rhsCSS = cssutil.Applier("messageview-rhs", `
-	.messageview-rhs > scrolledwindow > viewport {
-		padding-bottom: 10px;
-	}
 	.messageview-rhs {
 		background-image: linear-gradient(to top, @theme_base_color 0px, transparent 40px);
 	}
@@ -306,9 +307,20 @@ func (p *Page) Load(done func()) {
 	}()
 }
 
+func (p *Page) Edit(eventID matrix.EventID) {
+	if p.replyingTo != "" {
+		// Stop replying.
+		p.ReplyTo("")
+	}
+}
+
 // ReplyTo sets the event ID that the user wants to reply to.
 func (p *Page) ReplyTo(eventID matrix.EventID) {
-	input := p.Composer.Input()
+	if p.editing != "" {
+		// Stop editing.
+		p.Edit("")
+	}
+
 	const class = "messageview-replyingto"
 
 	if p.replyingTo != "" {
@@ -321,11 +333,11 @@ func (p *Page) ReplyTo(eventID matrix.EventID) {
 
 	mr, ok := p.messages[eventID]
 	if !ok {
-		input.ReplyTo("")
+		p.Composer.ReplyTo("")
 		return
 	}
 
-	input.ReplyTo(eventID)
+	p.Composer.ReplyTo(eventID)
 	mr.row.AddCSSClass(class)
 
 	p.replyingTo = eventID

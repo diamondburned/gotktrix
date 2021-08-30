@@ -97,10 +97,24 @@ func (r *Registry) SubscribeUser(typ event.Type, f interface{}) func() {
 	return r.userFns.addRm(&r.mut, typ, f)
 }
 
-// SubscribeRoomState subscribes the given function to a room's state and
-// ephemeral event.
+// SubscribeRoom subscribes the given function to a room's state and ephemeral
+// event.
 func (r *Registry) SubscribeRoom(rID matrix.RoomID, typ event.Type, f interface{}) func() {
 	return r.SubscribeRoomEvents(rID, []event.Type{typ}, f)
+}
+
+// SubscribeRoomStateKey is similarly to SubscribeRoom, except it only filters
+// for the given state key.
+func (r *Registry) SubscribeRoomStateKey(
+	rID matrix.RoomID, typ event.Type, key string, f interface{}) func() {
+
+	return r.SubscribeRoom(rID, typ, func(ivk *eventInvoker) {
+		if ivk.raw.StateKey != key {
+			return
+		}
+
+		ivk.invoke(f)
+	})
 }
 
 // SubscribeRoomEvents is like SubscribeRoom but registers multiple events at

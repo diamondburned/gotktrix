@@ -62,8 +62,12 @@ func BindActionMap(w gtk.Widgetter, prefix string, m map[string]func()) {
 
 func NewCustomMenuItem(label, id string) *gio.MenuItem {
 	item := gio.NewMenuItem(label, id)
-	item.SetAttributeValue("custom", glib.NewVariantString(id))
+	setCustomMenuItem(item, id)
 	return item
+}
+
+func setCustomMenuItem(item *gio.MenuItem, id string) {
+	item.SetAttributeValue("custom", glib.NewVariantString(id))
 }
 
 // MenuPair creates a gtk.Menu out of the given menu pair. The returned Menu
@@ -107,6 +111,7 @@ type PopoverMenuItem interface {
 type popoverMenuItem struct {
 	label  string
 	action string
+	icon   string
 	widget gtk.Widgetter
 }
 
@@ -118,6 +123,15 @@ func MenuItem(label, action string) PopoverMenuItem {
 	return popoverMenuItem{
 		label:  label,
 		action: action,
+	}
+}
+
+// MenuItemIcon is an icon variant of MenuItem.
+func MenuItemIcon(label, action, icon string) PopoverMenuItem {
+	return popoverMenuItem{
+		label:  label,
+		action: action,
+		icon:   icon,
 	}
 }
 
@@ -176,12 +190,15 @@ func addMenuItems(menu *gio.Menu, items []PopoverMenuItem, widgets map[string]gt
 				continue
 			}
 
-			if item.widget == nil {
-				section.Append(item.label, item.action)
-			} else {
-				widgets[item.action] = item.widget
-				section.AppendItem(NewCustomMenuItem(item.label, item.action))
+			menu := gio.NewMenuItem(item.label, item.action)
+			if item.icon != "" {
+				menu.SetIcon(gio.NewThemedIcon(item.icon))
 			}
+			if item.widget != nil {
+				widgets[item.action] = item.widget
+				setCustomMenuItem(menu, item.action)
+			}
+			section.AppendItem(menu)
 		case submenu:
 			sub := gio.NewMenu()
 			addMenuItems(sub, item.items, widgets)

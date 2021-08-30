@@ -154,6 +154,8 @@ func (i *eventInvoker) invoke(f interface{}) {
 		fn(i.raw)
 	case func(*eventInvoker):
 		fn(i)
+	case func():
+		fn()
 	default:
 		log.Panicf("BUG: unknown handler type %T", fn)
 	}
