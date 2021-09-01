@@ -30,6 +30,7 @@ import (
 type Input struct {
 	*gtk.TextView
 	buffer *gtk.TextBuffer
+	ac     *autocomplete.Autocompleter
 
 	ctx    context.Context
 	ctrl   Controller
@@ -152,58 +153,82 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	input := Input{
 		TextView: tview,
 		buffer:   buffer,
+		ac:       ac,
 		ctx:      ctx,
 		ctrl:     ctrl,
 		roomID:   roomID,
 	}
 
-	enterKeyer.Connect(
-		"key-pressed",
-		func(_ *gtk.EventControllerKey, val, code uint, state gdk.ModifierType) bool {
-			switch val {
-			case gdk.KEY_Return:
-				if ac.Select() {
-					return true
-				}
-
-				// TODO: find a better way to do this. goldmark won't try to
-				// parse an incomplete codeblock (I think), but the changed
-				// signal will be fired after this signal.
-				//
-				// Perhaps we could use the FindChar method to avoid allocating
-				// a new string (twice) on each keypress.
-				head := buffer.StartIter()
-				tail := buffer.IterAtOffset(buffer.ObjectProperty("cursor-position").(int))
-				uinput := buffer.Text(&head, &tail, false)
-
-				withinCodeblock := strings.Count(uinput, "```")%2 != 0
-
-				// Enter (without holding Shift) sends the message.
-				if !state.Has(gdk.ShiftMask) && !withinCodeblock {
-					return input.Send()
-				}
-			case gdk.KEY_Tab:
-				return ac.Select()
-			case gdk.KEY_Escape:
-				return ac.Clear()
-			case gdk.KEY_Up:
-				return ac.MoveUp()
-			case gdk.KEY_Down:
-				return ac.MoveDown()
-			}
-
-			return false
-		},
-	)
+	enterKeyer.Connect("key-pressed", input.onKey)
 
 	return &input
+}
+
+func (i *Input) onKey(_ *gtk.EventControllerKey, val, code uint, state gdk.ModifierType) bool {
+	switch val {
+	case gdk.KEY_Return:
+		if i.ac.Select() {
+			return true
+		}
+
+		// TODO: find a better way to do this. goldmark won't try to
+		// parse an incomplete codeblock (I think), but the changed
+		// signal will be fired after this signal.
+		//
+		// Perhaps we could use the FindChar method to avoid allocating
+		// a new string (twice) on each keypress.
+		head := i.buffer.StartIter()
+		tail := i.buffer.IterAtOffset(i.buffer.ObjectProperty("cursor-position").(int))
+		uinput := i.buffer.Text(&head, &tail, false)
+
+		withinCodeblock := strings.Count(uinput, "```")%2 != 0
+
+		// Enter (without holding Shift) sends the message.
+		if !state.Has(gdk.ShiftMask) && !withinCodeblock {
+			return i.Send()
+		}
+	case gdk.KEY_Tab:
+		return i.ac.Select()
+	case gdk.KEY_Escape:
+		return i.ac.Clear()
+	case gdk.KEY_Up:
+		if i.ac.MoveUp() {
+			return true
+		}
+		if i.buffer.CharCount() == 0 {
+			// Scan for the user's latest message and edit that, if there's any.
+			if eventID := i.ourLatestMessageID(); eventID != "" {
+				i.ctrl.Edit(eventID)
+				return true
+			}
+		}
+	case gdk.KEY_Down:
+		return i.ac.MoveDown()
+	}
+
+	return false
+}
+
+func (i *Input) ourLatestMessageID() matrix.EventID {
+	client := gotktrix.FromContext(i.ctx)
+	uID, _ := client.Whoami()
+	events, _ := client.RoomTimeline(i.roomID)
+
+	for i := len(events) - 1; i >= 0; i-- {
+		ev, ok := events[i].(event.RoomMessageEvent)
+		if !ok || ev.SenderID != uID {
+			continue
+		}
+		return ev.EventID
+	}
+
+	return ""
 }
 
 // SetText sets the given text (in raw Markdown format, preferably) into the
 // input buffer and emits the right signals to render it.
 func (i *Input) SetText(text string) {
-	start := i.buffer.StartIter()
-	end := i.buffer.EndIter()
+	start, end := i.buffer.Bounds()
 
 	i.buffer.Delete(&start, &end)
 	i.buffer.Insert(&start, text, len(text))
