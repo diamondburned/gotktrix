@@ -307,11 +307,17 @@ func (p *Page) Load(done func()) {
 	}()
 }
 
+// Edit triggers the input composer to edit an existing message.
 func (p *Page) Edit(eventID matrix.EventID) {
 	if p.replyingTo != "" {
 		// Stop replying.
 		p.ReplyTo("")
 	}
+
+	p.singleMessageState(
+		eventID, &p.editing, p.Composer.Edit,
+		"messageview-editing",
+	)
 }
 
 // ReplyTo sets the event ID that the user wants to reply to.
@@ -321,24 +327,32 @@ func (p *Page) ReplyTo(eventID matrix.EventID) {
 		p.Edit("")
 	}
 
-	const class = "messageview-replyingto"
+	p.singleMessageState(
+		eventID, &p.replyingTo, p.Composer.ReplyTo,
+		"messageview-replyingto",
+	)
+}
 
-	if p.replyingTo != "" {
-		r, ok := p.messages[p.replyingTo]
+func (p *Page) singleMessageState(
+	eventID matrix.EventID,
+	field *matrix.EventID, set func(matrix.EventID), class string) {
+
+	if *field != "" {
+		r, ok := p.messages[*field]
 		if ok {
 			r.row.RemoveCSSClass(class)
 		}
-		p.replyingTo = ""
+		*field = ""
 	}
 
 	mr, ok := p.messages[eventID]
 	if !ok {
-		p.Composer.ReplyTo("")
+		set("")
 		return
 	}
 
-	p.Composer.ReplyTo(eventID)
+	set(eventID)
 	mr.row.AddCSSClass(class)
 
-	p.replyingTo = eventID
+	*field = eventID
 }

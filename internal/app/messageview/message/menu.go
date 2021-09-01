@@ -15,6 +15,7 @@ import (
 )
 
 var messageMenuItems = [][2]string{
+	{"Edit", "message.edit"},
 	{"Reply", "message.reply"},
 	{"Show Source", "message.show-source"},
 }
@@ -27,6 +28,13 @@ func bind(v messageViewer, m Message) {
 		"reply": func() {
 			v.MessageViewer.ReplyTo(v.raw.ID)
 		},
+	}
+
+	uID, _ := v.client().Whoami()
+	if uID == v.raw.Sender {
+		actions["edit"] = func() {
+			v.MessageViewer.Edit(v.raw.ID)
+		}
 	}
 
 	gtkutil.BindActionMap(m, "message", actions)

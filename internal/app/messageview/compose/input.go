@@ -35,6 +35,11 @@ type Input struct {
 	ctrl   Controller
 	roomID matrix.RoomID
 
+	inputState
+}
+
+type inputState struct {
+	editing    matrix.EventID
 	replyingTo matrix.EventID
 }
 
@@ -70,12 +75,7 @@ func customEmojiHTML(emoji autocomplete.EmojiData) string {
 	)
 }
 
-const (
-	inlineEmojiSize = 18
-
-	sendIcon  = "document-send-symbolic"
-	replyIcon = "mail-reply-sender-symbolic"
-)
+const inlineEmojiSize = 18
 
 // NewInput creates a new Input instance.
 func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input {
@@ -199,6 +199,21 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	return &input
 }
 
+// SetText sets the given text (in raw Markdown format, preferably) into the
+// input buffer and emits the right signals to render it.
+func (i *Input) SetText(text string) {
+	start := i.buffer.StartIter()
+	end := i.buffer.EndIter()
+
+	i.buffer.Delete(&start, &end)
+	i.buffer.Insert(&start, text, len(text))
+}
+
+type messageEvent struct {
+	event.RoomMessageEvent
+	NewContent *event.RoomMessageEvent `json:"m.new_content,omitempty"`
+}
+
 // Send sends the message inside the input off.
 func (i *Input) Send() bool {
 	ev, ok := i.put()
@@ -218,32 +233,55 @@ func (i *Input) Send() bool {
 	tail := i.buffer.EndIter()
 	i.buffer.Delete(&head, &tail)
 
-	// Call the controller's ReplyTo method and expect it to rebubble it
-	// up to us.
+	// Ask the parent to reset the state.
 	i.ctrl.ReplyTo("")
+	i.ctrl.Edit("")
 	return true
 }
 
 // put steals the buffer and puts it into a message event. The buffer is reset.
-func (i *Input) put() (event.RoomMessageEvent, bool) {
+func (i *Input) put() (messageEvent, bool) {
 	head := i.buffer.StartIter()
 	tail := i.buffer.EndIter()
+
+	// TODO: ideally, if we want to get the previous input, we'd want a way to
+	// either re-render the HTML as Markdown and somehow preserve that
+	// information in the plain body, or we need a way to preserve that
+	// information in the text buffer without the user seeing.
+	//
+	// Re-rendering the HTML is probably the most backwards-compatible way, but
+	// it also involves a LOT of effort, and it may not preserve whitespace at
+	// all.
 
 	// Get the buffer without any invisible segments, since those segments
 	// contain HTML.
 	plain := i.buffer.Text(&head, &tail, false)
+	// Clean off trailing spaces.
+	plain = strings.TrimSpace(plain)
+
 	if plain == "" {
-		return event.RoomMessageEvent{}, false
+		return messageEvent{}, false
 	}
 
-	ev := event.RoomMessageEvent{
-		RoomEventInfo: event.RoomEventInfo{RoomID: i.roomID},
-		Body:          plain,
-		MsgType:       event.RoomMessageText,
-		RelatesTo:     inReplyTo(i.replyingTo),
+	ev := messageEvent{
+		RoomMessageEvent: event.RoomMessageEvent{
+			RoomEventInfo: event.RoomEventInfo{RoomID: i.roomID},
+			Body:          plain,
+			MsgType:       event.RoomMessageText,
+			RelatesTo:     i.relatesTo(),
+		},
 	}
 
 	var html strings.Builder
+
+	if i.replyingTo != "" {
+		client := gotktrix.FromContext(i.ctx).Offline()
+		replEv := roomTimelineEvent(client, i.roomID, i.replyingTo)
+
+		if msg, ok := replEv.(event.RoomMessageEvent); ok {
+			renderReply(&html, &msg)
+		}
+	}
 
 	// Get the buffer WITH the invisible HTML segments.
 	inputHTML := i.buffer.Text(&head, &tail, true)
@@ -252,29 +290,57 @@ func (i *Input) put() (event.RoomMessageEvent, bool) {
 		var out string
 		out = html.String()
 		out = strings.TrimSpace(out)
-		out = strings.TrimPrefix(out, "<p>") // we don't need these tags
-		out = strings.TrimSuffix(out, "</p>")
-		out = strings.TrimSpace(out)
 
 		ev.Format = event.FormatHTML
 		ev.FormattedBody = out
 	}
 
+	// If we're editing an existing message, then insert a new_content object.
+	if i.editing != "" {
+		ev.NewContent = &event.RoomMessageEvent{
+			Body:          ev.Body,
+			MsgType:       ev.MsgType,
+			Format:        ev.Format,
+			FormattedBody: ev.FormattedBody,
+		}
+		// We should also append a "*" into the outside body to indicate by
+		// conventional means that the message is an edit.
+		if ev.Body != "" {
+			ev.Body += "*"
+		}
+		if ev.FormattedBody != "" {
+			ev.FormattedBody += "*"
+		}
+	}
+
 	return ev, true
 }
 
-func inReplyTo(eventID matrix.EventID) json.RawMessage {
-	if eventID == "" {
+func (i *Input) relatesTo() json.RawMessage {
+	if i.inputState == (inputState{}) {
 		return nil
 	}
 
-	var relatesTo struct {
-		InReplyTo struct {
-			EventID matrix.EventID `json:"event_id"`
-		} `json:"m.in_reply_to"`
+	type inReplyTo struct {
+		EventID matrix.EventID `json:"event_id"`
 	}
 
-	relatesTo.InReplyTo.EventID = eventID
+	var relatesTo struct {
+		EventID   matrix.EventID `json:"event_id,omitempty"`
+		RelType   string         `json:"rel_type,omitempty"`
+		InReplyTo *inReplyTo     `json:"m.in_reply_to,omitempty"`
+	}
+
+	if i.editing != "" {
+		relatesTo.EventID = i.editing
+		relatesTo.RelType = "m.replace"
+	}
+
+	if i.replyingTo != "" {
+		relatesTo.InReplyTo = &inReplyTo{
+			EventID: i.replyingTo,
+		}
+	}
 
 	b, err := json.Marshal(relatesTo)
 	if err != nil {

@@ -33,6 +33,8 @@ type MessageViewer interface {
 	LastMessage() Message
 	// ReplyTo sets the message event ID that the user wants to reply to.
 	ReplyTo(matrix.EventID)
+	// Edit starts the editing for given message ID.
+	Edit(matrix.EventID)
 }
 
 // messageViewer fuses MessageViewer into Context. It's only used internally;
