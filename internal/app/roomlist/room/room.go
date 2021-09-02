@@ -174,22 +174,20 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 
 	// Bind the message handler to update itself.
 	gtkutil.MapSubscriber(row, func() func() {
-		r.InvalidatePreview()
-
-		return client.SubscribeTimeline(roomID, func(event.RoomEvent) {
-			glib.IdleAdd(func() {
-				r.InvalidatePreview()
-				r.section.InvalidateSort()
-			})
-		})
-	})
-
-	gtkutil.MapSubscriber(row, func() func() {
 		r.InvalidateRead()
 		r.InvalidateName()
 		r.InvalidateAvatar()
+		r.InvalidatePreview()
 
-		return client.SubscribeRoomEvents(roomID, roomEvents, func(ev event.Event) {
+		f1 := client.SubscribeTimeline(roomID, func(event.RoomEvent) {
+			glib.IdleAdd(func() {
+				r.InvalidatePreview()
+				r.setUnread(true)
+				r.section.InvalidateSort()
+			})
+		})
+
+		f2 := client.SubscribeRoomEvents(roomID, roomEvents, func(ev event.Event) {
 			glib.IdleAdd(func() {
 				switch ev.(type) {
 				case event.RoomNameEvent, event.RoomCanonicalAliasEvent:
@@ -202,6 +200,11 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 				}
 			})
 		})
+
+		return func() {
+			f1()
+			f2()
+		}
 	})
 
 	// Initialize drag-and-drop.
@@ -334,6 +337,11 @@ func (r *Room) InvalidateRead() {
 }
 
 func (r *Room) setUnread(unread bool) {
+	// If the room is currently selected, then don't mark it as unread.
+	if unread && r.IsSelected() {
+		unread = false
+	}
+
 	if r.isUnread == unread {
 		return
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 )
 
 // overkill lol
@@ -40,14 +41,20 @@ var replyTemplate = template.Must(
 	),
 )
 
-func renderReply(out *strings.Builder, msg *event.RoomMessageEvent) {
-	name, _, _ := msg.SenderID.Parse()
+func renderReply(out *strings.Builder, client *gotktrix.Client, msg *event.RoomMessageEvent) {
+	var name string
+	if n, err := client.MemberName(msg.RoomID, msg.SenderID); err == nil {
+		name = n.Name
+	} else {
+		name, _, _ = msg.SenderID.Parse()
+	}
+
 	data := replyData{
 		RoomID:     msg.RoomID,
 		EventID:    msg.EventID,
 		SenderID:   msg.SenderID,
 		SenderName: name,
-		Content:    trim(msg.Body, 256),
+		Content:    trim(msg.Body, 128),
 	}
 
 	if err := replyTemplate.Execute(out, data); err != nil {

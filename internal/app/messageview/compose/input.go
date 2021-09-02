@@ -304,7 +304,7 @@ func (i *Input) put() (messageEvent, bool) {
 		replEv := roomTimelineEvent(client, i.roomID, i.replyingTo)
 
 		if msg, ok := replEv.(event.RoomMessageEvent); ok {
-			renderReply(&html, &msg)
+			renderReply(&html, client, &msg)
 		}
 	}
 

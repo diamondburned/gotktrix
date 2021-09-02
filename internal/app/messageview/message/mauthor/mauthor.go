@@ -135,7 +135,7 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 			b.WriteByte(' ')
 		}
 		b.WriteString(fmt.Sprintf(
-			` <span fgalpha="80%%" size="small">(%s)</span>`,
+			` <span fgalpha="75%%" size="small">(%s)</span>`,
 			html.EscapeString(string(uID)),
 		))
 	}
