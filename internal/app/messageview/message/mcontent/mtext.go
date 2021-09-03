@@ -2,6 +2,7 @@ package mcontent
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/url"
 	"strconv"
@@ -35,6 +36,8 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 	}
 `)
 
+const editedHTML = `<span alpha="75%" size="small">(edited)</span>`
+
 func newTextContent(ctx context.Context, msg event.RoomMessageEvent) textContent {
 	body := strings.Trim(msg.Body, "\n")
 
@@ -59,12 +62,38 @@ func newTextContent(ctx context.Context, msg event.RoomMessageEvent) textContent
 	text.Buffer().SetText(body, len(body))
 
 rendered:
+	if isEdited(msg.RelatesTo) {
+		buf := text.Buffer()
+		end := buf.EndIter()
+
+		append := editedHTML
+		if buf.CharCount() > 0 {
+			// Prepend a space if we already have text.
+			append = " " + editedHTML
+		}
+
+		buf.InsertMarkup(&end, append, len(append))
+	}
+
 	return textContent{
 		TextView: text,
 	}
 }
 
 func (c textContent) content() {}
+
+// isEdited returns true if the given message event is edited.
+func isEdited(relatesTo json.RawMessage) bool {
+	var relatesToBody struct {
+		RelType string `json:"rel_type"`
+	}
+
+	if err := json.Unmarshal(relatesTo, &relatesToBody); err != nil {
+		return false
+	}
+
+	return relatesToBody.RelType == "m.replace"
+}
 
 func renderIntoBuffer(ctx context.Context, tview *gtk.TextView, node *html.Node) bool {
 	buf := tview.Buffer()

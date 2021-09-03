@@ -248,14 +248,26 @@ func (p *Page) clean() {
 	}
 }
 
+// TODO: make an event box abstraction. The event box should always retain the
+// raw event but also allow a custom event type to override needed fields. Or we
+// just don't take the content here and use it in mtext.go instead, which is
+// likely an infinitely better idea.
+
 func (p *Page) onRoomEvent(raw *event.RawEvent) {
+	id := raw.ID
+
+	if edited := message.Edited(raw); edited != nil {
+		id = edited.Replaces
+		raw = &edited.RawEvent
+	}
+
 	m := message.NewCozyMessage(p.parent.ctx, p, raw)
 
 	row := gtk.NewListBoxRow()
-	row.SetName(string(raw.ID))
+	row.SetName(string(id))
 	row.SetChild(m)
 
-	p.messages[raw.ID] = messageRow{
+	p.messages[id] = messageRow{
 		msg: m,
 		row: row,
 	}
