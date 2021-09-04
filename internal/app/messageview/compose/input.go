@@ -278,15 +278,20 @@ func (i *Input) put() (messageEvent, bool) {
 	// it also involves a LOT of effort, and it may not preserve whitespace at
 	// all.
 
+	// Get the buffer WITH the invisible HTML segments.
+	inputHTML := i.buffer.Text(&head, &tail, true)
+	// Clean off trailing spaces.
+	inputHTML = strings.TrimSpace(inputHTML)
+
+	if inputHTML == "" {
+		return messageEvent{}, false
+	}
+
 	// Get the buffer without any invisible segments, since those segments
 	// contain HTML.
 	plain := i.buffer.Text(&head, &tail, false)
 	// Clean off trailing spaces.
 	plain = strings.TrimSpace(plain)
-
-	if plain == "" {
-		return messageEvent{}, false
-	}
 
 	ev := messageEvent{
 		RoomMessageEvent: event.RoomMessageEvent{
@@ -307,9 +312,6 @@ func (i *Input) put() (messageEvent, bool) {
 			renderReply(&html, client, &msg)
 		}
 	}
-
-	// Get the buffer WITH the invisible HTML segments.
-	inputHTML := i.buffer.Text(&head, &tail, true)
 
 	if err := md.Converter.Convert([]byte(inputHTML), &html); err == nil {
 		var out string
