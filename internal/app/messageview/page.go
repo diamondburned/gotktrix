@@ -2,6 +2,7 @@ package messageview
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -43,8 +44,9 @@ type Page struct {
 }
 
 type messageRow struct {
-	msg message.Message
-	row *gtk.ListBoxRow
+	msg  message.Message
+	row  *gtk.ListBoxRow
+	sent matrix.Timestamp
 }
 
 var _ message.MessageViewer = (*Page)(nil)
@@ -103,13 +105,16 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 	// Sort messages according to the timestamp.
 	msgList.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
-		t1 := page.messages[matrix.EventID(r1.Name())].msg.Event().OriginServerTime()
-		t2 := page.messages[matrix.EventID(r2.Name())].msg.Event().OriginServerTime()
+		m1, ok1 := page.messages[matrix.EventID(r1.Name())]
+		m2, ok2 := page.messages[matrix.EventID(r2.Name())]
+		if !ok1 || !ok2 {
+			return 0
+		}
 
-		if t1 < t2 {
+		if m1.sent < m2.sent {
 			return -1
 		}
-		if t1 == t2 {
+		if m1.sent == m2.sent {
 			return 0
 		}
 		return 1 // t1 > t2
@@ -248,31 +253,56 @@ func (p *Page) clean() {
 	}
 }
 
-// TODO: make an event box abstraction. The event box should always retain the
-// raw event but also allow a custom event type to override needed fields. Or we
-// just don't take the content here and use it in mtext.go instead, which is
-// likely an infinitely better idea.
-
 func (p *Page) onRoomEvent(raw *event.RawEvent) {
 	id := raw.ID
-
-	if edited := message.Edited(raw); edited != nil {
-		id = edited.Replaces
-		raw = &edited.RawEvent
-	}
+	editedID := editedID(raw)
 
 	m := message.NewCozyMessage(p.parent.ctx, p, raw)
+
+	if editedID != "" {
+		msg, ok := p.messages[editedID]
+		if ok {
+			msg.msg = m
+			msg.row.SetName(string(editedID))
+			msg.row.SetChild(m)
+
+			p.messages[editedID] = msg
+			return
+		}
+	}
 
 	row := gtk.NewListBoxRow()
 	row.SetName(string(id))
 	row.SetChild(m)
 
 	p.messages[id] = messageRow{
-		msg: m,
-		row: row,
+		msg:  m,
+		row:  row,
+		sent: raw.OriginServerTime,
 	}
 
 	p.list.Append(row)
+}
+
+// editedID returns the event ID that the given raw event is supposed to edit,
+// or an empty string if it does not edit anything.
+func editedID(raw *event.RawEvent) matrix.EventID {
+	var body struct {
+		RelatesTo struct {
+			RelType string         `json:"rel_type"`
+			EventID matrix.EventID `json:"event_id"`
+		} `json:"m.relates_to"`
+	}
+
+	if err := json.Unmarshal(raw.Content, &body); err != nil {
+		return ""
+	}
+
+	if body.RelatesTo.RelType != "m.replace" {
+		return ""
+	}
+
+	return body.RelatesTo.EventID
 }
 
 // Load asynchronously loads the page. The given callback is called once the

@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
@@ -26,18 +27,26 @@ type Content struct {
 }
 
 // New parses the given room message event and renders it into a Content widget.
-func New(ctx context.Context, msg event.RoomMessageEvent) *Content {
-	var parts []contentPart
+func New(ctx context.Context, msgBox *gotktrix.EventBox) *Content {
+	e, err := msgBox.Parse()
+	if err != nil || e.Type() != event.TypeRoomMessage {
+		return wrapParts(newUnknownContent(msgBox))
+	}
+
+	msg, ok := e.(event.RoomMessageEvent)
+	if !ok {
+		return wrapParts(newUnknownContent(msgBox))
+	}
 
 	switch msg.MsgType {
 	case event.RoomMessageNotice:
 		fallthrough // treat the same as m.text
 	case event.RoomMessageText:
-		parts = []contentPart{newTextContent(ctx, msg)}
+		return wrapParts(newTextContent(ctx, msgBox))
 	case event.RoomMessageVideo:
-		parts = []contentPart{newVideoContent(ctx, msg)}
+		return wrapParts(newVideoContent(ctx, msg))
 	case event.RoomMessageImage:
-		parts = []contentPart{newImageContent(ctx, msg)}
+		return wrapParts(newImageContent(ctx, msg))
 
 	// case event.RoomMessageEmote:
 	// case event.RoomMessageNotice:
@@ -45,9 +54,11 @@ func New(ctx context.Context, msg event.RoomMessageEvent) *Content {
 	// case event.RoomMessageAudio:
 	// case event.RoomMessageLocation:
 	default:
-		parts = []contentPart{newUnknownContent(msg)}
+		return wrapParts(newUnknownContent(msgBox))
 	}
+}
 
+func wrapParts(parts ...contentPart) *Content {
 	if len(parts) == 1 {
 		return &Content{
 			Widgetter: parts[0],
@@ -104,8 +115,19 @@ var unknownContentCSS = cssutil.Applier("mcontent-unknown", `
 	}
 `)
 
-func newUnknownContent(msg event.RoomMessageEvent) unknownContent {
-	l := gtk.NewLabel("Unknown message type " + string(msg.MsgType) + ".")
+func newUnknownContent(msgBox *gotktrix.EventBox) unknownContent {
+	var msg string
+
+	if msgBox.Type == event.TypeRoomMessage {
+		e, _ := msgBox.Parse()
+		emsg := e.(event.RoomMessageEvent)
+
+		msg = fmt.Sprintf("Unknown message type %s.", string(emsg.MsgType))
+	} else {
+		msg = fmt.Sprintf("Unknown event type %s.", msgBox.Type)
+	}
+
+	l := gtk.NewLabel(msg)
 	l.SetXAlign(0)
 	l.SetWrap(true)
 	l.SetWrapMode(pango.WrapWordChar)

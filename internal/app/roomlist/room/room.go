@@ -313,7 +313,7 @@ func (r *Room) InvalidatePreview() {
 		return
 	}
 
-	preview := message.RenderEvent(r.ctx, &events[len(events)-1])
+	preview := message.RenderEvent(r.ctx, gotktrix.WrapEventBox(&events[len(events)-1]))
 	r.preview.SetMarkup(preview)
 	r.preview.SetTooltipMarkup(preview)
 	r.preview.Show()

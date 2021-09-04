@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -54,8 +53,7 @@ func newTimestamp(ts matrix.Timestamp, long bool) *gtk.Label {
 // collapsedMessage is part of the full message container.
 type collapsedMessage struct {
 	*gtk.Box
-
-	eventBox
+	*eventBox
 
 	timestamp *gtk.Label
 	content   *mcontent.Content
@@ -66,13 +64,13 @@ const (
 	avatarWidth = avatarSize + 10*2 // keep consistent with CSS
 )
 
-func (v messageViewer) collapsedMessage(evbox eventBox) *collapsedMessage {
-	timestamp := newTimestamp(evbox.raw.OriginServerTime, false)
+func (v messageViewer) collapsedMessage() *collapsedMessage {
+	timestamp := newTimestamp(v.raw.OriginServerTime, false)
 	timestamp.SetSizeRequest(avatarWidth, -1)
 	timestamp.SetVAlign(gtk.AlignStart)
 	timestamp.SetYAlign(1)
 
-	content := mcontent.New(v.Context, evbox.ev.(event.RoomMessageEvent))
+	content := mcontent.New(v.Context, v.raw)
 	bindExtraMenu(content)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
@@ -84,7 +82,7 @@ func (v messageViewer) collapsedMessage(evbox eventBox) *collapsedMessage {
 
 	return &collapsedMessage{
 		Box:      box,
-		eventBox: evbox,
+		eventBox: &eventBox{v.raw},
 
 		timestamp: timestamp,
 		content:   content,
@@ -93,8 +91,7 @@ func (v messageViewer) collapsedMessage(evbox eventBox) *collapsedMessage {
 
 type cozyMessage struct {
 	*gtk.Box
-
-	eventBox
+	*eventBox
 	parent messageViewer
 
 	avatar    *adw.Avatar
@@ -116,29 +113,29 @@ var _ = cssutil.WriteCSS(`
 	}
 `)
 
-func (v messageViewer) cozyMessage(box eventBox) *cozyMessage {
+func (v messageViewer) cozyMessage() *cozyMessage {
 	client := v.client().Offline()
 
 	nameLabel := gtk.NewLabel("")
 	nameLabel.SetSingleLineMode(true)
 	nameLabel.SetEllipsize(pango.EllipsizeEnd)
 	nameLabel.SetMarkup(mauthor.Markup(
-		client, box.raw.RoomID, box.raw.Sender,
+		client, v.raw.RoomID, v.raw.Sender,
 		mauthor.WithWidgetColor(nameLabel),
 	))
 
-	timestamp := newTimestamp(box.raw.OriginServerTime, true)
+	timestamp := newTimestamp(v.raw.OriginServerTime, true)
 	timestamp.SetEllipsize(pango.EllipsizeEnd)
 	timestamp.SetYAlign(0.6)
 
 	// Pull the username directly from the sender's ID for the avatar initials.
-	username, _, _ := box.raw.Sender.Parse()
+	username, _, _ := v.raw.Sender.Parse()
 
 	avatar := adw.NewAvatar(avatarSize, username, true)
 	avatar.SetVAlign(gtk.AlignStart)
 	avatar.SetMarginTop(2)
 
-	mxc, _ := client.MemberAvatar(box.raw.RoomID, box.raw.Sender)
+	mxc, _ := client.MemberAvatar(v.raw.RoomID, v.raw.Sender)
 	if mxc != nil {
 		setAvatar(v, avatar, client, *mxc)
 	}
@@ -147,7 +144,7 @@ func (v messageViewer) cozyMessage(box eventBox) *cozyMessage {
 	authorTsBox.Append(nameLabel)
 	authorTsBox.Append(timestamp)
 
-	content := mcontent.New(v.Context, box.ev.(event.RoomMessageEvent))
+	content := mcontent.New(v.Context, v.raw)
 	bindExtraMenu(content)
 
 	rightBox := gtk.NewBox(gtk.OrientationVertical, 0)
@@ -163,7 +160,7 @@ func (v messageViewer) cozyMessage(box eventBox) *cozyMessage {
 
 	msg := &cozyMessage{
 		Box:      bigBox,
-		eventBox: box,
+		eventBox: &eventBox{v.raw},
 		parent:   v,
 
 		avatar:    avatar,

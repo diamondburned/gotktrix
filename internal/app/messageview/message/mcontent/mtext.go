@@ -38,9 +38,7 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 
 const editedHTML = `<span alpha="75%" size="small">(edited)</span>`
 
-func newTextContent(ctx context.Context, msg event.RoomMessageEvent) textContent {
-	body := strings.Trim(msg.Body, "\n")
-
+func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent {
 	text := gtk.NewTextView()
 	text.SetHExpand(true)
 	text.SetEditable(false)
@@ -50,19 +48,24 @@ func newTextContent(ctx context.Context, msg event.RoomMessageEvent) textContent
 	text.Show()
 	textContentCSS(text)
 
-	switch msg.Format {
+	body, isEdited := msgBody(msgBox)
+
+	switch body.Format {
 	case event.FormatHTML:
-		n, err := html.Parse(strings.NewReader(msg.FormattedBody))
+		n, err := html.Parse(strings.NewReader(body.FormattedBody))
 		if err == nil && renderIntoBuffer(ctx, text, n) {
 			goto rendered
 		}
 	}
 
 	// fallback
-	text.Buffer().SetText(body, len(body))
+	{
+		body := strings.Trim(body.Body, "\n")
+		text.Buffer().SetText(body, len(body))
+	}
 
 rendered:
-	if isEdited(msg.RelatesTo) {
+	if isEdited {
 		buf := text.Buffer()
 		end := buf.EndIter()
 
@@ -82,17 +85,33 @@ rendered:
 
 func (c textContent) content() {}
 
-// isEdited returns true if the given message event is edited.
-func isEdited(relatesTo json.RawMessage) bool {
-	var relatesToBody struct {
-		RelType string `json:"rel_type"`
+type messageBody struct {
+	Body          string              `json:"body"`
+	MsgType       event.MessageType   `json:"msgtype"`
+	Format        event.MessageFormat `json:"format,omitempty"`
+	FormattedBody string              `json:"formatted_body,omitempty"`
+}
+
+func msgBody(box *gotktrix.EventBox) (m messageBody, edited bool) {
+	var body struct {
+		messageBody
+		NewContent messageBody `json:"m.new_content"`
+
+		RelatesTo struct {
+			RelType string         `json:"rel_type"`
+			EventID matrix.EventID `json:"event_id"`
+		} `json:"m.relates_to"`
 	}
 
-	if err := json.Unmarshal(relatesTo, &relatesToBody); err != nil {
-		return false
+	if err := json.Unmarshal(box.Content, &body); err != nil {
+		// This shouldn't happen, since we already unmarshaled above.
+		return messageBody{}, false
 	}
 
-	return relatesToBody.RelType == "m.replace"
+	if body.RelatesTo.RelType == "m.replace" {
+		return body.NewContent, true
+	}
+	return body.messageBody, false
 }
 
 func renderIntoBuffer(ctx context.Context, tview *gtk.TextView, node *html.Node) bool {

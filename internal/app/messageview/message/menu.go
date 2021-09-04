@@ -20,7 +20,7 @@ var messageMenuItems = [][2]string{
 	{"Show Source", "message.show-source"},
 }
 
-func bind(v messageViewer, m Message) {
+func bind(v messageViewer, m Message) Message {
 	actions := map[string]func(){
 		"show-source": func() {
 			showMsgSource(app.FromContext(v.Context).Window(), m.RawEvent())
@@ -39,6 +39,7 @@ func bind(v messageViewer, m Message) {
 
 	gtkutil.BindActionMap(m, "message", actions)
 	gtkutil.BindPopoverMenu(m, gtk.PosBottom, messageMenuItems)
+	return m
 }
 
 type extraMenuSetter interface {

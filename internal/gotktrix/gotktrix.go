@@ -39,6 +39,28 @@ var Filter = event.GlobalFilter{
 	},
 }
 
+// EventBox provides a concurrently-safe wrapper around a raw event that caches
+// event parsing.
+type EventBox struct {
+	*event.RawEvent
+	parsed event.Event
+	error  error
+	once   sync.Once
+}
+
+// WrapEventBox wraps the given raw event.
+func WrapEventBox(raw *event.RawEvent) *EventBox {
+	return &EventBox{RawEvent: raw}
+}
+
+// Parse parses the raw event.
+func (b *EventBox) Parse() (event.Event, error) {
+	b.once.Do(func() {
+		b.parsed, b.error = b.RawEvent.Parse()
+	})
+	return b.parsed, b.error
+}
+
 var (
 	cancelled  context.Context
 	cancelOnce sync.Once

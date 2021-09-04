@@ -17,38 +17,10 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
-// TODO: deprecate this.
-
-type erroneousEvent struct {
-	event.RoomEventInfo
-	raw *event.RawEvent
-	err error
-}
-
-func (e erroneousEvent) Type() event.Type {
-	return e.raw.Type
-}
-
-// WrapErroneousEvent wraps the given raw event into another event that will be
-// rendered as an erroneous event in the EventMessage component.
-func WrapErroneousEvent(raw *event.RawEvent, err error) event.RoomEvent {
-	return erroneousEvent{
-		RoomEventInfo: event.RoomEventInfo{
-			RoomID:     raw.RoomID,
-			EventID:    raw.ID,
-			SenderID:   raw.Sender,
-			OriginTime: raw.OriginServerTime,
-		},
-		raw: raw,
-		err: err,
-	}
-}
-
 // eventMessage is a mini-message.
 type eventMessage struct {
 	*gtk.Label
-
-	eventBox
+	*eventBox
 }
 
 var _ = cssutil.WriteCSS(`
@@ -59,7 +31,7 @@ var _ = cssutil.WriteCSS(`
 	}
 `)
 
-func (v messageViewer) eventMessage(box eventBox) *eventMessage {
+func (v messageViewer) eventMessage() *eventMessage {
 	action := gtk.NewLabel("")
 	action.SetXAlign(0)
 	action.AddCSSClass("message-event")
@@ -68,13 +40,13 @@ func (v messageViewer) eventMessage(box eventBox) *eventMessage {
 	action.SetMarginStart(avatarWidth)
 	bindExtraMenu(action)
 
-	action.SetMarkup(RenderEvent(v.Context, box.raw))
+	action.SetMarkup(RenderEvent(v.Context, v.raw))
 
 	messageCSS(action)
 
 	return &eventMessage{
 		Label:    action,
-		eventBox: box,
+		eventBox: &eventBox{v.raw},
 	}
 }
 
@@ -86,7 +58,7 @@ func fescapef(w io.Writer, f string, v ...interface{}) {
 // TODO: add Options into EventMessage
 
 // RenderEvent returns the markup tail of an event message.
-func RenderEvent(ctx context.Context, raw *event.RawEvent) string {
+func RenderEvent(ctx context.Context, raw *gotktrix.EventBox) string {
 	client := gotktrix.FromContext(ctx).Offline()
 	author := func(uID matrix.UserID) string {
 		window := app.FromContext(ctx).Window()
@@ -115,7 +87,7 @@ func RenderEvent(ctx context.Context, raw *event.RawEvent) string {
 	if ev, ok := e.(event.RoomMemberEvent); ok {
 		m.WriteString(author(ev.UserID))
 		m.WriteByte(' ')
-		m.WriteString(memberEventTail(raw, ev))
+		m.WriteString(memberEventTail(raw))
 		return m.String()
 	}
 
@@ -180,17 +152,11 @@ func RenderEvent(ctx context.Context, raw *event.RawEvent) string {
 	return m.String()
 }
 
-func memberEventTail(raw *event.RawEvent, ev event.RoomMemberEvent) string {
-	prev := event.RawEvent{Type: raw.Type}
+func memberEventTail(raw *gotktrix.EventBox) string {
+	parsed, _ := raw.Parse()
+	ev := parsed.(event.RoomMemberEvent)
 
-	switch {
-	case raw.Unsigned.PrevContent != nil:
-		prev.Content = raw.Unsigned.PrevContent
-	case raw.PrevContent != nil:
-		prev.Content = raw.PrevContent
-	default:
-		return basicMemberEventTail(ev)
-	}
+	prev := event.RawEvent{Type: raw.Type}
 
 	p, err := prev.Parse()
 	if err != nil {
@@ -199,6 +165,15 @@ func memberEventTail(raw *event.RawEvent, ev event.RoomMemberEvent) string {
 
 	past, ok := p.(event.RoomMemberEvent)
 	if !ok {
+		return basicMemberEventTail(ev)
+	}
+
+	switch {
+	case raw.Unsigned.PrevContent != nil:
+		prev.Content = raw.Unsigned.PrevContent
+	case raw.PrevContent != nil:
+		prev.Content = raw.PrevContent
+	default:
 		return basicMemberEventTail(ev)
 	}
 
