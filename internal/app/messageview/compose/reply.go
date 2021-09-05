@@ -43,7 +43,7 @@ var replyTemplate = template.Must(
 
 func renderReply(out *strings.Builder, client *gotktrix.Client, msg *event.RoomMessageEvent) {
 	var name string
-	if n, err := client.MemberName(msg.RoomID, msg.SenderID); err == nil {
+	if n, err := client.MemberName(msg.RoomID, msg.SenderID, false); err == nil {
 		name = n.Name
 	} else {
 		name, _, _ = msg.SenderID.Parse()

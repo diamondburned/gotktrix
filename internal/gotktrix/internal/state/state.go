@@ -3,6 +3,8 @@ package state
 import (
 	"encoding/json"
 	"log"
+	"sync"
+	"time"
 
 	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/api"
@@ -29,6 +31,9 @@ type State struct {
 	top    db.Node
 	paths  dbPaths
 	userID matrix.UserID
+
+	// caches
+	memberNames memberNameCache
 }
 
 // New creates a new State using bbolt pointing to the given path.
@@ -231,10 +236,7 @@ func (s *State) RoomStateList(roomID matrix.RoomID, typ event.Type) ([]event.Sta
 func (s *State) EachRoomState(
 	roomID matrix.RoomID, typ event.Type, f func(string, event.StateEvent) error) error {
 
-	raw := event.RawEvent{RoomID: roomID}
-	path := s.paths.rooms.Tail(string(roomID), string(typ))
-
-	return s.db.NodeFromPath(path).Each(&raw, "", func(_ string, total int) error {
+	return s.EachRoomStateRaw(roomID, typ, func(raw *event.RawEvent, _ int) error {
 		e, err := raw.Parse()
 		if err != nil {
 			return nil
@@ -245,7 +247,35 @@ func (s *State) EachRoomState(
 			return nil
 		}
 
-		if err := f(raw.StateKey, state); err != nil {
+		return f(state.StateKey(), state)
+	})
+}
+
+// EachRoomStateLen is a variant of EachRoomState, but it works for any event,
+// and a length parameter is precalculated.
+func (s *State) EachRoomStateLen(
+	roomID matrix.RoomID, typ event.Type, f func(ev event.Event, total int) error) error {
+
+	return s.EachRoomStateRaw(roomID, typ, func(raw *event.RawEvent, total int) error {
+		e, err := raw.Parse()
+		if err != nil {
+			return nil
+		}
+
+		return f(e, total)
+	})
+}
+
+// EachRoomStateRaw is a variant of EachRoomState where the callback gets a raw
+// event instead of the parsed event.
+func (s *State) EachRoomStateRaw(
+	roomID matrix.RoomID, typ event.Type, f func(raw *event.RawEvent, total int) error) error {
+
+	raw := event.RawEvent{RoomID: roomID}
+	path := s.paths.rooms.Tail(string(roomID), string(typ))
+
+	return s.db.NodeFromPath(path).Each(&raw, "", func(_ string, total int) error {
+		if err := f(&raw, total); err != nil {
 			if errors.Is(err, gotrix.ErrStopIter) {
 				return db.EachBreak
 			}
@@ -255,22 +285,94 @@ func (s *State) EachRoomState(
 	})
 }
 
-// EachRoomStateLen is a variant of EachRoomState, but it works for any event,
-// and a length parameter is precalculated.
-func (s *State) EachRoomStateLen(
-	roomID matrix.RoomID, typ event.Type, f func(ev event.Event, total int) error) error {
+// memberNameCache assists in collision checking when rendering the member name.
+// Since conventionally, collision checking involves looking up a room's
+// members, this can get quite costly in a loop. The goal of this cache is to
+// allow constant time lookup from an in-memory cache.
+//
+// The cache may expire after a short amount of time; its goal is to only speed
+// up bulk loading of many events for speeding up loading a single room.
+type memberNameCache struct {
+	sync.Map // matrix.RoomID -> roomMemberCache
+}
 
-	raw := event.RawEvent{RoomID: roomID}
-	path := s.paths.rooms.Tail(string(roomID), string(typ))
+// memberNameCacheAge is 5s. A short cache age allows us to not worry too much
+// about cache invalidation on events, since the caching time is often short
+// enough to be subtle.
+const memberNameCacheAge = 5 * time.Second
 
-	return s.db.NodeFromPath(path).Each(&raw, "", func(_ string, total int) error {
-		e, err := raw.Parse()
-		if err != nil {
+func (c *memberNameCache) gc() {
+	now := time.Now()
+
+	c.Range(func(k, v interface{}) (ok bool) {
+		cache := v.(*roomMemberCache)
+		cache.mu.Lock()
+		defer cache.mu.Unlock()
+
+		if cache.when.Add(memberNameCacheAge).Before(now) {
+			// Expired. Delete.
+			c.Delete(k)
+		}
+
+		return true
+	})
+}
+
+type roomMemberCache struct {
+	names map[string][]matrix.UserID
+	when  time.Time
+	mu    sync.Mutex
+}
+
+// RoomMembersFromName looks up the internal cache for all members inside the
+// given room with the given name. It is used for MemberNames collision
+// checking.
+func (s *State) RoomMembersFromName(roomID matrix.RoomID, name string) []matrix.UserID {
+	// Always GC before continuing. We don't want to reuse an outdated cache
+	// even once.
+	s.memberNames.gc()
+
+	iv, _ := s.memberNames.LoadOrStore(roomID, &roomMemberCache{})
+	cache := iv.(*roomMemberCache)
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+
+	if cache.names == nil {
+		cache.when = time.Now()
+
+		var m struct {
+			Name string `json:"displayname"`
+		}
+
+		onMember := func(raw *event.RawEvent, total int) error {
+			if cache.names == nil {
+				// Overallocate to avoid some reallocations down the line. This
+				// has the side effect of forcing a refetch if a room is empty,
+				// but that rarely ever happens.
+				cache.names = make(map[string][]matrix.UserID, total)
+			}
+
+			if err := json.Unmarshal(raw.Content, &m); err != nil {
+				// Skip the error.
+				return nil
+			}
+
+			userID := matrix.UserID(raw.StateKey)
+
+			if m.Name == "" {
+				// Try the username instead.
+				username, _, _ := userID.Parse()
+				m.Name = username
+			}
+
+			cache.names[m.Name] = append(cache.names[m.Name], userID)
 			return nil
 		}
 
-		return f(e, total)
-	})
+		s.EachRoomStateRaw(roomID, event.TypeRoomMember, onMember)
+	}
+
+	return cache.names[name]
 }
 
 // RoomSummary returns the SyncRoomSummary if a room if it's in the state.

@@ -89,17 +89,15 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent
 const maxCozyAge = 10 * time.Minute
 
 func lastIsAuthor(view MessageViewer, ev *event.RawEvent) bool {
-	last := view.LastMessage()
-
 	// Ensure that the last message IS a cozy OR compact message.
-	switch last.(type) {
-	case *cozyMessage, *collapsedMessage:
-		// ok
+	switch last := view.LastMessage().(type) {
+	case *cozyMessage:
+		return lastEventIsAuthor(last.EventBox.RawEvent, ev)
+	case *collapsedMessage:
+		return lastEventIsAuthor(last.EventBox.RawEvent, ev)
 	default:
 		return false
 	}
-
-	return lastEventIsAuthor(last.RawEvent(), ev)
 }
 
 func lastEventIsAuthor(last, ev *event.RawEvent) bool {

@@ -92,7 +92,7 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 	var ambiguous bool
 
 	if rID != "" {
-		n, err := c.MemberName(rID, uID)
+		n, err := c.MemberName(rID, uID, !opts.minimal)
 		if err == nil {
 			name = n.Name
 			ambiguous = n.Ambiguous
@@ -151,7 +151,7 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 	name, _, _ := uID.Parse()
 
 	if rID != "" {
-		n, err := c.MemberName(rID, uID)
+		n, err := c.MemberName(rID, uID, !opts.minimal)
 		if err == nil {
 			name = n.Name
 		}

@@ -309,6 +309,12 @@ func (c *Client) ImageThumbnail(msg event.RoomMessageEvent, maxW, maxH int) (str
 // MaxSize returns the maximum size that can fit within the given max width and
 // height. Aspect ratio is preserved.
 func MaxSize(w, h, maxW, maxH int) (int, int) {
+	if w == 0 {
+		w = maxW
+	}
+	if h == 0 {
+		h = maxH
+	}
 	if w < maxW && h < maxH {
 		return w, h
 	}
@@ -664,71 +670,56 @@ type MemberName struct {
 //
 // Use the Client.MemberNames variant when generating member name for multiple
 // users to reduce duplicate work.
-func (c *Client) MemberName(roomID matrix.RoomID, userID matrix.UserID) (MemberName, error) {
-	names, err := c.MemberNames(roomID, []matrix.UserID{userID})
+//
+// If check is true, then the MemberName's Ambiguous field will be set to true
+// if the display name collides with someone else's. This check is quite
+// expensive, so it should only be enabled when needed.
+func (c *Client) MemberName(
+	roomID matrix.RoomID, userID matrix.UserID, check bool) (MemberName, error) {
+
+	names, err := c.memberNames(roomID, []matrix.UserID{userID}, check)
 	if err != nil {
 		return MemberName{}, err
 	}
+
 	return names[0], nil
 }
 
-// MemberNames calculates the display name of all the users provided.
-func (c *Client) MemberNames(roomID matrix.RoomID, userIDs []matrix.UserID) ([]MemberName, error) {
-	result := make([]MemberName, len(userIDs))
+// memberNames calculates the display name of all the users provided.
+func (c *Client) memberNames(
+	roomID matrix.RoomID, userIDs []matrix.UserID, check bool) ([]MemberName, error) {
+
+	results := make([]MemberName, len(userIDs))
 
 	for i, userID := range userIDs {
 		e, _ := c.RoomState(roomID, event.TypeRoomMember, string(userID))
 		if e == nil {
-			result[i].Name = string(userID)
+			results[i].Name = string(userID)
 			continue
 		}
 
 		memberEvent := e.(event.RoomMemberEvent)
 		if memberEvent.DisplayName == nil || *memberEvent.DisplayName == "" {
-			result[i].Name = string(userID)
+			results[i].Name = string(userID)
 			continue
 		}
 
-		result[i].Name = *memberEvent.DisplayName
+		results[i].Name = *memberEvent.DisplayName
 	}
 
-	// Hash all names to check for duplicates.
-	names := make(map[string]int, len(userIDs))
-
-	for i, name := range result {
-		// Mark any collisions within the given user list.
-		if j, ok := names[name.Name]; ok {
-			result[j].Ambiguous = true
-		}
-
-		// This will override the collided user, if any, but since we've already
-		// marked it, we should be fine.
-		names[name.Name] = i
+	if !check {
+		return results, nil
 	}
 
-	onMember := func(v event.Event, _ int) error {
-		ev, ok := v.(event.RoomMemberEvent)
-		if !ok || ev.DisplayName == nil {
-			return nil
-		}
-
-		if i, ok := names[*ev.DisplayName]; ok {
-			name := &result[i]
-
-			if !name.Ambiguous && userIDs[i] != ev.UserID {
-				// Collide. Mark as ambiguous.
-				name.Ambiguous = true
+	for i, result := range results {
+		for _, userID := range c.State.RoomMembersFromName(roomID, result.Name) {
+			if userID != userIDs[i] {
+				results[i].Ambiguous = true
 			}
 		}
-
-		return nil
 	}
 
-	// Reiterate and check for ambiguous names. Ambiguous checking isn't super
-	// important, so we can skip it.
-	c.State.EachRoomStateLen(roomID, event.TypeRoomMember, onMember)
-
-	return result, nil
+	return results, nil
 }
 
 // UpdateRoomTags updates the internal state with the latest room tag

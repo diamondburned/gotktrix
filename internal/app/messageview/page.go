@@ -248,8 +248,8 @@ func (p *Page) clean() {
 			continue
 		}
 
-		p.list.Remove(row)
 		delete(p.messages, matrix.EventID(row.Name()))
+		p.list.Remove(row)
 	}
 }
 
