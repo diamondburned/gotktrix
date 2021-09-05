@@ -174,19 +174,6 @@ func GETPixbuf(ctx context.Context, url string, opts ...Opts) (*gdkpixbuf.Pixbuf
 		return nil, nil
 	}
 
-	// Be careful when using the given context. There's a chance that it might
-	// be cancelled to quickly, but then the same resource might be fetched
-	// again. This will cause a lot of server straining. It's best that we
-	// impose our own timeout on requests, if possible.
-	rqctx := context.Background()
-
-	if deadline, ok := ctx.Deadline(); ok {
-		ctx, cancel := context.WithDeadline(rqctx, deadline)
-		defer cancel()
-
-		rqctx = ctx
-	}
-
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create request %q", url)

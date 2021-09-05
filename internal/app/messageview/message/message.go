@@ -25,7 +25,7 @@ type eventBox struct {
 }
 
 func (b *eventBox) Event() event.RoomEvent {
-	ev, _ := b.Parse()
+	ev, _ := b.EventBox.Parse()
 	return ev.(event.RoomEvent)
 }
 

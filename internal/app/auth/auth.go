@@ -117,6 +117,9 @@ func (a *Assistant) finish(c *gotktrix.Client, acc *Account) {
 		return
 	}
 
+	// Restore context.
+	c = c.WithContext(a.ctx)
+
 	a.hasConnected = true
 	a.Continue()
 	a.Close()
