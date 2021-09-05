@@ -241,14 +241,16 @@ type messageEvent struct {
 
 // Send sends the message inside the input off.
 func (i *Input) Send() bool {
-	ev, ok := i.put()
+	dt, ok := i.put()
 	if !ok {
 		return false
 	}
 
 	go func() {
 		client := gotktrix.FromContext(i.ctx)
-		_, err := client.RoomEventSend(ev.RoomID, ev.Type(), ev)
+		roomEv := dt.put(client)
+
+		_, err := client.RoomEventSend(roomEv.RoomID, roomEv.Type(), roomEv)
 		if err != nil {
 			app.Error(i.ctx, errors.Wrap(err, "failed to send message"))
 		}
@@ -264,8 +266,9 @@ func (i *Input) Send() bool {
 	return true
 }
 
-// put steals the buffer and puts it into a message event. The buffer is reset.
-func (i *Input) put() (messageEvent, bool) {
+// put steals the buffer and puts it into a message event. If the buffer is
+// empty, then an empty data and false are returned.
+func (i *Input) put() (inputData, bool) {
 	head := i.buffer.StartIter()
 	tail := i.buffer.EndIter()
 
@@ -284,7 +287,7 @@ func (i *Input) put() (messageEvent, bool) {
 	inputHTML = strings.TrimSpace(inputHTML)
 
 	if inputHTML == "" {
-		return messageEvent{}, false
+		return inputData{}, false
 	}
 
 	// Get the buffer without any invisible segments, since those segments
@@ -293,27 +296,44 @@ func (i *Input) put() (messageEvent, bool) {
 	// Clean off trailing spaces.
 	plain = strings.TrimSpace(plain)
 
+	return inputData{
+		roomID:     i.roomID,
+		plain:      plain,
+		html:       inputHTML,
+		inputState: i.inputState,
+	}, true
+}
+
+type inputData struct {
+	roomID matrix.RoomID
+	plain  string
+	html   string
+	inputState
+}
+
+// put creates a message event from the input data. It might query the API for
+// the information that it needs.
+func (data inputData) put(client *gotktrix.Client) messageEvent {
 	ev := messageEvent{
 		RoomMessageEvent: event.RoomMessageEvent{
-			RoomEventInfo: event.RoomEventInfo{RoomID: i.roomID},
-			Body:          plain,
+			RoomEventInfo: event.RoomEventInfo{RoomID: data.roomID},
+			Body:          data.plain,
 			MsgType:       event.RoomMessageText,
-			RelatesTo:     i.relatesTo(),
+			RelatesTo:     data.relatesTo(),
 		},
 	}
 
 	var html strings.Builder
 
-	if i.replyingTo != "" {
-		client := gotktrix.FromContext(i.ctx).Offline()
-		replEv := roomTimelineEvent(client, i.roomID, i.replyingTo)
+	if data.replyingTo != "" {
+		replEv := roomTimelineEvent(client, data.roomID, data.replyingTo)
 
 		if msg, ok := replEv.(event.RoomMessageEvent); ok {
 			renderReply(&html, client, &msg)
 		}
 	}
 
-	if err := md.Converter.Convert([]byte(inputHTML), &html); err == nil {
+	if err := md.Converter.Convert([]byte(data.html), &html); err == nil {
 		var out string
 		out = html.String()
 		out = strings.TrimSpace(out)
@@ -323,7 +343,7 @@ func (i *Input) put() (messageEvent, bool) {
 	}
 
 	// If we're editing an existing message, then insert a new_content object.
-	if i.editing != "" {
+	if data.editing != "" {
 		ev.NewContent = &event.RoomMessageEvent{
 			Body:          ev.Body,
 			MsgType:       ev.MsgType,
@@ -340,11 +360,11 @@ func (i *Input) put() (messageEvent, bool) {
 		}
 	}
 
-	return ev, true
+	return ev
 }
 
-func (i *Input) relatesTo() json.RawMessage {
-	if i.inputState == (inputState{}) {
+func (data inputData) relatesTo() json.RawMessage {
+	if data.inputState == (inputState{}) {
 		return nil
 	}
 
@@ -358,14 +378,14 @@ func (i *Input) relatesTo() json.RawMessage {
 		InReplyTo *inReplyTo     `json:"m.in_reply_to,omitempty"`
 	}
 
-	if i.editing != "" {
-		relatesTo.EventID = i.editing
+	if data.editing != "" {
+		relatesTo.EventID = data.editing
 		relatesTo.RelType = "m.replace"
 	}
 
-	if i.replyingTo != "" {
+	if data.replyingTo != "" {
 		relatesTo.InReplyTo = &inReplyTo{
-			EventID: i.replyingTo,
+			EventID: data.replyingTo,
 		}
 	}
 
