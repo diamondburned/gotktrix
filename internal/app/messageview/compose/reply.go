@@ -31,7 +31,7 @@ const replyHTML = `
 `
 
 var spaceReplacer = strings.NewReplacer(
-	"\n", "", "\t", "",
+	"\n", " ", "\t", " ",
 )
 
 var replyTemplate = template.Must(
