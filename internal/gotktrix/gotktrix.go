@@ -358,6 +358,37 @@ func (c *Client) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, e
 	return c.State.RoomEvent(roomID, typ)
 }
 
+// RoomState queries the internal State for the given RoomEvent. If the State
+// does not have that event, it queries the homeserver directly.
+func (c *Client) RoomState(
+	roomID matrix.RoomID, typ event.Type, key string) (event.StateEvent, error) {
+
+	e, err := c.State.RoomState(roomID, typ, key)
+	if err == nil {
+		return e, nil
+	}
+
+	raw, err := c.Client.Client.RoomState(roomID, typ, key)
+	if err != nil {
+		return nil, err
+	}
+
+	parsed, err := raw.Parse()
+	if err != nil {
+		return nil, err
+	}
+
+	stateEvent, ok := parsed.(event.StateEvent)
+	if !ok {
+		return nil, gotrix.ErrInvalidStateEvent
+	}
+
+	// Update the state cache for future calls.
+	c.State.AddRoomEvents(roomID, []event.RawEvent{*raw})
+
+	return stateEvent, nil
+}
+
 // RoomIsUnread returns true if the room with the given ID has not been read by
 // this user. The result of the unread boolean will always be valid, but if ok
 // is false, then it might not be accurate.

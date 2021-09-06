@@ -2,7 +2,6 @@ package autocomplete
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -178,7 +177,6 @@ func (s *emojiSearcher) update() {
 
 	// Prioritize user emotes over room emotes.
 	for name, emote := range userEmotes.Emoticons {
-		log.Println("user emote", name)
 		if _, ok := s.emotes[name]; ok {
 			continue
 		}
@@ -187,7 +185,6 @@ func (s *emojiSearcher) update() {
 	}
 
 	for name, emote := range roomEmotes.Emoticons {
-		log.Println("room emote", name)
 		if _, ok := s.emotes[name]; ok {
 			continue
 		}

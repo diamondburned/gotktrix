@@ -135,11 +135,14 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 				return
 			}
 
-			if strings.HasPrefix(mime, "text") {
+			// How is utf8_string a valid MIME type? GTK, what the fuck?
+			if strings.HasPrefix(mime, "text") || mime == "utf8_string" {
 				// Ignore texts.
 				stream.Close(ctx)
 				return
 			}
+
+			log.Println("got mime type", mime)
 
 			promptUpload(ctx, roomID, uploadingFile{
 				input:  stream,

@@ -312,7 +312,7 @@ func (f *formatter) tag(tt chroma.TokenType) *gtk.TextTag {
 		return tag
 	}
 
-	tag := attrs.Tag("hl-" + attrs.Hash())
+	tag := attrs.Tag(tname)
 	f.tags.Add(tag)
 
 	return tag

@@ -253,11 +253,50 @@ func (p *Page) clean() {
 	}
 }
 
+// noLastMessage is a hack to override the last message with nothing. This is
+// useful for message edits.
+type noLastMessage struct {
+	*Page
+	ignore matrix.EventID
+}
+
+func (p noLastMessage) LastMessage() message.Message {
+	for i := len(p.messages) - 1; i >= 0; i-- {
+		row := p.list.RowAtIndex(i)
+		if row == nil {
+			return nil
+		}
+
+		id := matrix.EventID(row.Name())
+		if id == p.ignore {
+			continue
+		}
+
+		m, ok := p.messages[id]
+		if ok {
+			return m.msg
+		}
+	}
+
+	return nil
+}
+
 func (p *Page) onRoomEvent(raw *event.RawEvent) {
 	id := raw.ID
 	editedID := editedID(raw)
 
-	m := message.NewCozyMessage(p.parent.ctx, p, raw)
+	v := message.MessageViewer(p)
+	if editedID != "" {
+		// Be sure that LastMessage won't return the message that's being
+		// edited, because it might cause the newly edited message to turn from
+		// being an expanded one to a compact one.
+		v = noLastMessage{
+			Page:   p,
+			ignore: editedID,
+		}
+	}
+
+	m := message.NewCozyMessage(p.parent.ctx, v, raw)
 
 	if editedID != "" {
 		msg, ok := p.messages[editedID]
