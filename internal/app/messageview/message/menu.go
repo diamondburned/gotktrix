@@ -1,6 +1,7 @@
 package message
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -9,37 +10,54 @@ import (
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/components/errpopup"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/pkg/errors"
 )
 
-var messageMenuItems = [][2]string{
-	{"Edit", "message.edit"},
-	{"Reply", "message.reply"},
-	{"Show Source", "message.show-source"},
-}
+func bindParent(
+	v messageViewer,
+	parent gtk.Widgetter, extras ...extraMenuSetter) []gtkutil.PopoverMenuItem {
 
-func bind(v messageViewer, m Message) Message {
 	actions := map[string]func(){
 		"show-source": func() {
-			showMsgSource(app.FromContext(v.Context).Window(), m.RawEvent())
+			showMsgSource(app.FromContext(v.Context).Window(), v.raw.RawEvent)
 		},
 		"reply": func() {
 			v.MessageViewer.ReplyTo(v.raw.ID)
 		},
+		"react": nil,
 	}
 
 	uID, _ := v.client().Whoami()
-	if uID == v.raw.Sender {
+	canEdit := uID == v.raw.Sender
+
+	if canEdit {
 		actions["edit"] = func() {
 			v.MessageViewer.Edit(v.raw.ID)
 		}
 	}
 
-	gtkutil.BindActionMap(m, "message", actions)
-	gtkutil.BindPopoverMenu(m, gtk.PosBottom, messageMenuItems)
-	return m
+	messageMenuItems := []gtkutil.PopoverMenuItem{
+		gtkutil.MenuItem("Edit", "message.edit", canEdit),
+		gtkutil.MenuItem("Reply", "message.reply"),
+		gtkutil.Submenu("React", []gtkutil.PopoverMenuItem{
+			gtkutil.MenuWidget("message.react", reactEntry(v.Context, v.raw.RawEvent)),
+		}),
+		gtkutil.MenuItem("Show Source", "message.show-source"),
+	}
+
+	gtkutil.BindActionMap(parent, "message", actions)
+	gtkutil.BindPopoverMenuCustom(parent, gtk.PosBottom, messageMenuItems)
+
+	for _, extra := range extras {
+		bindExtraMenu(extra, messageMenuItems)
+	}
+
+	return messageMenuItems
 }
 
 type extraMenuSetter interface {
@@ -51,8 +69,49 @@ var (
 	_ extraMenuSetter = (*gtk.TextView)(nil)
 )
 
-func bindExtraMenu(m extraMenuSetter) {
-	m.SetExtraMenu(gtkutil.MenuPair(messageMenuItems))
+func bindExtraMenu(m extraMenuSetter, items []gtkutil.PopoverMenuItem) {
+	m.SetExtraMenu(gtkutil.CustomMenu(items))
+}
+
+var reactCSS = cssutil.Applier("message-react", `
+	.message-react {
+		margin: 0 6px;
+	}
+`)
+
+func reactEntry(ctx context.Context, targ *event.RawEvent) gtk.Widgetter {
+	entry := gtk.NewEntry()
+	entry.SetHExpand(true)
+	entry.SetObjectProperty("show-emoji-icon", true)
+	entry.SetObjectProperty("enable-emoji-completion", true)
+	entry.SetPlaceholderText("Add Reaction")
+	entry.Connect("activate", func() {
+		text := entry.Text()
+		if text == "" {
+			return
+		}
+
+		entry.SetText("")
+
+		ev := m.ReactionEvent{
+			RoomID: targ.RoomID,
+			RelatesTo: m.ReactionRelatesTo{
+				RelType: m.Annotation,
+				EventID: targ.ID,
+				Key:     text,
+			},
+		}
+
+		go func() {
+			client := gotktrix.FromContext(ctx)
+			if err := client.SendRoomEvent(ev.RoomID, ev); err != nil {
+				app.Error(ctx, errors.Wrap(err, "failed to react"))
+			}
+		}()
+	})
+	reactCSS(entry)
+
+	return entry
 }
 
 var msgSourceAttrs = markuputil.Attrs(

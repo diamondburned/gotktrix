@@ -38,11 +38,11 @@ func (v messageViewer) eventMessage() *eventMessage {
 	action.SetWrap(true)
 	action.SetWrapMode(pango.WrapWordChar)
 	action.SetMarginStart(avatarWidth)
-	bindExtraMenu(action)
 
 	action.SetMarkup(RenderEvent(v.Context, v.raw))
 
 	messageCSS(action)
+	bindParent(v, action, action)
 
 	return &eventMessage{
 		Label:    action,

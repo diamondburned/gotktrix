@@ -71,7 +71,6 @@ func (v messageViewer) collapsedMessage() *collapsedMessage {
 	timestamp.SetYAlign(1)
 
 	content := mcontent.New(v.Context, v.raw)
-	bindExtraMenu(content)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	box.Append(timestamp)
@@ -79,6 +78,8 @@ func (v messageViewer) collapsedMessage() *collapsedMessage {
 
 	box.AddCSSClass("message-collapsed")
 	messageCSS(box)
+
+	bindParent(v, box, content)
 
 	return &collapsedMessage{
 		Box:      box,
@@ -134,6 +135,7 @@ func (v messageViewer) cozyMessage() *cozyMessage {
 	avatar := adw.NewAvatar(avatarSize, username, true)
 	avatar.SetVAlign(gtk.AlignStart)
 	avatar.SetMarginTop(2)
+	avatar.SetTooltipText(string(v.raw.Sender))
 
 	mxc, _ := client.MemberAvatar(v.raw.RoomID, v.raw.Sender)
 	if mxc != nil {
@@ -145,7 +147,6 @@ func (v messageViewer) cozyMessage() *cozyMessage {
 	authorTsBox.Append(timestamp)
 
 	content := mcontent.New(v.Context, v.raw)
-	bindExtraMenu(content)
 
 	rightBox := gtk.NewBox(gtk.OrientationVertical, 0)
 	rightBox.Append(authorTsBox)
@@ -168,6 +169,8 @@ func (v messageViewer) cozyMessage() *cozyMessage {
 		timestamp: timestamp,
 		content:   content,
 	}
+
+	bindParent(v, msg, content)
 
 	msg.asyncFetch()
 	return msg

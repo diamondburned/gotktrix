@@ -689,6 +689,12 @@ func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, err
 	return events, nil
 }
 
+// SendRoomEvent is a convenient function around RoomEventSend.
+func (c *Client) SendRoomEvent(roomID matrix.RoomID, ev event.Event) error {
+	_, err := c.Client.RoomEventSend(roomID, ev.Type(), ev)
+	return err
+}
+
 // MemberName describes a member name.
 type MemberName struct {
 	Name      string

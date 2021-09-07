@@ -72,18 +72,18 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent
 
 	e, err := viewer.raw.Parse()
 	if err != nil {
-		return bind(viewer, viewer.eventMessage())
+		return viewer.eventMessage()
 	}
 
 	if _, ok := e.(event.RoomMessageEvent); ok {
 		if lastIsAuthor(view, raw) {
-			return bind(viewer, viewer.collapsedMessage())
+			return viewer.collapsedMessage()
 		} else {
-			return bind(viewer, viewer.cozyMessage())
+			return viewer.cozyMessage()
 		}
 	}
 
-	return bind(viewer, viewer.eventMessage())
+	return viewer.eventMessage()
 }
 
 const maxCozyAge = 10 * time.Minute

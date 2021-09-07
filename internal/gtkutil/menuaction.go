@@ -119,7 +119,13 @@ func (p popoverMenuItem) menu() {}
 
 // MenuItem creates a simple popover menu item. If action is empty, then the
 // item is disabled; if action is "---", then a new section is created.
-func MenuItem(label, action string) PopoverMenuItem {
+func MenuItem(label, action string, ands ...bool) PopoverMenuItem {
+	for _, and := range ands {
+		if !and {
+			return nil
+		}
+	}
+
 	return popoverMenuItem{
 		label:  label,
 		action: action,
@@ -169,7 +175,18 @@ func Submenu(label string, sub []PopoverMenuItem) PopoverMenuItem {
 // BindPopoverMenuCustom works similarly to BindPopoverMenu, but the value type
 // can be more than just an action string. The key must be a string.
 func BindPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, pairs []PopoverMenuItem) {
-	BindRightClick(w, func() { ShowPopoverMenuCustom(w, pos, pairs) })
+	var popover *gtk.PopoverMenu
+
+	BindRightClick(w, func() {
+		if popover == nil {
+			popover = PopoverMenuCustom(w, pos, pairs)
+			if popover == nil {
+				return
+			}
+		}
+
+		popover.Popup()
+	})
 }
 
 // BindPopoverMenuLazy is similarl to BindPopoverMenuCustom, except the menu
@@ -178,12 +195,30 @@ func BindPopoverMenuLazy(w gtk.Widgetter, pos gtk.PositionType, pairsFn func() [
 	BindRightClick(w, func() { ShowPopoverMenuCustom(w, pos, pairsFn()) })
 }
 
-func addMenuItems(menu *gio.Menu, items []PopoverMenuItem, widgets map[string]gtk.Widgetter) {
+// CustomMenu returns a new Menu from the given popover menu items. All menu
+// items that have widgets are ignored.
+func CustomMenu(items []PopoverMenuItem) *gio.Menu {
+	menu := gio.NewMenu()
+	addMenuItems(menu, items, nil)
+	return menu
+}
+
+func addMenuItems(menu *gio.Menu, items []PopoverMenuItem, widgets map[string]gtk.Widgetter) int {
 	section := menu
+	var added int
 
 	for _, item := range items {
+		if item == nil {
+			continue
+		}
+
 		switch item := item.(type) {
 		case popoverMenuItem:
+			if item.widget != nil && widgets == nil {
+				// No widgets supported; skip this menu item.
+				continue
+			}
+
 			if item.action == "---" {
 				section = gio.NewMenu()
 				menu.AppendSection(item.label, section)
@@ -198,15 +233,20 @@ func addMenuItems(menu *gio.Menu, items []PopoverMenuItem, widgets map[string]gt
 				widgets[item.action] = item.widget
 				setCustomMenuItem(menu, item.action)
 			}
+			added++
 			section.AppendItem(menu)
 		case submenu:
 			sub := gio.NewMenu()
-			addMenuItems(sub, item.items, widgets)
-			section.AppendSubmenu(item.label, sub)
+			if addMenuItems(sub, item.items, widgets) > 0 {
+				added++
+				section.AppendSubmenu(item.label, sub)
+			}
 		default:
 			log.Panicf("unknown menu item type %T", item)
 		}
 	}
+
+	return added
 }
 
 // ShowPopoverMenuCustom is like BindPopoverMenuCustom, but it does not bind a
@@ -214,24 +254,38 @@ func addMenuItems(menu *gio.Menu, items []PopoverMenuItem, widgets map[string]gt
 // the time. If any of the menus cannot be added in, then false is returned, and
 // the popover isn't shown.
 func ShowPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, items []PopoverMenuItem) bool {
+	popover := PopoverMenuCustom(w, pos, items)
+	if popover == nil {
+		return false
+	}
+
+	popover.Popup()
+	return true
+}
+
+// PopoverMenuCustom creates a new Popover containing the given items.
+func PopoverMenuCustom(
+	w gtk.Widgetter, pos gtk.PositionType, items []PopoverMenuItem) *gtk.PopoverMenu {
+
 	menu := gio.NewMenu()
 	widgets := make(map[string]gtk.Widgetter)
 
 	addMenuItems(menu, items, widgets)
 
 	popover := gtk.NewPopoverMenuFromModel(menu)
+	popover.SetAutohide(true)
+	popover.SetCascadePopdown(false)
 	popover.SetSizeRequest(PopoverWidth, -1)
 	popover.SetPosition(pos)
 	popover.SetParent(w)
 
 	for action, widget := range widgets {
 		if !popover.AddChild(widget, action) {
-			return false
+			return nil
 		}
 	}
 
-	popover.Popup()
-	return true
+	return popover
 }
 
 // NewPopoverMenuFromPairs is a convenient function for NewPopoverMenuFromModel
