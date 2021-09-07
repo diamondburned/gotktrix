@@ -10,6 +10,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -45,7 +46,8 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 	text.SetAcceptsTab(false)
 	text.SetCursorVisible(false)
 	text.SetWrapMode(gtk.WrapWordChar)
-	text.Show()
+
+	md.SetTabSize(text)
 	textContentCSS(text)
 
 	body, isEdited := msgBody(msgBox)
@@ -77,6 +79,16 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 
 		buf.InsertMarkup(&end, append, len(append))
 	}
+
+	text.Connect("map", func() {
+		// Fixes 2 GTK bugs:
+		// - TextViews are invisible sometimes.
+		// - Multiline TextViews are sometimes only drawn as 1.
+		glib.IdleAdd(func() {
+			text.QueueAllocate()
+			text.QueueResize()
+		})
+	})
 
 	return textContent{
 		TextView: text,
@@ -152,12 +164,13 @@ func renderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) bool 
 	}
 
 	// Trim trailing new lines.
-	trimBufferNewLineRight(buf)
-	trimBufferNewLineLeft(buf)
+	// trimBufferNewLineRight(buf)
+	// trimBufferNewLineLeft(buf)
 
 	return true
 }
 
+/*
 func trimBufferNewLineRight(buf *gtk.TextBuffer) {
 	tail := buf.EndIter()
 	head := tail.Copy()
@@ -185,6 +198,7 @@ func trimBufferNewLineLeft(buf *gtk.TextBuffer) {
 		buf.Delete(&head, tail)
 	}
 }
+*/
 
 type traverseStatus uint8
 
@@ -241,7 +255,8 @@ func (s *renderState) nTrailingNewLine() int {
 }
 
 func (s *renderState) lineIfText(n *html.Node) {
-	if s.nTrailingNewLine() == 0 && (!s.large && nodeHasText(n)) {
+	// Only bother adding a new line if we have another paragraph.
+	if !nodeIsLastEver(n) && s.nTrailingNewLine() == 0 && (!s.large && nodeHasText(n)) {
 		s.buf.Insert(s.iter, "\n", 1)
 	}
 }
@@ -269,8 +284,9 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		if n := s.nTrailingNewLine(); n > 0 {
 			newLines -= n
 		}
-		if newLines > 0 {
-			s.buf.Insert(s.iter, strings.Repeat("\n", newLines), -1)
+		// Only make up new lines if we still have nodes.
+		if newLines > 0 && !nodeIsLastEver(n) {
+			s.buf.Insert(s.iter, strings.Repeat("\n", newLines), newLines)
 		}
 
 		return traverseOK
@@ -352,10 +368,14 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		case "hr":
 			s.line()
 			md.AddWidgetAt(s.tview, s.iter, md.NewSeparator())
-			s.line()
+			if !nodeIsLastEver(n) {
+				s.line()
+			}
 			return traverseOK
 		case "br":
-			s.line()
+			if !nodeIsLastEver(n) {
+				s.line()
+			}
 			return traverseOK
 
 		case "img": // width, height, alt, title, src(mxc)
@@ -436,23 +456,49 @@ func (s *renderState) tag(tagName string) *gtk.TextTag {
 	return md.TextTags.FromTable(s.table, tagName)
 }
 
-// renderChildrenTagName is similar to renderChildrenTagged, except the tag name
-// is used.
-func (s *renderState) renderChildrenTagName(n *html.Node, tagName string) {
+// tagBounded saves the current offset and calls f, expecting the function to
+// use s.iter. Then, the tag with the given name is applied on top.
+func (s *renderState) tagBounded(tagName string, f func()) {
 	start := s.iter.Offset()
-	s.traverseSiblings(n.FirstChild)
-
+	f()
 	startIter := s.buf.IterAtOffset(start)
 	s.buf.ApplyTag(s.tag(tagName), &startIter, s.iter)
 }
 
+// renderChildrenTagName is similar to renderChildrenTagged, except the tag name
+// is used.
+func (s *renderState) renderChildrenTagName(n *html.Node, tagName string) {
+	s.tagBounded(tagName, func() { s.traverseSiblings(n.FirstChild) })
+}
+
 // insertInvisible inserts the given invisible.
 func (s *renderState) insertInvisible(str string) {
-	start := s.iter.Offset()
-	s.buf.Insert(s.iter, str, len(str))
+	s.tagBounded("_invisible", func() { s.buf.Insert(s.iter, str, len(str)) })
+}
 
-	startIter := s.buf.IterAtOffset(start)
-	s.buf.ApplyTag(s.tag("_invisible"), &startIter, s.iter)
+// nodeIsLastEver returns true if this node is the last node in the whole HTML
+// tree.
+func nodeIsLastEver(n *html.Node) bool {
+	if n.NextSibling != nil {
+		return false
+	}
+
+	for {
+		parent := n.Parent
+		if parent == nil {
+			break
+		}
+
+		if parent.NextSibling != nil {
+			// Parent still has something next to it.
+			return false
+		}
+
+		// Set the node as the parent. The above check will be repeated for it.
+		n = parent
+	}
+
+	return true
 }
 
 func nodeAttr(n *html.Node, keys ...string) string {

@@ -47,6 +47,39 @@ func boolToUint32(b bool) (u uint32) {
 	return
 }
 
+// Int is a preference property of type int.
+type Int struct {
+	Pubsub
+	PropMeta
+	v int32
+}
+
+// NewInt creates a new int(32) with the given default value and properties.
+func NewInt(v int, prop PropMeta) *Int {
+	prop.validate()
+
+	b := &Int{
+		Pubsub:   *NewPubsub(),
+		PropMeta: prop,
+
+		v: int32(v),
+	}
+
+	registerProp(b)
+	return b
+}
+
+// Publish publishes the new int.
+func (i *Int) Publish(v int) {
+	atomic.StoreInt32(&i.v, int32(v))
+	i.Pubsub.Publish()
+}
+
+// Value loads the internal int.
+func (i *Int) Value() int {
+	return int(atomic.LoadInt32(&i.v))
+}
+
 // String is a preference property of type string.
 type String struct {
 	Pubsub

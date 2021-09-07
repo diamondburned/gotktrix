@@ -92,6 +92,8 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 		gtk.InputHintWordCompletion |
 		gtk.InputHintUppercaseSentences,
 	)
+
+	md.SetTabSize(tview)
 	inputCSS(tview)
 
 	buffer := tview.Buffer()
