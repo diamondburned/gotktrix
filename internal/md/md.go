@@ -3,6 +3,7 @@ package md
 
 import (
 	"context"
+	"unicode/utf8"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -102,6 +103,7 @@ var TextTags = markuputil.TextTagsMap{
 	},
 	// Meta tags.
 	"_invisible": {"invisible": true},
+	"_emoji":     {"scale": 2.5},
 }
 
 func htag(scale float64) markuputil.TextTag {
@@ -212,4 +214,40 @@ func AsyncInsertImage(ctx context.Context, iter *gtk.TextIter, url string, opts 
 	}
 
 	imgutil.AsyncGET(ctx, url, setImg, opts...)
+}
+
+// https://stackoverflow.com/a/36258684/5041327
+var emojiRanges = [][2]rune{
+	{0x1F600, 0x1F64F}, // Emoticons
+	{0x1F300, 0x1F5FF}, // Misc Symbols and Pictographs
+	{0x1F680, 0x1F6FF}, // Transport and Map
+	{0x2600, 0x26FF},   // Misc symbols
+	{0x2700, 0x27BF},   // Dingbats
+	{0xFE00, 0xFE0F},   // Variation Selectors
+	{0x1F900, 0x1F9FF}, // Supplemental Symbols and Pictographs
+	{0x1F1E6, 0x1F1FF}, // Flags
+}
+
+// IsUnicodeEmoji returns true if the given string only contains a Unicode
+// emoji.
+func IsUnicodeEmoji(v string) bool {
+runeLoop:
+	for {
+		r, sz := utf8.DecodeRuneInString(v)
+		if sz == 0 || r == utf8.RuneError {
+			break
+		}
+		v = v[sz:]
+
+		for _, crange := range emojiRanges {
+			if crange[0] <= r && r <= crange[1] {
+				continue runeLoop
+			}
+		}
+
+		// runeLoop not hit; bail.
+		return false
+	}
+
+	return true
 }

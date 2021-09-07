@@ -52,19 +52,19 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 
 	switch body.Format {
 	case event.FormatHTML:
-		n, err := html.Parse(strings.NewReader(body.FormattedBody))
-		if err == nil && renderIntoBuffer(ctx, text, n) {
-			goto rendered
+		// Hit the fallback case if the HTML is just a Unicode emoji.
+		if md.IsUnicodeEmoji(body.FormattedBody) {
+			renderText(ctx, text, body.FormattedBody)
+			break
 		}
+		if !renderHTML(ctx, text, body.FormattedBody) {
+			// HTML failed; use text instead.
+			renderText(ctx, text, body.Body)
+		}
+	default:
+		renderText(ctx, text, body.Body)
 	}
 
-	// fallback
-	{
-		body := strings.Trim(body.Body, "\n")
-		text.Buffer().SetText(body, len(body))
-	}
-
-rendered:
 	if isEdited {
 		buf := text.Buffer()
 		end := buf.EndIter()
@@ -114,7 +114,25 @@ func msgBody(box *gotktrix.EventBox) (m messageBody, edited bool) {
 	return body.messageBody, false
 }
 
-func renderIntoBuffer(ctx context.Context, tview *gtk.TextView, node *html.Node) bool {
+// renderText renders the given plain text.
+func renderText(ctx context.Context, tview *gtk.TextView, text string) {
+	body := strings.Trim(text, "\n")
+	tbuf := tview.Buffer()
+	tbuf.SetText(body, len(body))
+
+	if md.IsUnicodeEmoji(body) {
+		start, end := tbuf.Bounds()
+		tbuf.ApplyTag(md.TextTags.FromTable(tbuf.TagTable(), "_emoji"), &start, &end)
+	}
+}
+
+// renderHTML returns true if the HTML parsing and rendering is successful.
+func renderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) bool {
+	n, err := html.Parse(strings.NewReader(htmlBody))
+	if err != nil {
+		return false
+	}
+
 	buf := tview.Buffer()
 	iter := buf.StartIter()
 
@@ -126,10 +144,10 @@ func renderIntoBuffer(ctx context.Context, tview *gtk.TextView, node *html.Node)
 		ctx:   ctx,
 		list:  0,
 		// TODO: detect unicode emojis.
-		large: !nodeHasText(node),
+		large: !nodeHasText(n),
 	}
 
-	if state.traverseSiblings(node) == traverseFailed {
+	if state.traverseSiblings(n) == traverseFailed {
 		return false
 	}
 
