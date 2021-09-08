@@ -16,10 +16,9 @@ import (
 // Composer is a message composer.
 type Composer struct {
 	*adw.Clamp
-	box    *gtk.Box
-	avatar *Avatar
-	input  *Input
-	send   *gtk.Button
+	box   *gtk.Box
+	input *Input
+	send  *gtk.Button
 
 	ctx context.Context
 }
@@ -49,28 +48,42 @@ var composerCSS = cssutil.Applier("composer", `
 		margin-right:  10px;
 		border-radius: 99px;
 	}
+	.composer-more {
+		margin-top:   7px; /* why 7 */
+		margin-left:  14px;
+		margin-right: 10px;
+	}
+`)
+
+var sendCSS = cssutil.Applier("composer-send", `
+	.composer-send {
+		margin:   0px;
+		padding: 10px;
+		border-radius: 0;
+		min-height: 0;
+		min-width:  0;
+	}
 `)
 
 // New creates a new Composer.
 func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
-	avatar := NewAvatar(ctx, roomID)
+	more := gtk.NewButtonFromIconName("insert-object-symbolic")
+	more.SetVAlign(gtk.AlignStart)
+	more.SetHasFrame(false)
+	more.SetTooltipText("More...")
+	more.AddCSSClass("composer-more")
 
 	input := NewInput(ctx, ctrl, roomID)
-
-	rbox := gtk.NewBox(gtk.OrientationVertical, 0)
-	rbox.Append(input)
-	rbox.Append(gtk.NewLabel("")) // TODO: typing signals
 
 	send := gtk.NewButtonFromIconName(sendIcon)
 	send.SetTooltipText("Send")
 	send.SetHasFrame(false)
-	send.SetSizeRequest(AvatarWidth, -1)
 	send.Connect("clicked", func() { input.Send() })
 	sendCSS(send)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	box.Append(avatar)
-	box.Append(rbox)
+	box.Append(more)
+	box.Append(input)
 	box.Append(send)
 	composerCSS(box)
 
@@ -80,12 +93,11 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 	clamp.SetChild(box)
 
 	c := Composer{
-		Clamp:  clamp,
-		box:    box,
-		avatar: avatar,
-		input:  input,
-		send:   send,
-		ctx:    ctx,
+		Clamp: clamp,
+		box:   box,
+		input: input,
+		send:  send,
+		ctx:   ctx,
 	}
 
 	gtkutil.BindActionMap(box, "composer", map[string]func(){
@@ -94,7 +106,7 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 		"stop-editing":  func() { ctrl.Edit("") },
 	})
 
-	avatar.MenuItemsFunc(func() []gtkutil.PopoverMenuItem {
+	more.Connect("clicked", func() {
 		items := make([]gtkutil.PopoverMenuItem, 0, 3)
 		items = append(items,
 			gtkutil.MenuItemIcon("Upload File", "composer.upload-file", "mail-attachment-symbolic"))
@@ -108,7 +120,7 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 				gtkutil.MenuItem("Stop Editing", "composer.stop-editing"))
 		}
 
-		return items
+		gtkutil.ShowPopoverMenuCustom(more, gtk.PosTop, items)
 	})
 
 	return &c

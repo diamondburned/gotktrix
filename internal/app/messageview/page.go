@@ -26,6 +26,8 @@ type Page struct {
 	gtk.Widgetter
 	Composer *compose.Composer
 
+	extra *extraRevealer
+
 	scroll   *autoscroll.Window
 	list     *gtk.ListBox
 	messages map[matrix.EventID]messageRow
@@ -139,8 +141,16 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 	page.Composer = compose.New(ctx, &page, roomID)
 
+	page.extra = newExtraRevealer()
+	page.extra.SetVAlign(gtk.AlignEnd)
+
+	overlay := gtk.NewOverlay()
+	overlay.SetVExpand(true)
+	overlay.SetChild(page.scroll)
+	overlay.AddOverlay(page.extra)
+
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
-	box.Append(page.scroll)
+	box.Append(overlay)
 	box.Append(page.Composer)
 	rhsCSS(box)
 

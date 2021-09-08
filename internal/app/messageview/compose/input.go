@@ -50,17 +50,8 @@ var inputCSS = cssutil.Applier("composer-input", `
 		background-color: inherit;
 	}
 	.composer-input {
-		padding: 12px 2px;
-		padding-bottom: 0;
-		margin-top: 10px;
-	}
-`)
-
-var sendCSS = cssutil.Applier("composer-send", `
-	.composer-send {
-		margin:   0px;
-		padding: 10px;
-		border-radius: 0;
+		padding: 0px 2px;
+		margin-top: 12px;
 	}
 `)
 
