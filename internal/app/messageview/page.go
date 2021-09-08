@@ -56,20 +56,36 @@ var _ message.MessageViewer = (*Page)(nil)
 var msgListCSS = cssutil.Applier("messageview-msglist", `
 	.messageview-msglist {
 		background: none;
+		margin-bottom: .8em; /* for the extraRevealer */
 	}
-	.messageview-msglist > * {
+	.messageview-msglist > row {
 		border-right: 2px solid transparent;
+		transition: linear 150ms background-color;
+		background: none;
+		background-image: none;
+		background-color: transparent;
 	}
-	.messageview-replyingto {
-		border-right: 2px solid @accent_fg_color;
-		background-color: alpha(@accent_bg_color, 0.35);
-		background-image: -gtk-icontheme("mail-reply-sender-symbolic");
+	.messageview-msglist > row:hover {
+		background-color: alpha(@theme_fg_color, 0.1);
+		transition: none;
+	}
+	.messageview-msglist > row.messageview-editing,
+	.messageview-msglist > row.messageview-replyingto {
+		transition: none;
+		background-color: alpha(@accent_bg_color, 0.25);
 		background-size: 18px;
 		background-repeat: no-repeat;
 		background-position: calc(100% - 5px) 5px;
 	}
-	.messageview-replyingto:hover {
+	.messageview-msglist > row.messageview-edited:hover,
+	.messageview-msglist > row.messageview-replyingto:hover {
 		background-color: alpha(@accent_bg_color, 0.45);
+	}
+	.messageview-msglist > row.messageview-replyingto {
+		background-image: -gtk-icontheme("mail-reply-sender");
+	}
+	.messageview-msglist > row.messageview-editing {
+		background-image: -gtk-icontheme("document-edit");
 	}
 `)
 

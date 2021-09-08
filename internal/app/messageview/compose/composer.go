@@ -67,7 +67,7 @@ var sendCSS = cssutil.Applier("composer-send", `
 
 // New creates a new Composer.
 func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
-	more := gtk.NewButtonFromIconName("insert-object-symbolic")
+	more := gtk.NewButtonFromIconName("list-add-symbolic")
 	more.SetVAlign(gtk.AlignStart)
 	more.SetHasFrame(false)
 	more.SetTooltipText("More...")
