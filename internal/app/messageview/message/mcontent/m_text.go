@@ -29,6 +29,7 @@ const (
 
 type textContent struct {
 	*gtk.TextView
+	ctx context.Context
 }
 
 var textContentCSS = cssutil.Applier("mcontent-text", `
@@ -51,36 +52,6 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 	md.SetTabSize(text)
 	textContentCSS(text)
 
-	body, isEdited := msgBody(msgBox)
-
-	switch body.Format {
-	case event.FormatHTML:
-		// Hit the fallback case if the HTML is just a Unicode emoji.
-		if md.IsUnicodeEmoji(body.FormattedBody) {
-			renderText(ctx, text, body.FormattedBody)
-			break
-		}
-		if !renderHTML(ctx, text, body.FormattedBody) {
-			// HTML failed; use text instead.
-			renderText(ctx, text, body.Body)
-		}
-	default:
-		renderText(ctx, text, body.Body)
-	}
-
-	if isEdited {
-		buf := text.Buffer()
-		end := buf.EndIter()
-
-		append := editedHTML
-		if buf.CharCount() > 0 {
-			// Prepend a space if we already have text.
-			append = " " + editedHTML
-		}
-
-		buf.InsertMarkup(&end, append, len(append))
-	}
-
 	text.Connect("map", func() {
 		// Fixes 2 GTK bugs:
 		// - TextViews are invisible sometimes.
@@ -91,12 +62,56 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 		})
 	})
 
-	return textContent{
+	c := textContent{
 		TextView: text,
+		ctx:      ctx,
 	}
+
+	body, isEdited := msgBody(msgBox)
+	c.setContent(body, isEdited)
+
+	return c
 }
 
 func (c textContent) content() {}
+
+func (c textContent) edit(body messageBody) {
+	c.setContent(body, true)
+}
+
+func (c textContent) setContent(body messageBody, isEdited bool) {
+	buf := c.TextView.Buffer()
+
+	start, end := buf.Bounds()
+	buf.Delete(&start, &end)
+
+	switch body.Format {
+	case event.FormatHTML:
+		// Hit the fallback case if the HTML is just a Unicode emoji.
+		if md.IsUnicodeEmoji(body.FormattedBody) {
+			renderText(c.ctx, c.TextView, body.FormattedBody)
+			break
+		}
+		if !renderHTML(c.ctx, c.TextView, body.FormattedBody) {
+			// HTML failed; use c.TextView instead.
+			renderText(c.ctx, c.TextView, body.Body)
+		}
+	default:
+		renderText(c.ctx, c.TextView, body.Body)
+	}
+
+	if isEdited {
+		end := buf.EndIter()
+
+		append := editedHTML
+		if buf.CharCount() > 0 {
+			// Prepend a space if we already have text.
+			append = " " + editedHTML
+		}
+
+		buf.InsertMarkup(&end, append, len(append))
+	}
+}
 
 type messageBody struct {
 	Body          string              `json:"body"`

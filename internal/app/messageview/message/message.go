@@ -18,6 +18,9 @@ type Message interface {
 	Event() event.RoomEvent
 	// RawEvent returns the raw unparsed room event.
 	RawEvent() *event.RawEvent
+	// OnRelatedEvent is called by the caller for each event that's related to
+	// the message. The caller should check the m.relates_to field.
+	OnRelatedEvent(raw *gotktrix.EventBox)
 }
 
 type eventBox struct {

@@ -8,10 +8,10 @@ func BindRightClick(w gtk.Widgetter, f func()) {
 	c := gtk.NewGestureClick()
 	c.SetButton(3)       // secondary
 	c.SetExclusive(true) // handle mouse only
-	c.Connect("pressed", f)
+	c.ConnectAfter("pressed", f)
 
 	l := gtk.NewGestureLongPress()
-	l.Connect("pressed", f)
+	l.ConnectAfter("pressed", f)
 
 	w.AddController(c)
 	w.AddController(l)

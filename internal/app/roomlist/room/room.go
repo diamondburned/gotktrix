@@ -269,7 +269,7 @@ func (r *Room) InvalidateName() {
 	client := gotktrix.FromContext(r.ctx)
 
 	n, err := client.Offline().RoomName(r.ID)
-	if err == nil {
+	if err == nil && n != "Empty Room" {
 		r.setLabel(n)
 		return
 	}

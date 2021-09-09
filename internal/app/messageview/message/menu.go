@@ -94,7 +94,9 @@ func reactEntry(ctx context.Context, targ *event.RawEvent) gtk.Widgetter {
 		entry.SetText("")
 
 		ev := m.ReactionEvent{
-			RoomID: targ.RoomID,
+			RoomEventInfo: event.RoomEventInfo{
+				RoomID: targ.RoomID,
+			},
 			RelatesTo: m.ReactionRelatesTo{
 				RelType: m.Annotation,
 				EventID: targ.ID,
