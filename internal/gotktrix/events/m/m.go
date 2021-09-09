@@ -55,7 +55,8 @@ const ReactionEventType event.Type = "m.reaction"
 
 // ReactionEvent is a reaction event of type m.reaction.
 type ReactionEvent struct {
-	RoomID    matrix.RoomID     `json:"-"`
+	event.RoomEventInfo `json:"-"`
+
 	RelatesTo ReactionRelatesTo `json:"m.relates_to"`
 }
 
@@ -76,7 +77,13 @@ func parseReactionEvent(raw event.RawEvent) (event.Event, error) {
 		return nil, err
 	}
 
-	ev.RoomID = raw.RoomID
+	ev.RoomEventInfo = event.RoomEventInfo{
+		RoomID:     raw.RoomID,
+		EventID:    raw.ID,
+		SenderID:   raw.Sender,
+		OriginTime: raw.OriginServerTime,
+	}
+
 	return ev, nil
 }
 

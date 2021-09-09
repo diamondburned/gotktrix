@@ -50,46 +50,6 @@ func newTimestamp(ts matrix.Timestamp, long bool) *gtk.Label {
 	return l
 }
 
-// collapsedMessage is part of the full message container.
-type collapsedMessage struct {
-	*gtk.Box
-	*eventBox
-
-	timestamp *gtk.Label
-	content   *mcontent.Content
-}
-
-const (
-	avatarSize  = 36
-	avatarWidth = avatarSize + 10*2 // keep consistent with CSS
-)
-
-func (v messageViewer) collapsedMessage() *collapsedMessage {
-	timestamp := newTimestamp(v.raw.OriginServerTime, false)
-	timestamp.SetSizeRequest(avatarWidth, -1)
-	timestamp.SetVAlign(gtk.AlignStart)
-	timestamp.SetYAlign(1)
-
-	content := mcontent.New(v.Context, v.raw)
-
-	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	box.Append(timestamp)
-	box.Append(content)
-
-	box.AddCSSClass("message-collapsed")
-	messageCSS(box)
-
-	bindParent(v, box, content)
-
-	return &collapsedMessage{
-		Box:      box,
-		eventBox: &eventBox{v.raw},
-
-		timestamp: timestamp,
-		content:   content,
-	}
-}
-
 type cozyMessage struct {
 	*gtk.Box
 	*eventBox
@@ -174,6 +134,10 @@ func (v messageViewer) cozyMessage() *cozyMessage {
 
 	msg.asyncFetch()
 	return msg
+}
+
+func (m *cozyMessage) OnRelatedEvent(ev *gotktrix.EventBox) {
+	m.content.OnRelatedEvent(ev)
 }
 
 func (m *cozyMessage) asyncFetch() {

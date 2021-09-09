@@ -2,15 +2,14 @@ package mcontent
 
 import (
 	"context"
-	"fmt"
-	"html"
+	"log"
 
 	"github.com/chanbakjsd/gotrix/event"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 )
 
 const (
@@ -20,35 +19,37 @@ const (
 
 // Content is a message content widget.
 type Content struct {
-	gtk.Widgetter // may be box or parts[0]
+	*gtk.Box
+	ev  *gotktrix.EventBox
+	ctx context.Context
 
-	box   *gtk.Box
-	parts []contentPart
+	part  contentPart
+	react *reactionBox
 }
 
 // New parses the given room message event and renders it into a Content widget.
 func New(ctx context.Context, msgBox *gotktrix.EventBox) *Content {
 	e, err := msgBox.Parse()
 	if err != nil || e.Type() != event.TypeRoomMessage {
-		return wrapParts(newUnknownContent(msgBox))
+		return wrapParts(ctx, msgBox, newUnknownContent(msgBox))
 	}
 
 	msg, ok := e.(event.RoomMessageEvent)
 	if !ok {
-		return wrapParts(newUnknownContent(msgBox))
+		return wrapParts(ctx, msgBox, newUnknownContent(msgBox))
 	}
 
 	switch msg.MsgType {
 	case event.RoomMessageNotice:
 		fallthrough
 	case event.RoomMessageText:
-		return wrapParts(newTextContent(ctx, msgBox))
+		return wrapParts(ctx, msgBox, newTextContent(ctx, msgBox))
 	case event.RoomMessageEmote:
-		return wrapParts(newEmojiContent(msg))
+		return wrapParts(ctx, msgBox, newTextContent(ctx, msgBox))
 	case event.RoomMessageVideo:
-		return wrapParts(newVideoContent(ctx, msg))
+		return wrapParts(ctx, msgBox, newVideoContent(ctx, msg))
 	case event.RoomMessageImage:
-		return wrapParts(newImageContent(ctx, msg))
+		return wrapParts(ctx, msgBox, newImageContent(ctx, msg))
 
 	// case event.RoomMessageEmote:
 	// case event.RoomMessageNotice:
@@ -56,28 +57,39 @@ func New(ctx context.Context, msgBox *gotktrix.EventBox) *Content {
 	// case event.RoomMessageAudio:
 	// case event.RoomMessageLocation:
 	default:
-		return wrapParts(newUnknownContent(msgBox))
+		return wrapParts(ctx, msgBox, newUnknownContent(msgBox))
 	}
 }
 
-func wrapParts(parts ...contentPart) *Content {
-	if len(parts) == 1 {
-		return &Content{
-			Widgetter: parts[0],
-			parts:     parts,
-		}
-	}
-
+func wrapParts(ctx context.Context, msgBox *gotktrix.EventBox, part contentPart) *Content {
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	box.SetHExpand(true)
-	for _, part := range parts {
-		box.Append(part)
-	}
+	box.Append(part)
+
+	reactions := newReactionBox()
+	reactions.AddCSSClass("mcontent-reactionrev")
+	box.Append(reactions)
+
+	client := gotktrix.FromContext(ctx)
+	runsub := client.SubscribeRoom(msgBox.RoomID, m.ReactionEventType, func(ev event.Event) {
+		reaction := ev.(m.ReactionEvent)
+
+		glib.IdleAdd(func() {
+			reactions.Add(ctx, reaction)
+		})
+	})
+
+	box.Connect("destroy", func() {
+		runsub()
+		log.Println("reaction box destroyed")
+	})
 
 	return &Content{
-		Widgetter: box,
-		box:       box,
-		parts:     parts,
+		Box:   box,
+		ev:    msgBox,
+		ctx:   ctx,
+		part:  part,
+		react: reactions,
 	}
 }
 
@@ -87,77 +99,57 @@ type extraMenuSetter interface {
 
 // SetExtraMenu sets the extra menu for the message content.
 func (c *Content) SetExtraMenu(menu gio.MenuModeller) {
-	for _, part := range c.parts {
-		s, ok := part.(extraMenuSetter)
-		if ok {
-			s.SetExtraMenu(menu)
+	s, ok := c.part.(extraMenuSetter)
+	if ok {
+		s.SetExtraMenu(menu)
+	}
+}
+
+func (c *Content) OnRelatedEvent(box *gotktrix.EventBox) {
+	if c.isRedacted() {
+		return
+	}
+
+	ev, err := box.Parse()
+	if err != nil {
+		return
+	}
+
+	switch ev := ev.(type) {
+	case event.RoomMessageEvent:
+		if body, isEdited := msgBody(box); isEdited {
+			if text, ok := c.part.(textContent); ok {
+				text.edit(body)
+			}
+		}
+	case event.RoomRedactionEvent:
+		if ev.Redacts == c.ev.ID {
+			// Redacting this message itself.
+			c.redact(ev)
+			return
+		}
+		// TODO: if we have a proper graph data structure that keeps track of
+		// relational events separately instead of keeping it nested in its
+		// respective events, then we wouldn't need to do this.
+		if c.react.Remove(c.ctx, ev) {
+			return
+		}
+	case m.ReactionEvent:
+		if ev.RelatesTo.RelType == "m.annotation" {
+			c.react.Add(c.ctx, ev)
 		}
 	}
 }
 
-type contentPart interface {
-	gtk.Widgetter
-	content()
+func (c *Content) isRedacted() bool {
+	_, ok := c.part.(redactedContent)
+	return ok
 }
 
-type attachmentContent struct {
-	*gtk.Box
+func (c *Content) redact(red event.RoomRedactionEvent) {
+	c.Box.Remove(c.part)
+	c.react.RemoveAll()
+
+	c.part = newRedactedContent(red)
+	c.Box.Prepend(c.part)
 }
-
-func (c attachmentContent) content() {}
-
-type unknownContent struct {
-	*gtk.Label
-}
-
-var unknownContentCSS = cssutil.Applier("mcontent-unknown", `
-	.mcontent-unknown {
-		font-size: 0.9em;
-		color: alpha(@theme_fg_color, 0.8);
-	}
-`)
-
-func newUnknownContent(msgBox *gotktrix.EventBox) unknownContent {
-	var msg string
-
-	if msgBox.Type == event.TypeRoomMessage {
-		e, _ := msgBox.Parse()
-		emsg := e.(event.RoomMessageEvent)
-
-		msg = fmt.Sprintf("Unknown message type %s.", string(emsg.MsgType))
-	} else {
-		msg = fmt.Sprintf("Unknown event type %s.", msgBox.Type)
-	}
-
-	l := gtk.NewLabel(msg)
-	l.SetXAlign(0)
-	l.SetWrap(true)
-	l.SetWrapMode(pango.WrapWordChar)
-	unknownContentCSS(l)
-	return unknownContent{l}
-}
-
-func (c unknownContent) content() {}
-
-type erroneousContent struct {
-	*gtk.Box
-}
-
-func newErroneousContent(desc string, w, h int) erroneousContent {
-	l := gtk.NewLabel("")
-	l.SetMarkup(fmt.Sprintf(
-		`<span color="red">Content error:</span> %s`,
-		html.EscapeString(desc),
-	))
-
-	img := gtk.NewImageFromIconName("image-missing-symbolic")
-	img.SetIconSize(gtk.IconSizeNormal)
-
-	b := gtk.NewBox(gtk.OrientationHorizontal, 2)
-	b.Append(img)
-	b.Append(l)
-
-	return erroneousContent{b}
-}
-
-func (c erroneousContent) content() {}

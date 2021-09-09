@@ -28,9 +28,14 @@ type Page struct {
 
 	extra *extraRevealer
 
-	scroll   *autoscroll.Window
-	list     *gtk.ListBox
+	scroll *autoscroll.Window
+	list   *gtk.ListBox
+	// TODO: it might be better to refactor these maps into a map of only an
+	// event object that simultaneously has a linked anchor. This way, there's
+	// no need to keep two separate maps, and there's no need to handle small
+	// pieces of events in separate places.
 	messages map[matrix.EventID]messageRow
+	mrelated map[matrix.EventID]matrix.EventID // keep track of reactions
 
 	name    string
 	onTitle func(title string)
@@ -109,6 +114,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	page := Page{
 		list:     msgList,
 		messages: make(map[matrix.EventID]messageRow),
+		mrelated: make(map[matrix.EventID]matrix.EventID),
 
 		onTitle: func(string) {},
 		ctx:     gtkutil.WithVisibility(ctx, msgList),
@@ -201,13 +207,20 @@ func (p *Page) OnTitle(f func(string)) {
 	f(p.RoomName())
 }
 
+func (p *Page) lastRow() *gtk.ListBoxRow {
+	w := p.list.LastChild()
+	if w != nil {
+		return w.(*gtk.ListBoxRow)
+	}
+	return nil
+}
+
 // LastMessage satisfies MessageViewer.
 func (p *Page) LastMessage() message.Message {
-	if len(p.messages) == 0 {
+	lastRow := p.lastRow()
+	if lastRow == nil {
 		return nil
 	}
-
-	lastRow := p.list.RowAtIndex(len(p.messages) - 1)
 
 	if row, ok := p.messages[matrix.EventID(lastRow.Name())]; ok {
 		return row.msg
@@ -242,18 +255,17 @@ func (p *Page) OnRoomEvent(raw *event.RawEvent) {
 
 // MarkAsRead marks the room as read.
 func (p *Page) MarkAsRead() {
-	if !p.IsActive() || !p.scroll.IsBottomed() || len(p.messages) == 0 {
+	if !p.IsActive() || !p.scroll.IsBottomed() {
 		return
 	}
 
-	row := p.list.RowAtIndex(len(p.messages) - 1)
-	if row == nil {
-		// No row found despite p.messages having something. This is a bug.
+	lastRow := p.lastRow()
+	if lastRow == nil {
 		return
 	}
 
 	client := gotktrix.FromContext(p.ctx.Take())
-	latest := matrix.EventID(row.Name())
+	latest := matrix.EventID(lastRow.Name())
 
 	go func() {
 		if err := client.MarkRoomAsRead(p.roomID, latest); err != nil {
@@ -268,73 +280,49 @@ func (p *Page) clean() {
 		return
 	}
 
-	for len(p.messages) >= gotktrix.TimelimeLimit {
+	lastRow := p.lastRow()
+
+	for lastRow.Index() >= gotktrix.TimelimeLimit {
 		row := p.list.RowAtIndex(0)
 		if row == nil {
 			continue
 		}
 
-		delete(p.messages, matrix.EventID(row.Name()))
-		p.list.Remove(row)
-	}
-}
-
-// noLastMessage is a hack to override the last message with nothing. This is
-// useful for message edits.
-type noLastMessage struct {
-	*Page
-	ignore matrix.EventID
-}
-
-func (p noLastMessage) LastMessage() message.Message {
-	for i := len(p.messages) - 1; i >= 0; i-- {
-		row := p.list.RowAtIndex(i)
-		if row == nil {
-			return nil
-		}
-
 		id := matrix.EventID(row.Name())
-		if id == p.ignore {
-			continue
-		}
+		delete(p.messages, id)
 
-		m, ok := p.messages[id]
-		if ok {
-			return m.msg
+		p.list.Remove(row)
+
+		for k, relatesTo := range p.mrelated {
+			if relatesTo == id {
+				delete(p.mrelated, k)
+			}
 		}
 	}
-
-	return nil
 }
 
 func (p *Page) onRoomEvent(raw *event.RawEvent) {
 	id := raw.ID
-	editedID := editedID(raw)
+	relatesToID := relatesTo(raw)
 
-	v := message.MessageViewer(p)
-	if editedID != "" {
-		// Be sure that LastMessage won't return the message that's being
-		// edited, because it might cause the newly edited message to turn from
-		// being an expanded one to a compact one.
-		v = noLastMessage{
-			Page:   p,
-			ignore: editedID,
+	if relatesToID != "" {
+		rl, ok := p.messages[relatesToID]
+		if !ok {
+			if rel := p.mrelated[relatesToID]; rel != "" {
+				rl, ok = p.messages[rel]
+			}
 		}
-	}
-
-	m := message.NewCozyMessage(p.parent.ctx, v, raw)
-
-	if editedID != "" {
-		msg, ok := p.messages[editedID]
 		if ok {
-			msg.msg = m
-			msg.row.SetName(string(editedID))
-			msg.row.SetChild(m)
-
-			p.messages[editedID] = msg
+			// Register this event as a related event.
+			p.mrelated[raw.ID] = rl.msg.Event().ID()
+			// Trigger the message's callback.
+			rl.msg.OnRelatedEvent(gotktrix.WrapEventBox(raw))
 			return
 		}
+		// Treat as a new message.
 	}
+
+	m := message.NewCozyMessage(p.parent.ctx, p, raw)
 
 	row := gtk.NewListBoxRow()
 	row.SetName(string(id))
@@ -349,21 +337,20 @@ func (p *Page) onRoomEvent(raw *event.RawEvent) {
 	p.list.Append(row)
 }
 
-// editedID returns the event ID that the given raw event is supposed to edit,
+// relatesTo returns the event ID that the given raw event is supposed to edit,
 // or an empty string if it does not edit anything.
-func editedID(raw *event.RawEvent) matrix.EventID {
+func relatesTo(raw *event.RawEvent) matrix.EventID {
+	if raw.Type == event.TypeRoomRedaction {
+		return raw.Redacts
+	}
+
 	var body struct {
 		RelatesTo struct {
-			RelType string         `json:"rel_type"`
 			EventID matrix.EventID `json:"event_id"`
 		} `json:"m.relates_to"`
 	}
 
 	if err := json.Unmarshal(raw.Content, &body); err != nil {
-		return ""
-	}
-
-	if body.RelatesTo.RelType != "m.replace" {
 		return ""
 	}
 

@@ -50,6 +50,8 @@ func (v messageViewer) eventMessage() *eventMessage {
 	}
 }
 
+func (m *eventMessage) OnRelatedEvent(ev *gotktrix.EventBox) {}
+
 func fescapef(w io.Writer, f string, v ...interface{}) {
 	io.WriteString(w, html.EscapeString(fmt.Sprintf(f, v...)))
 }
