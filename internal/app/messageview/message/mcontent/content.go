@@ -40,9 +40,11 @@ func New(ctx context.Context, msgBox *gotktrix.EventBox) *Content {
 
 	switch msg.MsgType {
 	case event.RoomMessageNotice:
-		fallthrough // treat the same as m.text
+		fallthrough
 	case event.RoomMessageText:
 		return wrapParts(newTextContent(ctx, msgBox))
+	case event.RoomMessageEmote:
+		return wrapParts(newEmojiContent(msg))
 	case event.RoomMessageVideo:
 		return wrapParts(newVideoContent(ctx, msg))
 	case event.RoomMessageImage:
@@ -111,7 +113,7 @@ type unknownContent struct {
 var unknownContentCSS = cssutil.Applier("mcontent-unknown", `
 	.mcontent-unknown {
 		font-size: 0.9em;
-		color: alpha(@theme_fg_color, 0.85);
+		color: alpha(@theme_fg_color, 0.8);
 	}
 `)
 
