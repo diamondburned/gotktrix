@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -39,9 +38,7 @@ type View struct {
 	emojis map[emojis.EmojiName]emoji
 	roomID matrix.RoomID // empty if user, constant
 
-	stop gtkutil.Canceler
-
-	app    app.Applicationer
+	ctx    gtkutil.Cancellable
 	client *gotktrix.Client
 }
 
@@ -64,24 +61,29 @@ var nameAttrs = markuputil.Attrs(
 )
 
 // NewForRoom creates a new emoji view for a room.
-func NewForRoom(app app.Applicationer, roomID matrix.RoomID) *View {
-	return new(app, roomID)
+func NewForRoom(ctx context.Context, roomID matrix.RoomID) *View {
+	return new(ctx, roomID)
 }
 
 // NewForUser creates a new emoji view for the current user.
-func NewForUser(app app.Applicationer) *View {
-	return new(app, "")
+func NewForUser(ctx context.Context) *View {
+	return new(ctx, "")
 }
 
-func new(app app.Applicationer, roomID matrix.RoomID) *View {
+func new(ctx context.Context, roomID matrix.RoomID) *View {
 	list := gtk.NewListBox()
 	list.SetShowSeparators(true)
 	list.SetSelectionMode(gtk.SelectionMultiple)
 	list.SetActivateOnSingleClick(false)
 	list.SetPlaceholder(gtk.NewLabel("No emojis yet..."))
 	list.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
-		return sortutil.StrcmpFold(r1.Name(), r2.Name())
+		return sortutil.CmpFold(r1.Name(), r2.Name())
 	})
+
+	scroll := gtk.NewScrolledWindow()
+	scroll.SetVExpand(true)
+	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	scroll.SetChild(list)
 
 	busy := gtk.NewSpinner()
 	busy.Stop()
@@ -129,7 +131,7 @@ func new(app app.Applicationer, roomID matrix.RoomID) *View {
 
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	box.Append(top)
-	box.Append(list)
+	box.Append(scroll)
 	boxCSS(box)
 
 	clamp := adw.NewClamp()
@@ -153,8 +155,8 @@ func new(app app.Applicationer, roomID matrix.RoomID) *View {
 		emojis: map[emojis.EmojiName]emoji{},
 		roomID: roomID,
 
-		app:    app,
-		client: app.Client(),
+		ctx:    gtkutil.WithCanceller(ctx),
+		client: gotktrix.FromContext(ctx),
 	}
 
 	view.InvalidateName()
@@ -176,7 +178,7 @@ func new(app app.Applicationer, roomID matrix.RoomID) *View {
 	})
 
 	addButton.Connect("clicked", func() {
-		chooser := newFileChooser(app.Window(), view.addEmotesFromFiles)
+		chooser := newFileChooser(app.Window(ctx), view.addEmotesFromFiles)
 		chooser.Show()
 	})
 
@@ -209,13 +211,12 @@ func newActionButton(name, icon string) *gtk.Button {
 
 func newFullActionButton(name, icon string) *gtk.Button {
 	btn := actionbutton.NewButton(name, icon, gtk.PosLeft)
-	btn.Icon.SetPixelSize(14)
 	return btn.Button
 }
 
 // Stop cancels the background context, which cancels any background jobs.
 func (v *View) Stop() {
-	v.stop.Cancel()
+	v.ctx.Cancel()
 }
 
 // InvalidateName invalidates the name at the top left corner.
@@ -241,7 +242,7 @@ func (v *View) InvalidateName() {
 // Invalidate invalidates the emoji list and re-renders everything. If the given
 // room ID is empty, then the user's emojis are fetched.
 func (v *View) Invalidate() {
-	v.stop.Renew()
+	v.ctx.Renew()
 
 	e, err := fetchEmotes(v.client.Offline(), v.roomID)
 	if err != nil {
@@ -253,13 +254,12 @@ func (v *View) Invalidate() {
 }
 
 func (v *View) onlineFetch() {
-	ctx := v.stop.Context()
+	ctx := v.ctx.Take()
 	client := v.client.WithContext(ctx)
 
 	go func() {
 		e, err := fetchEmotes(client, v.roomID)
 		if err != nil {
-			v.app.Error(errors.Wrap(err, "failed to fetch emotes"))
 			return
 		}
 
@@ -293,7 +293,7 @@ func (v *View) ToData() emojis.EmoticonEventData {
 }
 
 func (v *View) syncEmojis(busy *gtk.Spinner) {
-	ctx := v.stop.Context()
+	ctx := v.ctx.Take()
 	client := v.client.WithContext(ctx)
 
 	ev := v.ToData()
@@ -313,7 +313,7 @@ func (v *View) syncEmojis(busy *gtk.Spinner) {
 		}
 
 		if err != nil {
-			v.app.Error(errors.Wrap(err, "failed to set emojis config"))
+			app.Error(ctx, errors.Wrap(err, "failed to set emojis config"))
 			return
 		}
 	}()
@@ -336,7 +336,7 @@ func (v *View) promptRenameEmojis(names []emojis.EmojiName) {
 	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	scroll.SetChild(listBox)
 
-	dialog := dialogs.New(v.app.Window(), "Cancel", "Save")
+	dialog := dialogs.New(app.Window(v.ctx), "Cancel", "Save")
 	dialog.SetDefaultSize(300, 240)
 	dialog.SetTitle("Rename Emojis")
 	dialog.SetChild(scroll)
@@ -388,7 +388,7 @@ func (v *View) useEmoticonEvent(ev emojis.EmoticonEventData) {
 		v.emojis[name] = old
 
 		url, _ := v.client.SquareThumbnail(old.mxc, EmojiSize)
-		imgutil.AsyncGET(v.stop.Context(), url, old.emoji.SetFromPaintable)
+		imgutil.AsyncGET(v.ctx.Take(), url, old.emoji.SetFromPaintable)
 
 		delete(ev.Emoticons, name)
 		continue
@@ -416,7 +416,7 @@ func (v *View) addEmoji(name emojis.EmojiName, mxc matrix.URL) emoji {
 	emoji.mxc = mxc
 
 	url, _ := v.client.SquareThumbnail(emoji.mxc, EmojiSize)
-	imgutil.AsyncGET(v.stop.Context(), url, emoji.emoji.SetFromPaintable)
+	imgutil.AsyncGET(v.ctx.Take(), url, emoji.emoji.SetFromPaintable)
 
 	v.list.Insert(emoji, -1)
 	v.emojis[name] = emoji
@@ -437,7 +437,7 @@ func (v *View) addEmotesFromfile(path string) {
 	emoji := newUploadingEmoji(name)
 	emoji.img.SetFromFile(path)
 
-	ctx, cancel := context.WithCancel(v.stop.Context())
+	ctx, cancel := context.WithCancel(v.ctx.Take())
 
 	emoji.action.Connect("clicked", func(action *gtk.Button) {
 		action.SetSensitive(false)
@@ -457,8 +457,6 @@ func (v *View) addEmotesFromfile(path string) {
 
 	go func() {
 		defer cancel()
-
-		time.Sleep(5 * time.Second)
 
 		f, err := os.Open(path)
 		if err != nil {

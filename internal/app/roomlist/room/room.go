@@ -12,6 +12,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
@@ -156,6 +157,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		"open-in-tab":     func() { section.OpenRoomInTab(roomID) },
 		"prompt-reorder":  func() { r.promptReorder() },
 		"move-to-section": nil,
+		"add-emojis":      func() { r.promptEmoji() },
 	})
 
 	gtkutil.BindPopoverMenuLazy(row, gtk.PosBottom, func() []gtkutil.PopoverMenuItem {
@@ -167,6 +169,8 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 			gtkutil.Submenu("Move to Section...", []gtkutil.PopoverMenuItem{
 				gtkutil.MenuWidget("room.move-to-section", r.moveToSectionBox()),
 			}),
+			gtkutil.MenuSeparator("Emojis"),
+			gtkutil.MenuItem("Add Emojis...", "room.add-emojis"),
 		}
 	})
 
@@ -539,4 +543,15 @@ func (r *Room) moveToSectionBox() gtk.Widgetter {
 	moveToSectionCSS(box)
 
 	return box
+}
+
+func (r *Room) promptEmoji() {
+	emojis := emojiview.NewForRoom(r.ctx, r.ID)
+
+	dialog := gtk.NewDialog()
+	dialog.SetTransientFor(app.Window(r.ctx))
+	dialog.SetDefaultSize(400, 500)
+	dialog.SetChild(emojis)
+	dialog.SetTitle("Emojis for " + r.Name)
+	dialog.Show()
 }

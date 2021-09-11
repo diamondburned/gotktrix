@@ -7,15 +7,12 @@ import (
 
 func newFileChooser(w *gtk.Window, done func([]string)) *gtk.FileChooserNative {
 	filter := gtk.NewFileFilter()
-	filter.AddPixbufFormats()
-	filter.AddMIMEType("image/jpeg")
-	filter.AddMIMEType("image/png")
-	filter.AddMIMEType("image/gif")
+	filter.AddMIMEType("image/*")
 
 	chooser := gtk.NewFileChooserNative(
 		"Upload Emojis", w, gtk.FileChooserActionOpen, "Upload", "Cancel")
 	chooser.SetSelectMultiple(true)
-	chooser.SetFilter(filter)
+	chooser.AddFilter(filter)
 	chooser.Connect("response", func(chooser *gtk.FileChooserNative, resp int) {
 		if resp != int(gtk.ResponseAccept) {
 			return
