@@ -111,7 +111,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		messages: make(map[matrix.EventID]messageRow),
 
 		onTitle: func(string) {},
-		ctx:     gtkutil.WithWidgetVisibility(ctx, msgList),
+		ctx:     gtkutil.WithVisibility(ctx, msgList),
 		name:    name,
 
 		parent: parent,

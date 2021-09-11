@@ -142,7 +142,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		preview:    previewLabel,
 		avatar:     adwAvatar,
 
-		ctx:     gtkutil.WithWidgetVisibility(ctx, row),
+		ctx:     gtkutil.WithVisibility(ctx, row),
 		section: section,
 
 		ID:   roomID,
