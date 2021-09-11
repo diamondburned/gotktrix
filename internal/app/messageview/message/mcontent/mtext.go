@@ -390,7 +390,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				)
 			}
 
-			thumbnail, _ := gotktrix.FromContext(s.ctx).Offline().Thumbnail(src, w, h)
+			thumbnail, _ := gotktrix.FromContext(s.ctx).Offline().ScaledThumbnail(src, w, h)
 			md.AsyncInsertImage(s.ctx, s.iter, thumbnail, imgutil.WithRescale(w, h))
 			return traverseOK
 

@@ -69,7 +69,16 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 			fetched = true
 
 			url, _ := gotktrix.FromContext(ctx).ImageThumbnail(msg, w, h)
-			imgutil.AsyncGET(ctx, url, pic.SetPaintable)
+			imgutil.AsyncGET(ctx, url, func(p gdk.Paintabler) {
+				_, h := gotktrix.MaxSize(
+					p.IntrinsicWidth(),
+					p.IntrinsicHeight(),
+					maxWidth,
+					maxHeight,
+				)
+				pic.SetSizeRequest(100, h)
+				pic.SetPaintable(p)
+			})
 		}
 	})
 
