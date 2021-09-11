@@ -22,6 +22,7 @@ type List struct {
 	ctx  context.Context
 	ctrl Controller
 
+	scroll   *gtk.ScrolledWindow
 	outer    *adw.Bin
 	inner    *gtk.Box // contains sections
 	sections []*section.Section
@@ -36,17 +37,12 @@ var listCSS = cssutil.Applier("roomlist-list", `
 	.roomlist-list {
 		background: @theme_base_color;
 	}
-
 	.roomlist-section {
 		margin-bottom: 8px;
 	}
 	.roomlist-section list {
 		background: inherit;
 	}
-	.roomlist-section list row:selected {
-		background-color: alpha(@accent_color, 0.45);
-	}
-
 	.roomlist-reorderactions {
 		color: @accent_color;
 	}
@@ -78,13 +74,19 @@ func New(ctx context.Context, ctrl Controller) *List {
 
 	listCSS(roomList.outer)
 
-	scroll := gtk.NewScrolledWindow()
-	scroll.SetVExpand(true)
-	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	scroll.SetChild(roomList.outer)
+	roomList.scroll = gtk.NewScrolledWindow()
+	roomList.scroll.SetVExpand(true)
+	roomList.scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	roomList.scroll.SetChild(roomList.outer)
 
-	roomList.Append(scroll)
+	roomList.Append(roomList.scroll)
 	return &roomList
+}
+
+// VAdjustment returns the list's ScrolledWindow's vertical adjustment for
+// scrolling.
+func (l *List) VAdjustment() *gtk.Adjustment {
+	return l.scroll.VAdjustment()
 }
 
 // Searching returns the string being searched.
@@ -156,10 +158,10 @@ func (l *List) refreshSections() {
 // activate the room.
 func (l *List) SetSelectedRoom(id matrix.RoomID) {
 	for _, sect := range l.sections {
+		sect.Unselect()
+
 		if sect.HasRoom(id) {
 			sect.Select(id)
-		} else {
-			sect.Unselect()
 		}
 	}
 }

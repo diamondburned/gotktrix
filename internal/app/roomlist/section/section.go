@@ -75,6 +75,10 @@ type Controller interface {
 	// Searching returns the string being searched.
 	Searching() string
 
+	// VAdjustment returns the vertical scroll adjustment of the parent
+	// controller. If not in list, return nil.
+	VAdjustment() *gtk.Adjustment
+
 	// MoveRoomToSection moves a room to another section. The method is expected
 	// to verify that the moving is valid.
 	MoveRoomToSection(src matrix.RoomID, dst *Section) bool
@@ -99,6 +103,7 @@ type Section struct {
 
 	comparer Comparer
 
+	selected    *room.Room
 	minified    bool
 	showPreview bool
 }
@@ -109,6 +114,10 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	list.SetSelectionMode(gtk.SelectionSingle)
 	list.SetActivateOnSingleClick(true)
 	list.SetPlaceholder(gtk.NewLabel("No rooms yet..."))
+
+	if vadj := ctrl.VAdjustment(); vadj != nil {
+		list.SetAdjustment(vadj)
+	}
 
 	minify := newMinifyButton(true)
 	minify.Hide()
@@ -288,6 +297,12 @@ func (s *Section) SortMode() SortMode {
 
 // Unselect unselects the list of the current section.
 func (s *Section) Unselect() {
+	if s.selected != nil {
+		// Mark the row as inactive.
+		s.selected.SetActive(false)
+		s.selected = nil
+	}
+
 	s.listBox.UnselectAll()
 }
 
@@ -299,6 +314,8 @@ func (s *Section) Select(id matrix.RoomID) {
 		log.Panicln("selecting unknown room", id)
 	}
 
+	rm.SetActive(true)
+	s.selected = rm
 	s.listBox.SelectRow(rm.ListBoxRow)
 }
 
@@ -345,23 +362,34 @@ func (s *Section) Remove(room *room.Room) {
 // room inside the section has been changed.
 func (s *Section) InvalidateSort() {
 	s.comparer.InvalidateRoomCache()
-	s.listBox.InvalidateSort()
-	s.Reminify()
+	s.ReminifyAfter(func() { s.listBox.InvalidateSort() })
 }
 
 // InvalidateFilter invalidates the filtler.
 func (s *Section) InvalidateFilter() {
-	s.listBox.InvalidateFilter()
-	s.Reminify()
+	s.ReminifyAfter(func() { s.listBox.InvalidateFilter() })
 }
 
 // Reminify restores the minified state.
 func (s *Section) Reminify() {
+	s.ReminifyAfter(nil)
+}
+
+// ReminifyAfter restores the minified state only after executing after. If the
+// section is not minified, then after is executed immediately. If after is nil,
+// then it does the same thing as Reminify does.
+func (s *Section) ReminifyAfter(after func()) {
 	if !s.minified || len(s.rooms) < nMinified {
+		after()
 		return
 	}
 
 	s.expand()
+
+	if after != nil {
+		after()
+	}
+
 	s.Minimize()
 }
 

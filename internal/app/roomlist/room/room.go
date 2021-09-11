@@ -46,17 +46,37 @@ type Room struct {
 	showPreview bool
 }
 
-var avatarCSS = cssutil.Applier("room-avatar", `
-	.room-avatar {}
+var rowCSS = cssutil.Applier("room-row", `
+	.room-row:selected {
+		background: inherit;
+	}
+	.room-row:hover,
+	.room-row:focus {
+		background: alpha(@theme_fg_color, .15);
+	}
+	.room-row:hover .room-avatar,
+	.room-row:focus .room-avatar {
+		filter: brightness(125%);
+	}
+	.room-row.room-active {
+		background-color: alpha(@accent_color, 0.45);
+	}
+	.room-row.room-active:hover,
+	.room-row.room-active:focus {
+		background: alpha(mix(@theme_fg_color, @accent_bg_color, 0.5), .6);
+	}
 `)
+
+var avatarCSS = cssutil.Applier("room-avatar", ``)
 
 var roomBoxCSS = cssutil.Applier("room-box", `
 	.room-box {
-		padding: 2px 6px;
-		border-right: 2px solid transparent;
+		padding:  2px 6px;
+		padding-left: 4px;
+		border-left:  2px solid transparent;
 	}
 	.room-unread .room-box {
-		border-right: 2px solid @theme_fg_color;
+		border-left:  2px solid @theme_fg_color;
 	}
 	.room-right {
 		margin-left: 6px;
@@ -64,19 +84,11 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 	.room-preview {
 		font-size: 0.8em;
 	}
-	.room-unread {
-		background-image: linear-gradient(
-			to right,
-			alpha(@accent_bg_color, 0.05),
-			alpha(@accent_bg_color, 0.15)
-		);
-	}
 `)
 
 // Section is the controller interface that Room holds as its parent section.
 type Section interface {
 	Tag() matrix.TagName
-	Reminify()
 	InvalidateSort()
 
 	Remove(*Room)
@@ -134,7 +146,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	row := gtk.NewListBoxRow()
 	row.SetChild(box)
 	row.SetName(string(roomID))
-	row.AddCSSClass("room-row")
+	rowCSS(row)
 
 	r := Room{
 		ListBoxRow: row,
@@ -235,10 +247,17 @@ func (r *Room) Move(dst Section) {
 	r.section.Insert(r)
 }
 
-// Changed marks the row as changed, invalidating its sorting and filter.
-func (r *Room) Changed() {
-	r.ListBoxRow.Changed()
-	r.section.Reminify()
+// SetActive sets whether or not the room is active. This is different from
+// being selected, since keyboard shortcuts may select a room but not activate
+// it.
+func (r *Room) SetActive(active bool) {
+	if active {
+		if !r.HasCSSClass("room-active") {
+			r.AddCSSClass("room-active")
+		}
+	} else {
+		r.RemoveCSSClass("room-active")
+	}
 }
 
 // InvalidateName invalidates the room's name and refetches them from the state
