@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -163,42 +164,8 @@ func renderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) bool 
 		return false
 	}
 
-	// Trim trailing new lines.
-	// trimBufferNewLineRight(buf)
-	// trimBufferNewLineLeft(buf)
-
 	return true
 }
-
-/*
-func trimBufferNewLineRight(buf *gtk.TextBuffer) {
-	tail := buf.EndIter()
-	head := tail.Copy()
-
-	// Move from the end to the last character with BackwardChar. Make sure to
-	// not delete characters within a tag, since that will screw up the
-	// rendering.
-	for tail.BackwardChar() && rune(tail.Char()) == '\n' && len(tail.Tags()) == 0 {
-		// We had to rewind tail to read the last character, so the head can
-		// start there.
-		head.SetOffset(tail.Offset())
-		// Move tail back to the end.
-		tail.ForwardToEnd()
-
-		buf.Delete(head, &tail)
-	}
-}
-
-func trimBufferNewLineLeft(buf *gtk.TextBuffer) {
-	head := buf.StartIter()
-	tail := head.Copy()
-
-	for rune(head.Char()) == '\n' && len(head.Tags()) == 0 {
-		tail.SetOffset(1)
-		buf.Delete(&head, tail)
-	}
-}
-*/
 
 type traverseStatus uint8
 
@@ -269,8 +236,13 @@ func (s *renderState) line() {
 }
 
 func trimNewLines(str string) (string, int) {
-	new := strings.TrimRight(str, "\n")
-	return new, len(str) - len(new)
+	new := strings.TrimRightFunc(str, unicode.IsSpace)
+	lns := len(str) - len(strings.TrimRight(str, "\n"))
+	// Cap new lines at 2.
+	if lns > 2 {
+		lns = 2
+	}
+	return new, lns
 }
 
 func (s *renderState) renderNode(n *html.Node) traverseStatus {
@@ -279,14 +251,22 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		text, newLines := trimNewLines(n.Data)
 		s.buf.Insert(s.iter, text, len(text))
 
+		isLast := nodeIsLastEver(n)
+
 		// Calculate the actual number of new lines that we need while
 		// accounting for ones that are already in the buffer.
 		if n := s.nTrailingNewLine(); n > 0 {
 			newLines -= n
 		}
 		// Only make up new lines if we still have nodes.
-		if newLines > 0 && !nodeIsLastEver(n) {
+		if newLines > 0 && isLast {
 			s.buf.Insert(s.iter, strings.Repeat("\n", newLines), newLines)
+		}
+
+		// If this is not the last node and the next node is not a text node,
+		// then we have to space out the elements.
+		if !isLast && n.NextSibling != nil && n.NextSibling.Type != html.TextNode {
+			s.buf.Insert(s.iter, " ", 1)
 		}
 
 		return traverseOK
