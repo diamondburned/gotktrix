@@ -53,6 +53,8 @@ github.com/blevesearch/zapx/v15 v15.2.2 h1:5+oWWAQTV3M0UNor05qrZujzxIXVuwtYU3ppZ
 github.com/blevesearch/zapx/v15 v15.2.2/go.mod h1:I4QVJ432LKkZyNK1kZkh3OweKa+NSblZzIF0YSSExak=
 github.com/cespare/xxhash v1.1.0 h1:a6HrQnmkObjyL+Gs60czilIUGqrzKutQD6XZog3p+ko=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
+github.com/chanbakjsd/gotrix v0.3.2-0.20210910210016-20c8e183a055 h1:NyE8aoaXAI7ys4TLEeTDP+6osU8tYLuIfAMtHGfGCtE=
+github.com/chanbakjsd/gotrix v0.3.2-0.20210910210016-20c8e183a055/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-etcd v2.0.0+incompatible/go.mod h1:Jez6KQU2B/sWsbdaef3ED8NzMklzPG4d5KIOhIy30Tk=
@@ -75,10 +77,9 @@ github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 h1:tdlZCpZ/P9DhczC
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUnsFjfmXRMNPybcSiG0BgUW2AuFH8PAnS2iTw=
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210824052008-5f3302d4ae36 h1:D4Y5jZsueyWAwFEbnr85hQ42i5jx53n5PHvMV7MOb1g=
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210824052008-5f3302d4ae36/go.mod h1:mb0p7u28bp1QOHlUcyIeY/Gi5h7vZPv6NCfvzTA6PLE=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210824051836-cf3f6994d2e2 h1:Pm07F9hlsjp2pSTJ4Bz9CTiET/dBpCT10Yza6+h27Gc=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210824051836-cf3f6994d2e2/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotrix v0.1.2-0.20210827204655-1f7d03696843 h1:8rtqLB/ucZH985/rubyiZyvvTh1/GgtHVUHIhSuTyeM=
-github.com/diamondburned/gotrix v0.1.2-0.20210827204655-1f7d03696843/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210912042746-3c0d5c14e42e h1:bwO7vTMkxFEtT95wqxaRYsvsROQXuZjg06LdciXzgVc=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210912042746-3c0d5c14e42e/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dlclark/regexp2 v1.4.0 h1:F1rxgk7p4uKjwIQxBs9oAXe5CqrXlCduYEJvrF4u93E=
 github.com/dlclark/regexp2 v1.4.0/go.mod h1:2pZnwuY/m+8K6iRw6wQdMtk+rH5tNGR1i55kozfMjCc=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=

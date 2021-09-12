@@ -8,15 +8,14 @@ import (
 	"sync/atomic"
 
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 var progressBarCSS = cssutil.Applier("uploadutil-progress", `
 	.uploadutil-progress.failed text {
-		font-weight: book;
 		color: red;
 	}
 	.uploadutil-progress.failed progress {

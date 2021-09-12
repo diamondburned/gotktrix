@@ -62,8 +62,17 @@ func ApplyGlobalCSS() {
 		userCSS = f
 	})
 
+	css := globalCSS.Bytes()
+
 	prov := gtk.NewCSSProvider()
-	prov.LoadFromData(globalCSS.Bytes())
+	prov.Connect("parsing-error", func(_ *gtk.CSSProvider, sec *gtk.CSSSection, err error) {
+		loc := sec.StartLocation()
+
+		lines := bytes.Split(css, []byte("\n"))
+		log.Printf("CSS error (%v) at line: %q", err, lines[loc.Lines()])
+	})
+
+	prov.LoadFromData(css)
 
 	display := gdk.DisplayGetDefault()
 	gtk.StyleContextAddProviderForDisplay(display, prov, 600) // app

@@ -221,17 +221,23 @@ func (s *renderState) nTrailingNewLine() int {
 	return 2
 }
 
-func (s *renderState) lineIfText(n *html.Node) {
-	// Only bother adding a new line if we have another paragraph.
-	if !nodeIsLastEver(n) && s.nTrailingNewLine() == 0 && (!s.large && nodeHasText(n)) {
-		s.buf.Insert(s.iter, "\n", 1)
+func (s *renderState) p(n *html.Node, f func()) {
+	s.startLine(n, 1)
+	f()
+	s.endLine(n, 1)
+}
+
+func (s *renderState) startLine(n *html.Node, amount int) {
+	amount -= s.nTrailingNewLine()
+	if nodePrevSibling(n) != nil && amount > 0 {
+		s.buf.Insert(s.iter, strings.Repeat("\n", amount), amount)
 	}
 }
 
-// line ensures that we're on a new line.
-func (s *renderState) line() {
-	if s.nTrailingNewLine() == 0 {
-		s.buf.Insert(s.iter, "\n", 1)
+func (s *renderState) endLine(n *html.Node, amount int) {
+	amount -= s.nTrailingNewLine()
+	if nodeNextSibling(n) != nil && amount > 0 {
+		s.buf.Insert(s.iter, strings.Repeat("\n", amount), amount)
 	}
 }
 
@@ -251,7 +257,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		text, newLines := trimNewLines(n.Data)
 		s.buf.Insert(s.iter, text, len(text))
 
-		isLast := nodeIsLastEver(n)
+		nextNode := nodeNextSibling(n)
 
 		// Calculate the actual number of new lines that we need while
 		// accounting for ones that are already in the buffer.
@@ -259,13 +265,13 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			newLines -= n
 		}
 		// Only make up new lines if we still have nodes.
-		if newLines > 0 && isLast {
+		if newLines > 0 && nextNode != nil {
 			s.buf.Insert(s.iter, strings.Repeat("\n", newLines), newLines)
 		}
 
 		// If this is not the last node and the next node is not a text node,
 		// then we have to space out the elements.
-		if !isLast && n.NextSibling != nil && n.NextSibling.Type != html.TextNode {
+		if nextNode != nil && nextNode.Type != html.TextNode {
 			s.buf.Insert(s.iter, " ", 1)
 		}
 
@@ -308,13 +314,13 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		// Block Elements.
 		case "blockquote":
 			s.renderChildren(n)
-			s.lineIfText(n)
+			s.endLine(n, 1)
 			return traverseSkipChildren
 
 		// Block Elements.
 		case "p", "pre", "div":
 			s.traverseChildren(n)
-			s.lineIfText(n)
+			s.endLine(n, 1)
 			return traverseSkipChildren
 
 		// Inline.
@@ -346,16 +352,10 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			return traverseSkipChildren
 
 		case "hr":
-			s.line()
-			md.AddWidgetAt(s.tview, s.iter, md.NewSeparator())
-			if !nodeIsLastEver(n) {
-				s.line()
-			}
+			s.p(n, func() { md.AddWidgetAt(s.tview, s.iter, md.NewSeparator()) })
 			return traverseOK
 		case "br":
-			if !nodeIsLastEver(n) {
-				s.line()
-			}
+			s.endLine(n, 1)
 			return traverseOK
 
 		case "img": // width, height, alt, title, src(mxc)
@@ -456,11 +456,12 @@ func (s *renderState) insertInvisible(str string) {
 	s.tagBounded("_invisible", func() { s.buf.Insert(s.iter, str, len(str)) })
 }
 
-// nodeIsLastEver returns true if this node is the last node in the whole HTML
+// nodeNextSibling returns the node's next sibling in the whole tree, not just
+// in the current level. Nil is returned if the node is the last one in the
 // tree.
-func nodeIsLastEver(n *html.Node) bool {
+func nodeNextSibling(n *html.Node) *html.Node {
 	if n.NextSibling != nil {
-		return false
+		return n.NextSibling
 	}
 
 	for {
@@ -471,14 +472,40 @@ func nodeIsLastEver(n *html.Node) bool {
 
 		if parent.NextSibling != nil {
 			// Parent still has something next to it.
-			return false
+			return parent.NextSibling
 		}
 
 		// Set the node as the parent. The above check will be repeated for it.
 		n = parent
 	}
 
-	return true
+	return nil
+}
+
+// nodePrevSibling returns the node's next sibling in the whole tree, not just
+// in the current level. Nil is returned if the node is the last one in the
+// tree.
+func nodePrevSibling(n *html.Node) *html.Node {
+	if n.PrevSibling != nil {
+		return n.PrevSibling
+	}
+
+	for {
+		parent := n.Parent
+		if parent == nil {
+			break
+		}
+
+		if parent.PrevSibling != nil {
+			// Parent still has something next to it.
+			return parent.PrevSibling
+		}
+
+		// Set the node as the parent. The above check will be repeated for it.
+		n = parent
+	}
+
+	return nil
 }
 
 func nodeAttr(n *html.Node, keys ...string) string {
@@ -510,7 +537,7 @@ func nodePrependText(n *html.Node, text string) {
 }
 
 func nodeHasText(n *html.Node) bool {
-	if n.Type == html.TextNode {
+	if n.Type == html.TextNode && strings.TrimSpace(n.Data) != "" {
 		return true
 	}
 	for n := n.FirstChild; n != nil; n = n.NextSibling {
