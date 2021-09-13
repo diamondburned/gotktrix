@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -79,12 +80,11 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 	barCSS(button)
 
 	gtkutil.BindActionMap(button, "selfbar", map[string]func(){
-		// "begin-reorder-mode": ctrl.BeginReorderMode,
+		"user-emojis": func() { emojiview.ForUser(ctx) },
 	})
 	button.Connect("clicked", func() {
 		p := gtkutil.ShowPopoverMenu(button, gtk.PosTop, [][2]string{
-			{"Nothing here yet.", ""},
-			// {"_Reorder Rooms", "selfbar.begin-reorder-mode"},
+			{"User Emojis...", "selfbar.user-emojis"},
 		})
 		p.SetHasArrow(false)
 		p.SetSizeRequest(200, -1)

@@ -60,14 +60,27 @@ var nameAttrs = markuputil.Attrs(
 	pango.NewAttrInsertHyphens(false),
 )
 
-// NewForRoom creates a new emoji view for a room.
-func NewForRoom(ctx context.Context, roomID matrix.RoomID) *View {
-	return new(ctx, roomID)
+func dialog(ctx context.Context, v *View) {
+	dialog := gtk.NewDialog()
+	dialog.SetTransientFor(app.Window(ctx))
+	dialog.SetDefaultSize(400, 500)
+	dialog.SetChild(v)
+	dialog.SetTitle("Add Emojis")
+	dialog.Show()
 }
 
-// NewForUser creates a new emoji view for the current user.
-func NewForUser(ctx context.Context) *View {
-	return new(ctx, "")
+// ForRoom creates a new emoji view dialog for a room.
+func ForRoom(ctx context.Context, roomID matrix.RoomID) *View {
+	v := new(ctx, roomID)
+	dialog(ctx, v)
+	return v
+}
+
+// ForUser creates a new emoji view dialog for the current user.
+func ForUser(ctx context.Context) *View {
+	v := new(ctx, "")
+	dialog(ctx, v)
+	return v
 }
 
 func new(ctx context.Context, roomID matrix.RoomID) *View {

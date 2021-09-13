@@ -169,7 +169,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		"open-in-tab":     func() { section.OpenRoomInTab(roomID) },
 		"prompt-reorder":  func() { r.promptReorder() },
 		"move-to-section": nil,
-		"add-emojis":      func() { r.promptEmoji() },
+		"add-emojis":      func() { emojiview.ForRoom(r.ctx, r.ID) },
 	})
 
 	gtkutil.BindPopoverMenuLazy(row, gtk.PosBottom, func() []gtkutil.PopoverMenuItem {
@@ -562,15 +562,4 @@ func (r *Room) moveToSectionBox() gtk.Widgetter {
 	moveToSectionCSS(box)
 
 	return box
-}
-
-func (r *Room) promptEmoji() {
-	emojis := emojiview.NewForRoom(r.ctx, r.ID)
-
-	dialog := gtk.NewDialog()
-	dialog.SetTransientFor(app.Window(r.ctx))
-	dialog.SetDefaultSize(400, 500)
-	dialog.SetChild(emojis)
-	dialog.SetTitle("Emojis for " + r.Name)
-	dialog.Show()
 }
