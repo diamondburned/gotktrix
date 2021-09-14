@@ -172,8 +172,8 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		"add-emojis":      func() { emojiview.ForRoom(r.ctx, r.ID) },
 	})
 
-	gtkutil.BindPopoverMenuLazy(row, gtk.PosBottom, func() []gtkutil.PopoverMenuItem {
-		return []gtkutil.PopoverMenuItem{
+	gtkutil.BindRightClick(row, func() {
+		p := gtkutil.PopoverMenuCustom(row, gtk.PosBottom, []gtkutil.PopoverMenuItem{
 			gtkutil.MenuItem("Open", "room.open"),
 			gtkutil.MenuItem("Open in New Tab", "room.open-in-tab"),
 			gtkutil.MenuSeparator("Section"),
@@ -183,7 +183,10 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 			}),
 			gtkutil.MenuSeparator("Emojis"),
 			gtkutil.MenuItem("Add Emojis...", "room.add-emojis"),
-		}
+		})
+		p.SetAutohide(true)
+		p.SetCascadePopdown(true)
+		p.Popup()
 	})
 
 	client := gotktrix.FromContext(r.ctx).Offline()

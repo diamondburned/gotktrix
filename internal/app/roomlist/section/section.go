@@ -380,7 +380,9 @@ func (s *Section) Reminify() {
 // then it does the same thing as Reminify does.
 func (s *Section) ReminifyAfter(after func()) {
 	if !s.minified || len(s.rooms) < nMinified {
-		after()
+		if after != nil {
+			after()
+		}
 		return
 	}
 
