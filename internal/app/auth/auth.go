@@ -30,7 +30,7 @@ type Assistant struct {
 	onConnect func(*gotktrix.Client, *Account)
 
 	// states, can be nil depending on the steps
-	accounts      []*Account
+	accounts      []assistantAccount
 	currentClient *gotktrix.ClientAuth
 
 	keyring *secret.Keyring
@@ -38,6 +38,11 @@ type Assistant struct {
 
 	// hasConnected is true if the connection has already been connected.
 	hasConnected bool
+}
+
+type assistantAccount struct {
+	*Account
+	src secret.Driver
 }
 
 type discoverStep struct {

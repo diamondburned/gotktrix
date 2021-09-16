@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/bits"
 	"mime"
+	"os"
 	"sync"
 
 	"github.com/chanbakjsd/gotrix"
@@ -37,6 +38,15 @@ var Filter = event.GlobalFilter{
 			LazyLoadMembers: true,
 		},
 	},
+}
+
+var deviceName = "gotktrix"
+
+func init() {
+	hostname, err := os.Hostname()
+	if err == nil {
+		deviceName += " (" + hostname + ")"
+	}
 }
 
 // EventBox provides a concurrently-safe wrapper around a raw event that caches
@@ -122,16 +132,29 @@ func (a *ClientAuth) WithContext(ctx context.Context) *ClientAuth {
 // LoginPassword authenticates the client using the provided username and
 // password.
 func (a *ClientAuth) LoginPassword(username, password string) (*Client, error) {
-	if err := a.c.LoginPassword(username, password); err != nil {
+	err := a.c.Client.Login(api.LoginArg{
+		Type: matrix.LoginPassword,
+		Identifier: matrix.Identifier{
+			Type: matrix.IdentifierUser,
+			User: username,
+		},
+		Password:                 password,
+		InitialDeviceDisplayName: deviceName,
+	})
+	if err != nil {
 		return nil, err
 	}
-
 	return wrapClient(a.c)
 }
 
 // LoginToken authenticates the client using the provided token.
 func (a *ClientAuth) LoginToken(token string) (*Client, error) {
-	if err := a.c.LoginToken(token); err != nil {
+	err := a.c.Client.Login(api.LoginArg{
+		Type:                     matrix.LoginToken,
+		Token:                    deviceName,
+		InitialDeviceDisplayName: deviceName,
+	})
+	if err != nil {
 		return nil, err
 	}
 	return wrapClient(a.c)

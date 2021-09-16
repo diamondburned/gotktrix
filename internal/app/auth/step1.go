@@ -155,7 +155,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 			}
 
 			tailbox.Remove(keyringStatus)
-			addAccounts(a, accountList, accounts)
+			addAccounts(a, accountList, a.keyring, accounts)
 		})
 	}()
 
@@ -214,7 +214,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 
 						tailbox.Remove(errLabel)
 						tailbox.Remove(box)
-						addAccounts(a, accountList, accounts)
+						addAccounts(a, accountList, a.encrypt, accounts)
 					})
 				}()
 			})
@@ -249,8 +249,14 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 				return
 			}
 
+			if newAcc, err := copyAccount(c); err == nil {
+				if err := saveAccount(acc.src, newAcc); err != nil {
+					log.Println("error updating old account:", err)
+				}
+			}
+
 			glib.IdleAdd(func() {
-				a.finish(c.WithContext(a.ctx), acc)
+				a.finish(c.WithContext(a.ctx), acc.Account)
 			})
 		}()
 	}
@@ -300,7 +306,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 	return step
 }
 
-func addAccounts(a *Assistant, accountList *gtk.ListBox, accounts []Account) {
+func addAccounts(a *Assistant, accountList *gtk.ListBox, src secret.Driver, accounts []Account) {
 	hasAccount := func(has *Account) bool {
 		for _, acc := range a.accounts {
 			if acc.UserID == has.UserID {
@@ -319,7 +325,10 @@ func addAccounts(a *Assistant, accountList *gtk.ListBox, accounts []Account) {
 			continue
 		}
 
-		a.accounts = append(a.accounts, account)
+		a.accounts = append(a.accounts, assistantAccount{
+			Account: account,
+			src:     src,
+		})
 		accountList.Prepend(newAccountEntry(account))
 	}
 }
