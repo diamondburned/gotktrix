@@ -314,21 +314,24 @@ func (data inputData) put(client *gotktrix.Client) messageEvent {
 	ev := messageEvent{
 		RoomMessageEvent: event.RoomMessageEvent{
 			RoomEventInfo: event.RoomEventInfo{RoomID: data.roomID},
-			Body:          data.plain,
 			MsgType:       event.RoomMessageText,
 			RelatesTo:     data.relatesTo(),
 		},
 	}
 
 	var html strings.Builder
+	var plain strings.Builder
 
 	if data.replyingTo != "" {
 		replEv := roomTimelineEvent(client, data.roomID, data.replyingTo)
 
 		if msg, ok := replEv.(event.RoomMessageEvent); ok {
-			renderReply(&html, client, &msg)
+			renderReply(&html, &plain, client, &msg)
 		}
 	}
+
+	plain.WriteString(data.plain)
+	ev.Body = plain.String()
 
 	if err := md.Converter.Convert([]byte(data.html), &html); err == nil {
 		var out string

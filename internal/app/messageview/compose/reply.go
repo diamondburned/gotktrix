@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"log"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -30,18 +31,18 @@ const replyHTML = `
 	</mx-reply>
 `
 
-var spaceReplacer = strings.NewReplacer(
-	"\n", " ", "\t", " ",
-)
+var templateFormatter = strings.NewReplacer("\n", "", "\t", "")
 
 var replyTemplate = template.Must(
 	template.New("reply").Parse(
 		// Collapse all new lines, because we're relying on <br> instead.
-		spaceReplacer.Replace(replyHTML),
+		templateFormatter.Replace(replyHTML),
 	),
 )
 
-func renderReply(out *strings.Builder, client *gotktrix.Client, msg *event.RoomMessageEvent) {
+func renderReply(
+	html, plain *strings.Builder, client *gotktrix.Client, msg *event.RoomMessageEvent) {
+
 	var name string
 	if n, err := client.MemberName(msg.RoomID, msg.SenderID, false); err == nil {
 		name = n.Name
@@ -57,17 +58,36 @@ func renderReply(out *strings.Builder, client *gotktrix.Client, msg *event.RoomM
 		Content:    trim(msg.Body, 128),
 	}
 
-	if err := replyTemplate.Execute(out, data); err != nil {
+	plain.WriteString("> ")
+	plain.WriteString(data.SenderName)
+	plain.WriteString(": ")
+	plain.WriteString(data.Content)
+	plain.WriteString("\n")
+
+	if err := replyTemplate.Execute(html, data); err != nil {
 		log.Panicln("compose: failed to render reply HTML:", err)
 	}
 }
+
+var spaceReplacer = strings.NewReplacer(
+	"\n", " ", "\t", " ",
+)
 
 func trim(str string, max int) string {
 	str = spaceReplacer.Replace(str)
 	str = strings.TrimSpace(str)
 
-	if len(str) > max {
-		return str[:max] + "…"
+	var len int
+	for {
+		_, sz := utf8.DecodeRuneInString(str[len:])
+		if sz == 0 {
+			break
+		}
+
+		if len += sz; len > max {
+			return str[:len] + "…"
+		}
 	}
+
 	return str
 }
