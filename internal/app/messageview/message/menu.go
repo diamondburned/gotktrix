@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 
 	"github.com/chanbakjsd/gotrix/event"
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
-	"github.com/diamondburned/gotktrix/internal/components/errpopup"
+	"github.com/diamondburned/gotktrix/internal/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -22,14 +23,24 @@ func bindParent(
 	v messageViewer,
 	parent gtk.Widgetter, extras ...extraMenuSetter) []gtkutil.PopoverMenuItem {
 
+	reactor := reactor{
+		ctx: v.Context,
+		raw: v.raw.RawEvent,
+	}
+
 	actions := map[string]func(){
 		"show-source": func() {
-			showMsgSource(app.FromContext(v.Context).Window(), v.raw.RawEvent)
+			showMsgSource(v.Context, v.raw.RawEvent)
 		},
 		"reply": func() {
 			v.MessageViewer.ReplyTo(v.raw.ID)
 		},
-		"react": nil,
+		"react": func() {
+			showReactEmoji(&reactor, parent)
+		},
+		"react-text": func() {
+			showReactEntry(&reactor, parent)
+		},
 	}
 
 	uID, _ := v.client().Whoami()
@@ -41,23 +52,23 @@ func bindParent(
 		}
 	}
 
-	messageMenuItems := []gtkutil.PopoverMenuItem{
+	menuItems := []gtkutil.PopoverMenuItem{
 		gtkutil.MenuItem("Edit", "message.edit", canEdit),
 		gtkutil.MenuItem("Reply", "message.reply"),
-		gtkutil.Submenu("React", []gtkutil.PopoverMenuItem{
-			gtkutil.MenuWidget("message.react", reactEntry(v.Context, v.raw.RawEvent)),
-		}),
+		gtkutil.MenuItem("Add Reaction", "message.react"),
+		gtkutil.MenuItem("Add Reaction with Text", "message.react-text"),
 		gtkutil.MenuItem("Show Source", "message.show-source"),
 	}
 
 	gtkutil.BindActionMap(parent, "message", actions)
-	gtkutil.BindPopoverMenuCustom(parent, gtk.PosBottom, messageMenuItems)
+	gtkutil.BindPopoverMenuCustom(parent, gtk.PosBottom, menuItems)
 
+	extraItems := gtkutil.CustomMenu(menuItems)
 	for _, extra := range extras {
-		bindExtraMenu(extra, messageMenuItems)
+		extra.SetExtraMenu(extraItems)
 	}
 
-	return messageMenuItems
+	return menuItems
 }
 
 type extraMenuSetter interface {
@@ -74,46 +85,84 @@ func bindExtraMenu(m extraMenuSetter, items []gtkutil.PopoverMenuItem) {
 }
 
 var reactCSS = cssutil.Applier("message-react", `
-	.message-react {
-		margin: 0 6px;
+	entry.message-react {
+		margin: 6px;
 	}
 `)
 
-func reactEntry(ctx context.Context, targ *event.RawEvent) gtk.Widgetter {
+func showReactEmoji(r *reactor, parent gtk.Widgetter) *gtk.EmojiChooser {
+	picker := gtk.NewEmojiChooser()
+	picker.SetParent(parent)
+	picker.SetPosition(gtk.PosBottom)
+	picker.SetAutohide(true)
+	picker.Connect("emoji-picked", func(emoji string) {
+		r.react(emoji)
+		picker.Popdown()
+	})
+	reactCSS(&picker.Widget)
+	picker.Popup()
+	return picker
+}
+
+func showReactEntry(r *reactor, parent gtk.Widgetter) *gtk.Entry {
 	entry := gtk.NewEntry()
 	entry.SetHExpand(true)
+	entry.SetVAlign(gtk.AlignCenter)
 	entry.SetObjectProperty("show-emoji-icon", true)
 	entry.SetObjectProperty("enable-emoji-completion", true)
-	entry.SetPlaceholderText("Add Reaction")
-	entry.Connect("activate", func() {
-		text := entry.Text()
-		if text == "" {
-			return
-		}
-
-		entry.SetText("")
-
-		ev := m.ReactionEvent{
-			RoomEventInfo: event.RoomEventInfo{
-				RoomID: targ.RoomID,
-			},
-			RelatesTo: m.ReactionRelatesTo{
-				RelType: m.Annotation,
-				EventID: targ.ID,
-				Key:     text,
-			},
-		}
-
-		go func() {
-			client := gotktrix.FromContext(ctx)
-			if err := client.SendRoomEvent(ev.RoomID, ev); err != nil {
-				app.Error(ctx, errors.Wrap(err, "failed to react"))
-			}
-		}()
-	})
+	entry.SetPlaceholderText("¯\\_(ツ)_/¯")
 	reactCSS(entry)
 
+	b := adw.NewBin()
+	b.SetVExpand(true)
+	b.SetChild(entry)
+
+	d := dialogs.New(app.Window(r.ctx), "Cancel", "React")
+	d.SetTitle("React to Message")
+	d.SetDefaultSize(-1, -1)
+	d.SetChild(b)
+	d.Show()
+
+	d.Cancel.Connect("clicked", d.Close)
+
+	submit := func() {
+		text := entry.Text()
+		if text != "" {
+			r.react(text)
+			entry.SetText("")
+		}
+		d.Close()
+	}
+
+	d.OK.Connect("clicked", submit)
+	entry.Connect("activate", submit)
+
 	return entry
+}
+
+type reactor struct {
+	ctx context.Context
+	raw *event.RawEvent
+}
+
+func (r *reactor) react(text string) {
+	ev := m.ReactionEvent{
+		RoomEventInfo: event.RoomEventInfo{
+			RoomID: r.raw.RoomID,
+		},
+		RelatesTo: m.ReactionRelatesTo{
+			RelType: m.Annotation,
+			EventID: r.raw.ID,
+			Key:     text,
+		},
+	}
+
+	go func() {
+		client := gotktrix.FromContext(r.ctx)
+		if err := client.SendRoomEvent(ev.RoomID, ev); err != nil {
+			app.Error(r.ctx, errors.Wrap(err, "failed to react"))
+		}
+	}()
 }
 
 var msgSourceAttrs = markuputil.Attrs(
@@ -126,15 +175,15 @@ var sourceCSS = cssutil.Applier("message-source", `
 	}
 `)
 
-func showMsgSource(w *gtk.Window, raw *event.RawEvent) {
+func showMsgSource(ctx context.Context, raw *event.RawEvent) {
 	j, err := json.MarshalIndent(raw, "", "  ")
 	if err != nil {
-		errpopup.Show(w, []error{err}, func() {})
+		app.Error(ctx, err)
 		return
 	}
 
 	d := gtk.NewDialog()
-	d.SetTransientFor(w)
+	d.SetTransientFor(app.Window(ctx))
 	d.SetModal(true)
 	d.SetDefaultSize(400, 300)
 

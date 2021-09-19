@@ -3,6 +3,7 @@ package gtkutil
 import (
 	"log"
 
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -175,16 +176,14 @@ func Submenu(label string, sub []PopoverMenuItem) PopoverMenuItem {
 // BindPopoverMenuCustom works similarly to BindPopoverMenu, but the value type
 // can be more than just an action string. The key must be a string.
 func BindPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, pairs []PopoverMenuItem) {
-	var popover *gtk.PopoverMenu
-
-	BindRightClick(w, func() {
+	BindRightClickAt(w, func(x, y float64) {
+		popover := PopoverMenuCustom(w, pos, pairs)
 		if popover == nil {
-			popover = PopoverMenuCustom(w, pos, pairs)
-			if popover == nil {
-				return
-			}
+			return
 		}
 
+		at := gdk.NewRectangle(int(x), int(y), 0, 0)
+		popover.SetPointingTo(&at)
 		popover.Popup()
 	})
 }

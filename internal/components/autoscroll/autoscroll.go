@@ -66,7 +66,7 @@ func (w *Window) ScrollToBottom() {
 	// Delegate this to when the main loop is free again, just so the dimensions
 	// are properly updated.
 	glib.IdleAdd(func() {
-		w.vadj.SetValue(w.vadj.Upper())
+		w.vadj.SetValue(w.vadj.Upper() + w.vadj.PageIncrement())
 		w.willScroll = false
 	})
 }
