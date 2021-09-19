@@ -78,8 +78,8 @@ github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUn
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210824052008-5f3302d4ae36 h1:D4Y5jZsueyWAwFEbnr85hQ42i5jx53n5PHvMV7MOb1g=
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210824052008-5f3302d4ae36/go.mod h1:mb0p7u28bp1QOHlUcyIeY/Gi5h7vZPv6NCfvzTA6PLE=
 github.com/diamondburned/gotk4/pkg v0.0.0-20210824051836-cf3f6994d2e2/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210915002554-0d1b41afd30e h1:BjRuTfAgfrXLCiXVkb/5BP2eMv+D3lmYUZQjyIr1yTo=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210915002554-0d1b41afd30e/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210918232119-798683f12a62 h1:2KCwR+LVmYhv46I8Iv1dm4lwvO9Q4wfO4r5NTbrCAjw=
+github.com/diamondburned/gotk4/pkg v0.0.0-20210918232119-798683f12a62/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dlclark/regexp2 v1.4.0 h1:F1rxgk7p4uKjwIQxBs9oAXe5CqrXlCduYEJvrF4u93E=
 github.com/dlclark/regexp2 v1.4.0/go.mod h1:2pZnwuY/m+8K6iRw6wQdMtk+rH5tNGR1i55kozfMjCc=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=

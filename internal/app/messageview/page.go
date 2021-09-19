@@ -127,22 +127,33 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	page.list.SetSelectionMode(gtk.SelectionNone)
 	msgListCSS(page.list)
 
-	// Sort messages according to the timestamp.
-	msgList.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
-		m1, ok1 := page.messages[matrix.EventID(r1.Name())]
-		m2, ok2 := page.messages[matrix.EventID(r2.Name())]
-		if !ok1 || !ok2 {
-			return 0
-		}
+	// This sorting is a HUGE issue. It's a really, really big issue, actually.
+	// Right now, we're checking whether or not a message should be collapsed by
+	// checking the last message. The problem is that sorting can kick that
+	// order off AFTER creation, so in a way, to properly fix this issue, we'll
+	// need to refactor the code so that the message state is COMPLETELY
+	// separated, and then we insert a hollow Row, and then we initialize the
+	// content BASED ON what's sorted after the fact. Quite hairy.
 
-		if m1.sent < m2.sent {
-			return -1
-		}
-		if m1.sent == m2.sent {
-			return 0
-		}
-		return 1 // t1 > t2
-	})
+	// TODO: decouple message component from state.
+	// TODO: lazy rendering message component inside ListBoxRow.
+	// TODO: API to re-render the message and toggle between compact and full.
+
+	// Sort messages according to the timestamp.
+	// msgList.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
+	// 	m1, ok1 := page.messages[matrix.EventID(r1.Name())]
+	// 	m2, ok2 := page.messages[matrix.EventID(r2.Name())]
+	// 	if !ok1 || !ok2 {
+	// 		return 0
+	// 	}
+	// 	if m1.sent < m2.sent {
+	// 		return -1
+	// 	}
+	// 	if m1.sent == m2.sent {
+	// 		return 0
+	// 	}
+	// 	return 1 // t1 > t2
+	// })
 
 	clamp := adw.NewClamp()
 	clamp.SetMaximumSize(MessagesMaxWidth)

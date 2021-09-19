@@ -65,7 +65,7 @@ func ApplyGlobalCSS() {
 	css := globalCSS.Bytes()
 
 	prov := gtk.NewCSSProvider()
-	prov.Connect("parsing-error", func(_ *gtk.CSSProvider, sec *gtk.CSSSection, err error) {
+	prov.Connect("parsing-error", func(sec *gtk.CSSSection, err error) {
 		loc := sec.StartLocation()
 
 		lines := bytes.Split(css, []byte("\n"))
