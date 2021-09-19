@@ -133,9 +133,26 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	flap.SetTransitionType(adw.FlapTransitionTypeOver)
 	flap.SetSeparator(gtk.NewSeparator(gtk.OrientationVertical))
 
-	unflap := gtk.NewButtonFromIconName("document-properties-symbolic")
+	const (
+		revealedIcon   = "pan-start-symbolic"
+		unrevealedIcon = "document-properties-symbolic"
+	)
+
+	unflap := gtk.NewButtonFromIconName(unrevealedIcon)
+
+	updateUnflap := func(flap bool) {
+		if flap {
+			unflap.SetIconName(revealedIcon)
+		} else {
+			unflap.SetIconName(unrevealedIcon)
+		}
+	}
+	updateUnflap(flap.RevealFlap())
+
 	unflap.Connect("clicked", func() {
-		flap.SetRevealFlap(!flap.RevealFlap())
+		reveal := !flap.RevealFlap()
+		flap.SetRevealFlap(reveal)
+		updateUnflap(reveal)
 	})
 
 	a := app.FromContext(m.ctx)
