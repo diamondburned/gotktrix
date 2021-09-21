@@ -54,10 +54,6 @@ var rowCSS = cssutil.Applier("room-row", `
 	.room-row:focus {
 		background: alpha(@theme_fg_color, .15);
 	}
-	.room-row:hover .room-avatar,
-	.room-row:focus .room-avatar {
-		filter: brightness(125%);
-	}
 	.room-row.room-active {
 		background-color: alpha(@accent_color, 0.45);
 	}
