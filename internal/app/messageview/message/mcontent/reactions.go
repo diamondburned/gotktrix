@@ -2,17 +2,19 @@ package mcontent
 
 import (
 	"context"
-	"log"
 	"strconv"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
+	"github.com/pkg/errors"
 )
 
 type reactionBox struct {
@@ -20,17 +22,6 @@ type reactionBox struct {
 	flowBox   *gtk.FlowBox
 	reactions map[string]*reaction
 	events    map[matrix.EventID]string
-}
-
-type reaction struct {
-	*gtk.FlowBoxChild
-	btn *gtk.ToggleButton
-
-	box    *gtk.Box
-	label  *gtk.Label
-	number *gtk.Label
-
-	amount int
 }
 
 var reactionsCSS = cssutil.Applier("mcontent-reactions", `
@@ -92,12 +83,64 @@ func (r *reactionBox) Add(ctx context.Context, ev m.ReactionEvent) {
 	} else {
 		r, ok := r.reactions[ev.RelatesTo.Key]
 		if ok {
-			r.amount++
-			r.update(ctx, ev.SenderID)
+			r.update(ctx, ev.SenderID, ev.EventID)
 			return
 		}
 	}
 
+	reaction := newReaction(ctx, ev)
+
+	r.reactions[ev.RelatesTo.Key] = reaction
+	r.flowBox.Insert(reaction, -1)
+}
+
+// Remove returns true if the given redaction event corresponds to a reaction.
+func (r *reactionBox) Remove(ctx context.Context, red event.RoomRedactionEvent) bool {
+	key, ok := r.events[red.EventID]
+	if !ok {
+		return false
+	}
+
+	delete(r.events, red.EventID)
+
+	reaction, ok := r.reactions[key]
+	if !ok {
+		return true
+	}
+
+	reaction.update(ctx, red.SenderID, "")
+	if reaction.amount > 0 {
+		return true
+	}
+
+	r.flowBox.Remove(reaction)
+	delete(r.reactions, key)
+	r.SetRevealChild(len(r.reactions) > 0)
+	return true
+}
+
+func (r *reactionBox) RemoveAll() {
+	for id, reaction := range r.reactions {
+		r.flowBox.Remove(reaction)
+		delete(r.reactions, id)
+	}
+
+	r.SetRevealChild(false)
+}
+
+type reaction struct {
+	*gtk.FlowBoxChild
+	btn *gtk.ToggleButton
+
+	box    *gtk.Box
+	label  *gtk.Label
+	number *gtk.Label
+
+	selfEv matrix.EventID
+	amount int
+}
+
+func newReaction(ctx context.Context, ev m.ReactionEvent) *reaction {
 	label := gtk.NewLabel(ev.RelatesTo.Key)
 	label.SetSingleLineMode(true)
 	label.SetEllipsize(pango.EllipsizeEnd)
@@ -114,7 +157,6 @@ func (r *reactionBox) Add(ctx context.Context, ev m.ReactionEvent) {
 	btn := gtk.NewToggleButton()
 	btn.SetChild(box)
 	btn.SetTooltipText(ev.RelatesTo.Key)
-	btn.Connect("clicked", func() { log.Println("reacting...") })
 
 	client := gotktrix.FromContext(ctx).Offline()
 	uID, _ := client.Whoami()
@@ -134,56 +176,58 @@ func (r *reactionBox) Add(ctx context.Context, ev m.ReactionEvent) {
 		box:    box,
 		label:  label,
 		number: number,
-		amount: 1, // include this one
 	}
-	reaction.update(ctx, ev.SenderID)
+	reaction.update(ctx, ev.SenderID, ev.EventID)
 
-	r.reactions[ev.RelatesTo.Key] = &reaction
-	r.flowBox.Insert(reaction, -1)
+	// Use the first ever reaction event for this key as the event to send over.
+	btn.Connect("clicked", func() { reaction.react(ctx, ev) })
+
+	return &reaction
 }
 
-// Remove returns true if the given redaction event corresponds to a reaction.
-func (r *reactionBox) Remove(ctx context.Context, red event.RoomRedactionEvent) bool {
-	key, ok := r.events[red.EventID]
-	if !ok {
-		return false
+func (r *reaction) react(ctx context.Context, ev m.ReactionEvent) {
+	client := gotktrix.FromContext(ctx)
+
+	if r.selfEv != "" {
+		evID := r.selfEv
+		go func() {
+			if err := client.Redact(ev.RoomID, evID, ""); err != nil {
+				app.Error(ctx, errors.Wrap(err, "failed to unreact"))
+				glib.IdleAdd(func() { r.btn.SetActive(true) })
+				return
+			}
+		}()
+	} else {
+		go func() {
+			client := gotktrix.FromContext(ctx)
+			if err := client.SendRoomEvent(ev.RoomID, ev); err != nil {
+				app.Error(ctx, errors.Wrap(err, "failed to react"))
+			}
+		}()
 	}
-
-	delete(r.events, red.EventID)
-
-	reaction, ok := r.reactions[key]
-	if !ok {
-		return true
-	}
-
-	reaction.amount--
-	if reaction.amount > 0 {
-		reaction.update(ctx, red.SenderID)
-		return true
-	}
-
-	r.flowBox.Remove(reaction)
-	delete(r.reactions, key)
-	r.SetRevealChild(len(r.reactions) > 0)
-	return true
 }
 
-func (r *reactionBox) RemoveAll() {
-	for id, reaction := range r.reactions {
-		r.flowBox.Remove(reaction)
-		delete(r.reactions, id)
+func (r *reaction) update(
+	ctx context.Context, sender matrix.UserID, addID matrix.EventID) {
+
+	if addID != "" {
+		r.amount++
+	} else {
+		r.amount--
 	}
 
-	r.SetRevealChild(false)
-}
-
-func (r *reaction) update(ctx context.Context, sender matrix.UserID) {
 	r.number.SetLabel(strconv.Itoa(r.amount))
 
 	client := gotktrix.FromContext(ctx).Offline()
 	uID, _ := client.Whoami()
 	if uID == sender {
 		r.btn.SetActive(true)
+
+		if addID != "" {
+			r.selfEv = addID
+		} else {
+			r.selfEv = ""
+		}
 	}
 }
 

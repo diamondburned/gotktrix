@@ -17,7 +17,7 @@ import (
 const (
 	// TimelineKeepLast determines that, when it's time to clean up, the
 	// database should only keep the last 50 events.
-	TimelineKeepLast = 50
+	TimelineKeepLast = 100
 	// Version is the incremental database version number. It is incremented
 	// when a breaking change is made in the database that breaks old databases.
 	Version = 2

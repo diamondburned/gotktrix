@@ -718,6 +718,12 @@ func (c *Client) SendRoomEvent(roomID matrix.RoomID, ev event.Event) error {
 	return err
 }
 
+// Redact redacts a room event.
+func (c *Client) Redact(roomID matrix.RoomID, ev matrix.EventID, reason string) error {
+	_, err := c.RoomEventRedact(roomID, ev, reason)
+	return err
+}
+
 // MemberName describes a member name.
 type MemberName struct {
 	Name      string
