@@ -1,12 +1,14 @@
 package section
 
 import (
+	"context"
 	"sort"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
 )
 
@@ -34,16 +36,18 @@ func TagIsIntern(name matrix.TagName) bool {
 }
 
 // TagName returns the name of the given tag.
-func TagName(name matrix.TagName) string {
+func TagName(ctx context.Context, name matrix.TagName) string {
+	p := locale.Printer(ctx)
+
 	switch {
 	case name.HasNamespace("m"):
 		switch name {
 		case matrix.TagFavourite: // Thanks, Matrix.
-			return "Favorites"
+			return p.Sprint("Favorites")
 		case matrix.TagLowPriority:
-			return "Low Priority"
+			return p.Sprint("Low Priority")
 		case matrix.TagServerNotice:
-			return "Server Notice"
+			return p.Sprint("Server Notice")
 		default:
 			return strings.Title(strings.TrimPrefix("m.", string(name)))
 		}
@@ -53,9 +57,9 @@ func TagName(name matrix.TagName) string {
 
 	switch name {
 	case DMSection:
-		return "People"
+		return p.Sprint("People")
 	case RoomsSection:
-		return "Rooms"
+		return p.Sprint("Rooms")
 	}
 
 	return string(name)

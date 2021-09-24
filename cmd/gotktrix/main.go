@@ -18,6 +18,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/selfbar"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/locale"
 
 	_ "github.com/diamondburned/gotktrix/internal/gtkutil/aggressivegc"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -48,7 +49,16 @@ func main() {
 
 	// Futile attempt to unfreeze the program while it's suddenly freezing while
 	// polling the sources.
-	glib.TimeoutSecondsAdd(1, func() bool { return true })
+	tick := true
+	glib.TimeoutSecondsAdd(1, func() bool {
+		// if tick {
+		// 	log.Println("tick")
+		// } else {
+		// 	log.Println("tock")
+		// }
+		tick = !tick
+		return true
+	})
 
 	if code := app.Run(os.Args); code > 0 {
 		log.Println("exit status", code)
@@ -67,8 +77,8 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 	a.Window().SetTitle("gotktrix")
 	a.Window().Show()
 
-	// Inject the app instance.
 	ctx = app.WithApplication(ctx, a)
+	ctx = locale.WithLocalPrinter(ctx)
 
 	authAssistant := auth.New(ctx)
 	authAssistant.Show()
@@ -77,7 +87,7 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 
 		go func() {
 			popup := syncbox.Open(ctx, acc)
-			popup.QueueSetLabel("Getting rooms...")
+			popup.QueueSetLabel(locale.Sprint(ctx, "Getting rooms..."))
 
 			rooms, err := client.Rooms()
 			if err != nil {
@@ -118,8 +128,8 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 
 	welcome := adw.NewStatusPage()
 	welcome.SetIconName("go-previous-symbolic")
-	welcome.SetTitle("Welcome")
-	welcome.SetDescription("Choose a room on the left panel.")
+	welcome.SetTitle(locale.Sprint(m.ctx, "Welcome"))
+	welcome.SetDescription(locale.Sprint(m.ctx, "Choose a room on the left panel."))
 
 	m.msgView = messageview.New(m.ctx, m)
 	m.msgView.SetPlaceholder(welcome)

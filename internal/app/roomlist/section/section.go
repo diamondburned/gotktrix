@@ -2,7 +2,6 @@ package section
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sort"
 	"strings"
@@ -16,27 +15,25 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
 )
 
 // SortSections sorts the given list of sections in a user-friendly way.
 func SortSections(sections []*Section) {
 	sort.Slice(sections, func(i, j int) bool {
-		itag := sections[i].Tag()
-		jtag := sections[j].Tag()
-
-		return lessTag(itag, jtag)
+		return lessTag(sections[i], sections[j])
 	})
 }
 
 // (i < j) -> (i before j)
-func lessTag(itag, jtag matrix.TagName) bool {
-	if TagEqNamespace(itag, jtag) {
-		iname := TagName(itag)
-		jname := TagName(jtag)
+func lessTag(isect, jsect *Section) bool {
+	itag := isect.Tag()
+	jtag := jsect.Tag()
 
+	if TagEqNamespace(itag, jtag) {
 		// Sort case insensitive.
-		return sortutil.LessFold(iname, jname)
+		return sortutil.LessFold(isect.tagName, jsect.tagName)
 	}
 
 	// User tags always go in front.
@@ -104,6 +101,7 @@ type Section struct {
 	comparer Comparer
 
 	selected    *room.Room
+	tagName     string
 	minified    bool
 	showPreview bool
 }
@@ -113,7 +111,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionSingle)
 	list.SetActivateOnSingleClick(true)
-	list.SetPlaceholder(gtk.NewLabel("No rooms yet..."))
+	list.SetPlaceholder(gtk.NewLabel(locale.Sprint(ctx, "No rooms yet...")))
 
 	if vadj := ctrl.VAdjustment(); vadj != nil {
 		list.SetAdjustment(vadj)
@@ -131,7 +129,9 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	rev.SetTransitionType(gtk.RevealerTransitionTypeSlideDown)
 	rev.SetChild(inner)
 
-	btn := newRevealButton(rev, TagName(tag))
+	name := TagName(ctx, tag)
+
+	btn := newRevealButton(rev, name)
 	btn.SetHasFrame(false)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
@@ -146,6 +146,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 		rooms:       make(map[matrix.RoomID]*room.Room),
 		hidden:      make(map[*room.Room]bool),
 		listBox:     list,
+		tagName:     name,
 		showPreview: true, // TODO config module
 	}
 
@@ -157,7 +158,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	gtkutil.BindRightClick(btn, func() {
 		gtkutil.ShowPopoverMenuCustom(btn, gtk.PosBottom, []gtkutil.PopoverMenuItem{
 			gtkutil.MenuWidget("roomsection.change-sort", s.sortByBox()),
-			gtkutil.MenuSeparator("Appearance"),
+			gtkutil.MenuSeparator(locale.Sprint(ctx, "Appearance")),
 			gtkutil.MenuWidget("roomsection.show-preview", s.showPreviewBox()),
 		})
 	})
@@ -165,11 +166,11 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	minify.OnToggled(func(minify bool) string {
 		if !minify {
 			s.Expand()
-			return "Show less"
+			return locale.Sprint(ctx, "Show less")
 		}
 
 		s.Minimize()
-		return fmt.Sprintf("Show %d more", s.NHidden())
+		return locale.Sprintf(ctx, "Show %d more", s.NHidden())
 	})
 
 	s.listBox.Connect("row-activated", func(list *gtk.ListBox, row *gtk.ListBoxRow) {
@@ -228,7 +229,9 @@ func (s *Section) Tag() matrix.TagName {
 }
 
 func (s *Section) showPreviewBox() gtk.Widgetter {
-	check := gtk.NewCheckButtonWithLabel("Show Message Preview")
+	printer := locale.Printer(s.ctx)
+
+	check := gtk.NewCheckButtonWithLabel(printer.Sprint("Show Message Preview"))
 	check.Connect("toggled", func() {
 		s.showPreview = check.Active()
 		// Update all rooms individually. No magic here.
@@ -241,7 +244,7 @@ func (s *Section) showPreviewBox() gtk.Widgetter {
 }
 
 func (s *Section) sortByBox() gtk.Widgetter {
-	header := gtk.NewLabel("Sort by")
+	header := gtk.NewLabel(locale.Sprint(s.ctx, "Sort by"))
 	header.SetXAlign(0)
 	header.SetAttributes(markuputil.Attrs(
 		pango.NewAttrWeight(pango.WeightBold),
@@ -249,7 +252,10 @@ func (s *Section) sortByBox() gtk.Widgetter {
 
 	radio := gtkutil.RadioData{
 		Current: 1,
-		Options: []string{"Name (A-Z)", "Activity"},
+		Options: []string{
+			locale.Sprint(s.ctx, "Name (A-Z)"),
+			locale.Sprint(s.ctx, "Activity"),
+		},
 	}
 
 	switch s.comparer.Mode {

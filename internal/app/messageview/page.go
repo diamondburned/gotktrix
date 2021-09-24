@@ -13,10 +13,12 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/compose"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/components/autoscroll"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/pkg/errors"
 )
 
@@ -193,6 +195,24 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	gtkutil.MapSubscriber(page, func() func() {
 		return parent.client.SubscribeTimeline(roomID, func(r *event.RawEvent) {
 			glib.IdleAdd(func() { page.OnRoomEvent(r) })
+		})
+	})
+
+	gtkutil.MapSubscriber(page, func() func() {
+		return parent.client.SubscribeRoom(roomID, event.TypeTyping, func(e event.Event) {
+			ev := e.(event.TypingEvent)
+			if len(ev.UserID) == 0 {
+				page.extra.Clear()
+				return
+			}
+
+			names := make([]string, len(ev.UserID))
+			for i, id := range ev.UserID {
+				names[i] = mauthor.Markup(parent.client, roomID, id, mauthor.WithMinimal())
+			}
+
+			msg := locale.Plural(ctx, names, "is typing...", "are typing...")
+			page.extra.SetMarkup(msg)
 		})
 	})
 
@@ -400,11 +420,12 @@ func (p *Page) Load(done func()) {
 			return
 		}
 
-		glib.IdleAdd(func() {
-			for i := range events {
-				p.onRoomEvent(&events[i])
-			}
+		for i := range events {
+			i := i // copy for referencing
+			glib.IdleAdd(func() { p.onRoomEvent(&events[i]) })
+		}
 
+		glib.IdleAdd(func() {
 			p.loaded = true
 			p.scroll.ScrollToBottom()
 			done()

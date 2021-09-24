@@ -21,6 +21,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/pkg/errors"
 )
 
@@ -169,16 +170,18 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	})
 
 	gtkutil.BindRightClick(row, func() {
+		s := locale.Printer(ctx).Sprint
+
 		p := gtkutil.PopoverMenuCustom(row, gtk.PosBottom, []gtkutil.PopoverMenuItem{
-			gtkutil.MenuItem("Open", "room.open"),
-			gtkutil.MenuItem("Open in New Tab", "room.open-in-tab"),
-			gtkutil.MenuSeparator("Section"),
-			gtkutil.MenuItem("Reorder Room...", "room.prompt-reorder"),
-			gtkutil.Submenu("Move to Section...", []gtkutil.PopoverMenuItem{
+			gtkutil.MenuItem(s("Open"), "room.open"),
+			gtkutil.MenuItem(s("Open in New Tab"), "room.open-in-tab"),
+			gtkutil.MenuSeparator(s("Section")),
+			gtkutil.MenuItem(s("Reorder Room..."), "room.prompt-reorder"),
+			gtkutil.Submenu(s("Move to Section..."), []gtkutil.PopoverMenuItem{
 				gtkutil.MenuWidget("room.move-to-section", r.moveToSectionBox()),
 			}),
-			gtkutil.MenuSeparator("Emojis"),
-			gtkutil.MenuItem("Add Emojis...", "room.add-emojis"),
+			gtkutil.MenuSeparator(s("Emojis")),
+			gtkutil.MenuItem(s("Add Emojis..."), "room.add-emojis"),
 		})
 		p.SetAutohide(true)
 		p.SetCascadePopdown(true)
@@ -450,7 +453,9 @@ var reorderDialog = cssutil.Applier("room-reorderdialog", `
 `)
 
 func (r *Room) promptReorder() {
-	help := gtk.NewLabel(clean(reorderHelp))
+	msg := locale.FromKey(r.ctx, "reorder-help", reorderHelp)
+
+	help := gtk.NewLabel(clean(msg))
 	help.SetUseMarkup(true)
 	help.SetXAlign(0)
 	help.SetWrap(true)
@@ -497,7 +502,11 @@ func (r *Room) promptReorder() {
 	box.Append(inputBox)
 	reorderDialog(box)
 
-	dialog := dialogs.New(app.FromContext(r.ctx).Window(), "Discard", "Save")
+	dialog := dialogs.New(
+		app.Window(r.ctx),
+		locale.Sprint(r.ctx, "Discard"),
+		locale.Sprint(r.ctx, "Save"),
+	)
 	dialog.SetDefaultSize(500, 225)
 	dialog.SetChild(box)
 	dialog.SetTitle("Reorder " + r.Name)
@@ -538,7 +547,7 @@ var moveToSectionCSS = cssutil.Applier("room-movetosection", `
 `)
 
 func (r *Room) moveToSectionBox() gtk.Widgetter {
-	header := gtk.NewLabel("Section Name")
+	header := gtk.NewLabel(locale.Sprint(r.ctx, "Section Name"))
 	header.SetXAlign(0)
 	header.SetAttributes(markuputil.Attrs(
 		pango.NewAttrWeight(pango.WeightBold),

@@ -16,6 +16,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 // Bar describes a self bar widget.
@@ -51,7 +52,7 @@ type Controller interface{}
 // New creates a new self bar instance.
 func New(ctx context.Context, ctrl Controller) *Bar {
 	burger := gtk.NewImageFromIconName("open-menu-symbolic")
-	burger.SetTooltipText("Menu")
+	burger.SetTooltipText(locale.Sprint(ctx, "Menu"))
 	burger.AddCSSClass("selfbar-icon")
 	burger.SetVAlign(gtk.AlignCenter)
 
@@ -84,7 +85,7 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 	})
 	button.Connect("clicked", func() {
 		p := gtkutil.ShowPopoverMenu(button, gtk.PosTop, [][2]string{
-			{"User Emojis...", "selfbar.user-emojis"},
+			{locale.Sprint(ctx, "User Emojis..."), "selfbar.user-emojis"},
 		})
 		p.SetHasArrow(false)
 		p.SetSizeRequest(200, -1)

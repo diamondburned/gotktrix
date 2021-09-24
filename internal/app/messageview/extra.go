@@ -40,3 +40,18 @@ func newExtraRevealer() *extraRevealer {
 		Label:    l,
 	}
 }
+
+func (r *extraRevealer) Clear() {
+	r.Label.SetLabel("")
+	r.Revealer.SetRevealChild(false)
+}
+
+func (r *extraRevealer) SetMarkup(markup string) {
+	if markup == "" {
+		r.Clear()
+		return
+	}
+
+	r.Revealer.SetRevealChild(true)
+	r.Label.SetMarkup(markup)
+}
