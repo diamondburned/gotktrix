@@ -140,9 +140,6 @@ func New(ctx context.Context, ctrl Controller) *View {
 		// Delete the page from the page registry.
 		child := page.Child()
 		pages.Pop(matrix.RoomID(child.Name()))
-
-		// Finish closing the page.
-		view.ClosePageFinish(page, true)
 	})
 
 	return &View{

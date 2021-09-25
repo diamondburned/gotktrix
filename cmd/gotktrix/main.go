@@ -47,18 +47,18 @@ func main() {
 	// Ensure the app quits on a panic.
 	defer app.Quit()
 
-	// Futile attempt to unfreeze the program while it's suddenly freezing while
-	// polling the sources.
-	tick := true
-	glib.TimeoutSecondsAdd(1, func() bool {
-		if tick {
-			log.Println("tick")
-		} else {
-			log.Println("tock")
-		}
-		tick = !tick
-		return true
-	})
+	// // Futile attempt to unfreeze the program while it's suddenly freezing while
+	// // polling the sources.
+	// tick := true
+	// glib.TimeoutSecondsAdd(1, func() bool {
+	// 	if tick {
+	// 		log.Println("tick")
+	// 	} else {
+	// 		log.Println("tock")
+	// 	}
+	// 	tick = !tick
+	// 	return true
+	// })
 
 	if code := app.Run(os.Args); code > 0 {
 		log.Println("exit status", code)
