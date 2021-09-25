@@ -51,11 +51,11 @@ func main() {
 	// polling the sources.
 	tick := true
 	glib.TimeoutSecondsAdd(1, func() bool {
-		// if tick {
-		// 	log.Println("tick")
-		// } else {
-		// 	log.Println("tock")
-		// }
+		if tick {
+			log.Println("tick")
+		} else {
+			log.Println("tock")
+		}
 		tick = !tick
 		return true
 	})

@@ -208,7 +208,8 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 			names := make([]string, len(ev.UserID))
 			for i, id := range ev.UserID {
-				names[i] = mauthor.Markup(parent.client, roomID, id, mauthor.WithMinimal())
+				author := mauthor.Markup(parent.client, roomID, id, mauthor.WithMinimal())
+				names[i] = "<b>" + author + "</b>"
 			}
 
 			msg := locale.Plural(ctx, names, "is typing...", "are typing...")

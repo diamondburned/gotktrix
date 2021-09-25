@@ -27,7 +27,7 @@ func loadLocalPrinter() {
 		var langs []language.Tag
 
 		for _, lang := range glib.GetLanguageNames() {
-			t, err := language.Parse(lang)
+			t, err := language.Parse(strings.SplitN(lang, ".", 2)[0])
 			if err != nil {
 				log.Printf("cannot parse language %s: %v", lang, err)
 				continue

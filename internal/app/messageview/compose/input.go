@@ -51,8 +51,8 @@ var inputCSS = cssutil.Applier("composer-input", `
 	}
 	.composer-input {
 		padding: 0px 2px;
-		margin-top: 12px;
-		margin-top: 6px;
+		padding-top: 12px;
+		margin-top:  0px;
 	}
 `)
 
