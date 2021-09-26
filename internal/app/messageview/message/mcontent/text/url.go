@@ -32,6 +32,7 @@ func urlIsSafe(s string) bool {
 
 const embeddedURLPrefix = "link:"
 
+// Regex written by @stephenhay, taken from https://mathiasbynens.be/demo/url-regex.
 // Mirror this to allowedSchemes.
 var urlRegex = regexp.MustCompile(`(?:https?|ftps?|mailto|magnet)://[^\s/$.?#].[^\s]*`)
 

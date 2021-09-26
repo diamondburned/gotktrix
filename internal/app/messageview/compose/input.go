@@ -56,20 +56,6 @@ var inputCSS = cssutil.Applier("composer-input", `
 	}
 `)
 
-func customEmojiHTML(emoji autocomplete.EmojiData) string {
-	if emoji.Unicode != "" {
-		return emoji.Unicode
-	}
-
-	return fmt.Sprintf(
-		`<img alt="%s" title="%[1]s" width="32" height="32" src="%s" data-mxc-emoticon/>`,
-		html.EscapeString(string(emoji.Name)),
-		html.EscapeString(string(emoji.Custom.URL)),
-	)
-}
-
-const inlineEmojiSize = 18
-
 // NewInput creates a new Input instance.
 func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input {
 	go requestAllMembers(ctx, roomID)
@@ -395,6 +381,20 @@ func (data inputData) relatesTo() json.RawMessage {
 	}
 
 	return b
+}
+
+const inlineEmojiSize = 18
+
+func customEmojiHTML(emoji autocomplete.EmojiData) string {
+	if emoji.Unicode != "" {
+		return emoji.Unicode
+	}
+
+	return fmt.Sprintf(
+		`<img alt="%s" title="%[1]s" width="32" height="32" src="%s" data-mxc-emoticon />`,
+		html.EscapeString(string(emoji.Name)),
+		html.EscapeString(string(emoji.Custom.URL)),
+	)
 }
 
 func finishAutocomplete(
