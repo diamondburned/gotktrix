@@ -49,15 +49,13 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 	h := maxHeight * thumbnailScale
 
 	i, err := msg.ImageInfo()
-	if err == nil {
+	if err == nil && i.Width > 0 && i.Height > 0 {
 		w, h = gotktrix.MaxSize(i.Width, i.Height, w, h)
 
-		// Recalcualte the max dimensions without scaling.
+		// Recalculate the max dimensions without scaling.
 		_, actualHeight := gotktrix.MaxSize(i.Width, i.Height, maxWidth, maxHeight)
 		pic.SetSizeRequest(100, actualHeight)
-	}
 
-	if w > 0 && h > 0 {
 		if blur := renderBlurhash(msg.Info, w, h); blur != nil {
 			pic.SetPaintable(blur)
 		}
@@ -106,6 +104,8 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 
 func (c imageContent) content() {}
 
+const maxBlurhash = 50
+
 func renderBlurhash(rawInfo json.RawMessage, w, h int) gdk.Paintabler {
 	var info struct {
 		BlurHash string `json:"xyz.amorgan.blurhash"`
@@ -115,7 +115,8 @@ func renderBlurhash(rawInfo json.RawMessage, w, h int) gdk.Paintabler {
 		return nil
 	}
 
-	nrgba := image.NewNRGBA(image.Rect(0, 0, w, h))
+	w, h = gotktrix.MaxSize(w, h, maxBlurhash, maxBlurhash)
+	nrgba := image.NewNRGBA(image.Rect(0, 0, maxBlurhash, maxBlurhash))
 
 	if err := blurhash.DecodeDraw(nrgba, info.BlurHash, 1); err != nil {
 		return nil

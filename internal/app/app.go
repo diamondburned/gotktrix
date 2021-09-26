@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/components/errpopup"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -23,6 +24,10 @@ import (
 		The java compiler does it as well
 		Painful
 */
+
+func init() {
+	glib.LogUseDefaultLogger()
+}
 
 // Application describes the state of a Matrix application.
 type Application struct {

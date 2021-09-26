@@ -5,10 +5,11 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
@@ -19,6 +20,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/locale"
+
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 
 	_ "github.com/diamondburned/gotktrix/internal/gtkutil/aggressivegc"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -41,24 +44,11 @@ func main() {
 	go func() {
 		<-ctx.Done()
 		// Quit with high priority.
-		glib.IdleAddPriority(glib.PriorityHigh, func() { app.Quit() })
+		glib.IdleAddPriority(coreglib.PriorityHigh, func() { app.Quit() })
 	}()
 
 	// Ensure the app quits on a panic.
 	defer app.Quit()
-
-	// // Futile attempt to unfreeze the program while it's suddenly freezing while
-	// // polling the sources.
-	// tick := true
-	// glib.TimeoutSecondsAdd(1, func() bool {
-	// 	if tick {
-	// 		log.Println("tick")
-	// 	} else {
-	// 		log.Println("tock")
-	// 	}
-	// 	tick = !tick
-	// 	return true
-	// })
 
 	if code := app.Run(os.Args); code > 0 {
 		log.Println("exit status", code)
@@ -79,6 +69,35 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 
 	ctx = app.WithApplication(ctx, a)
 	ctx = locale.WithLocalPrinter(ctx)
+
+	// Futile attempt to unfreeze the program from a snapshotting bug. The
+	// console will output the following when this bug occurs:
+	//
+	//    Trying to snapshot <widget> <addr> without a current allocation
+	//
+	logger := glib.LoggerHandler(log.Default())
+	glib.LogSetWriter(func(lvl glib.LogLevelFlags, fields []glib.LogField) glib.LogWriterOutput {
+		if lvl&glib.LogLevelWarning != 0 {
+			var message string
+
+			for _, f := range fields {
+				if f.Key() == "MESSAGE" {
+					message = f.Value()
+					break
+				}
+			}
+
+			if strings.Contains(message, "Trying to snapshot") {
+				glib.IdleAdd(func() {
+					w := a.Window()
+					w.QueueAllocate()
+					w.QueueDraw()
+				})
+			}
+		}
+
+		return logger(lvl, fields)
+	})
 
 	authAssistant := auth.New(ctx)
 	authAssistant.Show()
