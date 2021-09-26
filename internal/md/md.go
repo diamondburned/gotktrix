@@ -19,7 +19,6 @@ import (
 	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
-	"github.com/yuin/goldmark/util"
 	markutil "github.com/yuin/goldmark/util"
 )
 
@@ -27,9 +26,10 @@ import (
 var Parser = parser.NewParser(
 	parser.WithInlineParsers(
 		markutil.Prioritized(parser.NewLinkParser(), 0),
-		markutil.Prioritized(parser.NewEmphasisParser(), 1),
-		markutil.Prioritized(parser.NewCodeSpanParser(), 2),
-		markutil.Prioritized(parser.NewRawHTMLParser(), 3),
+		markutil.Prioritized(parser.NewAutoLinkParser(), 1),
+		markutil.Prioritized(parser.NewEmphasisParser(), 2),
+		markutil.Prioritized(parser.NewCodeSpanParser(), 3),
+		markutil.Prioritized(parser.NewRawHTMLParser(), 4),
 	),
 	parser.WithBlockParsers(
 		markutil.Prioritized(parser.NewParagraphParser(), 0),
@@ -50,7 +50,7 @@ var Converter = goldmark.New(
 	goldmark.WithRenderer(
 		renderer.NewRenderer(
 			renderer.WithNodeRenderers(
-				util.Prioritized(Renderer, 1000),
+				markutil.Prioritized(Renderer, 1000),
 			),
 		),
 	),
@@ -104,8 +104,13 @@ var TextTags = markuputil.TextTagsMap{
 	},
 	"a": {
 		"foreground":     "#238cf5",
-		"underline":      pango.UnderlineSingle,
 		"insert-hyphens": false,
+	},
+	"a:hover": { // TODO
+		"underline": pango.UnderlineSingle,
+	},
+	"a:visited": {
+		"foreground": "#d38dff",
 	},
 	"caption": {
 		"weight": pango.WeightLight,

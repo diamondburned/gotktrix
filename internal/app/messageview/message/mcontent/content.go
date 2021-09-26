@@ -52,7 +52,6 @@ func New(ctx context.Context, msgBox *gotktrix.EventBox) *Content {
 		return wrapParts(ctx, msgBox, newImageContent(ctx, msg))
 
 	// case event.RoomMessageEmote:
-	// case event.RoomMessageNotice:
 	// case event.RoomMessageFile:
 	// case event.RoomMessageAudio:
 	// case event.RoomMessageLocation:
