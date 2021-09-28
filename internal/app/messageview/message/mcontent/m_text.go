@@ -40,16 +40,6 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 	md.SetTabSize(tview)
 	textContentCSS(tview)
 
-	tview.Connect("map", func() {
-		// Fixes 2 GTK bugs:
-		// - TextViews are invisible sometimes.
-		// - Multiline TextViews are sometimes only drawn as 1.
-		glib.IdleAdd(func() {
-			tview.QueueAllocate()
-			tview.QueueResize()
-		})
-	})
-
 	text.BindLinkHandler(tview, func(url string) {
 		app.OpenURI(ctx, url)
 	})
@@ -72,6 +62,10 @@ func (c textContent) edit(body messageBody) {
 }
 
 func (c textContent) setContent(body messageBody, isEdited bool) {
+	glib.IdleAdd(func() { c._setContent(body, isEdited) })
+}
+
+func (c textContent) _setContent(body messageBody, isEdited bool) {
 	buf := c.TextView.Buffer()
 
 	start, end := buf.Bounds()

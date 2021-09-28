@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -34,6 +33,8 @@ var _ = cssutil.WriteCSS(`
 `)
 
 func main() {
+	glib.LogUseDefaultLogger()
+
 	// Quit the application on a SIGINT.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -69,35 +70,6 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 
 	ctx = app.WithApplication(ctx, a)
 	ctx = locale.WithLocalPrinter(ctx)
-
-	// Futile attempt to unfreeze the program from a snapshotting bug. The
-	// console will output the following when this bug occurs:
-	//
-	//    Trying to snapshot <widget> <addr> without a current allocation
-	//
-	logger := glib.LoggerHandler(log.Default())
-	glib.LogSetWriter(func(lvl glib.LogLevelFlags, fields []glib.LogField) glib.LogWriterOutput {
-		if lvl&glib.LogLevelWarning != 0 {
-			var message string
-
-			for _, f := range fields {
-				if f.Key() == "MESSAGE" {
-					message = f.Value()
-					break
-				}
-			}
-
-			if strings.Contains(message, "Trying to snapshot") {
-				glib.IdleAdd(func() {
-					w := a.Window()
-					w.QueueAllocate()
-					w.QueueDraw()
-				})
-			}
-		}
-
-		return logger(lvl, fields)
-	})
 
 	authAssistant := auth.New(ctx)
 	authAssistant.Show()

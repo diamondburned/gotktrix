@@ -421,12 +421,10 @@ func (p *Page) Load(done func()) {
 			return
 		}
 
-		for i := range events {
-			i := i // copy for referencing
-			glib.IdleAdd(func() { p.onRoomEvent(&events[i]) })
-		}
-
 		glib.IdleAdd(func() {
+			for i := range events {
+				p.onRoomEvent(&events[i])
+			}
 			p.loaded = true
 			p.scroll.ScrollToBottom()
 			done()
