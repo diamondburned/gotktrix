@@ -317,13 +317,13 @@ func (p *Page) clean() {
 	for lastRow.Index() >= gotktrix.TimelimeLimit {
 		row := p.list.RowAtIndex(0)
 		if row == nil {
-			continue
+			return
 		}
+
+		p.list.Remove(row)
 
 		id := matrix.EventID(row.Name())
 		delete(p.messages, id)
-
-		p.list.Remove(row)
 
 		for k, relatesTo := range p.mrelated {
 			if relatesTo == id {
@@ -471,6 +471,11 @@ func (p *Page) singleMessageState(
 	}
 
 	mr, ok := p.messages[eventID]
+	if !ok {
+		if rel := p.mrelated[eventID]; rel != "" {
+			mr, ok = p.messages[rel]
+		}
+	}
 	if !ok {
 		set("")
 		return
