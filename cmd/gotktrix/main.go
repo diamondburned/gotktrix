@@ -63,6 +63,8 @@ func main() {
 // open the room, and close it on our end.
 
 func activate(ctx context.Context, gtkapp *gtk.Application) {
+	adw.InitPreserveTheme()
+
 	a := app.Wrap(gtkapp)
 	a.Window().SetDefaultSize(800, 600)
 	a.Window().SetTitle("gotktrix")
