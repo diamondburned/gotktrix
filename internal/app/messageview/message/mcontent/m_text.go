@@ -52,6 +52,10 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 	body, isEdited := msgBody(msgBox)
 	c.setContent(body, isEdited)
 
+	tview.ConnectAfter("map", func() {
+		tview.QueueDraw()
+	})
+
 	return c
 }
 

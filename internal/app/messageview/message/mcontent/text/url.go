@@ -119,7 +119,9 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 		if buf == nil {
 			buf = tview.Buffer()
 			table = buf.TagTable()
+		}
 
+		if iters == [2]gtk.TextIter{} {
 			i1 := buf.IterAtOffset(0)
 			i2 := buf.IterAtOffset(0)
 			iters = [2]gtk.TextIter{i1, i2}
@@ -165,7 +167,10 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 	}
 
 	motion := gtk.NewEventControllerMotion()
-	motion.Connect("leave", unhover)
+	motion.Connect("leave", func() {
+		unhover()
+		iters = [2]gtk.TextIter{}
+	})
 	motion.Connect("motion", func(x, y float64) {
 		u := checkURL(x, y)
 		if u == lastURL {
