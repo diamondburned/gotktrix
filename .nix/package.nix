@@ -1,4 +1,5 @@
 {
+	src ? ./..,
 	lib,
 	pkgs,
 	internalPkgs ? import ./pkgs.nix {}, # only for overriding
@@ -13,18 +14,13 @@ let desktopFile = pkgs.makeDesktopItem {
 };
 
 in internalPkgs.buildGoModule {
+	inherit src;
+
 	pname = "gotktrix";
 	version = "0.0.1-tip";
 
-	src = pkgs.fetchFromGitHub {
-		owner  = "diamondburned";
-		repo   = "gotktrix";
-		rev    = "ec6b24643ada60a037de5b8c31064ba5b92ce550";
-		sha256 = "1pcd8qaggki3d4innw89nn6gk1rdp7wwv6zq8s5mbrzr55c60ylz";
-	};
-
 	# Bump this on go.mod change.
-	vendorSha256 = "0qcm426wm9lpf9qy2pg81x6pcaykphpxrxm3a4xpd7ll10zi3fpp";
+	vendorSha256 = "0jpq44261fllz1fdxyp4sjrlkfrdqcqplm5y95mcjwb3qjdxjb1z";
 
 	buildInputs = with internalPkgs; [
 		libadwaita
