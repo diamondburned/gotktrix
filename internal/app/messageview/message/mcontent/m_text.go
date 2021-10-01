@@ -37,6 +37,16 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 	tview.SetCursorVisible(false)
 	tview.SetWrapMode(gtk.WrapWordChar)
 
+	tview.ConnectAfter("realize", func() {
+		// Fixes 2 GTK bugs:
+		// - TextViews are invisible sometimes.
+		// - Multiline TextViews are sometimes only drawn as 1.
+		glib.IdleAdd(func() {
+			tview.QueueAllocate()
+			tview.QueueResize()
+		})
+	})
+
 	md.SetTabSize(tview)
 	textContentCSS(tview)
 
@@ -52,10 +62,6 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 	body, isEdited := msgBody(msgBox)
 	c.setContent(body, isEdited)
 
-	tview.ConnectAfter("map", func() {
-		tview.QueueDraw()
-	})
-
 	return c
 }
 
@@ -66,10 +72,6 @@ func (c textContent) edit(body messageBody) {
 }
 
 func (c textContent) setContent(body messageBody, isEdited bool) {
-	glib.IdleAdd(func() { c._setContent(body, isEdited) })
-}
-
-func (c textContent) _setContent(body messageBody, isEdited bool) {
 	buf := c.TextView.Buffer()
 
 	start, end := buf.Bounds()

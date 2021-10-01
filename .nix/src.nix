@@ -14,9 +14,9 @@ in {
 		hash  = "sha256:1l57ygzg5az0pikn0skj0bwggbvfj21d36glkwpkyp7csxi8hzhr";
 	};
 	nixpkgs = systemPkgs.fetchFromGitHub {
-		owner  = "NixOS";
-		repo   = "nixpkgs";
-		rev    = "8ecc61c91a5";
-		sha256 = "sha256:0vhajylsmipjkm5v44n2h0pglcmpvk4mkyvxp7qfvkjdxw21dyml";
+		owner = "NixOS";
+		repo  = "nixpkgs";
+		rev   = "3fdd780";
+		hash  = "sha256:0df9v2snlk9ag7jnmxiv31pzhd0rqx2h3kzpsxpj07xns8k8dghz";
 	};
 }

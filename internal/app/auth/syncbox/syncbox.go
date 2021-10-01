@@ -153,6 +153,7 @@ func Show(ctx context.Context, account *auth.Account) *Popup {
 	handle.SetChild(content)
 
 	window := gtk.NewWindow()
+	window.SetDecorated(false)
 	window.SetTransientFor(app.FromContext(ctx).Window())
 	window.SetModal(true)
 	window.SetDefaultSize(250, 100)

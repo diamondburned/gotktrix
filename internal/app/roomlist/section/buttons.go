@@ -10,6 +10,7 @@ var iconButtonCSS = cssutil.Applier("roomlist-iconbutton", `
 		font-size: 0.9em;
 		color: alpha(@theme_fg_color, 0.85);
 
+		border: none;
 		padding: 2px;
 		border-radius: 0;
 	}
@@ -30,9 +31,7 @@ var iconButtonCSS = cssutil.Applier("roomlist-iconbutton", `
 	.roomlist-showmore {
 		font-weight: initial;
 		background: none;
-	}
-	.roomlist-showmore * {
-		color: alpha(@theme_fg_color, 0.75);	
+		opacity: 0.6;
 	}
 `)
 

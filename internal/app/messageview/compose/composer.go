@@ -49,9 +49,10 @@ var composerCSS = cssutil.Applier("composer", `
 		border-radius: 99px;
 	}
 	.composer-more {
+		padding: 4px;
 		margin-top:   7px; /* why 7 */
 		margin-left:  14px;
-		margin-right: 10px;
+		margin-right: 8px;
 	}
 `)
 
