@@ -20,7 +20,7 @@ in internalPkgs.buildGoModule {
 	version = "0.0.1-tip";
 
 	# Bump this on go.mod change.
-	vendorSha256 = "0jpq44261fllz1fdxyp4sjrlkfrdqcqplm5y95mcjwb3qjdxjb1z";
+	vendorSha256 = "1v8mlawbl011696xlw839s9j956pyygpff924v1zbq3bpfylxqp4";
 
 	buildInputs = with internalPkgs; [
 		libadwaita

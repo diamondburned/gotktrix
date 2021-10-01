@@ -75,10 +75,10 @@ github.com/dgraph-io/ristretto v0.0.4-0.20210309073149-3836124cdc5a h1:1cMMkx3ie
 github.com/dgraph-io/ristretto v0.0.4-0.20210309073149-3836124cdc5a/go.mod h1:MIonLggsKgZLUSt414ExgwNtlOL5MuEoAJP514mwGe8=
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 h1:tdlZCpZ/P9DhczCTSixgIKmwPv6+wP5DGjqLYw5SUiA=
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUnsFjfmXRMNPybcSiG0BgUW2AuFH8PAnS2iTw=
-github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210930221626-d24304e5cefd h1:pzaPhzI81aiZvpGSvMzKEwhv2fr0tiAAio934YBLLIE=
-github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20210930221626-d24304e5cefd/go.mod h1:h//9PLZssJrnZvN5Z4dZ5JSeyA6thTU6b7Jxc7xsmYs=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210929231714-e119d218d210 h1:FcvktGABQcf59cBgh5+BI/m7jQP8T0pD5b1TZaOn1cM=
-github.com/diamondburned/gotk4/pkg v0.0.0-20210929231714-e119d218d210/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20211001042551-c59e0e3974fc h1:vljxC1A0Exkdp969rvLj0/z4pCSj9hJX3cfy6IbJn4Q=
+github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20211001042551-c59e0e3974fc/go.mod h1:JsMTPcqWvlG6X9ZkuO2RW/wiQx7fJ/Ke1Qs6hoeqhXI=
+github.com/diamondburned/gotk4/pkg v0.0.0-20211001041545-5d7eec322a59 h1:APNNLD5MYJ+8pJvCJYaDSM5KXNiaxJMLMxUx/f4+BAM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20211001041545-5d7eec322a59/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dlclark/regexp2 v1.4.0 h1:F1rxgk7p4uKjwIQxBs9oAXe5CqrXlCduYEJvrF4u93E=
 github.com/dlclark/regexp2 v1.4.0/go.mod h1:2pZnwuY/m+8K6iRw6wQdMtk+rH5tNGR1i55kozfMjCc=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
@@ -116,7 +116,6 @@ github.com/google/flatbuffers v1.12.0/go.mod h1:1AeVuKshWv4vARoZatz6mlQ0JxURH0Kv
 github.com/google/go-cmp v0.3.0/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=
 github.com/google/go-cmp v0.5.4/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
-github.com/gotk3/gotk3 v0.6.2-0.20210715143523-dfa2afe348c5/go.mod h1:/hqFpkNa9T3JgNAE2fLvCdov7c5bw//FHNZrZ3Uv9/Q=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 h1:+ngKgrYPPJrOjhax5N+uePQ0Fh1Z7PheYoUI/0nzkPA=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
