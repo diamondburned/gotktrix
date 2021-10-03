@@ -63,7 +63,22 @@ func main() {
 // open the room, and close it on our end.
 
 func activate(ctx context.Context, gtkapp *gtk.Application) {
-	adw.InitPreserveTheme()
+	adw.Init()
+
+	// TODO: Adwaita theming.
+
+	// adw.InitPreserveTheme()
+	// if os.Getenv("GTK_THEME") == "" {
+	// 	for _, display := range gdk.DisplayManagerGet().ListDisplays() {
+	// 		settings := gtk.SettingsGetForDisplay(&display)
+	// 		settings.ResetProperty("gtk-theme-name")
+	//
+	// 		styles := adw.StyleManagerGetForDisplay(&display)
+	//
+	// 		provider := cursed.StyleManagerProvider(styles)
+	// 		gtk.StyleContextRemoveProviderForDisplay(&display, provider)
+	// 	}
+	// }
 
 	a := app.Wrap(gtkapp)
 	a.Window().SetDefaultSize(800, 600)
