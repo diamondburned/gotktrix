@@ -118,11 +118,11 @@ var TextTags = markuputil.TextTagsMap{
 		"scale":  0.8,
 	},
 	"li": {
-		"left-margin": 16, // px
+		"left-margin": 24, // px
 	},
 	"blockquote": {
 		"foreground":  "#789922",
-		"left-margin": 8, // px
+		"left-margin": 12, // px
 	},
 
 	// Not HTML tag.

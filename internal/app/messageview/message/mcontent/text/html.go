@@ -252,7 +252,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				s.list++
 			}
 
-			nodePrependText(n, bullet)
+			s.buf.Insert(s.iter, "    "+bullet, -1)
 			s.renderChildren(n)
 			return traverseSkipChildren
 
