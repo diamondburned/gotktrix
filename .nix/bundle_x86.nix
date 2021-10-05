@@ -12,6 +12,8 @@ let nix-bundle-src = pkgs.fetchFromGitHub {
 	};
 
 in nix-bundle.nix-bootstrap {
-	target = internalPkgs.callPackage ./package.nix {};
+	target = internalPkgs.callPackage ./package.nix {
+		src = ./..;
+	};
 	run = "/bin/gotktrix";
 }
