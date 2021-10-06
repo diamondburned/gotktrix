@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/diamondburned/gotk4/pkg/core/gioutil"
@@ -221,14 +222,27 @@ func readPixbuf(r io.Reader, opts *opts) (*gdkpixbuf.Pixbuf, error) {
 	return pixbuf, nil
 }
 
+const defaultBufsz = 1 << 17 // 128KB
+
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, defaultBufsz)
+	},
+}
+
 func pixbufLoaderReadFrom(l *gdkpixbuf.PixbufLoader, r io.Reader) error {
-	_, err := io.Copy(gioutil.PixbufLoaderWriter(l), r)
+	buf := bufPool.Get().([]byte)
+	defer bufPool.Put(buf)
+
+	_, err := io.CopyBuffer(gioutil.PixbufLoaderWriter(l), r, buf)
 	if err != nil {
 		l.Close()
 		return err
 	}
+
 	if err := l.Close(); err != nil {
 		return fmt.Errorf("failed to close PixbufLoader: %w", err)
 	}
+
 	return nil
 }
