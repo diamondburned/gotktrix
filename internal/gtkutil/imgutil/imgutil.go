@@ -38,6 +38,13 @@ var sema = semaphore.NewWeighted(int64(runtime.GOMAXPROCS(-1)) * parallelMult)
 
 type opts struct {
 	w, h int
+	err  func(error)
+}
+
+func (o *opts) error(err error) {
+	if o.err != nil {
+		o.err(err)
+	}
 }
 
 // Opts is a type that can optionally modify the default internal options for
@@ -50,6 +57,11 @@ func processOpts(optFuncs []Opts) opts {
 		opt(&o)
 	}
 	return o
+}
+
+// WithErrorFn adds a callback that is called on an error.
+func WithErrorFn(f func(error)) Opts {
+	return func(o *opts) { o.err = f }
 }
 
 // WithRectRescale is a convenient function around WithRescale for rectangular
@@ -74,7 +86,9 @@ func AsyncRead(ctx context.Context, r io.ReadCloser, f func(gdk.Paintabler), opt
 		r.Close()
 	}()
 
-	async(ctx, func() (func(), error) {
+	o := processOpts(opts)
+
+	async(ctx, &o, func() (func(), error) {
 		defer cancel()
 
 		p, err := Read(r)
@@ -109,8 +123,10 @@ func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler), opts ...O
 		return
 	}
 
-	async(ctx, func() (func(), error) {
-		p, err := GET(ctx, url, opts...)
+	o := processOpts(opts)
+
+	async(ctx, &o, func() (func(), error) {
+		p, err := get(ctx, url, &o)
 		if err != nil {
 			return nil, errors.Wrap(err, "async GET error")
 		}
@@ -125,8 +141,10 @@ func AsyncPixbuf(ctx context.Context, url string, f func(*gdkpixbuf.Pixbuf), opt
 		return
 	}
 
-	async(ctx, func() (func(), error) {
-		p, err := GETPixbuf(ctx, url, opts...)
+	o := processOpts(opts)
+
+	async(ctx, &o, func() (func(), error) {
+		p, err := getPixbuf(ctx, url, &o)
 		if err != nil {
 			return nil, errors.Wrap(err, "async GET error")
 		}
@@ -135,16 +153,22 @@ func AsyncPixbuf(ctx context.Context, url string, f func(*gdkpixbuf.Pixbuf), opt
 	})
 }
 
-func async(ctx context.Context, do func() (func(), error)) {
+func async(ctx context.Context, o *opts, do func() (func(), error)) {
 	go func() {
 		if err := sema.Acquire(ctx, 1); err != nil {
+			err = errors.Wrap(err, "failed to acquire ctx")
+			glib.IdleAdd(func() { o.error(err) })
 			return
 		}
 		defer sema.Release(1)
 
 		f, err := do()
 		if err != nil {
-			log.Println("imgutil GET:", err)
+			if o.err != nil {
+				glib.IdleAdd(func() { o.err(err) })
+			} else {
+				log.Println("imgutil GET:", err)
+			}
 			return
 		}
 
@@ -152,6 +176,7 @@ func async(ctx context.Context, do func() (func(), error)) {
 			select {
 			case <-ctx.Done():
 				// don't call f if cancelledd
+				o.error(ctx.Err())
 			default:
 				f()
 			}
@@ -161,7 +186,12 @@ func async(ctx context.Context, do func() (func(), error)) {
 
 // GET gets the given URL into a Paintable.
 func GET(ctx context.Context, url string, opts ...Opts) (gdk.Paintabler, error) {
-	pixbuf, err := GETPixbuf(ctx, url, opts...)
+	o := processOpts(opts)
+	return get(ctx, url, &o)
+}
+
+func get(ctx context.Context, url string, o *opts) (gdk.Paintabler, error) {
+	pixbuf, err := getPixbuf(ctx, url, o)
 	if err != nil {
 		return nil, err
 	}
@@ -171,6 +201,11 @@ func GET(ctx context.Context, url string, opts ...Opts) (gdk.Paintabler, error) 
 
 // GETPixbuf gets the Pixbuf directly.
 func GETPixbuf(ctx context.Context, url string, opts ...Opts) (*gdkpixbuf.Pixbuf, error) {
+	o := processOpts(opts)
+	return getPixbuf(ctx, url, &o)
+}
+
+func getPixbuf(ctx context.Context, url string, o *opts) (*gdkpixbuf.Pixbuf, error) {
 	if url == "" {
 		return nil, nil
 	}
@@ -190,9 +225,7 @@ func GETPixbuf(ctx context.Context, url string, opts ...Opts) (*gdkpixbuf.Pixbuf
 		return nil, fmt.Errorf("unexpected status code %d getting %q", r.StatusCode, url)
 	}
 
-	o := processOpts(opts)
-
-	p, err := readPixbuf(r.Body, &o)
+	p, err := readPixbuf(r.Body, o)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read %q", url)
 	}

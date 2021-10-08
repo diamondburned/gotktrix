@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -157,7 +158,12 @@ func (m *cozyMessage) asyncFetch() {
 // setAvatar is safe to be called concurrently.
 func setAvatar(ctx context.Context, a *adw.Avatar, client *gotktrix.Client, mxc matrix.URL) {
 	avatarURL, _ := client.SquareThumbnail(mxc, avatarSize)
-	imgutil.AsyncGET(ctx, avatarURL, a.SetCustomImage)
+	imgutil.AsyncGET(
+		ctx, avatarURL, a.SetCustomImage,
+		imgutil.WithErrorFn(func(err error) {
+			log.Print("error getting avatar ", mxc, ":", err)
+		}),
+	)
 }
 
 // apiUpdate performs an asynchronous API update.
