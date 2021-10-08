@@ -6,7 +6,7 @@ require (
 	github.com/alecthomas/chroma v0.9.2
 	github.com/bbrks/go-blurhash v1.1.1
 	github.com/blevesearch/bleve/v2 v2.1.0
-	github.com/chanbakjsd/gotrix v0.3.2-0.20210910210016-20c8e183a055
+	github.com/chanbakjsd/gotrix v0.3.2-0.20211007235441-921b87c2e988
 	github.com/dgraph-io/badger/v3 v3.2103.0
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20211001042551-c59e0e3974fc
 	github.com/diamondburned/gotk4/pkg v0.0.0-20211001041545-5d7eec322a59

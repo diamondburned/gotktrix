@@ -10,6 +10,7 @@ import (
 	"mime"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/api"
@@ -27,17 +28,22 @@ import (
 // TimelimeLimit is the number of timeline events that the database keeps.
 const TimelimeLimit = state.TimelineKeepLast
 
-var Filter = event.GlobalFilter{
-	Room: event.RoomFilter{
-		IncludeLeave: true,
-		State: event.StateFilter{
-			LazyLoadMembers: true,
-		},
-		Timeline: event.RoomEventFilter{
-			Limit:           TimelimeLimit,
-			LazyLoadMembers: true,
+var SyncOptions = gotrix.SyncOptions{
+	Filter: event.GlobalFilter{
+		Room: event.RoomFilter{
+			IncludeLeave: true,
+			State: event.StateFilter{
+				LazyLoadMembers: true,
+			},
+			Timeline: event.RoomEventFilter{
+				Limit:           TimelimeLimit,
+				LazyLoadMembers: true,
+			},
 		},
 	},
+	Timeout:        time.Minute,
+	MinBackoffTime: 2 * time.Second,
+	MaxBackoffTime: 10 * time.Second,
 }
 
 var deviceName = "gotktrix"
@@ -212,7 +218,7 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 	registry := handler.New()
 
 	c.State = registry.Wrap(state)
-	c.Filter = Filter
+	c.SyncOpts = SyncOptions
 
 	return &Client{
 		Client:   c,

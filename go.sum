@@ -53,8 +53,8 @@ github.com/blevesearch/zapx/v15 v15.2.2 h1:5+oWWAQTV3M0UNor05qrZujzxIXVuwtYU3ppZ
 github.com/blevesearch/zapx/v15 v15.2.2/go.mod h1:I4QVJ432LKkZyNK1kZkh3OweKa+NSblZzIF0YSSExak=
 github.com/cespare/xxhash v1.1.0 h1:a6HrQnmkObjyL+Gs60czilIUGqrzKutQD6XZog3p+ko=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
-github.com/chanbakjsd/gotrix v0.3.2-0.20210910210016-20c8e183a055 h1:NyE8aoaXAI7ys4TLEeTDP+6osU8tYLuIfAMtHGfGCtE=
-github.com/chanbakjsd/gotrix v0.3.2-0.20210910210016-20c8e183a055/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
+github.com/chanbakjsd/gotrix v0.3.2-0.20211007235441-921b87c2e988 h1:Zc0Qz/5OwuIpgtosb8TTChiTBynD4OpQMExhmy5yJ4Y=
+github.com/chanbakjsd/gotrix v0.3.2-0.20211007235441-921b87c2e988/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-etcd v2.0.0+incompatible/go.mod h1:Jez6KQU2B/sWsbdaef3ED8NzMklzPG4d5KIOhIy30Tk=

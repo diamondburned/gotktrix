@@ -18,12 +18,12 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/selfbar"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 
 	_ "github.com/diamondburned/gotktrix/internal/gtkutil/aggressivegc"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
 var _ = cssutil.WriteCSS(`
@@ -176,6 +176,7 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	a := app.FromContext(m.ctx)
 	a.Window().SetChild(flap)
 	a.Header().PackStart(unflap)
+	a.Header().PackEnd(Blinker(m.ctx))
 }
 
 func (m *manager) OpenRoom(id matrix.RoomID) {
