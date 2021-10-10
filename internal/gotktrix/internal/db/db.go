@@ -1,16 +1,13 @@
 package db
 
 import (
-	"bytes"
-	"runtime"
-	"sync"
+	"log"
+	"os"
+	"time"
 
-	"github.com/dgraph-io/badger/v3"
-	"github.com/dgraph-io/badger/v3/options"
 	"github.com/pkg/errors"
+	"go.etcd.io/bbolt"
 )
-
-const delimiter = "\x00"
 
 // NodePath contains the full path to a node. It can be used as a lighter way to
 // store nodes.
@@ -28,76 +25,120 @@ func NewNodePath(names ...string) NodePath {
 
 // Tail creates a copy of NodePath with the given tail.
 func (p NodePath) Tail(tails ...string) NodePath {
-	namesBytes := make([][]byte, 0, len(p)+len(tails))
-	namesBytes = append(namesBytes, p...)
+	namesBytes := make([][]byte, len(p), len(p)+len(tails))
+	copy(namesBytes, p)
 	for i := range tails {
 		namesBytes = append(namesBytes, []byte(tails[i]))
 	}
 	return namesBytes
 }
 
-type KV struct {
-	Marshaler
-	db *badger.DB
-	mu sync.RWMutex
+// NodePath traverses the given transaction and returns the bucket. If any of
+// the buckets don't exist, then a new one is created, unless the transaction is
+// read-only.
+//
+// If NodePath is empty, then a Bucket with a nil byte is returned.
+func (p NodePath) Bucket(tx *bbolt.Tx) (*bbolt.Bucket, error) {
+	return p.bucket(tx, false)
 }
 
-func halfMin(v, min int) int {
-	v /= 2
-	if v > min {
-		return v
+// BucketExists traverses and returns true if the bucket exists.
+func (p NodePath) BucketExists(tx *bbolt.Tx) (*bbolt.Bucket, bool) {
+	b, err := p.bucket(tx, true)
+	return b, err == nil
+}
+
+func (p NodePath) bucket(tx *bbolt.Tx, ro bool) (*bbolt.Bucket, error) {
+	if len(p) == 0 {
+		return getBucketRoot(tx, nil, ro)
 	}
-	return min
+
+	log.Printf("accessing bucket path %q", p)
+
+	b, err := getBucketRoot(tx, p[0], ro)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, path := range p[1:] {
+		if b, err = getBucket(b, path, ro); err != nil {
+			return nil, err
+		}
+	}
+
+	return b, nil
+}
+
+func getBucketRoot(tx *bbolt.Tx, k []byte, ro bool) (*bbolt.Bucket, error) {
+	if tx.Writable() && !ro {
+		return tx.CreateBucketIfNotExists(k)
+	}
+	if b := tx.Bucket(k); b != nil {
+		return b, nil
+	}
+	return nil, bbolt.ErrBucketNotFound
+}
+
+func getBucket(b *bbolt.Bucket, k []byte, ro bool) (*bbolt.Bucket, error) {
+	if b.Writable() && !ro {
+		return b.CreateBucketIfNotExists(k)
+	}
+	if b := b.Bucket(k); b != nil {
+		return b, nil
+	}
+	return nil, bbolt.ErrBucketNotFound
+}
+
+type KV struct {
+	Marshaler
+	db *bbolt.DB
 }
 
 func NewKVFile(path string) (*KV, error) {
-	optimumWorkers := halfMin(runtime.GOMAXPROCS(-1), 1)
-
-	opt := badger.LSMOnlyOptions(path)
-	opt = opt.WithNumGoroutines(optimumWorkers)
-	opt = opt.WithNumCompactors(optimumWorkers)
-	opt = opt.WithLoggingLevel(badger.WARNING)
-	opt = opt.WithCompression(options.ZSTD)
-	opt = opt.WithZSTDCompressionLevel(2)
-	opt = opt.WithBlockCacheSize(1 << 24)   // 16MB
-	opt = opt.WithValueLogFileSize(1 << 29) // 500MB
-	opt = opt.WithCompactL0OnClose(true)
-	opt = opt.WithMetricsEnabled(false)
-
-	return NewKV(opt)
-}
-
-func NewKV(opts badger.Options) (*KV, error) {
-	b, err := badger.Open(opts)
+	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{
+		Timeout:      10 * time.Second,
+		FreelistType: bbolt.FreelistMapType,
+	})
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to open a Badger DB")
+		return nil, errors.Wrap(err, "failed to open db")
 	}
 
-	return KVWithDB(b), nil
-}
-
-func KVWithDB(db *badger.DB) *KV {
 	return &KV{
 		Marshaler: CBORMarshaler,
 		db:        db,
-	}
+	}, nil
 }
 
 // DropPrefix drops the whole given prefix.
 func (kv *KV) DropPrefix(path NodePath) error {
-	kv.mu.RLock()
-	defer kv.mu.RUnlock()
+	return kv.db.Update(func(tx *bbolt.Tx) error {
+		return dropBucketPrefix(tx, path)
+	})
+}
 
-	return kv.db.DropPrefix(
-		bytes.TrimSuffix(convertKey(path, ""), []byte(delimiter)),
-	)
+func dropBucketPrefix(tx *bbolt.Tx, path NodePath) error {
+	if len(path) == 0 {
+		return errors.New("cannot delete whole database")
+	}
+
+	if len(path) == 1 {
+		return tx.DeleteBucket(path[0])
+	}
+
+	// Slice off the last bucket name.
+	b, err := path[:len(path)-1].Bucket(tx)
+	if err != nil {
+		return err
+	}
+
+	return b.DeleteBucket(path[len(path)-1])
 }
 
 // NodeFromPath creates a new Node from path.
 func (kv *KV) NodeFromPath(path NodePath) Node {
 	return Node{
-		prefixes: path,
-		kv:       kv,
+		kv:   kv,
+		path: path,
 	}
 }
 
@@ -112,10 +153,5 @@ func (kv *KV) Node(names ...string) Node {
 
 // Close closes the database.
 func (kv *KV) Close() error {
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
-
-	defer func() { kv.db = nil }()
-
 	return kv.db.Close()
 }

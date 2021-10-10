@@ -1,17 +1,15 @@
 package db
 
 import (
-	"bytes"
-	"reflect"
-	"strings"
-	"time"
+	"log"
 
-	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
+	"go.etcd.io/bbolt"
 )
 
-var ErrKeyNotFound = errors.New("Key not found in database")
+var ErrKeyNotFound = errors.New("key not found in database")
 
+/*
 // Keys joins the given keys with the delimiter inbetween. This is an
 // alternative over calling .Node().
 func Keys(keys ...string) string {
@@ -76,13 +74,12 @@ func wrapErr(str string, err error) error {
 		return nil
 	}
 
-	if !errors.Is(err, badger.ErrKeyNotFound) {
-		// log.Println("unexpected db error:", err)
-	} else {
-		return ErrKeyNotFound
+	switch {
+	case errors.Is(err, bbolt.ErrBucketNotFound):
+		return errors.Wrap(ErrKeyNotFound, str)
+	default:
+		return errors.Wrap(err, str)
 	}
-
-	return errors.Wrap(err, str)
 }
 
 func iterKeyOnlyOpts(prefix []byte) badger.IteratorOptions {
@@ -99,72 +96,112 @@ func iterOpts(prefix []byte) badger.IteratorOptions {
 	o.Prefix = prefix
 	return o
 }
+*/
 
 type Node struct {
-	kv       *KV
-	txn      *badger.Txn
-	prefixes [][]byte
+	kv   *KV
+	txn  *bbolt.Tx
+	buck *bbolt.Bucket
+	path NodePath
 }
 
 // TxUpdate creates a new Node with an active transaction and calls f. If this
 // method is called in a Node that already has a transaction, then that
 // transaction is reused.
 func (n Node) TxUpdate(f func(n Node) error) error {
-	if n.txn != nil {
-		return f(n)
+	if n.txn != nil && !n.txn.Writable() {
+		return bbolt.ErrTxNotWritable
 	}
 
-	n.kv.mu.RLock()
-	defer n.kv.mu.RUnlock()
-
-	if n.kv.db == nil {
-		return badger.ErrDBClosed
-	}
-
-	n.txn = n.kv.db.NewTransaction(true)
-	defer n.txn.Discard()
-
-	if err := f(n); err != nil {
-		return err
-	}
-
-	return n.txn.Commit()
+	return n.doTx(f, true)
 }
 
 // TxUpdate creates a new Node with an active read-only transaction and calls f.
 // If this method is called in a Node that already has a transaction, then that
 // transaction is reused.
 func (n Node) TxView(f func(n Node) error) error {
+	return n.doTx(f, false)
+}
+
+func (n *Node) doTx(f func(n Node) error, writable bool) error {
 	if n.txn != nil {
-		return f(n)
+		return f(*n)
 	}
 
-	n.kv.mu.RLock()
-	defer n.kv.mu.RUnlock()
+	t, err := n.kv.db.Begin(writable)
+	if err != nil {
+		return errors.Wrap(err, "failed to begin RO transaction")
+	}
+	defer t.Rollback()
 
-	if n.kv.db == nil {
-		return badger.ErrDBClosed
+	n.txn = t
+	n.buck = nil
+
+	if len(n.path) > 0 && writable {
+		_, err := n.bucket()
+		if err != nil {
+			return errors.Wrap(err, "failed to fetch bucket for existing path")
+		}
 	}
 
-	n.txn = n.kv.db.NewTransaction(false)
-	defer n.txn.Discard()
-
-	if err := f(n); err != nil {
+	if err := f(*n); err != nil {
 		return err
 	}
 
-	return n.txn.Commit()
+	if writable {
+		if err := n.txn.Commit(); err != nil {
+			log.Println("commit error:", err)
+			return errors.Wrap(err, "failed to commit to database")
+		}
+	}
+
+	return nil
 }
 
-// Prefix returns the joined prefixes with the trailing delimiter.
-func (n Node) Prefix() string {
-	return string(convertKey(n.prefixes, ""))
+func (n *Node) bucket() (*bbolt.Bucket, error) {
+	if n.buck != nil {
+		return n.buck, nil
+	}
+
+	if n.txn == nil {
+		return nil, bbolt.ErrTxClosed
+	}
+
+	b, err := n.path.Bucket(n.txn)
+	if err != nil {
+		if errors.Is(err, bbolt.ErrBucketNotFound) {
+			return nil, ErrKeyNotFound
+		}
+		return nil, err
+	}
+
+	n.buck = b
+	return b, nil
+}
+
+func (n *Node) bucketExists() bool {
+	if n.buck != nil {
+		return true
+	}
+
+	b, exists := n.path.BucketExists(n.txn)
+	if exists {
+		n.buck = b
+	}
+
+	return exists
 }
 
 // FromPath creates a new node with the given full path. The path will
 // completely override the old path.
 func (n Node) FromPath(path NodePath) Node {
-	n.prefixes = path
+	// Ensure that the given path does NOT get to grow further.
+	n.path = path[:len(path):len(path)]
+	n.buck = nil
+
+	// Fill the bucket but skip over the error, since it doesn't really matter.
+	n.bucket()
+
 	return n
 }
 
@@ -175,338 +212,189 @@ func (n Node) Node(names ...string) Node {
 		panic("Node name can't be empty")
 	}
 
-	namesBytes := make([][]byte, len(names))
-	for i := range names {
-		namesBytes[i] = []byte(names[i])
+	// if cap(n.path) > len(n.path)+len(names) {
+	// 	// No growing required.
+	// 	for _, name := range names {
+	// 		n.path = append(n.path, []byte(name))
+	// 	}
+	// 	return n.FromPath(n.path)
+	// }
+
+	path := make([][]byte, len(n.path), (len(n.path)+len(names))*3/2)
+	copy(path, n.path)
+
+	for _, name := range names {
+		path = append(path, []byte(name))
 	}
 
-	prefixes := make([][]byte, 0, len(n.prefixes)+1)
-	prefixes = append(prefixes, n.prefixes...)
-	prefixes = append(prefixes, namesBytes...)
-
-	n.prefixes = prefixes
-	return n
+	return n.FromPath(path)
 }
 
 // SetIfNone sets the key into the database only if the key does not exist. This
 // method is useful primarily for filling up the cache with data fetched from
 // the API while data from /sync should be prioritized.
 func (n Node) SetIfNone(k string, v interface{}) error {
-	b, err := n.kv.Marshal(v)
+	bytes, err := n.kv.Marshal(v)
 	if err != nil {
 		return errors.Wrap(err, "Failed to marshal")
 	}
 
-	key := convertKey(n.prefixes, k)
-
-	return wrapErr("failed to update db", n.TxUpdate(
-		func(n Node) error {
-			_, err := n.txn.Get(key)
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				return n.txn.Set(key, b)
-			}
+	return n.TxUpdate(func(n Node) error {
+		b, err := n.bucket()
+		if err != nil {
 			return err
-		},
-	))
+		}
+
+		if b.Get([]byte(k)) != nil {
+			return nil
+		}
+
+		return b.Put([]byte(k), bytes)
+	})
 }
 
 // Set sets the key into the database.
 func (n Node) Set(k string, v interface{}) error {
-	b, err := n.kv.Marshal(v)
+	bytes, err := n.kv.Marshal(v)
 	if err != nil {
 		return errors.Wrap(err, "Failed to marshal")
 	}
 
-	key := convertKey(n.prefixes, k)
-
-	return wrapErr("failed to update db", n.TxUpdate(
-		func(n Node) error {
-			return n.txn.Set(key, b)
-		},
-	))
-}
-
-// SetWithTTL sets the key into the database with time-to-live, or an expiry
-// duration.
-func (n Node) SetWithTTL(k string, v interface{}, ttl time.Duration) error {
-	b, err := n.kv.Marshal(v)
-	if err != nil {
-		return errors.Wrap(err, "Failed to marshal")
+	if k == "" {
+		k = "\x00"
 	}
 
-	key := convertKey(n.prefixes, k)
-	expiry := time.Now().Add(ttl)
+	return n.TxUpdate(func(n Node) error {
+		b, err := n.bucket()
+		if err != nil {
+			return err
+		}
 
-	return wrapErr("failed to update db", n.TxUpdate(
-		func(n Node) error {
-			return n.txn.SetEntry(&badger.Entry{
-				Key:       key,
-				Value:     b,
-				ExpiresAt: uint64(expiry.Unix()),
-			})
-		},
-	))
+		return b.Put([]byte(k), bytes)
+	})
 }
 
 // Exists returns true if the given key exists.
-func (n Node) Exists(k string) bool {
-	return n.Get(k, nil) == nil
+func (n Node) Exists(k string) (exists bool) {
+	err := n.TxView(func(n Node) error {
+		if !n.bucketExists() {
+			return nil
+		}
+
+		b, err := n.bucket()
+		if err != nil {
+			return err
+		}
+
+		// If k is empty, then check for the bucket's presence.
+		exists = k == "" || b.Get([]byte(k)) != nil
+		return nil
+	})
+
+	return err == nil && exists
 }
 
+// Get gets the given key from the node.
 func (n Node) Get(k string, v interface{}) error {
-	key := convertKey(n.prefixes, k)
+	if k == "" {
+		k = "\x00"
+	}
 
-	return wrapErr("failed to get from db", n.TxView(
-		func(n Node) error {
-			i, err := n.txn.Get(key)
-			if err != nil {
-				return err
-			}
+	return n.TxView(func(n Node) error {
+		b, err := n.bucket()
+		if err != nil {
+			return err
+		}
 
-			if v == nil {
-				return nil
-			}
+		bytes := b.Get([]byte(k))
+		if bytes == nil {
+			return ErrKeyNotFound
+		}
 
-			return i.Value(func(b []byte) error {
-				if err := n.kv.Unmarshal(b, v); err != nil {
-					return errors.Wrap(err, "failed to unmarshal")
-				}
-				return nil
-			})
-		},
-	))
+		if err := n.kv.Unmarshal(bytes, v); err != nil {
+			return errors.Wrap(err, "failed to unmarshal")
+		}
+
+		return nil
+	})
 }
-
-/*
-// GetOld is like Get, but the previous version of the key is given. This can be
-// useful for stateful events.
-func (n Node) GetOld(k string, v interface{}) error {
-	key := convertKey(n.prefixes, k)
-
-	return wrapErr("failed to get from db", n.TxView(
-		func(n Node) error {
-			iter := n.txn.NewKeyIterator(key, badger.IteratorOptions{
-				PrefetchValues: true,
-				PrefetchSize:   1,
-			})
-			defer iter.Close()
-
-			for iter.Rewind(); iter.Valid(); iter.Next() {
-				// Grab right from the first iteration.
-				return iter.Item().Value(func(b []byte) error {
-					if err := n.kv.Unmarshal(b, v); err != nil {
-						return errors.Wrap(err, "failed to unmarshal")
-					}
-					return nil
-				})
-			}
-
-			return badger.ErrKeyNotFound
-		},
-	))
-}
-*/
 
 func (n Node) Delete(k string) error {
-	key := convertKey(n.prefixes, k)
-
-	return wrapErr("failed to delete from db", n.TxUpdate(
-		func(n Node) error {
-			return n.txn.Delete(key)
-		},
-	))
+	return n.TxUpdate(func(n Node) error {
+		b, err := n.bucket()
+		if err != nil {
+			return err
+		}
+		return b.Delete([]byte(k))
+	})
 }
 
 // Drop drops the entire node and all its values.
 func (n Node) Drop() error {
-	prefix := convertKey(n.prefixes, "")
-
-	return wrapErr("failed to delete from db", n.TxUpdate(
-		func(n Node) error {
-			iter := n.txn.NewIterator(iterKeyOnlyOpts(prefix))
-			defer iter.Close()
-
-			for iter.Rewind(); iter.Valid(); iter.Next() {
-				key := iter.Item().KeyCopy(nil)
-				if err := n.txn.Delete(key); err != nil {
-					return errors.Wrap(err, "failed to delete key "+string(key))
-				}
-			}
-
-			return nil
-		},
-	))
+	return n.TxUpdate(func(n Node) error {
+		return dropBucketPrefix(n.txn, n.path)
+	})
 }
 
 // DropExceptLast drops the entire node except for the last few values. This
 // method heavily relies on keyed values being sorted properly, and that the
 // stored values are NOT nested.
 func (n Node) DropExceptLast(last int) error {
-	prefix := convertKey(n.prefixes, "")
+	return n.TxUpdate(func(n Node) error {
+		var lastError error
+		var buckets [][]byte
 
-	var total int
-
-	return wrapErr("failed to delete from db", n.TxUpdate(
-		func(n Node) error {
-			iter := n.txn.NewIterator(iterKeyOnlyOpts(prefix))
-			defer iter.Close()
-
-			for iter.Rewind(); iter.Valid(); iter.Next() {
-				total++
-			}
-
-			until := total - last
-			if until < 1 {
-				return nil
-			}
-
-			for iter.Rewind(); iter.Valid() && until > 0; iter.Next() {
-				key := iter.Item().KeyCopy(nil)
-				if err := n.txn.Delete(key); err != nil {
-					return errors.Wrapf(err, "failed to delete key %q", key)
-				}
-				until--
-			}
-
-			return nil
-		},
-	))
-}
-
-// All scans all values with the key prefix into the slice. This method uses
-// reflection. The given slice will have its length reset to 0.
-func (n Node) All(slicePtr interface{}, prefix string) error {
-	vPtr := reflect.ValueOf(slicePtr)
-	if vPtr.Kind() != reflect.Ptr {
-		return errors.New("given slice ptr is not a ptr")
-	}
-
-	v := vPtr.Elem()
-	if v.Kind() != reflect.Slice {
-		return errors.New("not a slice")
-	}
-
-	// this will have a trailing delimiter regardless
-	longPrefix := convertKey(n.prefixes, prefix)
-
-	fn := func(n Node) error {
-		iter := n.txn.NewIterator(iterOpts(longPrefix))
-		defer iter.Close()
-
-		var length int
-		for iter.Rewind(); iterValidKey(iter, longPrefix); iter.Next() {
-			length++
+		b, err := n.bucket()
+		if err != nil {
+			return err
 		}
 
-		if length == 0 {
-			v.SetLen(0)
-			return nil
-		}
+		cursor := b.Cursor()
 
-		// Reallocate anyway, because we want fresh zero values.
-		vType := v.Type()
-		v.Set(reflect.MakeSlice(vType, length, length))
+		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
+			if last > 0 {
+				last--
+				continue
+			}
 
-		var ix int
-		for iter.Rewind(); iterValidKey(iter, longPrefix); iter.Next() {
-			item := iter.Item()
-			// Directly use a pointer to the backing array to unmarshal into.
-			dst := v.Index(ix).Addr()
-			ix++
+			if v == nil {
+				buckets = append(buckets, append([]byte(nil), k...))
+				continue
+			}
 
-			// Start to unmarshal
-			if err := item.Value(func(b []byte) error {
-				return n.kv.Unmarshal(b, dst.Interface())
-			}); err != nil {
-				return errors.Wrap(err, "failed to unmarshal into new underlying value")
+			if err := cursor.Delete(); err != nil {
+				lastError = err
 			}
 		}
 
-		return nil
-	}
+		for _, k := range buckets {
+			b.DeleteBucket(k)
+		}
 
-	return wrapErr("failed to iterate", n.TxView(fn))
+		return lastError
+	})
 }
 
 // Length queries the number of keys within the node, similarly to running
 // AllKeys and taking the length of what was returned.
 func (n Node) Length(prefix string) (int, error) {
 	// this will have a trailing delimiter regardless
-	longPrefix := convertKey(n.prefixes, prefix)
 	var length int
 
-	return length, wrapErr("failed to iterate keys", n.TxView(
-		func(n Node) error {
-			iter := n.txn.NewIterator(iterKeyOnlyOpts(longPrefix))
-			defer iter.Close()
+	return length, n.TxView(func(n Node) error {
+		b, err := n.bucket()
+		if err != nil {
+			return err
+		}
 
-			for iter.Rewind(); iterValidKey(iter, longPrefix); iter.Next() {
-				length++
-			}
+		cursor := b.Cursor()
 
-			return nil
-		},
-	))
-}
+		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+			length++
+		}
 
-var stringType = reflect.TypeOf("")
-
-// AllKeys is similar to All, except only the keys are fetched.
-func (n Node) AllKeys(slicePtr interface{}, prefix string) error {
-	vPtr := reflect.ValueOf(slicePtr)
-	if vPtr.Kind() != reflect.Ptr {
-		return errors.New("given slice ptr is not a ptr")
-	}
-
-	v := vPtr.Elem()
-	if v.Kind() != reflect.Slice {
-		return errors.New("not a slice")
-	}
-
-	elemT := v.Type().Elem()
-	needsConvert := stringType == elemT
-
-	// this will have a trailing delimiter regardless
-	longPrefix := convertKey(n.prefixes, prefix)
-
-	return wrapErr("failed to iterate keys", n.TxView(
-		func(n Node) error {
-			iter := n.txn.NewIterator(iterKeyOnlyOpts(longPrefix))
-			defer iter.Close()
-
-			var length int
-			for iter.Rewind(); iterValidKey(iter, longPrefix); iter.Next() {
-				length++
-			}
-
-			if length == 0 {
-				v.SetLen(0)
-				return nil
-			}
-
-			vType := v.Type()
-			v.Set(reflect.MakeSlice(vType, length, length))
-
-			var ix int
-
-			for iter.Rewind(); iter.Valid(); iter.Next() {
-				ik, ok := iterSplitKey(iter, longPrefix)
-				if !ok {
-					continue
-				}
-
-				vk := reflect.ValueOf(string(ik))
-				if needsConvert {
-					vk = vk.Convert(elemT)
-				}
-
-				v.Index(ix).Set(vk)
-				ix++
-			}
-
-			return nil
-		},
-	))
+		return nil
+	})
 }
 
 // EachBreak is an error that Each callbacks could return to stop the loop and
@@ -526,90 +414,79 @@ var EachBreak = errors.New("each break (not an error)")
 // For iterating, as mentioned above, the user will need to manually copy the
 // pointer by dereferencing and re-referencing it.
 //
-//    obj  :=   &Struct{}
-//    objs := []*Struct{}
+//    var obj Struct
+//    var objs []Struct
 //
-//    n.Each(obj, "", func(k string) error {
+//    n.Each(&obj, "", func(k string) error {
 //        if obj.Thing == "what I want" {
-//            cpy := *obj // copy
-//            objs = append(objs, &cpy)
+//            objs = append(objs, obj)
 //        }
-//
 //        return nil
 //    })
 //
 func (n Node) Each(v interface{}, prefix string, fn func(k string, l int) error) error {
-	// this will have a trailing delimiter regardless
-	fullPrefix := convertKey(n.prefixes, prefix)
+	return n.TxView(func(n Node) error {
+		b, err := n.bucket()
+		if err != nil {
+			return err
+		}
 
-	return wrapErr("failed to iterate", n.TxView(
-		func(n Node) error {
-			iter := n.txn.NewIterator(iterOpts(fullPrefix))
-			defer iter.Close()
+		cursor := b.Cursor()
 
-			var length int
-			for iter.Rewind(); iterValidKey(iter, fullPrefix); iter.Next() {
+		var length int
+		for k, b := cursor.First(); k != nil; k, b = cursor.Next() {
+			if b != nil {
 				length++
 			}
+		}
 
-			for iter.Rewind(); iter.Valid(); iter.Next() {
-				ik, ok := iterSplitKey(iter, fullPrefix)
-				if !ok {
-					continue
-				}
+		for k, b := cursor.First(); k != nil; k, b = cursor.Next() {
+			log.Printf("for path %q got %q", n.path, k)
 
-				item := iter.Item()
-
-				if err := item.Value(func(b []byte) error {
-					return n.kv.Unmarshal(b, v)
-				}); err != nil {
-					return errors.Wrapf(err, "failed to unmarshal %q", string(ik))
-				}
-
-				if err := fn(string(ik), length); err != nil {
-					if err == EachBreak {
-						return nil
-					}
-
-					return err
-				}
+			if b == nil {
+				continue // bucket
 			}
 
-			return nil
-		},
-	))
+			if err := n.kv.Unmarshal(b, v); err != nil {
+				return errors.Wrapf(err, "failed to unmarshal %q", string(k))
+			}
+
+			if err := fn(string(k), length); err != nil {
+				if err == EachBreak {
+					return nil
+				}
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 // EachKey iterates over keys.
 func (n Node) EachKey(prefix string, fn func(k string, l int) error) error {
-	fullPrefix := convertKey(n.prefixes, prefix)
+	return n.TxView(func(n Node) error {
+		b, err := n.bucket()
+		if err != nil {
+			return err
+		}
 
-	return wrapErr("failed to iterate keys", n.TxView(
-		func(n Node) error {
-			iter := n.txn.NewIterator(iterOpts(fullPrefix))
-			defer iter.Close()
+		cursor := b.Cursor()
 
-			var length int
-			for iter.Rewind(); iterValidKey(iter, fullPrefix); iter.Next() {
-				length++
-			}
+		var length int
+		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+			length++
+		}
 
-			for iter.Rewind(); iter.Valid(); iter.Next() {
-				ik, ok := iterSplitKey(iter, fullPrefix)
-				if !ok {
-					continue
+		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+			if err := fn(string(k), length); err != nil {
+				if err == EachBreak {
+					return nil
 				}
-
-				if err := fn(string(ik), length); err != nil {
-					if err == EachBreak {
-						return nil
-					}
-
-					return err
-				}
+				return err
 			}
+		}
 
-			return nil
-		},
-	))
+		return nil
+	})
 }

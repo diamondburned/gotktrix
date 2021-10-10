@@ -207,7 +207,7 @@ func GETPixbuf(ctx context.Context, url string, opts ...Opts) (*gdkpixbuf.Pixbuf
 
 func getPixbuf(ctx context.Context, url string, o *opts) (*gdkpixbuf.Pixbuf, error) {
 	if url == "" {
-		return nil, nil
+		return nil, errors.New("empty URL given")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)

@@ -35,10 +35,10 @@ func setRawEvent(n db.Node, roomID matrix.RoomID, raw *event.RawEvent, state boo
 
 	var dbKey string
 	if raw.StateKey != "" {
-		dbKey = db.Keys(string(raw.Type), string(raw.StateKey))
-	} else {
-		dbKey = string(raw.Type)
+		dbKey = string(raw.StateKey)
 	}
+
+	n = n.Node(string(raw.Type))
 
 	var err error
 	if state {
@@ -56,7 +56,8 @@ func (p *dbPaths) setRaws(
 	n db.Node, roomID matrix.RoomID, raws []event.RawEvent, state bool) {
 
 	if roomID != "" {
-		n = n.FromPath(p.rooms.Tail(string(roomID)))
+		n = n.FromPath(p.rooms)
+		n = n.Node(string(roomID))
 	} else {
 		n = n.FromPath(p.user)
 	}
@@ -70,7 +71,8 @@ func (p *dbPaths) setStrippeds(
 	n db.Node, roomID matrix.RoomID, raws []event.StrippedEvent, state bool) {
 
 	if roomID != "" {
-		n = n.FromPath(p.rooms.Tail(string(roomID)))
+		n = n.FromPath(p.rooms)
+		n = n.Node(string(roomID))
 	} else {
 		n = n.FromPath(p.user)
 	}
@@ -90,12 +92,12 @@ func (p *dbPaths) setSummary(n db.Node, roomID matrix.RoomID, s api.SyncRoomSumm
 	}
 }
 
-func (p *dbPaths) timelinePath(roomID matrix.RoomID) db.NodePath {
-	return p.timelines.Tail(string(roomID))
+func (p *dbPaths) timelineNode(n db.Node, roomID matrix.RoomID) db.Node {
+	return n.FromPath(p.timelines).Node(string(roomID))
 }
 
-func (p *dbPaths) timelineEventsPath(roomID matrix.RoomID) db.NodePath {
-	return p.timelines.Tail(string(roomID), "events")
+func (p *dbPaths) timelineEventsNode(n db.Node, roomID matrix.RoomID) db.Node {
+	return p.timelineNode(n, roomID).Node("events")
 }
 
 var i64ZeroPadding = func() string {
@@ -120,7 +122,7 @@ func timelineEventKey(ev *event.RawEvent) string {
 }
 
 func (p *dbPaths) setTimeline(n db.Node, roomID matrix.RoomID, tl api.SyncTimeline) {
-	tnode := n.FromPath(p.timelineEventsPath(roomID))
+	tnode := p.timelineEventsNode(n, roomID)
 
 	for i := range tl.Events {
 		tl.Events[i].RoomID = roomID
@@ -139,7 +141,7 @@ func (p *dbPaths) setTimeline(n db.Node, roomID matrix.RoomID, tl api.SyncTimeli
 
 	// Write the previous batch string, if any.
 	if tl.PreviousBatch != "" {
-		rnode := n.FromPath(p.timelinePath(roomID))
+		rnode := p.timelineNode(n, roomID)
 
 		if err := rnode.Set("previous_batch", tl.PreviousBatch); err != nil {
 			log.Printf("failed to set previous_batch for room %q: %v", roomID, err)
@@ -148,7 +150,7 @@ func (p *dbPaths) setTimeline(n db.Node, roomID matrix.RoomID, tl api.SyncTimeli
 }
 
 func (p *dbPaths) deleteTimeline(n db.Node, roomID matrix.RoomID) {
-	n = n.FromPath(p.timelinePath(roomID))
+	n = p.timelineNode(n, roomID)
 
 	if err := n.Drop(); err != nil {
 		log.Printf("failed to delete Matrix timeline for room %q: %v", roomID, err)

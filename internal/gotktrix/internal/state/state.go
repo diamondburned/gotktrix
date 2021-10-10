@@ -20,7 +20,7 @@ const (
 	TimelineKeepLast = 100
 	// Version is the incremental database version number. It is incremented
 	// when a breaking change is made in the database that breaks old databases.
-	Version = 2
+	Version = 3
 )
 
 // State is a disk-based database of the Matrix state. Note that methods that
@@ -43,11 +43,6 @@ func New(path string, userID matrix.UserID) (*State, error) {
 		return nil, err
 	}
 
-	return NewWithDatabase(kv, userID)
-}
-
-// NewWithDatabase creates a new State with the given kvpack database.
-func NewWithDatabase(kv *db.KV, userID matrix.UserID) (*State, error) {
 	topPath := db.NewNodePath("gotktrix")
 	topNode := kv.NodeFromPath(topPath)
 
@@ -129,9 +124,9 @@ func (s *State) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, er
 	raw := event.RawEvent{RoomID: roomID}
 
 	// Prevent trailing delimiter; see setRawEvent.
-	dbKey := db.Keys(string(roomID), string(typ))
+	n := s.db.NodeFromPath(s.paths.rooms).Node(string(roomID), string(typ))
 
-	if err := s.db.NodeFromPath(s.paths.rooms).Get(dbKey, &raw); err != nil {
+	if err := n.Get("", &raw); err != nil {
 		return nil, err
 	}
 
@@ -143,41 +138,11 @@ func (s *State) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, er
 func (s *State) RoomState(
 	roomID matrix.RoomID, typ event.Type, key string) (event.StateEvent, error) {
 
-	return s.roomState(roomID, typ, key, false)
-}
-
-// // PastRoomState is similar to RoomState, except the function fetches the event
-// // stored before the current event that RoomState would return.
-// func (s *State) PastRoomState(
-// 	roomID matrix.RoomID, typ event.Type, key string) (event.StateEvent, error) {
-
-// 	return s.roomState(roomID, typ, key, true)
-// }
-
-func (s *State) roomState(
-	roomID matrix.RoomID, typ event.Type, key string, past bool) (event.StateEvent, error) {
+	n := s.db.NodeFromPath(s.paths.rooms).Node(string(roomID), string(typ))
 
 	raw := event.RawEvent{RoomID: roomID}
 
-	var dbKey string
-	if key != "" {
-		dbKey = db.Keys(string(roomID), string(typ), key)
-	} else {
-		// Prevent trailing delimiter; see setRawEvent.
-		dbKey = db.Keys(string(roomID), string(typ))
-	}
-
-	node := s.db.NodeFromPath(s.paths.rooms)
-
-	err := node.Get(dbKey, &raw)
-
-	// var err error
-	// if past {
-	// } else {
-	// 	err = node.GetOld(dbKey, &raw)
-	// }
-
-	if err != nil {
+	if err := n.Get(key, &raw); err != nil {
 		return nil, err
 	}
 
@@ -386,7 +351,13 @@ func (s *State) Rooms() ([]matrix.RoomID, error) {
 	var roomIDs []matrix.RoomID
 
 	return roomIDs, s.top.FromPath(s.paths.rooms).TxView(func(n db.Node) error {
-		if err := n.AllKeys(&roomIDs, ""); err != nil {
+		if err := n.EachKey("", func(k string, l int) error {
+			if roomIDs == nil {
+				roomIDs = make([]matrix.RoomID, 0, l)
+			}
+			roomIDs = append(roomIDs, matrix.RoomID(k))
+			return nil
+		}); err != nil {
 			return err
 		}
 
@@ -398,8 +369,9 @@ func (s *State) Rooms() ([]matrix.RoomID, error) {
 		filtered := roomIDs[:0]
 
 		for _, id := range roomIDs {
-			memberKey := db.Keys(string(id), string(event.TypeRoomMember), string(s.userID))
-			if !n.Exists(memberKey) {
+			// TODO: bring this out of the loop, so it can reuse the backing
+			// array. Not very important.
+			if !n.Node(string(id), string(event.TypeRoomMember)).Exists(string(s.userID)) {
 				continue
 			}
 
@@ -413,15 +385,30 @@ func (s *State) Rooms() ([]matrix.RoomID, error) {
 
 // RoomPreviousBatch gets the previous batch string for the given room.
 func (s *State) RoomPreviousBatch(roomID matrix.RoomID) (prev string, err error) {
-	return prev, s.top.FromPath(s.paths.timelinePath(roomID)).Get("previous_batch", &prev)
+	n := s.paths.timelineNode(s.top, roomID)
+
+	if err := n.Get("previous_batch", &prev); err != nil {
+		return "", err
+	}
+
+	return prev, nil
 }
 
 // RoomTimelineRaw returns the latest raw timeline events of a room. The order
 // of the returned events are always guaranteed to be latest last.
 func (s *State) RoomTimelineRaw(roomID matrix.RoomID) ([]event.RawEvent, error) {
 	var raws []event.RawEvent
+	var raw event.RawEvent
 
-	if err := s.top.FromPath(s.paths.timelineEventsPath(roomID)).All(&raws, ""); err != nil {
+	n := s.paths.timelineEventsNode(s.top, roomID)
+
+	if err := n.Each(&raw, "", func(k string, l int) error {
+		if raws == nil {
+			raws = make([]event.RawEvent, 0, l)
+		}
+		raws = append(raws, raw)
+		return nil
+	}); err != nil {
 		log.Printf("error getting timeline for room %q: %v", roomID, err)
 		return nil, err
 	}
@@ -525,13 +512,15 @@ func (s *State) IsDirect(roomID matrix.RoomID) (is, ok bool) {
 			return nil
 		}
 
-		key := db.Keys(string(roomID), string(event.TypeRoomMember), string(s.userID))
+		n = n.FromPath(s.paths.rooms)
+		n = n.Node(string(roomID), string(event.TypeRoomMember))
+
 		raw := event.RawEvent{
 			RoomID:   roomID,
 			StateKey: string(s.userID),
 		}
 
-		if err := s.db.NodeFromPath(s.paths.rooms).Get(key, &raw); err != nil {
+		if err := n.Get(string(s.userID), &raw); err != nil {
 			return err
 		}
 
