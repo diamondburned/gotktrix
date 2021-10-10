@@ -225,7 +225,7 @@ func (a *Autocompleter) selectRow(row *gtk.ListBoxRow) {
 	}
 
 	if a.onSelect(data) {
-		a.buffer.Insert(data.Bounds[1], " ", 1)
+		a.buffer.Insert(data.Bounds[1], " ")
 		a.Clear()
 		return
 	}

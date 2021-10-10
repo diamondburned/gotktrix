@@ -101,7 +101,7 @@ func (c textContent) setContent(body messageBody, isEdited bool) {
 			append = " " + editedHTML
 		}
 
-		buf.InsertMarkup(&end, append, len(append))
+		buf.InsertMarkup(&end, append)
 	}
 }
 

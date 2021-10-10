@@ -190,7 +190,7 @@ func insertInvisible(buf *gtk.TextBuffer, pos *gtk.TextIter, txt string) {
 	tag := TextTags.FromTable(tbl, "_invisible")
 
 	start := pos.Offset()
-	buf.Insert(pos, txt, len(txt))
+	buf.Insert(pos, txt)
 
 	startIter := buf.IterAtOffset(start)
 	buf.ApplyTag(tag, &startIter, pos)

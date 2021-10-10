@@ -214,7 +214,7 @@ func (i *Input) SetText(text string) {
 	start, end := i.buffer.Bounds()
 
 	i.buffer.Delete(&start, &end)
-	i.buffer.Insert(&start, text, len(text))
+	i.buffer.Insert(&start, text)
 }
 
 type messageEvent struct {
@@ -429,7 +429,7 @@ func finishAutocomplete(
 	case autocomplete.EmojiData:
 		if data.Unicode != "" {
 			// Unicode emoji means we can just insert it in plain text.
-			buffer.Insert(row.Bounds[1], data.Unicode, len(data.Unicode))
+			buffer.Insert(row.Bounds[1], data.Unicode)
 		} else {
 			// Queue inserting the pixbuf.
 			client := gotktrix.FromContext(ctx).Offline()

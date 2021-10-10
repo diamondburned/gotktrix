@@ -120,14 +120,14 @@ func (s *renderState) p(n *html.Node, f func()) {
 func (s *renderState) startLine(n *html.Node, amount int) {
 	amount -= s.nTrailingNewLine()
 	if nodePrevSibling(n) != nil && amount > 0 {
-		s.buf.Insert(s.iter, strings.Repeat("\n", amount), amount)
+		s.buf.Insert(s.iter, strings.Repeat("\n", amount))
 	}
 }
 
 func (s *renderState) endLine(n *html.Node, amount int) {
 	amount -= s.nTrailingNewLine()
 	if nodeNextSibling(n) != nil && amount > 0 {
-		s.buf.Insert(s.iter, strings.Repeat("\n", amount), amount)
+		s.buf.Insert(s.iter, strings.Repeat("\n", amount))
 	}
 }
 
@@ -145,7 +145,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 	switch n.Type {
 	case html.TextNode:
 		text, newLines := trimNewLines(n.Data)
-		s.buf.Insert(s.iter, text, len(text))
+		s.buf.Insert(s.iter, text)
 
 		nextNode := nodeNextSibling(n)
 
@@ -156,13 +156,13 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		}
 		// Only make up new lines if we still have nodes.
 		if newLines > 0 && nextNode != nil {
-			s.buf.Insert(s.iter, strings.Repeat("\n", newLines), newLines)
+			s.buf.Insert(s.iter, strings.Repeat("\n", newLines))
 		}
 
 		// If this is not the last node and the next node is not a text node,
 		// then we have to space out the elements.
 		if nextNode != nil && nextNode.Type != html.TextNode {
-			s.buf.Insert(s.iter, " ", 1)
+			s.buf.Insert(s.iter, " ")
 		}
 
 		return traverseOK
@@ -252,7 +252,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				s.list++
 			}
 
-			s.buf.Insert(s.iter, "    "+bullet, -1)
+			s.buf.Insert(s.iter, "    "+bullet)
 			s.renderChildren(n)
 			return traverseSkipChildren
 
@@ -269,7 +269,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			u, err := url.Parse(string(src))
 			if err != nil || u.Scheme != "mxc" {
 				// Ignore the image entirely.
-				s.buf.InsertMarkup(s.iter, `<span fgalpha="50%">[image]</span>`, -1)
+				s.buf.InsertMarkup(s.iter, `<span fgalpha="50%">[image]</span>`)
 				return traverseOK
 			}
 
@@ -380,7 +380,7 @@ func (s *renderState) renderChildrenTagName(n *html.Node, tagName string) {
 
 // insertInvisible inserts the given invisible.
 func (s *renderState) insertInvisible(str string) {
-	s.tagNameBounded("_invisible", func() { s.buf.Insert(s.iter, str, len(str)) })
+	s.tagNameBounded("_invisible", func() { s.buf.Insert(s.iter, str) })
 }
 
 // nodeNextSibling returns the node's next sibling in the whole tree, not just

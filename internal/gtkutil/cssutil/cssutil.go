@@ -1,7 +1,6 @@
 package cssutil
 
 import (
-	"bytes"
 	"log"
 	"os"
 	"strings"
@@ -12,7 +11,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/config"
 )
 
-var globalCSS bytes.Buffer
+var globalCSS strings.Builder
 
 // Applier returns a constructor that applies a class to the given widgetter. It
 // also writes the CSS to the global CSS.
@@ -46,7 +45,7 @@ func AddClass(w gtk.Widgetter, classes ...string) {
 }
 
 var (
-	userCSS  []byte
+	userCSS  string
 	userOnce sync.Once
 )
 
@@ -59,16 +58,16 @@ func ApplyGlobalCSS() {
 			return
 		}
 
-		userCSS = f
+		userCSS = string(f)
 	})
 
-	css := globalCSS.Bytes()
+	css := globalCSS.String()
 
 	prov := gtk.NewCSSProvider()
 	prov.Connect("parsing-error", func(sec *gtk.CSSSection, err error) {
 		loc := sec.StartLocation()
 
-		lines := bytes.Split(css, []byte("\n"))
+		lines := strings.Split(css, "\n")
 		log.Printf("CSS error (%v) at line: %q", err, lines[loc.Lines()])
 	})
 
@@ -77,7 +76,7 @@ func ApplyGlobalCSS() {
 	display := gdk.DisplayGetDefault()
 	gtk.StyleContextAddProviderForDisplay(display, prov, 600) // app
 
-	if userCSS != nil {
+	if userCSS != "" {
 		prov := gtk.NewCSSProvider()
 		prov.LoadFromData(userCSS)
 

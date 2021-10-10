@@ -12,7 +12,7 @@ import (
 func RenderText(ctx context.Context, tview *gtk.TextView, text string) {
 	body := strings.Trim(text, "\n")
 	tbuf := tview.Buffer()
-	tbuf.SetText(body, len(body))
+	tbuf.SetText(body)
 
 	if md.IsUnicodeEmoji(body) {
 		start, end := tbuf.Bounds()

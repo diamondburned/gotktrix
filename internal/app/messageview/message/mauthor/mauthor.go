@@ -166,7 +166,7 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 	color := opts.hasher.Hash(string(uID))
 
 	buf := iter.Buffer()
-	buf.Insert(iter, name, len(name))
+	buf.Insert(iter, name)
 
 	startIter := buf.IterAtOffset(start)
 
