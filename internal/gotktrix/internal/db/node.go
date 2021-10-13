@@ -441,8 +441,6 @@ func (n Node) Each(v interface{}, prefix string, fn func(k string, l int) error)
 		}
 
 		for k, b := cursor.First(); k != nil; k, b = cursor.Next() {
-			log.Printf("for path %q got %q", n.path, k)
-
 			if b == nil {
 				continue // bucket
 			}

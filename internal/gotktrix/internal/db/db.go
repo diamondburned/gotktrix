@@ -1,7 +1,6 @@
 package db
 
 import (
-	"log"
 	"os"
 	"time"
 
@@ -52,8 +51,6 @@ func (p NodePath) bucket(tx *bbolt.Tx, ro bool) (*bbolt.Bucket, error) {
 	if len(p) == 0 {
 		return getBucketRoot(tx, nil, ro)
 	}
-
-	log.Printf("accessing bucket path %q", p)
 
 	b, err := getBucketRoot(tx, p[0], ro)
 	if err != nil {

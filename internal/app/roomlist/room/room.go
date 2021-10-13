@@ -2,6 +2,7 @@ package room
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -338,8 +339,28 @@ func (r *Room) InvalidatePreview() {
 		return
 	}
 
-	preview := message.RenderEvent(r.ctx, gotktrix.WrapEventBox(&events[len(events)-1]))
-	r.preview.SetMarkup(preview)
+	foundEv := &events[len(events)-1]
+	extra := 0
+
+	for i := len(events) - 1; i >= 0; i-- {
+		if ev := &events[i]; ev.Type == event.TypeRoomMessage {
+			foundEv = &events[i]
+			extra = len(events) - 1 - i
+			break
+		}
+	}
+
+	preview := message.RenderEvent(r.ctx, gotktrix.WrapEventBox(foundEv))
+
+	if extra == 0 {
+		r.preview.SetMarkup(preview)
+	} else {
+		r.preview.SetMarkup(fmt.Sprintf(
+			`<span alpha="75%%" size="small">(+%d)</span> %s`,
+			extra, preview,
+		))
+	}
+
 	r.preview.SetTooltipMarkup(preview)
 	r.preview.Show()
 }
