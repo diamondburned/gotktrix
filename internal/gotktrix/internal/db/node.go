@@ -2,6 +2,7 @@ package db
 
 import (
 	"log"
+	"strings"
 
 	"github.com/pkg/errors"
 	"go.etcd.io/bbolt"
@@ -9,94 +10,26 @@ import (
 
 var ErrKeyNotFound = errors.New("key not found in database")
 
-/*
-// Keys joins the given keys with the delimiter inbetween. This is an
-// alternative over calling .Node().
-func Keys(keys ...string) string {
-	if len(keys) == 1 {
-		return keys[0]
-	}
-	if len(keys) == 2 && keys[1] == "" {
-		return keys[1] + delimiter
+const nullKey = "\x00\x00"
+
+func mustKey(key string) string {
+	if key == "" {
+		return nullKey
 	}
 
-	return strings.Join(keys, delimiter)
+	nulls := strings.Count(key, "\x00")
+	if nulls == len(key) {
+		if nulls >= 2 {
+			// 2 or above, so add 1 more so that it's never 2.
+			return key + "\x00"
+		}
+		// 1 null. Keep.
+		return key
+	}
+
+	// No nulls. Return key.
+	return key
 }
-
-func iterValidKey(iter *badger.Iterator, prefix []byte) bool {
-	if !iter.Valid() {
-		return false
-	}
-
-	k := iter.Item().Key()
-	k = bytes.TrimPrefix(k, prefix)
-	return !bytes.Contains(k, []byte(delimiter))
-}
-
-func iterSplitKey(iter *badger.Iterator, prefix []byte) ([]byte, bool) {
-	k := iter.Item().Key()
-	k = bytes.TrimPrefix(k, prefix)
-
-	i := bytes.Index(k, []byte(delimiter))
-	if i == -1 {
-		return k, true
-	}
-
-	return nil, false
-}
-
-func convertKey(prefix [][]byte, key string) []byte {
-	// TODO: find out why I did this.
-	// if key == "" {
-	// 	return bytes.Join(prefix, []byte(delimiter))
-	// }
-
-	total := len(key)
-	for _, b := range prefix {
-		total += len(b) + len(delimiter)
-	}
-
-	buf := bytes.Buffer{}
-	buf.Grow(total)
-
-	for _, b := range prefix {
-		buf.Write(b)
-		buf.WriteString(delimiter)
-	}
-
-	buf.WriteString(key)
-
-	return buf.Bytes()
-}
-
-func wrapErr(str string, err error) error {
-	if err == nil {
-		return nil
-	}
-
-	switch {
-	case errors.Is(err, bbolt.ErrBucketNotFound):
-		return errors.Wrap(ErrKeyNotFound, str)
-	default:
-		return errors.Wrap(err, str)
-	}
-}
-
-func iterKeyOnlyOpts(prefix []byte) badger.IteratorOptions {
-	o := badger.DefaultIteratorOptions
-	o.PrefetchValues = false
-	o.Prefix = prefix
-	return o
-}
-
-func iterOpts(prefix []byte) badger.IteratorOptions {
-	o := badger.DefaultIteratorOptions
-	o.PrefetchValues = true
-	o.PrefetchSize = 1
-	o.Prefix = prefix
-	return o
-}
-*/
 
 type Node struct {
 	kv   *KV
@@ -239,6 +172,8 @@ func (n Node) SetIfNone(k string, v interface{}) error {
 		return errors.Wrap(err, "Failed to marshal")
 	}
 
+	k = mustKey(k)
+
 	return n.TxUpdate(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
@@ -257,12 +192,10 @@ func (n Node) SetIfNone(k string, v interface{}) error {
 func (n Node) Set(k string, v interface{}) error {
 	bytes, err := n.kv.Marshal(v)
 	if err != nil {
-		return errors.Wrap(err, "Failed to marshal")
+		return errors.Wrap(err, "failed to marshal")
 	}
 
-	if k == "" {
-		k = "\x00"
-	}
+	k = mustKey(k)
 
 	return n.TxUpdate(func(n Node) error {
 		b, err := n.bucket()
@@ -296,9 +229,7 @@ func (n Node) Exists(k string) (exists bool) {
 
 // Get gets the given key from the node.
 func (n Node) Get(k string, v interface{}) error {
-	if k == "" {
-		k = "\x00"
-	}
+	k = mustKey(k)
 
 	return n.TxView(func(n Node) error {
 		b, err := n.bucket()
@@ -320,9 +251,15 @@ func (n Node) Get(k string, v interface{}) error {
 }
 
 func (n Node) Delete(k string) error {
+	k = mustKey(k)
+
 	return n.TxUpdate(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
+			if errors.Is(err, ErrKeyNotFound) {
+				// Already deleted.
+				return nil
+			}
 			return err
 		}
 		return b.Delete([]byte(k))
@@ -384,6 +321,10 @@ func (n Node) Length(prefix string) (int, error) {
 	return length, n.TxView(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
+			if errors.Is(err, ErrKeyNotFound) {
+				// Ignore ErrKeyNotFound and just don't iterate.
+				return nil
+			}
 			return err
 		}
 
@@ -428,6 +369,10 @@ func (n Node) Each(v interface{}, prefix string, fn func(k string, l int) error)
 	return n.TxView(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
+			if errors.Is(err, ErrKeyNotFound) {
+				// Ignore ErrKeyNotFound and just don't iterate.
+				return nil
+			}
 			return err
 		}
 
@@ -466,6 +411,10 @@ func (n Node) EachKey(prefix string, fn func(k string, l int) error) error {
 	return n.TxView(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
+			if errors.Is(err, ErrKeyNotFound) {
+				// Ignore ErrKeyNotFound and just don't iterate.
+				return nil
+			}
 			return err
 		}
 

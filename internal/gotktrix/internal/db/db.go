@@ -2,6 +2,7 @@ package db
 
 import (
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/pkg/errors"
@@ -92,6 +93,11 @@ type KV struct {
 }
 
 func NewKVFile(path string) (*KV, error) {
+	// Ensure that the parent directory are all created.
+	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
+		return nil, errors.Wrap(err, "failed to create db directory")
+	}
+
 	db, err := bbolt.Open(path, os.ModePerm, &bbolt.Options{
 		Timeout:      10 * time.Second,
 		FreelistType: bbolt.FreelistMapType,
@@ -125,6 +131,10 @@ func dropBucketPrefix(tx *bbolt.Tx, path NodePath) error {
 	// Slice off the last bucket name.
 	b, err := path[:len(path)-1].Bucket(tx)
 	if err != nil {
+		if errors.Is(err, ErrKeyNotFound) {
+			// Treat as already deleted.
+			return nil
+		}
 		return err
 	}
 
