@@ -198,6 +198,8 @@ func (s *State) RoomStateList(roomID matrix.RoomID, typ event.Type) ([]event.Sta
 // EachRoomState calls f on every raw event in the room state. It satisfies the
 // EachRoomState method requirement inside gotrix.State, but most callers should
 // not use this method, since there is no length information.
+//
+// Deprecated: Use EachRoomStateLen.
 func (s *State) EachRoomState(
 	roomID matrix.RoomID, typ event.Type, f func(string, event.StateEvent) error) error {
 
@@ -418,6 +420,28 @@ func (s *State) RoomTimelineRaw(roomID matrix.RoomID) ([]event.RawEvent, error) 
 	}
 
 	return raws, nil
+}
+
+// EachTimeline iterates through the timeline.
+func (s *State) EachTimeline(roomID matrix.RoomID, f func(*event.RawEvent) error) error {
+	n := s.paths.timelineEventsNode(s.top, roomID)
+	var raw event.RawEvent
+
+	return n.Each(&raw, "", func(string, int) error {
+		raw := raw // copy raw.
+		return f(&raw)
+	})
+}
+
+// EachTimelineReverse iterates through the timeline in reverse.
+func (s *State) EachTimelineReverse(roomID matrix.RoomID, f func(*event.RawEvent) error) error {
+	n := s.paths.timelineEventsNode(s.top, roomID)
+	var raw event.RawEvent
+
+	return n.EachReverse(&raw, "", func(string, int) error {
+		raw := raw // copy raw.
+		return f(&raw)
+	})
 }
 
 // UserEvent gets the user event from the given type.

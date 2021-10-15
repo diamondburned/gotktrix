@@ -3,6 +3,7 @@ package room
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -173,7 +174,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	})
 
 	gtkutil.BindRightClick(row, func() {
-		s := locale.Printer(ctx).Sprint
+		s := locale.SFunc(ctx)
 
 		p := gtkutil.PopoverMenuCustom(row, gtk.PosBottom, []gtkutil.PopoverMenuItem{
 			gtkutil.MenuItem(s("Open"), "room.open"),
@@ -335,24 +336,45 @@ func (r *Room) InvalidatePreview() {
 
 	client := gotktrix.FromContext(r.ctx).Offline()
 
-	events, err := client.RoomTimelineRaw(r.ID)
-	if err != nil || len(events) == 0 {
+	var foundEv *gotktrix.EventBox
+	var firstEv *gotktrix.EventBox
+	extra := -1
+
+	err := client.EachTimelineReverse(r.ID, func(ev *gotktrix.EventBox) error {
+		extra++
+
+		isMsg := ev.Type == event.TypeRoomMessage
+		if !isMsg && firstEv != nil {
+			return nil
+		}
+
+		if firstEv == nil {
+			firstEv = ev
+		}
+
+		if isMsg {
+			foundEv = ev
+			return gotktrix.EachBreak
+		}
+
+		return nil
+	})
+
+	if foundEv == nil {
+		foundEv = firstEv
+		extra = 0
+	}
+
+	if err != nil {
+		log.Println("failed to fetch timeline for preview:", err)
+	}
+
+	if foundEv == nil {
 		r.erasePreview()
 		return
 	}
 
-	foundEv := &events[len(events)-1]
-	extra := 0
-
-	for i := len(events) - 1; i >= 0; i-- {
-		if ev := &events[i]; ev.Type == event.TypeRoomMessage {
-			foundEv = &events[i]
-			extra = len(events) - 1 - i
-			break
-		}
-	}
-
-	preview := message.RenderEvent(r.ctx, gotktrix.WrapEventBox(foundEv))
+	preview := message.RenderEvent(r.ctx, foundEv)
 
 	if extra == 0 {
 		r.preview.SetMarkup(preview)

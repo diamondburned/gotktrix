@@ -20,10 +20,14 @@ import (
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/db"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/handler"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
 	"github.com/pkg/errors"
 )
+
+// EachBreak can be returned if the user wants to break out of an interation.
+var EachBreak = db.EachBreak
 
 // TimelimeLimit is the number of timeline events that the database keeps.
 const TimelimeLimit = state.TimelineKeepLast
@@ -66,6 +70,9 @@ type EventBox struct {
 
 // WrapEventBox wraps the given raw event.
 func WrapEventBox(raw *event.RawEvent) *EventBox {
+	if raw == nil {
+		return nil
+	}
 	return &EventBox{RawEvent: raw}
 }
 
@@ -716,6 +723,20 @@ func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, err
 	}
 
 	return events, nil
+}
+
+// EachTimeline iterates through the timeline.
+func (c *Client) EachTimeline(roomID matrix.RoomID, f func(*EventBox) error) error {
+	return c.State.EachTimeline(roomID, func(raw *event.RawEvent) error {
+		return f(WrapEventBox(raw))
+	})
+}
+
+// EachTimelineReverse iterates through the timeline in reverse.
+func (c *Client) EachTimelineReverse(roomID matrix.RoomID, f func(*EventBox) error) error {
+	return c.State.EachTimelineReverse(roomID, func(raw *event.RawEvent) error {
+		return f(WrapEventBox(raw))
+	})
 }
 
 // SendRoomEvent is a convenient function around RoomEventSend.

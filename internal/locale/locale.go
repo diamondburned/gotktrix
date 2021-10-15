@@ -67,6 +67,13 @@ func S(ctx context.Context, a message.Reference) string {
 	return Printer(ctx).Sprint(a)
 }
 
+// SFunc is a helper function that wraps the given context to format multiple
+// strings in a shorter syntax.
+func SFunc(ctx context.Context) func(a message.Reference) string {
+	p := Printer(ctx)
+	return func(a message.Reference) string { return p.Sprint(a) }
+}
+
 // Sprint calls ctx's message printer's Sprint.
 func Sprint(ctx context.Context, a ...message.Reference) string {
 	vs := make([]interface{}, len(a))

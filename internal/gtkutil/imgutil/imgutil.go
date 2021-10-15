@@ -5,36 +5,15 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
-	"runtime"
 	"sync"
-	"time"
 
 	"github.com/diamondburned/gotk4/pkg/core/gioutil"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
-	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/gregjones/httpcache"
-	"github.com/gregjones/httpcache/diskcache"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/semaphore"
 )
-
-// Client is the HTTP client used to fetch all images.
-var Client = http.Client{
-	Timeout: 15 * time.Second,
-	Transport: httpcache.NewTransport(
-		diskcache.New(config.CacheDir("img")),
-	),
-}
-
-// parallelMult * 4 = maxConcurrency
-const parallelMult = 4
-
-// sema is used to throttle concurrent downloads.
-var sema = semaphore.NewWeighted(int64(runtime.GOMAXPROCS(-1)) * parallelMult)
 
 type opts struct {
 	w, h int
@@ -155,13 +134,6 @@ func AsyncPixbuf(ctx context.Context, url string, f func(*gdkpixbuf.Pixbuf), opt
 
 func async(ctx context.Context, o *opts, do func() (func(), error)) {
 	go func() {
-		if err := sema.Acquire(ctx, 1); err != nil {
-			err = errors.Wrap(err, "failed to acquire ctx")
-			glib.IdleAdd(func() { o.error(err) })
-			return
-		}
-		defer sema.Release(1)
-
 		f, err := do()
 		if err != nil {
 			if o.err != nil {
@@ -210,22 +182,13 @@ func getPixbuf(ctx context.Context, url string, o *opts) (*gdkpixbuf.Pixbuf, err
 		return nil, errors.New("empty URL given")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	r, err := fetch(ctx, url)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create request %q", url)
+		return nil, err
 	}
+	defer r.Close()
 
-	r, err := Client.Do(req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to GET %q", url)
-	}
-	defer r.Body.Close()
-
-	if r.StatusCode < 200 || r.StatusCode > 299 {
-		return nil, fmt.Errorf("unexpected status code %d getting %q", r.StatusCode, url)
-	}
-
-	p, err := readPixbuf(r.Body, o)
+	p, err := readPixbuf(r, o)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read %q", url)
 	}

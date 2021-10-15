@@ -157,7 +157,7 @@ func setAvatar(ctx context.Context, a *adw.Avatar, client *gotktrix.Client, mxc 
 	imgutil.AsyncGET(
 		ctx, avatarURL, a.SetCustomImage,
 		imgutil.WithErrorFn(func(err error) {
-			log.Print("error getting avatar ", mxc, ":", err)
+			log.Print("error getting avatar ", mxc, ": ", err)
 		}),
 	)
 }

@@ -315,10 +315,9 @@ func (n Node) DropExceptLast(last int) error {
 // Length queries the number of keys within the node, similarly to running
 // AllKeys and taking the length of what was returned.
 func (n Node) Length(prefix string) (int, error) {
-	// this will have a trailing delimiter regardless
 	var length int
 
-	return length, n.TxView(func(n Node) error {
+	err := n.TxView(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
 			if errors.Is(err, ErrKeyNotFound) {
@@ -330,12 +329,13 @@ func (n Node) Length(prefix string) (int, error) {
 
 		cursor := b.Cursor()
 
-		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+		return eachBucket(cursor, false, func(_, _ []byte) error {
 			length++
-		}
-
-		return nil
+			return nil
+		})
 	})
+
+	return length, err
 }
 
 // EachBreak is an error that Each callbacks could return to stop the loop and
@@ -361,11 +361,21 @@ var EachBreak = errors.New("each break (not an error)")
 //    n.Each(&obj, "", func(k string) error {
 //        if obj.Thing == "what I want" {
 //            objs = append(objs, obj)
+//            return EachBreak
 //        }
 //        return nil
 //    })
 //
 func (n Node) Each(v interface{}, prefix string, fn func(k string, l int) error) error {
+	return n.each(false, v, prefix, fn)
+}
+
+// EachReverse is like Each, except the iteration is done in reverse.
+func (n Node) EachReverse(v interface{}, prefix string, fn func(k string, l int) error) error {
+	return n.each(true, v, prefix, fn)
+}
+
+func (n Node) each(rev bool, v interface{}, prefix string, fn func(k string, l int) error) error {
 	return n.TxView(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
@@ -379,35 +389,32 @@ func (n Node) Each(v interface{}, prefix string, fn func(k string, l int) error)
 		cursor := b.Cursor()
 
 		var length int
-		for k, b := cursor.First(); k != nil; k, b = cursor.Next() {
-			if b != nil {
-				length++
-			}
-		}
+		eachBucket(cursor, rev, func(_, _ []byte) error {
+			length++
+			return nil
+		})
 
-		for k, b := cursor.First(); k != nil; k, b = cursor.Next() {
-			if b == nil {
-				continue // bucket
-			}
-
+		return eachBucket(cursor, rev, func(k, b []byte) error {
 			if err := n.kv.Unmarshal(b, v); err != nil {
 				return errors.Wrapf(err, "failed to unmarshal %q", string(k))
 			}
 
-			if err := fn(string(k), length); err != nil {
-				if err == EachBreak {
-					return nil
-				}
-				return err
-			}
-		}
-
-		return nil
+			return fn(string(k), length)
+		})
 	})
 }
 
 // EachKey iterates over keys.
 func (n Node) EachKey(prefix string, fn func(k string, l int) error) error {
+	return n.eachKey(false, prefix, fn)
+}
+
+// EachKeyReverse iterates over keys in reverse.
+func (n Node) EachKeyReverse(prefix string, fn func(k string, l int) error) error {
+	return n.eachKey(true, prefix, fn)
+}
+
+func (n Node) eachKey(rev bool, prefix string, fn func(k string, l int) error) error {
 	return n.TxView(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
@@ -421,19 +428,37 @@ func (n Node) EachKey(prefix string, fn func(k string, l int) error) error {
 		cursor := b.Cursor()
 
 		var length int
-		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+		eachBucket(cursor, rev, func(_, _ []byte) error {
 			length++
-		}
+			return nil
+		})
 
-		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
-			if err := fn(string(k), length); err != nil {
-				if err == EachBreak {
-					return nil
-				}
-				return err
+		return eachBucket(cursor, rev, func(k, _ []byte) error {
+			return fn(string(k), length)
+		})
+	})
+}
+
+func eachBucket(c *bbolt.Cursor, rev bool, fn func(k, v []byte) error) error {
+	var err error
+
+	if rev {
+		for k, v := c.Last(); k != nil && err == nil; k, v = c.Prev() {
+			if v != nil {
+				err = fn(k, v)
 			}
 		}
+	} else {
+		for k, v := c.First(); k != nil && err == nil; k, v = c.Next() {
+			if v != nil {
+				err = fn(k, v)
+			}
+		}
+	}
 
+	if err != nil && errors.Is(err, EachBreak) {
 		return nil
-	})
+	}
+
+	return err
 }

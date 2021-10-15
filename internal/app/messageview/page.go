@@ -301,7 +301,7 @@ func (p *Page) OnRoomEvent(raw *event.RawEvent) {
 		return
 	}
 
-	p.onRoomEvent(raw)
+	p.onRoomEvent(raw, true)
 	p.clean()
 	p.MarkAsRead()
 }
@@ -354,7 +354,7 @@ func (p *Page) clean() {
 	}
 }
 
-func (p *Page) onRoomEvent(raw *event.RawEvent) {
+func (p *Page) onRoomEvent(raw *event.RawEvent, append bool) {
 	id := raw.ID
 	relatesToID := relatesTo(raw)
 
@@ -387,7 +387,11 @@ func (p *Page) onRoomEvent(raw *event.RawEvent) {
 		sent: raw.OriginServerTime,
 	}
 
-	p.list.Append(row)
+	if append {
+		p.list.Append(row)
+	} else {
+		p.list.Prepend(row)
+	}
 }
 
 // relatesTo returns the event ID that the given raw event is supposed to edit,
@@ -443,8 +447,8 @@ func (p *Page) Load(done func()) {
 		}
 
 		glib.IdleAdd(func() {
-			for i := range events {
-				p.onRoomEvent(&events[i])
+			for i := len(events) - 1; i >= 0; i-- {
+				p.onRoomEvent(&events[i], false)
 			}
 			p.loaded = true
 			p.scroll.ScrollToBottom()
