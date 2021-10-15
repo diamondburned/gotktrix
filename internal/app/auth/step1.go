@@ -133,7 +133,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 
 	// Asynchronously load the accounts.
 	go func() {
-		accounts, err := loadAccounts(a.keyring)
+		accounts, err := loadAccounts(a.ctx, a.keyring)
 
 		glib.IdleAdd(func() {
 			minusChild()
@@ -201,7 +201,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 				button.SetSensitive(false)
 
 				go func() {
-					accounts, err := loadAccounts(a.encrypt)
+					accounts, err := loadAccounts(a.ctx, a.encrypt)
 
 					glib.IdleAdd(func() {
 						defer wg.Done()

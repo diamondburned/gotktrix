@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"golang.org/x/text/language"
@@ -18,12 +19,12 @@ const (
 )
 
 var (
-	localPrinter     *message.Printer
-	localPrinterOnce sync.Once
+	localPrinter *message.Printer
+	initOnce     sync.Once
 )
 
-func loadLocalPrinter() {
-	localPrinterOnce.Do(func() {
+func initialize() {
+	initOnce.Do(func() {
 		var langs []language.Tag
 
 		for _, lang := range glib.GetLanguageNames() {
@@ -31,12 +32,14 @@ func loadLocalPrinter() {
 				continue
 			}
 
-			t, err := language.Parse(strings.SplitN(lang, ".", 2)[0])
+			icuLocale := strings.SplitN(lang, ".", 2)[0]
+
+			t, err := language.Parse(icuLocale)
 			if err != nil {
 				log.Printf("cannot parse language %s: %v", lang, err)
-				continue
+			} else {
+				langs = append(langs, t)
 			}
-			langs = append(langs, t)
 		}
 
 		// English fallback.
@@ -50,7 +53,7 @@ func loadLocalPrinter() {
 
 // WithLocalPrinter inserts the local printer into the context scope.
 func WithLocalPrinter(ctx context.Context) context.Context {
-	loadLocalPrinter()
+	initialize()
 	return WithPrinter(ctx, localPrinter)
 }
 
@@ -59,14 +62,18 @@ func WithPrinter(ctx context.Context, p *message.Printer) context.Context {
 	return context.WithValue(ctx, printerKey, p)
 }
 
-// Sprint calls ctx's message printer's Sprint.
-func Sprint(ctx context.Context, a ...interface{}) string {
-	return Printer(ctx).Sprint(a...)
+// S returns the translated string from the given reference.
+func S(ctx context.Context, a message.Reference) string {
+	return Printer(ctx).Sprint(a)
 }
 
-// FromKey returns the formatted message from the given ID and fallback.
-func FromKey(ctx context.Context, id, fallback string) string {
-	return Sprint(ctx, message.Key(id, fallback))
+// Sprint calls ctx's message printer's Sprint.
+func Sprint(ctx context.Context, a ...message.Reference) string {
+	vs := make([]interface{}, len(a))
+	for i, v := range a {
+		vs[i] = v
+	}
+	return Printer(ctx).Sprint(vs...)
 }
 
 // Sprintf calls ctx's message printer's Sprintf.
@@ -83,26 +90,14 @@ func Printer(ctx context.Context) *message.Printer {
 	return localPrinter
 }
 
-// Plural formats the given list of strings and returns the strings joined (by
-// commas) appended by either the singular case if len(v) == 1 or plural
-// otherwise. If len(v) is 0, then an empty string is returned.
-//
-// TODO: deprecate this and replace it with something more locale-friendly,
-// preferably using x/text/feature/plural.
-func Plural(ctx context.Context, v []string, singular, plural string) string {
-	p := Printer(ctx)
+// Time formats the given timestamp as a locale-compatible timestamp. Nothing is
+// actually locale-friendly yet, though.
+func Time(t time.Time, long bool) string {
+	glibTime := glib.NewDateTimeFromGo(t)
 
-	singular = p.Sprint(" ") + p.Sprint(singular)
-	plural = p.Sprint(" ") + p.Sprint(plural)
-
-	switch len(v) {
-	case 0:
-		return ""
-	case 1:
-		return v[0] + singular
-	case 2:
-		return v[0] + p.Sprint(" and ") + v[1] + plural
-	default:
-		return strings.Join(v[:len(v)-1], p.Sprint(", ")) + p.Sprint(" and ") + v[len(v)-1] + plural
+	if long {
+		return glibTime.Format("%c")
 	}
+
+	return glibTime.Format("%X")
 }

@@ -1,7 +1,7 @@
 package mcontent
 
 import (
-	"fmt"
+	"context"
 	"html"
 	"strings"
 
@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 type contentPart interface {
@@ -29,18 +30,20 @@ var redactedCSS = cssutil.Applier("mcontent-redacted", `
 	}
 `)
 
-func newRedactedContent(red event.RoomRedactionEvent) redactedContent {
+func newRedactedContent(ctx context.Context, red event.RoomRedactionEvent) redactedContent {
 	image := gtk.NewImageFromIconName("edit-delete-symbolic")
 	image.SetIconSize(gtk.IconSizeNormal)
 
 	label := gtk.NewLabel("")
 	label.SetYAlign(0)
 
+	p := locale.Printer(ctx)
+
 	if red.Reason != "" {
 		red.Reason = strings.TrimSuffix(red.Reason, ".")
-		label.SetText(fmt.Sprintf("[redacted, reason: %s.]", red.Reason))
+		label.SetText(p.Sprintf("[redacted, reason: %s.]", red.Reason))
 	} else {
-		label.SetText("[redacted]")
+		label.SetText(p.Sprint("[redacted]"))
 	}
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 2)
@@ -66,16 +69,18 @@ var unknownContentCSS = cssutil.Applier("mcontent-unknown", `
 	}
 `)
 
-func newUnknownContent(msgBox *gotktrix.EventBox) unknownContent {
+func newUnknownContent(ctx context.Context, msgBox *gotktrix.EventBox) unknownContent {
 	var msg string
+
+	p := locale.Printer(ctx)
 
 	if msgBox.Type == event.TypeRoomMessage {
 		e, _ := msgBox.Parse()
 		emsg := e.(event.RoomMessageEvent)
 
-		msg = fmt.Sprintf("Unknown message type %s.", string(emsg.MsgType))
+		msg = p.Sprintf("Unknown message type %q.", string(emsg.MsgType))
 	} else {
-		msg = fmt.Sprintf("Unknown event type %s.", msgBox.Type)
+		msg = p.Sprintf("Unknown event type %q.", msgBox.Type)
 	}
 
 	l := gtk.NewLabel(msg)
@@ -94,9 +99,11 @@ type erroneousContent struct {
 	*gtk.Box
 }
 
-func newErroneousContent(desc string, w, h int) erroneousContent {
+func newErroneousContent(ctx context.Context, desc string, w, h int) erroneousContent {
+	p := locale.Printer(ctx)
+
 	l := gtk.NewLabel("")
-	l.SetMarkup(fmt.Sprintf(
+	l.SetMarkup(p.Sprintf(
 		`<span color="red">Content error:</span> %s`,
 		html.EscapeString(desc),
 	))

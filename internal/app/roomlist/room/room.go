@@ -24,6 +24,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/pkg/errors"
+
+	localemsg "golang.org/x/text/message"
 )
 
 // AvatarSize is the size in pixels of the avatar.
@@ -474,7 +476,7 @@ var reorderDialog = cssutil.Applier("room-reorderdialog", `
 `)
 
 func (r *Room) promptReorder() {
-	msg := locale.FromKey(r.ctx, "reorder-help", reorderHelp)
+	msg := locale.S(r.ctx, localemsg.Key("reorder-help", reorderHelp))
 
 	help := gtk.NewLabel(clean(msg))
 	help.SetUseMarkup(true)

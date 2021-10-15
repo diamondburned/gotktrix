@@ -11,7 +11,7 @@ let systemPkgs = import systemChannel {
 	};
 
 in
-	if (lib.versionAtLeast systemPkgs.gtk4.version "4.4.0")
+	if ((systemPkgs.gtk4 or null) != null && lib.versionAtLeast systemPkgs.gtk4.version "4.4.0")
 	# Prefer the system's Nixpkgs if it's new enough.
 	then systemPkgs
 	# Else, fetch our own.

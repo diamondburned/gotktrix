@@ -1,12 +1,13 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/secret"
 	"github.com/pkg/errors"
 )
@@ -86,7 +87,7 @@ func saveAccountIDs(driver secret.Driver, ids []matrix.UserID) error {
 	return nil
 }
 
-func loadAccounts(driver secret.Driver) ([]Account, error) {
+func loadAccounts(ctx context.Context, driver secret.Driver) ([]Account, error) {
 	accIDs, err := listAccountIDs(driver)
 	if err != nil || len(accIDs) == 0 {
 		return nil, err
@@ -119,12 +120,9 @@ func loadAccounts(driver secret.Driver) ([]Account, error) {
 		return accounts, nil
 	}
 
-	var errMsg strings.Builder
-	if len(errs) == 1 {
-		errMsg.WriteString("Encountered 1 error:\n")
-	} else {
-		errMsg.WriteString(fmt.Sprintf("Encountered %d errors:\n", len(errs)))
-	}
+	errMsg := strings.Builder{}
+	errMsg.WriteString(locale.Sprintf(ctx, "Encountered %d error(s):", len(errs)))
+	errMsg.WriteByte('\n')
 
 	for _, err := range errs {
 		errMsg.WriteString("• ")

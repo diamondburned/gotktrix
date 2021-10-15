@@ -1,0 +1,788 @@
+{
+    "language": "en-US",
+    "messages": [
+        {
+            "id": "Encountered {Lenerrs} error(s):",
+            "message": "Encountered {Lenerrs} error(s):",
+            "translation": "Encountered {Lenerrs} error(s):",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Lenerrs",
+                    "string": "%[1]d",
+                    "type": "int",
+                    "underlyingType": "int",
+                    "argNum": 1,
+                    "expr": "len(errs)"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Names0} is typing...",
+            "message": "{Names0} is typing...",
+            "translation": "{Names0} is typing...",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Names0",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "names[0]"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Names0} and {Names1} are typing...",
+            "message": "{Names0} and {Names1} are typing...",
+            "translation": "{Names0} and {Names1} are typing...",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Names0",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "names[0]"
+                },
+                {
+                    "id": "Names1",
+                    "string": "%[2]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "names[1]"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Names0}, {Names1} and {Names2} are typing...",
+            "message": "{Names0}, {Names1} and {Names2} are typing...",
+            "translation": "{Names0}, {Names1} and {Names2} are typing...",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Names0",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "names[0]"
+                },
+                {
+                    "id": "Names1",
+                    "string": "%[2]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "names[1]"
+                },
+                {
+                    "id": "Names2",
+                    "string": "%[3]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 3,
+                    "expr": "names[2]"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "Several people are typing...",
+            "message": "Several people are typing...",
+            "translation": "Several people are typing...",
+            "translatorComment": "Copied from source.",
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} sent an unusual event {Type}: \u003cspan color=\"red\"\u003e{Err}\u003c/span\u003e.",
+            "message": "{Author} sent an unusual event {Type}: \u003cspan color=\"red\"\u003e{Err}\u003c/span\u003e.",
+            "translation": "{Author} sent an unusual event {Type}: \u003cspan color=\"red\"\u003e{Err}\u003c/span\u003e.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                },
+                {
+                    "id": "Type",
+                    "string": "%[2]s",
+                    "type": "github.com/chanbakjsd/gotrix/event.Type",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "raw.Type"
+                },
+                {
+                    "id": "Err",
+                    "string": "%[3]v",
+                    "type": "error",
+                    "underlyingType": "interface{Error() string}",
+                    "argNum": 3,
+                    "expr": "err"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} created this room.",
+            "message": "{Author} created this room.",
+            "translation": "{Author} created this room.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} changed the room's permissions.",
+            "message": "{Author} changed the room's permissions.",
+            "translation": "{Author} changed the room's permissions.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} made the room public.",
+            "message": "{Author} made the room public.",
+            "translation": "{Author} made the room public.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} made the room invite-only.",
+            "message": "{Author} made the room invite-only.",
+            "translation": "{Author} made the room invite-only.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} changed the join rule to {JoinRule}.",
+            "message": "{Author} changed the join rule to {JoinRule}.",
+            "translation": "{Author} changed the join rule to {JoinRule}.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                },
+                {
+                    "id": "JoinRule",
+                    "string": "%[2]q",
+                    "type": "github.com/chanbakjsd/gotrix/event.JoinRule",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "ev.JoinRule"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} made the room's history visible to all invited members.",
+            "message": "{Author} made the room's history visible to all invited members.",
+            "translation": "{Author} made the room's history visible to all invited members.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} made the room's history visible to all current members.",
+            "message": "{Author} made the room's history visible to all current members.",
+            "translation": "{Author} made the room's history visible to all current members.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} made the room's history visible to all past members.",
+            "message": "{Author} made the room's history visible to all past members.",
+            "translation": "{Author} made the room's history visible to all past members.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} made the room's history world-readable.",
+            "message": "{Author} made the room's history world-readable.",
+            "translation": "{Author} made the room's history world-readable.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} changed the room history visibility to {Visibility}.",
+            "message": "{Author} changed the room history visibility to {Visibility}.",
+            "translation": "{Author} changed the room history visibility to {Visibility}.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                },
+                {
+                    "id": "Visibility",
+                    "string": "%[2]q",
+                    "type": "github.com/chanbakjsd/gotrix/event.HistoryVisibility",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "ev.Visibility"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} allowed guests to join the room.",
+            "message": "{Author} allowed guests to join the room.",
+            "translation": "{Author} allowed guests to join the room.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} denied guests from joining the room.",
+            "message": "{Author} denied guests from joining the room.",
+            "translation": "{Author} denied guests from joining the room.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} changed the room's guess access rule to {GuestAccess}.",
+            "message": "{Author} changed the room's guess access rule to {GuestAccess}.",
+            "translation": "{Author} changed the room's guess access rule to {GuestAccess}.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                },
+                {
+                    "id": "GuestAccess",
+                    "string": "%[2]q",
+                    "type": "github.com/chanbakjsd/gotrix/event.GuestAccess",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "ev.GuestAccess"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} changed the room's name to \u003ci\u003e{Name}\u003c/i\u003e.",
+            "message": "{Author} changed the room's name to \u003ci\u003e{Name}\u003c/i\u003e.",
+            "translation": "{Author} changed the room's name to \u003ci\u003e{Name}\u003c/i\u003e.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                },
+                {
+                    "id": "Name",
+                    "string": "%[2]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "html.EscapeString(ev.Name)"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} changed the room's topic to \u003ci\u003e{Topic}\u003c/i\u003e.",
+            "message": "{Author} changed the room's topic to \u003ci\u003e{Topic}\u003c/i\u003e.",
+            "translation": "{Author} changed the room's topic to \u003ci\u003e{Topic}\u003c/i\u003e.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                },
+                {
+                    "id": "Topic",
+                    "string": "%[2]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "html.EscapeString(ev.Topic)"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} sent a {Event} event.",
+            "message": "{Author} sent a {Event} event.",
+            "translation": "{Author} sent a {Event} event.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                },
+                {
+                    "id": "Event",
+                    "string": "%[2]T",
+                    "type": "github.com/chanbakjsd/gotrix/event.Event",
+                    "underlyingType": "interface{Type() github.com/chanbakjsd/gotrix/event.Type}",
+                    "argNum": 2,
+                    "expr": "ev"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} joined.",
+            "message": "{Author} joined.",
+            "translation": "{Author} joined.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} rejected the invite.",
+            "message": "{Author} rejected the invite.",
+            "translation": "{Author} rejected the invite.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} had their invitation revoked.",
+            "message": "{Author} had their invitation revoked.",
+            "translation": "{Author} had their invitation revoked.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} changed their avatar.",
+            "message": "{Author} changed their avatar.",
+            "translation": "{Author} changed their avatar.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} changed their name.",
+            "message": "{Author} changed their name.",
+            "translation": "{Author} changed their name.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} updated their information.",
+            "message": "{Author} updated their information.",
+            "translation": "{Author} updated their information.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} left the room.",
+            "message": "{Author} left the room.",
+            "translation": "{Author} left the room.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} was kicked.",
+            "message": "{Author} was kicked.",
+            "translation": "{Author} was kicked.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} was kicked and banned.",
+            "message": "{Author} was kicked and banned.",
+            "translation": "{Author} was kicked and banned.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} was unbanned.",
+            "message": "{Author} was unbanned.",
+            "translation": "{Author} was unbanned.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} was invited.",
+            "message": "{Author} was invited.",
+            "translation": "{Author} was invited.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} left.",
+            "message": "{Author} left.",
+            "translation": "{Author} left.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} was banned.",
+            "message": "{Author} was banned.",
+            "translation": "{Author} was banned.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Author} performed member action {NewState}.",
+            "message": "{Author} performed member action {NewState}.",
+            "translation": "{Author} performed member action {NewState}.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Author",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "author"
+                },
+                {
+                    "id": "NewState",
+                    "string": "%[2]q",
+                    "type": "github.com/chanbakjsd/gotrix/event.MemberType",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "ev.NewState"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "[redacted, reason: {Reason}.]",
+            "message": "[redacted, reason: {Reason}.]",
+            "translation": "[redacted, reason: {Reason}.]",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Reason",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "red.Reason"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "Unknown message type {MsgType}.",
+            "message": "Unknown message type {MsgType}.",
+            "translation": "Unknown message type {MsgType}.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "MsgType",
+                    "string": "%[1]q",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "string(emsg.MsgType)"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "Unknown event type {Type}.",
+            "message": "Unknown event type {Type}.",
+            "translation": "Unknown event type {Type}.",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Type",
+                    "string": "%[1]q",
+                    "type": "github.com/chanbakjsd/gotrix/event.Type",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "msgBox.Type"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "\u003cspan color=\"red\"\u003eContent error:\u003c/span\u003e {EscapeStringdesc}",
+            "message": "\u003cspan color=\"red\"\u003eContent error:\u003c/span\u003e {EscapeStringdesc}",
+            "translation": "\u003cspan color=\"red\"\u003eContent error:\u003c/span\u003e {EscapeStringdesc}",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "EscapeStringdesc",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "html.EscapeString(desc)"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "Show {NHidden} more",
+            "message": "Show {NHidden} more",
+            "translation": "Show {NHidden} more",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "NHidden",
+                    "string": "%[1]d",
+                    "type": "int",
+                    "underlyingType": "int",
+                    "argNum": 1,
+                    "expr": "s.NHidden()"
+                }
+            ],
+            "fuzzy": true
+        }
+    ]
+}

@@ -31,12 +31,12 @@ type Content struct {
 func New(ctx context.Context, msgBox *gotktrix.EventBox) *Content {
 	e, err := msgBox.Parse()
 	if err != nil || e.Type() != event.TypeRoomMessage {
-		return wrapParts(ctx, msgBox, newUnknownContent(msgBox))
+		return wrapParts(ctx, msgBox, newUnknownContent(ctx, msgBox))
 	}
 
 	msg, ok := e.(event.RoomMessageEvent)
 	if !ok {
-		return wrapParts(ctx, msgBox, newUnknownContent(msgBox))
+		return wrapParts(ctx, msgBox, newUnknownContent(ctx, msgBox))
 	}
 
 	switch msg.MsgType {
@@ -56,7 +56,7 @@ func New(ctx context.Context, msgBox *gotktrix.EventBox) *Content {
 	// case event.RoomMessageAudio:
 	// case event.RoomMessageLocation:
 	default:
-		return wrapParts(ctx, msgBox, newUnknownContent(msgBox))
+		return wrapParts(ctx, msgBox, newUnknownContent(ctx, msgBox))
 	}
 }
 
@@ -149,6 +149,6 @@ func (c *Content) redact(red event.RoomRedactionEvent) {
 	c.Box.Remove(c.part)
 	c.react.RemoveAll()
 
-	c.part = newRedactedContent(red)
+	c.part = newRedactedContent(c.ctx, red)
 	c.Box.Prepend(c.part)
 }

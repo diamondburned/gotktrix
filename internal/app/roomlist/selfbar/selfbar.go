@@ -51,8 +51,10 @@ type Controller interface{}
 
 // New creates a new self bar instance.
 func New(ctx context.Context, ctrl Controller) *Bar {
+	printer := locale.Printer(ctx)
+
 	burger := gtk.NewImageFromIconName("open-menu-symbolic")
-	burger.SetTooltipText(locale.Sprint(ctx, "Menu"))
+	burger.SetTooltipText(printer.Sprint("Menu"))
 	burger.AddCSSClass("selfbar-icon")
 	burger.SetVAlign(gtk.AlignCenter)
 
@@ -85,7 +87,7 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 	})
 	button.Connect("clicked", func() {
 		p := gtkutil.ShowPopoverMenu(button, gtk.PosTop, [][2]string{
-			{locale.Sprint(ctx, "User Emojis..."), "selfbar.user-emojis"},
+			{printer.Sprint("User Emojis..."), "selfbar.user-emojis"},
 		})
 		p.SetHasArrow(false)
 		p.SetSizeRequest(200, -1)

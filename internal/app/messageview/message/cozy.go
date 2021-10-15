@@ -15,6 +15,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 var _ = cssutil.WriteCSS(`
@@ -37,12 +38,7 @@ var _ = cssutil.WriteCSS(`
 // newTimestamp creates a new timestamp label. If long is true, then the label
 // timestamp is long.
 func newTimestamp(ts matrix.Timestamp, long bool) *gtk.Label {
-	var t string
-	if long {
-		t = ts.Time().Format(time.Stamp)
-	} else {
-		t = ts.Time().Format(time.Kitchen)
-	}
+	t := locale.Time(ts.Time(), long)
 
 	l := gtk.NewLabel(t)
 	l.SetTooltipText(ts.Time().Format(time.StampMilli))

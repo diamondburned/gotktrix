@@ -111,7 +111,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionSingle)
 	list.SetActivateOnSingleClick(true)
-	list.SetPlaceholder(gtk.NewLabel(locale.Sprint(ctx, "No rooms yet...")))
+	list.SetPlaceholder(gtk.NewLabel(locale.S(ctx, "No rooms yet...")))
 
 	if vadj := ctrl.VAdjustment(); vadj != nil {
 		list.SetAdjustment(vadj)
@@ -158,7 +158,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	gtkutil.BindRightClick(btn, func() {
 		gtkutil.ShowPopoverMenuCustom(btn, gtk.PosBottom, []gtkutil.PopoverMenuItem{
 			gtkutil.MenuWidget("roomsection.change-sort", s.sortByBox()),
-			gtkutil.MenuSeparator(locale.Sprint(ctx, "Appearance")),
+			gtkutil.MenuSeparator(locale.S(ctx, "Appearance")),
 			gtkutil.MenuWidget("roomsection.show-preview", s.showPreviewBox()),
 		})
 	})
@@ -166,7 +166,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	minify.OnToggled(func(minify bool) string {
 		if !minify {
 			s.Expand()
-			return locale.Sprint(ctx, "Show less")
+			return locale.S(ctx, "Show less")
 		}
 
 		s.Minimize()
@@ -244,7 +244,7 @@ func (s *Section) showPreviewBox() gtk.Widgetter {
 }
 
 func (s *Section) sortByBox() gtk.Widgetter {
-	header := gtk.NewLabel(locale.Sprint(s.ctx, "Sort by"))
+	header := gtk.NewLabel(locale.S(s.ctx, "Sort by"))
 	header.SetXAlign(0)
 	header.SetAttributes(markuputil.Attrs(
 		pango.NewAttrWeight(pango.WeightBold),
@@ -253,8 +253,8 @@ func (s *Section) sortByBox() gtk.Widgetter {
 	radio := gtkutil.RadioData{
 		Current: 1,
 		Options: []string{
-			locale.Sprint(s.ctx, "Name (A-Z)"),
-			locale.Sprint(s.ctx, "Activity"),
+			locale.S(s.ctx, "Name (A-Z)"),
+			locale.S(s.ctx, "Activity"),
 		},
 	}
 

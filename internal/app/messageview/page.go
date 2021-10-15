@@ -206,13 +206,34 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 				return
 			}
 
+			// 3 UserIDs max.
+			if len(ev.UserID) > 3 {
+				ev.UserID = ev.UserID[:3]
+			}
+
 			names := make([]string, len(ev.UserID))
 			for i, id := range ev.UserID {
 				author := mauthor.Markup(parent.client, roomID, id, mauthor.WithMinimal())
 				names[i] = "<b>" + author + "</b>"
 			}
 
-			msg := locale.Plural(ctx, names, "is typing...", "are typing...")
+			var msg string
+			p := locale.Printer(ctx)
+
+			switch len(names) {
+			case 0:
+				page.extra.SetMarkup("")
+				return
+			case 1:
+				msg = p.Sprintf("%s is typing...", names[0])
+			case 2:
+				msg = p.Sprintf("%s and %s are typing...", names[0], names[1])
+			case 3:
+				msg = p.Sprintf("%s, %s and %s are typing...", names[0], names[1], names[2])
+			default:
+				msg = p.Sprintf("Several people are typing...")
+			}
+
 			page.extra.SetMarkup(msg)
 		})
 	})
