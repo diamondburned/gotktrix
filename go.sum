@@ -64,8 +64,8 @@ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20211001042551-c59e0e3974fc h1:vljxC1A0Exkdp969rvLj0/z4pCSj9hJX3cfy6IbJn4Q=
 github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20211001042551-c59e0e3974fc/go.mod h1:JsMTPcqWvlG6X9ZkuO2RW/wiQx7fJ/Ke1Qs6hoeqhXI=
 github.com/diamondburned/gotk4/pkg v0.0.0-20211001041545-5d7eec322a59/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotk4/pkg v0.0.0-20211014220241-b353434ad042 h1:FU8t8F32b6W85rqOrNT2otA1Pskm++P3MvbRYfO5k48=
-github.com/diamondburned/gotk4/pkg v0.0.0-20211014220241-b353434ad042/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20211015215723-a877a64c43ab h1:stdHen9ksvqh3g+irjv5XeF8yTUzNPE10LCaKezSu98=
+github.com/diamondburned/gotk4/pkg v0.0.0-20211015215723-a877a64c43ab/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dlclark/regexp2 v1.4.0 h1:F1rxgk7p4uKjwIQxBs9oAXe5CqrXlCduYEJvrF4u93E=
 github.com/dlclark/regexp2 v1.4.0/go.mod h1:2pZnwuY/m+8K6iRw6wQdMtk+rH5tNGR1i55kozfMjCc=
 github.com/dvyukov/go-fuzz v0.0.0-20210429054444-fca39067bc72/go.mod h1:11Gm+ccJnvAhCNLlf5+cS9KjtbaD5I5zaZpFMsTHWTw=

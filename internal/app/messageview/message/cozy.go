@@ -27,8 +27,9 @@ var _ = cssutil.WriteCSS(`
 		margin-right: 10px;
 	}
 	.message-collapsed .message-timestamp {
-		min-height: 1.65em;
 		opacity: 0;
+		font-size: .65em;
+		min-height: 1.9em;
 	}
 	.message-collapsed:hover .message-timestamp {
 		opacity: 1;

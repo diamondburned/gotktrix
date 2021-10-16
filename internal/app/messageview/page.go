@@ -447,8 +447,9 @@ func (p *Page) Load(done func()) {
 		}
 
 		glib.IdleAdd(func() {
-			for i := len(events) - 1; i >= 0; i-- {
-				p.onRoomEvent(&events[i], false)
+			// Require old messages first, so cozy mode works properly.
+			for i := range events {
+				p.onRoomEvent(&events[i], true)
 			}
 			p.loaded = true
 			p.scroll.ScrollToBottom()

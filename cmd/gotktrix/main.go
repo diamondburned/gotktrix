@@ -30,6 +30,16 @@ var _ = cssutil.WriteCSS(`
 	.selfbar-bar, .composer {
 		min-height: 46px;
 	}
+	.selfbar-bar {
+		border-top: 1px solid @borders;
+	}
+
+	/* Use a border-bottom for this instead of border-top so the typing overlay
+	 * can work properly.
+	 */
+	.messageview-rhs > overlay {
+		border-bottom: 1px solid @borders;
+	}
 `)
 
 func main() {

@@ -15,7 +15,7 @@ var extraCSS = cssutil.Applier("messageview-extra", `
 	@keyframes messageview-extra-breathing {
 		  0% { opacity: 1.0; }
 		 75% { opacity: 1.0; }
-		100% { opacity: 0.7; }
+		100% { opacity: 0.8; }
 	}
 
 	.messageview-extra {
@@ -31,7 +31,7 @@ var extraCSS = cssutil.Applier("messageview-extra", `
 	.messageview-extralabel {
 		padding: 0;
 		font-size: .8em;
-		animation: breathing 800ms infinite alternate;
+		animation: messageview-extra-breathing 800ms infinite alternate;
 	}
 `)
 

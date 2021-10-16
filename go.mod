@@ -8,7 +8,7 @@ require (
 	github.com/blevesearch/bleve/v2 v2.1.0
 	github.com/chanbakjsd/gotrix v0.3.2-0.20211007235441-921b87c2e988
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20211001042551-c59e0e3974fc
-	github.com/diamondburned/gotk4/pkg v0.0.0-20211014220241-b353434ad042
+	github.com/diamondburned/gotk4/pkg v0.0.0-20211015215723-a877a64c43ab
 	github.com/enescakir/emoji v1.0.0
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
