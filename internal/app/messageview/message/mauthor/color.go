@@ -21,10 +21,19 @@ var (
 
 	// LightColorHasher generates a pastel color name for use with a dark
 	// background.
-	LightColorHasher ColorHasher = HSVHasher{DJB2Hasher, 0.32, 0.97}
+	LightColorHasher ColorHasher = HSVHasher{
+		DJB2Hasher,
+		[2]float64{0.3, 0.4},
+		[2]float64{0.9, 1.0},
+	}
+
 	// DarkColorHasher generates a darker, stronger color name for use with a
 	// light background.
-	DarkColorHasher ColorHasher = HSVHasher{DJB2Hasher, 1.00, 0.65}
+	DarkColorHasher ColorHasher = HSVHasher{
+		DJB2Hasher,
+		[2]float64{0.9, 1.0},
+		[2]float64{0.6, 0.7},
+	}
 )
 
 // RGBHex converts the given color to a HTML hex color string. The alpha value
@@ -37,19 +46,42 @@ func RGBHex(c color.RGBA) string {
 // parameters in the HSV color space.
 type HSVHasher struct {
 	H func() hash.Hash32 // hashing function
-	S float64            // saturation
-	V float64            // value
+	S [2]float64         // saturation
+	V [2]float64         // value
 }
 
-const nColors = 32 // hue count
+const (
+	nHue = 32 // hue count
+	nSat = 10
+	nVal = 10
+)
 
 // Hash hashes the given name using the parameters inside HSVHasher.
 func (h HSVHasher) Hash(name string) color.RGBA {
-	hash := h.H()
-	hash.Write([]byte(name))
+	hasher := h.H()
+	hasher.Write([]byte(name))
 
-	hue := float64(hash.Sum32()%nColors) * 360 / nColors
-	return hsvrgb(hue, h.S, h.V)
+	// Hash will be within [0, 1].
+	hash := float64(hasher.Sum32()) / math.MaxUint32
+
+	hue := hashClamp(hash, 0, 360, nHue)
+	sat := hashClamp(hash, h.S[0], h.S[1], nSat)
+	val := hashClamp(hash, h.V[0], h.V[1], nVal)
+
+	return hsvrgb(hue, sat, val)
+}
+
+// hashClamp converts the given u32 hash to a number within [min, max],
+// optionally rounded if round is not 0. Hash must be within [0, 1].
+func hashClamp(hash, min, max, round float64) float64 {
+	if round > 0 {
+		hash = math.Round(hash*round) / round
+	}
+
+	r := max - min
+	n := min + (hash * r)
+
+	return n
 }
 
 // hsvrgb is taken from lucasb-eyer/go-colorful, licensed under the MIT license.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
@@ -74,6 +75,7 @@ type renderState struct {
 	ctx   context.Context
 	list  int
 	large bool
+	reply bool
 }
 
 func (s *renderState) traverseChildren(n *html.Node) traverseStatus {
@@ -216,8 +218,28 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		// Inline.
 		case "a":
 			start := -1
+
 			href := nodeAttr(n, "href")
-			if urlIsSafe(href) {
+			if unescaped, err := url.PathUnescape(href); err == nil {
+				// Unescape the URL if it is escaped.
+				href = unescaped
+			}
+
+			const mentionPrefix = "https://matrix.to/#/@"
+			// See if this is a user mention. If yes, then color it.
+			isMention := strings.HasPrefix(href, mentionPrefix)
+
+			if isMention {
+				if n := n.FirstChild; n.Type == html.TextNode {
+					// If this is a mention, then ensure that we have an at (@)
+					// character.
+					if !strings.HasPrefix(n.Data, "@") {
+						n.Data = "@" + n.Data
+					}
+				}
+			}
+
+			if isMention || urlIsSafe(href) {
 				// Only bother with adding a link tag if we know that the URL
 				// has a safe scheme.
 				start = s.iter.Offset()
@@ -231,7 +253,18 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 				tag := s.emptyTag(embeddedURLPrefix + embedURL(start, end, href))
 				s.buf.ApplyTag(tag, &startIter, s.iter)
+
+				if isMention {
+					// Format the user ID; the trimming will trim the at symbol.
+					uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionPrefix))
+					// Color the mention.
+					tag := markuputil.HashTag(s.buf.TagTable(), markuputil.TextTag{
+						"foreground": mauthor.UserColor(uID, mauthor.WithWidgetColor(s.tview)),
+					})
+					s.buf.ApplyTag(tag, &startIter, s.iter)
+				}
 			}
+
 			return traverseSkipChildren
 
 		case "ol": // start
@@ -298,6 +331,12 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			thumbnail, _ := gotktrix.FromContext(s.ctx).Offline().ScaledThumbnail(src, w, h)
 			md.AsyncInsertImage(s.ctx, s.iter, thumbnail, imgutil.WithRescale(w, h))
 			return traverseOK
+
+		case "mx-reply":
+			s.reply = true
+			s.traverseChildren(n)
+			s.reply = false
+			return traverseSkipChildren
 
 		default:
 			log.Println("unknown tag", n.Data)

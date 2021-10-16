@@ -77,6 +77,15 @@ func mkopts(mods []MarkupMod) markupOpts {
 	return opts
 }
 
+// UserColor returns the color in hexadecimal with the # prefix.
+func UserColor(uID matrix.UserID, mods ...MarkupMod) string {
+	return userColor(uID, mkopts(mods))
+}
+
+func userColor(uID matrix.UserID, opts markupOpts) string {
+	return RGBHex(opts.hasher.Hash(string(uID)))
+}
+
 // Markup renders the markup string for the given user inside the given room.
 // The markup format follows the Pango markup format.
 //
@@ -103,13 +112,11 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 		name = "@" + name
 	}
 
-	color := opts.hasher.Hash(string(uID))
-
 	b := strings.Builder{}
 	b.Grow(512)
 	b.WriteString(fmt.Sprintf(
 		`<span color="%s">%s</span>`,
-		RGBHex(color), html.EscapeString(name),
+		userColor(uID, opts), html.EscapeString(name),
 	))
 
 	if opts.minimal {
