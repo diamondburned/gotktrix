@@ -13,6 +13,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
 	"github.com/diamondburned/gotktrix/internal/app/auth/syncbox"
+	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/selfbar"
@@ -136,6 +137,9 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 
 	self := selfbar.New(m.ctx, m)
 	self.Invalidate()
+	self.AddButton(locale.Sprint(m.ctx, "User Emojis"), func() {
+		emojiview.ForUser(m.ctx)
+	})
 
 	leftBox := gtk.NewBox(gtk.OrientationVertical, 0)
 	leftBox.SetSizeRequest(250, -1)

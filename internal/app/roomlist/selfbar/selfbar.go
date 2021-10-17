@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -28,6 +29,9 @@ type Bar struct {
 	box    *gtk.Box
 	avatar *adw.Avatar
 	name   *gtk.Label
+
+	actions   *gio.SimpleActionGroup
+	menuItems [][2]string // id->label
 }
 
 var avatarSize = 32
@@ -82,26 +86,40 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 	button.SetChild(box)
 	barCSS(button)
 
-	gtkutil.BindActionMap(button, "selfbar", map[string]func(){
-		"user-emojis": func() { emojiview.ForUser(ctx) },
-	})
-	button.Connect("clicked", func() {
-		p := gtkutil.ShowPopoverMenu(button, gtk.PosTop, [][2]string{
-			{printer.Sprint("User Emojis..."), "selfbar.user-emojis"},
-		})
-		p.SetHasArrow(false)
-		p.SetSizeRequest(200, -1)
-	})
+	group := gio.NewSimpleActionGroup()
+	button.InsertActionGroup("selfbar", group)
 
-	return &Bar{
+	b := Bar{
 		Button: button,
 		ctx:    ctx,
 		client: client,
 
-		box:    box,
-		avatar: avatar,
-		name:   name,
+		box:     box,
+		avatar:  avatar,
+		name:    name,
+		actions: group,
 	}
+
+	button.ConnectClicked(func() {
+		p := gtkutil.NewPopoverMenu(button, gtk.PosTop, b.menuItems)
+		p.SetHasArrow(false)
+		p.SetSizeRequest(200, -1)
+		p.Popup()
+	})
+
+	return &b
+}
+
+var idReplacer = strings.NewReplacer(
+	" ", "-", "\n", "-",
+)
+
+// AddButton adds a button into the bar.
+func (b *Bar) AddButton(label string, f func()) {
+	id := idReplacer.Replace(strings.ToLower(label))
+
+	b.actions.AddAction(gtkutil.ActionFunc(id, f))
+	b.menuItems = append(b.menuItems, [2]string{label, "selfbar." + id})
 }
 
 // Invalidate invalidates the data displayed on the bar and refetches

@@ -45,7 +45,7 @@ type ActionData struct {
 func ActionGroup(data ...gio.Actioner) *gio.SimpleActionGroup {
 	group := gio.NewSimpleActionGroup()
 	for _, data := range data {
-		group.Insert(data)
+		group.AddAction(data)
 	}
 	return group
 }
@@ -55,7 +55,7 @@ func ActionGroup(data ...gio.Actioner) *gio.SimpleActionGroup {
 func BindActionMap(w gtk.Widgetter, prefix string, m map[string]func()) {
 	group := gio.NewSimpleActionGroup()
 	for k, v := range m {
-		group.Insert(ActionFunc(k, v))
+		group.AddAction(ActionFunc(k, v))
 	}
 
 	w.InsertActionGroup(prefix, group)
@@ -94,12 +94,18 @@ func BindPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) {
 // ShowPopoverMenu is like ShowPopoverMenuCustom but uses a regular string pair
 // list.
 func ShowPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) *gtk.PopoverMenu {
+	p := NewPopoverMenu(w, pos, pairs)
+	p.Popup()
+	return p
+}
+
+// NewPopoverMenu creats a new Popover menu.
+func NewPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) *gtk.PopoverMenu {
 	popover := gtk.NewPopoverMenuFromModel(MenuPair(pairs))
 	popover.SetMnemonicsVisible(true)
 	popover.SetSizeRequest(PopoverWidth, -1)
 	popover.SetPosition(pos)
 	popover.SetParent(w)
-	popover.Popup()
 	return popover
 }
 
