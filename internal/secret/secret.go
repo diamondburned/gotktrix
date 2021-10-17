@@ -9,8 +9,6 @@ import "github.com/pkg/errors"
 // ErrNotFound is returned for unknown keys.
 var ErrNotFound = errors.New("key not found")
 
-var drivers []Driver
-
 // Driver is a basic getter-setter interface that describes a secret driver.
 type Driver interface {
 	Get(string) ([]byte, error)
