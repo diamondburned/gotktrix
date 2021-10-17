@@ -448,7 +448,8 @@ func (s *State) EachTimelineReverse(roomID matrix.RoomID, f func(*event.RawEvent
 func (s *State) UserEvent(typ event.Type) (event.Event, error) {
 	var raw event.RawEvent
 
-	if err := s.db.NodeFromPath(s.paths.user).Get(string(typ), &raw); err != nil {
+	// See setRawEvent: an event is a bucket with an empty key (no state key).
+	if err := s.db.NodeFromPath(s.paths.user).Node(string(typ)).Get("", &raw); err != nil {
 		if !errors.Is(err, db.ErrKeyNotFound) {
 			log.Printf("error getting event type %s: %v", typ, err)
 		}
@@ -464,11 +465,13 @@ func (s *State) UserEvent(typ event.Type) (event.Event, error) {
 	return e, nil
 }
 
-// SetUserEvent updates the user event inside the state.
-func (s *State) SetUserEvent(ev event.Event) error {
+// SetUserEvent updates the user event inside the state. Error checking is not
+// needed, because this function shouldn't be relied on.
+func (s *State) SetUserEvent(ev event.Event) {
 	b, err := json.Marshal(ev)
 	if err != nil {
-		return errors.Wrap(err, "failed to marshal event")
+		log.Println("failed to marshal UserEvent for setting from API:", err)
+		return
 	}
 
 	raw := event.RawEvent{
@@ -476,11 +479,8 @@ func (s *State) SetUserEvent(ev event.Event) error {
 		Content: b,
 	}
 
-	if err := s.db.NodeFromPath(s.paths.user).Set(string(raw.Type), &raw); err != nil {
-		return errors.Wrap(err, "failed to update db")
-	}
-
-	return nil
+	// Update local state.
+	setRawEvent(s.db.NodeFromPath(s.paths.user), "", &raw, false)
 }
 
 // NextBatch returns the next batch string with true if the database contains

@@ -624,14 +624,10 @@ func LatestMessage(events []event.RoomEvent) (event.RoomMessageEvent, bool) {
 // been returned when there's an error. Done might also be called in a different
 // goroutine.
 func (c *Client) AsyncSetConfig(ev event.Event, done func(error)) {
-	if err := c.State.SetUserEvent(ev); err != nil {
-		done(err)
-		return
-	}
+	c.State.SetUserEvent(ev)
 
 	go func() {
 		err := c.ClientConfigSet(string(ev.Type()), ev)
-
 		if done != nil {
 			done(err)
 		}
@@ -657,6 +653,7 @@ func (c *Client) UserEvent(typ event.Type) (event.Event, error) {
 		return nil, errors.Wrap(err, "failed to parse event from API")
 	}
 
+	c.State.SetUserEvent(e)
 	return e, nil
 }
 

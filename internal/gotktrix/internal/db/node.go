@@ -169,7 +169,7 @@ func (n Node) Node(names ...string) Node {
 func (n Node) SetIfNone(k string, v interface{}) error {
 	bytes, err := n.kv.Marshal(v)
 	if err != nil {
-		return errors.Wrap(err, "Failed to marshal")
+		return errors.Wrap(err, "failed to marshal")
 	}
 
 	k = mustKey(k)

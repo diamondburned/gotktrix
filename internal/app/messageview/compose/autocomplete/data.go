@@ -2,10 +2,11 @@ package autocomplete
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -135,7 +136,7 @@ type emojiSearcher struct {
 	emotes  map[emojis.EmojiName]emojis.Emoji
 	matches []string
 	updated time.Time
-	fetched bool
+	// fetched bool
 }
 
 func (s *emojiSearcher) Rune() rune { return ':' }
@@ -152,14 +153,21 @@ func (s *emojiSearcher) update() {
 
 	userEmotes, err1 := emojis.UserEmotes(s.client)
 	roomEmotes, err2 := emojis.RoomEmotes(s.client, s.roomID)
-	if !s.fetched && (err1 != nil || err2 != nil) {
+	if err1 != nil || err2 != nil {
 		// Asynchronously fetch the API.
-		s.fetched = true
+		// s.fetched = true
 		go func() {
 			client := s.client.Online(context.Background())
-			emojis.UserEmotes(client)
-			emojis.RoomEmotes(client, s.roomID)
-			// Invalidate the updated marker so we can recreate the cache.
+
+			if _, err := emojis.UserEmotes(client); err != nil {
+				log.Println("non-fatal: cannot get user emotes:", err)
+			}
+
+			if _, err := emojis.RoomEmotes(client, s.roomID); err != nil {
+				log.Println("non-fatal: cannot get room emotes:", err)
+			}
+
+			// Invalidate the updated marker so we can recheck the cache.
 			glib.IdleAdd(func() { s.updated = time.Time{} })
 		}()
 	}
