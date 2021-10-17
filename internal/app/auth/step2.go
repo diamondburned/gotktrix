@@ -21,7 +21,7 @@ func homeserverStep(a *Assistant) *assistant.Step {
 	errLabel.Hide()
 
 	step := assistant.NewStep("Homeserver", "Connect")
-	// step.CanBack = true
+	step.CanBack = true
 
 	content := step.ContentArea()
 	content.SetOrientation(gtk.OrientationVertical)

@@ -47,7 +47,7 @@ func loginStep(a *Assistant, method loginMethod) *assistant.Step {
 	rememberMe := newRememberMeBox(a)
 
 	step := assistant.NewStep("Password", "Log in")
-	// step.CanBack = true
+	step.CanBack = true
 
 	content := step.ContentArea()
 	content.SetOrientation(gtk.OrientationVertical)

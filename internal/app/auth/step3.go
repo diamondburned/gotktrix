@@ -34,7 +34,7 @@ func chooseLoginStep(a *Assistant) *assistant.Step {
 	tokenLogin.Connect("clicked", methodToggler(a, loginToken))
 
 	step := assistant.NewStep("Log in with", "")
-	// step.CanBack = true
+	step.CanBack = true
 
 	content := step.ContentArea()
 	content.SetOrientation(gtk.OrientationVertical)

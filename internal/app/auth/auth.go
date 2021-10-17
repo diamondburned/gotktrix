@@ -45,11 +45,6 @@ type assistantAccount struct {
 	src secret.Driver
 }
 
-type discoverStep struct {
-	// states
-	serverName string
-}
-
 // New creates a new authentication assistant with the default HTTP client.
 func New(ctx context.Context) *Assistant {
 	return NewWithClient(ctx, httputil.NewClient())
@@ -98,14 +93,15 @@ func (a *Assistant) signinPage() {
 	a.AddStep(step2)
 	a.SetStep(step2)
 
-	step3 := chooseLoginStep(a)
-	a.AddStep(step3)
 }
 
 // step 2 activate
 func (a *Assistant) chooseHomeserver(client *gotktrix.ClientAuth) {
 	a.currentClient = client
-	a.NextStep() // step 2 -> 3
+
+	step3 := chooseLoginStep(a)
+	a.AddStep(step3)
+	a.SetStep(step3)
 }
 
 // step 3 activate

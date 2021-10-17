@@ -35,6 +35,7 @@ type Assistant struct {
 	}
 
 	steps   []*Step
+	arrows  []*gtk.Label
 	current int
 }
 
@@ -101,7 +102,7 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 	window.SetTitlebar(bar)
 	window.SetChild(content)
 
-	assistant := Assistant{
+	a := Assistant{
 		Window:    window,
 		content:   content,
 		bread:     bread,
@@ -115,55 +116,79 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 	}
 
 	cancel.Connect("clicked", func() {
-		if assistant.cancelState.cancel != nil {
-			assistant.cancelState.cancel()
-			assistant.cancel.SetSensitive(false)
+		if a.cancelState.cancel != nil {
+			a.cancelState.cancel()
+			a.cancel.SetSensitive(false)
 			return
 		}
 
-		if assistant.cancelState.pressed != nil {
-			assistant.cancelState.pressed()
+		if a.cancelState.pressed != nil {
+			a.cancelState.pressed()
 			return
 		}
 
-		// if assistant.current > 0 && assistant.current < len(assistant.steps) {
-		// 	step := assistant.steps[assistant.current]
-		// 	if step.CanBack {
-		// 		assistant.SetIndex(assistant.current - 1)
-		// 		return
-		// 	}
-		// }
+		if a.CanBack() {
+			// This changes a.current to be --.
+			a.SetIndex(a.current - 1)
+
+			// Remove all pages after this, since the steps may be added again.
+			// Ensure that we nil them out so the GC can pick them up.
+			for i := a.current + 1; i < len(a.steps); i++ {
+				// Remove from the main widget.
+				a.main.Remove(a.steps[i].content)
+				a.bread.Remove(a.steps[i].titleLabel)
+				a.steps[i] = nil
+				// Remove from the breadcrumbs.
+				a.bread.Remove(a.arrows[i])
+				a.arrows[i] = nil
+			}
+
+			a.steps = a.steps[:a.current+1]
+			a.arrows = a.arrows[:a.current+1]
+
+			a.updateBreadcrumb()
+			a.restoreStackTransitions()
+			return
+		}
 
 		window.Close()
 	})
 
 	ok.Connect("clicked", func() {
-		if assistant.current < 0 {
+		if a.current < 0 {
 			return
 		}
 
-		currentStep := assistant.steps[assistant.current]
+		currentStep := a.steps[a.current]
 		if currentStep.Done != nil {
 			currentStep.Done(currentStep)
 			return
 		}
 
-		if assistant.current == len(assistant.steps)-1 {
+		if a.current == len(a.steps)-1 {
 			// Last step; close window.
 			window.Close()
 		} else {
 			// Not last step; move on.
-			assistant.SetIndex(assistant.current + 1)
+			a.SetIndex(a.current + 1)
 		}
 	})
 
 	for _, step := range steps {
-		assistant.AddStep(step)
+		a.AddStep(step)
 	}
 
-	assistant.restoreStackTransitions()
+	a.restoreStackTransitions()
 
-	return &assistant
+	return &a
+}
+
+// CanBack returns true if the current step can be undoed.
+func (a *Assistant) CanBack() bool {
+	// If the current page is not the last one, then we can't allow backing off,
+	// because those pages won't be added back properly.
+	// We're doing a "cannot back" check then negating it here.
+	return !(len(a.steps) == 1 || a.current != len(a.steps)-1 || !a.steps[a.current].CanBack)
 }
 
 // OKButton returns the OK button.
@@ -228,12 +253,14 @@ func (a *Assistant) AddStep(step *Step) {
 
 	step.parent = a
 	step.index = len(a.steps)
-	a.steps = append(a.steps, step)
 
 	arrow := gtk.NewLabel("⟩")
 	arrow.SetCSSClasses([]string{"assistant-crumb", "assistant-crumb-arrow"})
 	arrow.SetAttributes(crumbArrowAttrs)
 	breadcrumbCSS(arrow)
+
+	a.steps = append(a.steps, step)
+	a.arrows = append(a.arrows, arrow)
 
 	a.main.AddTitled(step.content, fmt.Sprintf("page-%d", step.index), step.title)
 	a.bread.Append(arrow)
@@ -242,6 +269,8 @@ func (a *Assistant) AddStep(step *Step) {
 	if a.current == -1 {
 		a.SetStep(step)
 	}
+
+	a.updateBreadcrumb()
 }
 
 // NextStep moves the assistant to the next step. It panics if the assistant is
@@ -277,12 +306,6 @@ func (a *Assistant) SetStep(step *Step) {
 	a.main.SetVisibleChild(step.content)
 	a.ok.SetLabel(step.okLabel)
 	a.ok.SetVisible(step.okLabel != "") // hide if label is empty
-
-	// if step.CanBack && a.current > 0 {
-	// 	a.cancel.SetLabel("Back")
-	// } else {
-	// 	a.cancel.SetLabel("Close")
-	// }
 
 	a.updateBreadcrumb()
 	a.restoreStackTransitions()
@@ -335,6 +358,13 @@ func (a *Assistant) updateBreadcrumb() {
 
 	labelRect := a.steps[a.current].titleLabel.Allocation()
 
+	// Update the back button.
+	if a.CanBack() {
+		a.cancel.SetLabel("Back")
+	} else {
+		a.cancel.SetLabel("Close")
+	}
+
 	// Scroll the breadcrumb to the end.
 	hadj := a.hviewport.HAdjustment()
 	hadj.SetValue(hadj.Upper() - hadj.PageSize() - float64(labelRect.X()))
@@ -350,7 +380,7 @@ type Step struct {
 	Done func(*Step)
 	// CanBack, if true, will allow the assistant to go from this step to the
 	// last step. If this is the first step, then this does nothing.
-	// CanBack bool
+	CanBack bool
 
 	parent     *Assistant
 	content    *gtk.Box
