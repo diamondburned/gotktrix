@@ -14,10 +14,8 @@ import (
 // Message describes a generic message type.
 type Message interface {
 	gtk.Widgetter
-	// Event returns the original room event.
-	Event() event.RoomEvent
 	// RawEvent returns the raw unparsed room event.
-	RawEvent() *event.RawEvent
+	RawEvent() *gotktrix.EventBox
 	// OnRelatedEvent is called by the caller for each event that's related to
 	// the message. The caller should check the m.relates_to field.
 	OnRelatedEvent(raw *gotktrix.EventBox)
@@ -27,13 +25,8 @@ type eventBox struct {
 	*gotktrix.EventBox
 }
 
-func (b *eventBox) Event() event.RoomEvent {
-	ev, _ := b.EventBox.Parse()
-	return ev.(event.RoomEvent)
-}
-
-func (b *eventBox) RawEvent() *event.RawEvent {
-	return b.EventBox.RawEvent
+func (b *eventBox) RawEvent() *gotktrix.EventBox {
+	return b.EventBox
 }
 
 var messageCSS = cssutil.Applier("message-message", `

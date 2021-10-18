@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"html"
-	"io"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -51,10 +50,6 @@ func (v messageViewer) eventMessage() *eventMessage {
 }
 
 func (m *eventMessage) OnRelatedEvent(ev *gotktrix.EventBox) {}
-
-func fescapef(ctx context.Context, w io.Writer, f string, v ...interface{}) {
-	io.WriteString(w, html.EscapeString(fmt.Sprintf(f, v...)))
-}
 
 // TODO: make EventMessageTail render the full string (-Tail)
 // TODO: add Options into EventMessage

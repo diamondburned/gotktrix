@@ -367,7 +367,7 @@ func (p *Page) onRoomEvent(raw *event.RawEvent, append bool) {
 		}
 		if ok {
 			// Register this event as a related event.
-			p.mrelated[raw.ID] = rl.msg.Event().ID()
+			p.mrelated[raw.ID] = rl.msg.RawEvent().ID
 			// Trigger the message's callback.
 			rl.msg.OnRelatedEvent(gotktrix.WrapEventBox(raw))
 			return
