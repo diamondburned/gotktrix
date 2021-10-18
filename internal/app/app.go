@@ -29,6 +29,9 @@ func init() {
 	glib.LogUseDefaultLogger()
 }
 
+// SuffixedTitle suffixes the title with the gotktrix label.
+func SuffixedTitle(title string) string { return title + " — gotktrix" }
+
 // Application describes the state of a Matrix application.
 type Application struct {
 	*gtk.Application
@@ -55,6 +58,12 @@ func WithApplication(ctx context.Context, app *Application) context.Context {
 
 // SetTitle sets the main window's title.
 func SetTitle(ctx context.Context, title string) {
+	if title == "" {
+		title = "gotktrix"
+	} else {
+		title += " — gotktrix"
+	}
+
 	FromContext(ctx).Window().SetTitle(title)
 }
 

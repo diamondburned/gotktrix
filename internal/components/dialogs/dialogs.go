@@ -4,8 +4,7 @@ import "github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 // Dialog provides a dialog with a headerbar.
 type Dialog struct {
-	*gtk.Window
-	Header *gtk.HeaderBar
+	*gtk.Dialog
 
 	OK     *gtk.Button
 	Cancel *gtk.Button
@@ -13,26 +12,21 @@ type Dialog struct {
 
 // New creates a new dialog.
 func New(transientFor *gtk.Window, cancel, ok string) *Dialog {
-	okButton := gtk.NewButtonWithLabel(ok)
-	okButton.AddCSSClass("suggested-action")
+	const dialogFlags = 0 |
+		gtk.DialogDestroyWithParent |
+		gtk.DialogModal |
+		gtk.DialogUseHeaderBar
 
-	cancelButton := gtk.NewButtonWithLabel(cancel)
+	dialog := gtk.NewDialogWithFlags("", transientFor, dialogFlags)
+	dialog.SetDefaultSize(375, 500)
 
-	bar := gtk.NewHeaderBar()
-	bar.SetShowTitleButtons(false)
-	bar.PackStart(cancelButton)
-	bar.PackEnd(okButton)
-
-	window := gtk.NewWindow()
-	window.SetDefaultSize(375, 500)
-	window.SetTransientFor(transientFor)
-	window.SetModal(true)
-	window.SetTitlebar(bar)
+	okBtn := dialog.AddButton(ok, int(gtk.ResponseOK))
+	okBtn.AddCSSClass("suggested-action")
+	ccBtn := dialog.AddButton(cancel, int(gtk.ResponseCancel))
 
 	return &Dialog{
-		Window: window,
-		Header: bar,
-		OK:     okButton,
-		Cancel: cancelButton,
+		Dialog: dialog,
+		OK:     okBtn.(*gtk.Button),
+		Cancel: ccBtn.(*gtk.Button),
 	}
 }

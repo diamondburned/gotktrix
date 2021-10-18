@@ -65,7 +65,7 @@ func dialog(ctx context.Context, v *View) {
 	dialog.SetTransientFor(app.Window(ctx))
 	dialog.SetDefaultSize(400, 500)
 	dialog.SetChild(v)
-	dialog.SetTitle("Add Emojis")
+	dialog.SetTitle(app.SuffixedTitle("Add Emojis for " + v.name.Label()))
 	dialog.Show()
 }
 

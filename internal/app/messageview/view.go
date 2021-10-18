@@ -2,7 +2,6 @@ package messageview
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -102,9 +101,9 @@ func New(ctx context.Context, ctrl Controller) *View {
 
 	setTitle := func(tab *adw.TabPage) {
 		if tab != nil {
-			app.SetTitle(ctx, fmt.Sprintf("%s — gotktrix", tab.Title()))
+			app.SetTitle(ctx, tab.Title())
 		} else {
-			app.SetTitle(ctx, "gotktrix")
+			app.SetTitle(ctx, "")
 		}
 	}
 
