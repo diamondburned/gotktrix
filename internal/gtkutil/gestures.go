@@ -25,6 +25,7 @@ func BindRightClickAt(w gtk.Widgetter, f func(x, y float64)) {
 		f(x, y)
 	})
 
-	w.AddController(c)
-	w.AddController(l)
+	widget := gtk.BaseWidget(w)
+	widget.AddController(c)
+	widget.AddController(l)
 }

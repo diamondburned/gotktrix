@@ -58,7 +58,7 @@ func BindActionMap(w gtk.Widgetter, prefix string, m map[string]func()) {
 		group.AddAction(ActionFunc(k, v))
 	}
 
-	w.InsertActionGroup(prefix, group)
+	gtk.BaseWidget(w).InsertActionGroup(prefix, group)
 }
 
 func NewCustomMenuItem(label, id string) *gio.MenuItem {

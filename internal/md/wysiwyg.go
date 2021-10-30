@@ -29,15 +29,15 @@ func WYSIWYG(ctx context.Context, buffer *gtk.TextBuffer) {
 
 	// Be careful to include anything hidden, since we want the offsets that
 	// goldmark processes to be the exact same as what's in the buffer.
-	input := []byte(buffer.Slice(&head, &tail, true))
+	input := []byte(buffer.Slice(head, tail, true))
 
 	w := wysiwyg{
 		ctx:   ctx,
 		buf:   buffer,
 		table: buffer.TagTable(),
 		src:   input,
-		head:  &head,
-		tail:  &tail,
+		head:  head,
+		tail:  tail,
 	}
 
 	removeTags := make([]*gtk.TextTag, 0, w.table.Size())
@@ -50,7 +50,7 @@ func WYSIWYG(ctx context.Context, buffer *gtk.TextBuffer) {
 
 	// Ensure that the WYSIWYG tags are all gone.
 	for _, tag := range removeTags {
-		buffer.RemoveTag(tag, &head, &tail)
+		buffer.RemoveTag(tag, head, tail)
 	}
 
 	// Error is not important.
@@ -76,11 +76,8 @@ func (w *wysiwyg) walker(n ast.Node, enter bool) (ast.WalkStatus, error) {
 
 	// Pre-allocate iters.
 	if w.head == nil && w.tail == nil {
-		head := w.buf.StartIter()
-		tail := w.buf.EndIter()
-
-		w.head = &head
-		w.tail = &tail
+		w.head = w.buf.StartIter()
+		w.tail = w.buf.EndIter()
 	}
 
 	return w.enter(n), nil

@@ -3,19 +3,14 @@ package mediautil
 import (
 	"context"
 	"io"
-	"log"
 	"mime"
 	"net/http"
-	"os"
 	"time"
 
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/gregjones/httpcache"
 	"github.com/gregjones/httpcache/diskcache"
-	"github.com/pkg/errors"
 
 	gioglib "github.com/diamondburned/gotk4/pkg/glib/v2"
 )
@@ -71,6 +66,7 @@ func detectCT(b []byte) string {
 	return mime
 }
 
+/*
 // Stream creates a media streamer that asynchronously fetches the given URL.
 //
 // This function currently panics, because stream playback of GtkVideo is
@@ -123,6 +119,7 @@ func Stream(ctx context.Context, url string) gtk.MediaStreamer {
 
 	return mfile
 }
+*/
 
 func init() {
 	mime.AddExtensionType(".3gp", "video/3gpp")

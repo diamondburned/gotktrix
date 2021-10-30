@@ -46,7 +46,7 @@ func (p *pages) SetVisible(visible matrix.RoomID) *Page {
 }
 
 func (p *pages) FromTab(tab *adw.TabPage) *tabPage {
-	child := tab.Child()
+	child := gtk.BaseWidget(tab.Child())
 	return p.pages[matrix.RoomID(child.Name())]
 }
 
@@ -128,7 +128,7 @@ func New(ctx context.Context, ctrl Controller) *View {
 		setTitle(selected)
 		pageToggler(selected)
 
-		child := selected.Child()
+		child := gtk.BaseWidget(selected.Child())
 		rpage := pages.SetVisible(matrix.RoomID(child.Name()))
 		rpage.MarkAsRead()
 
@@ -137,7 +137,7 @@ func New(ctx context.Context, ctrl Controller) *View {
 
 	view.Connect("close-page", func(view *adw.TabView, page *adw.TabPage) {
 		// Delete the page from the page registry.
-		child := page.Child()
+		child := gtk.BaseWidget(page.Child())
 		pages.Pop(matrix.RoomID(child.Name()))
 	})
 
@@ -197,7 +197,7 @@ func (v *View) openRoom(id matrix.RoomID, newTab bool) *Page {
 	page, ok := v.pages.pages[id]
 	if !ok {
 		page = &tabPage{Page: NewPage(v.ctx, v, id)}
-		page.SetName(string(id))
+		gtk.BaseWidget(page).SetName(string(id))
 
 		v.pages.pages[id] = page
 

@@ -188,5 +188,5 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 		tags.Add(tag)
 	}
 
-	buf.ApplyTag(tag, &startIter, iter)
+	buf.ApplyTag(tag, startIter, iter)
 }

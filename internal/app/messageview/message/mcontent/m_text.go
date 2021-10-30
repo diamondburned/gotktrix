@@ -75,7 +75,7 @@ func (c textContent) setContent(body messageBody, isEdited bool) {
 	buf := c.TextView.Buffer()
 
 	start, end := buf.Bounds()
-	buf.Delete(&start, &end)
+	buf.Delete(start, end)
 
 	switch body.Format {
 	case event.FormatHTML:
@@ -101,7 +101,7 @@ func (c textContent) setContent(body messageBody, isEdited bool) {
 			append = " " + editedHTML
 		}
 
-		buf.InsertMarkup(&end, append)
+		buf.InsertMarkup(end, append)
 	}
 }
 

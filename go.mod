@@ -7,8 +7,8 @@ require (
 	github.com/bbrks/go-blurhash v1.1.1
 	github.com/blevesearch/bleve/v2 v2.1.0
 	github.com/chanbakjsd/gotrix v0.3.2-0.20211007235441-921b87c2e988
-	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20211001042551-c59e0e3974fc
-	github.com/diamondburned/gotk4/pkg v0.0.0-20211017225631-965367766848
+	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20211029022543-3640fb9e9164
+	github.com/diamondburned/gotk4/pkg v0.0.0-20211030212342-7924fff586c3
 	github.com/enescakir/emoji v1.0.0
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79

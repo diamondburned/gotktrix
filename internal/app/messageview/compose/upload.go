@@ -82,7 +82,7 @@ func upload(ctx context.Context, ctrl Controller, roomID matrix.RoomID, f gio.Fi
 }
 
 type uploadingFile struct {
-	input  gio.InputStreamer
+	input  *gio.InputStream
 	reader io.ReadCloser
 	name   string
 	mime   string

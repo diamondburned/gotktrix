@@ -109,23 +109,26 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 				return
 			}
 
+			baseStream := gio.BaseInputStream(stream)
+
 			mime, _, err := mime.ParseMediaType(typ)
 			if err != nil {
 				app.Error(ctx, errors.Wrapf(err, "clipboard contains invalid MIME %q", typ))
+				baseStream.Close(ctx)
 				return
 			}
 
 			// How is utf8_string a valid MIME type? GTK, what the fuck?
 			if strings.HasPrefix(mime, "text") || mime == "utf8_string" {
 				// Ignore texts.
-				stream.Close(ctx)
+				baseStream.Close(ctx)
 				return
 			}
 
 			log.Println("got mime type", mime)
 
 			promptUpload(ctx, roomID, uploadingFile{
-				input:  stream,
+				input:  baseStream,
 				reader: gioutil.Reader(ctx, stream),
 				mime:   mime,
 				name:   "clipboard",
@@ -162,7 +165,7 @@ func (i *Input) onKey(_ *gtk.EventControllerKey, val, code uint, state gdk.Modif
 		// a new string (twice) on each keypress.
 		head := i.buffer.StartIter()
 		tail := i.buffer.IterAtOffset(i.buffer.ObjectProperty("cursor-position").(int))
-		uinput := i.buffer.Text(&head, &tail, false)
+		uinput := i.buffer.Text(head, tail, false)
 
 		withinCodeblock := strings.Count(uinput, "```")%2 != 0
 
@@ -213,8 +216,8 @@ func (i *Input) ourLatestMessageID() matrix.EventID {
 func (i *Input) SetText(text string) {
 	start, end := i.buffer.Bounds()
 
-	i.buffer.Delete(&start, &end)
-	i.buffer.Insert(&start, text)
+	i.buffer.Delete(start, end)
+	i.buffer.Insert(start, text)
 }
 
 type messageEvent struct {
@@ -241,7 +244,7 @@ func (i *Input) Send() bool {
 
 	head := i.buffer.StartIter()
 	tail := i.buffer.EndIter()
-	i.buffer.Delete(&head, &tail)
+	i.buffer.Delete(head, tail)
 
 	// Ask the parent to reset the state.
 	i.ctrl.ReplyTo("")
@@ -265,7 +268,7 @@ func (i *Input) put() (inputData, bool) {
 	// all.
 
 	// Get the buffer WITH the invisible HTML segments.
-	inputHTML := i.buffer.Text(&head, &tail, true)
+	inputHTML := i.buffer.Text(head, tail, true)
 	// Clean off trailing spaces.
 	inputHTML = strings.TrimSpace(inputHTML)
 
@@ -275,7 +278,7 @@ func (i *Input) put() (inputData, bool) {
 
 	// Get the buffer without any invisible segments, since those segments
 	// contain HTML.
-	plain := i.buffer.Text(&head, &tail, false)
+	plain := i.buffer.Text(head, tail, false)
 	// Clean off trailing spaces.
 	plain = strings.TrimSpace(plain)
 

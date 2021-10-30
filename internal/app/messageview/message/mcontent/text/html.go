@@ -43,7 +43,7 @@ func RenderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) bool 
 		tview: tview,
 		buf:   buf,
 		table: buf.TagTable(),
-		iter:  &iter,
+		iter:  iter,
 		ctx:   ctx,
 		list:  0,
 		// TODO: detect unicode emojis.
@@ -198,7 +198,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 			if lang := strings.TrimPrefix(nodeAttr(n, "class"), "language-"); lang != "" {
 				startIter := s.buf.IterAtOffset(start)
-				hl.Highlight(s.ctx, &startIter, s.iter, lang)
+				hl.Highlight(s.ctx, startIter, s.iter, lang)
 			}
 
 			return traverseSkipChildren
@@ -252,7 +252,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				end := s.iter.Offset()
 
 				tag := s.emptyTag(embeddedURLPrefix + embedURL(start, end, href))
-				s.buf.ApplyTag(tag, &startIter, s.iter)
+				s.buf.ApplyTag(tag, startIter, s.iter)
 
 				if isMention {
 					// Format the user ID; the trimming will trim the at symbol.
@@ -261,7 +261,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 					tag := markuputil.HashTag(s.buf.TagTable(), markuputil.TextTag{
 						"foreground": mauthor.UserColor(uID, mauthor.WithWidgetColor(s.tview)),
 					})
-					s.buf.ApplyTag(tag, &startIter, s.iter)
+					s.buf.ApplyTag(tag, startIter, s.iter)
 				}
 			}
 
@@ -373,7 +373,7 @@ func (s *renderState) renderChildrenTagged(n *html.Node, tag *gtk.TextTag) {
 	s.traverseSiblings(n.FirstChild)
 
 	startIter := s.buf.IterAtOffset(start)
-	s.buf.ApplyTag(tag, &startIter, s.iter)
+	s.buf.ApplyTag(tag, startIter, s.iter)
 }
 
 func (s *renderState) emptyTag(tagName string) *gtk.TextTag {
@@ -408,7 +408,7 @@ func (s *renderState) tagBounded(tag *gtk.TextTag, f func()) {
 	start := s.iter.Offset()
 	f()
 	startIter := s.buf.IterAtOffset(start)
-	s.buf.ApplyTag(tag, &startIter, s.iter)
+	s.buf.ApplyTag(tag, startIter, s.iter)
 }
 
 // renderChildrenTagName is similar to renderChildrenTagged, except the tag name

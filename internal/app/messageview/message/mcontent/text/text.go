@@ -8,6 +8,11 @@ import (
 	"github.com/diamondburned/gotktrix/internal/md"
 )
 
+// RenderMetadata contains additional metadata that the message contains.
+type RenderMetadata struct {
+	// RefID
+}
+
 // RenderText renders the given plain text.
 func RenderText(ctx context.Context, tview *gtk.TextView, text string) {
 	body := strings.Trim(text, "\n")
@@ -16,7 +21,7 @@ func RenderText(ctx context.Context, tview *gtk.TextView, text string) {
 
 	if md.IsUnicodeEmoji(body) {
 		start, end := tbuf.Bounds()
-		tbuf.ApplyTag(md.TextTags.FromTable(tbuf.TagTable(), "_emoji"), &start, &end)
+		tbuf.ApplyTag(md.TextTags.FromTable(tbuf.TagTable(), "_emoji"), start, end)
 	} else {
 		autolink(tbuf)
 	}

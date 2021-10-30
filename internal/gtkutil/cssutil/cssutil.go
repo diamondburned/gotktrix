@@ -20,7 +20,7 @@ func Applier(class, css string) func(gtk.Widgetter) {
 	classes := strings.Split(class, ".")
 	return func(w gtk.Widgetter) {
 		for _, class := range classes {
-			w.AddCSSClass(class)
+			gtk.BaseWidget(w).AddCSSClass(class)
 		}
 	}
 }
@@ -38,7 +38,7 @@ var _ = WriteCSS(`
 
 // AddClass adds classes.
 func AddClass(w gtk.Widgetter, classes ...string) {
-	ctx := w.StyleContext()
+	ctx := gtk.BaseWidget(w).StyleContext()
 	for _, class := range classes {
 		ctx.AddClass(class)
 	}

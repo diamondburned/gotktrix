@@ -193,7 +193,7 @@ func insertInvisible(buf *gtk.TextBuffer, pos *gtk.TextIter, txt string) {
 	buf.Insert(pos, txt)
 
 	startIter := buf.IterAtOffset(start)
-	buf.ApplyTag(tag, &startIter, pos)
+	buf.ApplyTag(tag, startIter, pos)
 }
 
 // AsyncInsertImage asynchronously inserts an image paintable. It does so in a
@@ -217,7 +217,7 @@ func AsyncInsertImage(ctx context.Context, iter *gtk.TextIter, url string, opts 
 		iter := buf.IterAtOffset(offset)
 		next := buf.IterAtOffset(offset + 1)
 
-		if d := buf.Slice(&iter, &next, true); d != "\uFFFC" {
+		if d := buf.Slice(iter, next, true); d != "\uFFFC" {
 			cancel()
 			return
 		}
@@ -228,16 +228,16 @@ func AsyncInsertImage(ctx context.Context, iter *gtk.TextIter, url string, opts 
 		next := buf.IterAtOffset(offset + 1)
 
 		// Verify that the character at the buffer is still the intended one.
-		if d := buf.Slice(&iter, &next, true); d != "\uFFFC" {
+		if d := buf.Slice(iter, next, true); d != "\uFFFC" {
 			// Character is different; don't modify the buffer.
 			return
 		}
 
 		// Delete the 0xFFFC character that we temporarily inserted into
 		// the buffer to reserve the offset.
-		buf.Delete(&iter, &next)
+		buf.Delete(iter, next)
 		// Insert the pixbuf.
-		buf.InsertPaintable(&iter, p)
+		buf.InsertPaintable(iter, p)
 		// Clean up the context.
 		cancel()
 	}

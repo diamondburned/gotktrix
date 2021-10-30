@@ -140,11 +140,8 @@ func (a *Autocompleter) Autocomplete(ctx context.Context) {
 
 	cursor := a.buffer.ObjectProperty("cursor-position").(int)
 
-	start := a.buffer.IterAtOffset(cursor)
-	a.start = &start
-
-	end := a.buffer.IterAtOffset(cursor)
-	a.end = &end
+	a.start = a.buffer.IterAtOffset(cursor)
+	a.end = a.buffer.IterAtOffset(cursor)
 
 	var searcher Searcher
 

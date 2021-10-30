@@ -42,7 +42,7 @@ func autolink(buf *gtk.TextBuffer) {
 	table := buf.TagTable()
 
 	start, end := buf.Bounds()
-	text := buf.Slice(&start, &end, false)
+	text := buf.Slice(start, end, false)
 
 matchLoop:
 	for _, match := range urlRegex.FindAllStringIndex(text, -1) {
@@ -77,11 +77,11 @@ matchLoop:
 		end.SetLineIndex(offset1)
 
 		a := md.TextTags.FromTable(table, "a")
-		buf.ApplyTag(a, &start, &end)
+		buf.ApplyTag(a, start, end)
 
 		href := text[match[0]:match[1]]
 		link := emptyTag(table, embeddedURLPrefix+embedURL(start.Offset(), end.Offset(), href))
-		buf.ApplyTag(link, &start, &end)
+		buf.ApplyTag(link, start, end)
 	}
 }
 
@@ -113,7 +113,7 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 
 	var buf *gtk.TextBuffer
 	var table *gtk.TextTagTable
-	var iters [2]gtk.TextIter
+	var iters [2]*gtk.TextIter
 
 	needIters := func() {
 		if buf == nil {
@@ -121,10 +121,10 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 			table = buf.TagTable()
 		}
 
-		if iters == [2]gtk.TextIter{} {
+		if iters == [2]*gtk.TextIter{} {
 			i1 := buf.IterAtOffset(0)
 			i2 := buf.IterAtOffset(0)
-			iters = [2]gtk.TextIter{i1, i2}
+			iters = [2]*gtk.TextIter{i1, i2}
 		}
 	}
 
@@ -145,7 +145,7 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 			iters[0].SetOffset(u.From)
 			iters[1].SetOffset(u.To)
 
-			buf.ApplyTag(tag, &iters[0], &iters[1])
+			buf.ApplyTag(tag, iters[0], iters[1])
 		}
 	})
 
@@ -159,7 +159,7 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 			needIters()
 			iters[0].SetOffset(lastURL.From)
 			iters[1].SetOffset(lastURL.To)
-			buf.RemoveTag(lastTag, &iters[0], &iters[1])
+			buf.RemoveTag(lastTag, iters[0], iters[1])
 
 			lastURL = nil
 			lastTag = nil
@@ -169,7 +169,7 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 	motion := gtk.NewEventControllerMotion()
 	motion.Connect("leave", func() {
 		unhover()
-		iters = [2]gtk.TextIter{}
+		iters = [2]*gtk.TextIter{}
 	})
 	motion.Connect("motion", func(x, y float64) {
 		u := checkURL(x, y)
@@ -185,7 +185,7 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 			iters[1].SetOffset(u.To)
 
 			hover := md.TextTags.FromTable(table, "a:hover")
-			buf.ApplyTag(hover, &iters[0], &iters[1])
+			buf.ApplyTag(hover, iters[0], iters[1])
 
 			lastURL = u
 			lastTag = hover
@@ -224,5 +224,5 @@ func ParseEmbeddedURL(data string) (EmbeddedURL, bool) {
 func (e *EmbeddedURL) Bounds(buf *gtk.TextBuffer) (start, end *gtk.TextIter) {
 	startIter := buf.IterAtOffset(e.From)
 	endIter := buf.IterAtOffset(e.To)
-	return &startIter, &endIter
+	return startIter, endIter
 }

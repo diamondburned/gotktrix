@@ -20,13 +20,13 @@ func New(transientFor *gtk.Window, cancel, ok string) *Dialog {
 	dialog := gtk.NewDialogWithFlags("", transientFor, dialogFlags)
 	dialog.SetDefaultSize(375, 500)
 
-	okBtn := dialog.AddButton(ok, int(gtk.ResponseOK))
+	okBtn := dialog.AddButton(ok, int(gtk.ResponseOK)).(*gtk.Button)
 	okBtn.AddCSSClass("suggested-action")
-	ccBtn := dialog.AddButton(cancel, int(gtk.ResponseCancel))
+	ccBtn := dialog.AddButton(cancel, int(gtk.ResponseCancel)).(*gtk.Button)
 
 	return &Dialog{
 		Dialog: dialog,
-		OK:     okBtn.(*gtk.Button),
-		Cancel: ccBtn.(*gtk.Button),
+		OK:     okBtn,
+		Cancel: ccBtn,
 	}
 }

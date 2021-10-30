@@ -123,6 +123,6 @@ func renderBlurhash(rawInfo json.RawMessage, w, h int) gdk.Paintabler {
 	}
 
 	return gdk.NewTextureForPixbuf(gdkpixbuf.NewPixbufFromBytes(
-		glib.UseBytes(nrgba.Pix), gdkpixbuf.ColorspaceRGB, true, 8, w, h, nrgba.Stride,
+		glib.NewBytesWithGo(nrgba.Pix), gdkpixbuf.ColorspaceRGB, true, 8, w, h, nrgba.Stride,
 	))
 }

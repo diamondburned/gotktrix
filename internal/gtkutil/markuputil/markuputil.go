@@ -221,7 +221,7 @@ func rgbIsDark(r, g, b float64) bool {
 // IsDarkTheme returns true if the given widget is inside an application with a
 // dark theme. A dark theme implies the background color is dark.
 func IsDarkTheme(w gtk.Widgetter) bool {
-	styles := w.StyleContext()
+	styles := gtk.BaseWidget(w).StyleContext()
 
 	var darkBg bool // default light theme
 
