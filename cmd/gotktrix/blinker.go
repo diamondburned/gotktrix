@@ -69,7 +69,7 @@ func Blinker(ctx context.Context) gtk.Widgetter {
 	})
 
 	win := app.Window(ctx)
-	win.Connect("closed", cancel)
+	win.Connect("destroy", cancel)
 
 	return b
 }

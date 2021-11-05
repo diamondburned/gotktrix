@@ -107,7 +107,7 @@ func (a *Avatar) invalidate() {
 
 	avy, _ := client.MemberAvatar(a.rID, uID)
 	if avy != nil {
-		url, _ := client.SquareThumbnail(*avy, AvatarSize)
+		url, _ := client.SquareThumbnail(*avy, AvatarSize, gtkutil.ScaleFactor())
 		imgutil.AsyncGET(a.ctx.Take(), url, a.avatar.SetCustomImage)
 	} else {
 		a.avatar.SetCustomImage(nil)

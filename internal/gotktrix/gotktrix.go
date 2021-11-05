@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/bits"
 	"mime"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -289,49 +289,76 @@ func (c *Client) Whoami() (matrix.UserID, error) {
 	return c.userID, nil
 }
 
-// thumbnailScale determines the sacle at which square/round thumbnails will be
-// fetched. It's mostly important for HiDPI displays. Note that the dimensions
-// are scaled up to the next power of 2 as well, so for example, 38px will end
-// up being 128px.
-const thumbnailScale = 2
-
-// roundPow2 rounds x up to the nearest power of 2. For example, if 36 is given,
-// then the returned number is 64.
-func roundPow2(x uint) uint {
-	return 1 << bits.Len(x-1)
-}
-
 // SquareThumbnail is a helper function around MediaThumbnailURL. The given size
 // is assumed to be a square, and the size will be scaled up to the next power
 // of 2 and multiplied up for ensured HiDPI support of up to 2x.
-func (c *Client) SquareThumbnail(mURL matrix.URL, size int) (string, error) {
-	size = int(roundPow2(uint(size)))
-	size = size * thumbnailScale
-
-	return c.MediaThumbnailURL(mURL, true, size, size, api.MediaThumbnailCrop)
+func (c *Client) SquareThumbnail(mURL matrix.URL, size, scale int) (string, error) {
+	return c.Thumbnail(mURL, size, size, scale)
 }
+
+var errEmptyURL = errors.New("empty Matrix URL")
 
 // Thumbnail is a helper function around MediaThumbnailURL. It works similarly
 // to SquareThumbnail, except the dimensions are unchanged.
-func (c *Client) Thumbnail(mURL matrix.URL, w, h int) (string, error) {
-	return c.MediaThumbnailURL(mURL, true, w, h, api.MediaThumbnailCrop)
+func (c *Client) Thumbnail(mURL matrix.URL, w, h, scale int) (string, error) {
+	if mURL == "" {
+		return "", errEmptyURL
+	}
+
+	w *= scale
+	h *= scale
+
+	s, err := c.MediaThumbnailURL(mURL, true, w, h, api.MediaThumbnailCrop)
+	if err != nil {
+		return s, err
+	}
+
+	return makeScaledURL(s, scale), nil
 }
 
-// ScaledThumbnail is like Thumbnaill, except the image URL in the image
+func makeScaledURL(s string, scale int) string {
+	u, err := url.Parse(s)
+	if err != nil {
+		return s
+	}
+
+	// Make the scaling part of the URL too.
+	if u.Fragment == "" {
+		u.Fragment = fmt.Sprintf("scale=%d", scale)
+	} else {
+		u.Fragment += fmt.Sprintf("&scale=%d", scale)
+	}
+
+	return u.String()
+}
+
+// ScaledThumbnail is like Thumbnail, except the image URL in the image
 // respects the original aspect ratio and not the requested one.
-func (c *Client) ScaledThumbnail(mURL matrix.URL, w, h int) (string, error) {
-	return c.MediaThumbnailURL(mURL, true, w, h, api.MediaThumbnailScale)
+func (c *Client) ScaledThumbnail(mURL matrix.URL, w, h, scale int) (string, error) {
+	if mURL == "" {
+		return "", errEmptyURL
+	}
+
+	w *= scale
+	h *= scale
+
+	s, err := c.MediaThumbnailURL(mURL, true, w, h, api.MediaThumbnailScale)
+	if err != nil {
+		return s, err
+	}
+
+	return makeScaledURL(s, scale), nil
 }
 
 // ImageThumbnail gets the thumbnail or direct URL of the image from the
 // message.
-func (c *Client) ImageThumbnail(msg event.RoomMessageEvent, maxW, maxH int) (string, error) {
+func (c *Client) ImageThumbnail(msg event.RoomMessageEvent, maxW, maxH, scale int) (string, error) {
 	i, err := msg.ImageInfo()
 	if err == nil {
 		maxW, maxH = MaxSize(i.Width, i.Height, maxW, maxH)
 
 		if i.ThumbnailURL != "" {
-			return c.ScaledThumbnail(i.ThumbnailURL, maxW, maxH)
+			return c.ScaledThumbnail(i.ThumbnailURL, maxW, maxH, scale)
 		}
 	}
 
@@ -339,7 +366,7 @@ func (c *Client) ImageThumbnail(msg event.RoomMessageEvent, maxW, maxH int) (str
 		return "", errors.New("message is not image")
 	}
 
-	return c.ScaledThumbnail(msg.URL, maxW, maxH)
+	return c.ScaledThumbnail(msg.URL, maxW, maxH, scale)
 }
 
 // MaxSize returns the maximum size that can fit within the given max width and

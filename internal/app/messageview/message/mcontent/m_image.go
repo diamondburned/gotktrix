@@ -8,13 +8,12 @@ import (
 
 	"github.com/bbrks/go-blurhash"
 	"github.com/chanbakjsd/gotrix/event"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 )
@@ -25,64 +24,40 @@ type imageContent struct {
 
 var imageCSS = cssutil.Applier("mcontent-image", `
 	.mcontent-image {
-		background-color: @theme_bg_color;
-		border: 1px solid @theme_base_color;
-	}
-	.mcontent-image button {
-		border-radius: 0;
 		padding: 0;
 		margin:  0;
+		margin-top: 6px;
 	}
 `)
 
-const thumbnailScale = 2
-
 func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPart {
-	var fetched bool
+	picture := gtk.NewPicture()
+	picture.SetCanShrink(true)
+	picture.SetCanFocus(false)
+	picture.SetKeepAspectRatio(true)
+	picture.SetHAlign(gtk.AlignStart)
 
-	pic := gtk.NewPicture()
-	pic.SetSizeRequest(100, 50)
-	pic.SetCanShrink(true)
-	pic.SetKeepAspectRatio(true)
-
-	w := maxWidth * thumbnailScale
-	h := maxHeight * thumbnailScale
+	w := maxWidth
+	h := maxHeight
 
 	i, err := msg.ImageInfo()
 	if err == nil && i.Width > 0 && i.Height > 0 {
 		w, h = gotktrix.MaxSize(i.Width, i.Height, w, h)
-
-		// Recalculate the max dimensions without scaling.
-		_, actualHeight := gotktrix.MaxSize(i.Width, i.Height, maxWidth, maxHeight)
-		pic.SetSizeRequest(100, actualHeight)
-
-		if blur := renderBlurhash(msg.Info, w, h); blur != nil {
-			pic.SetPaintable(blur)
-		}
+		picture.SetSizeRequest(w, h)
+		renderBlurhash(msg.Info, w, h, picture.SetPixbuf)
 	}
 
-	pic.Connect("map", func() {
-		// Lazily fetch this image.
-		if !fetched {
-			fetched = true
-
-			url, _ := gotktrix.FromContext(ctx).ImageThumbnail(msg, w, h)
-			imgutil.AsyncGET(ctx, url, func(p gdk.Paintabler) {
-				_, h := gotktrix.MaxSize(
-					p.IntrinsicWidth(),
-					p.IntrinsicHeight(),
-					maxWidth,
-					maxHeight,
-				)
-				pic.SetSizeRequest(100, h)
-				pic.SetPaintable(p)
-			})
-		}
+	onDrawOnce(picture, func() {
+		client := gotktrix.FromContext(ctx)
+		url, _ := client.ImageThumbnail(msg, w, h, gtkutil.ScaleFactor())
+		imgutil.AsyncGET(ctx, url, picture.SetPaintable, imgutil.WithSizeOverrider(picture, w, h))
 	})
 
 	button := gtk.NewButton()
+	button.AddCSSClass("mcontent-image")
+	button.SetHAlign(gtk.AlignStart)
 	button.SetHasFrame(false)
-	button.SetChild(pic)
+	button.SetChild(picture)
 	button.SetTooltipText(msg.Body)
 	button.Connect("clicked", func() {
 		u, err := gotktrix.FromContext(ctx).MessageMediaURL(msg)
@@ -94,35 +69,40 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 		app.OpenURI(ctx, u)
 	})
 
-	bin := adw.NewBin()
-	bin.SetHAlign(gtk.AlignStart)
-	bin.SetChild(button)
-	imageCSS(bin)
+	return imageContent{button}
+}
 
-	return imageContent{bin}
+func onDrawOnce(w gtk.Widgetter, f func()) {
+	widget := gtk.BaseWidget(w)
+
+	var signal glib.SignalHandle
+	signal = widget.Connect("map", func() {
+		f()
+		widget.HandlerDisconnect(signal)
+	})
 }
 
 func (c imageContent) content() {}
 
-const maxBlurhash = 50
+const maxBlurhash = 25
 
-func renderBlurhash(rawInfo json.RawMessage, w, h int) gdk.Paintabler {
+func renderBlurhash(rawInfo json.RawMessage, w, h int, picFn func(*gdkpixbuf.Pixbuf)) {
 	var info struct {
 		BlurHash string `json:"xyz.amorgan.blurhash"`
 	}
 
 	if err := json.Unmarshal(rawInfo, &info); err != nil || info.BlurHash == "" {
-		return nil
+		return
 	}
 
 	w, h = gotktrix.MaxSize(w, h, maxBlurhash, maxBlurhash)
-	nrgba := image.NewNRGBA(image.Rect(0, 0, maxBlurhash, maxBlurhash))
+	nrgba := image.NewNRGBA(image.Rect(0, 0, w, h))
 
 	if err := blurhash.DecodeDraw(nrgba, info.BlurHash, 1); err != nil {
-		return nil
+		return
 	}
 
-	return gdk.NewTextureForPixbuf(gdkpixbuf.NewPixbufFromBytes(
+	picFn(gdkpixbuf.NewPixbufFromBytes(
 		glib.NewBytesWithGo(nrgba.Pix), gdkpixbuf.ColorspaceRGB, true, 8, w, h, nrgba.Stride,
 	))
 }

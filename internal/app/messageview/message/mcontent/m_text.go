@@ -16,7 +16,10 @@ import (
 )
 
 type textContent struct {
-	*gtk.TextView
+	*gtk.Box
+	text   *gtk.TextView
+	embeds *gtk.Box
+
 	ctx context.Context
 }
 
@@ -55,9 +58,12 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 	})
 
 	c := textContent{
-		TextView: tview,
-		ctx:      ctx,
+		Box:  gtk.NewBox(gtk.OrientationVertical, 0),
+		text: tview,
+		ctx:  ctx,
 	}
+
+	c.Box.Append(tview)
 
 	body, isEdited := msgBody(msgBox)
 	c.setContent(body, isEdited)
@@ -72,24 +78,29 @@ func (c textContent) edit(body messageBody) {
 }
 
 func (c textContent) setContent(body messageBody, isEdited bool) {
-	buf := c.TextView.Buffer()
+	buf := c.text.Buffer()
+	buf.SetText("")
 
-	start, end := buf.Bounds()
-	buf.Delete(start, end)
+	var meta text.RenderMetadata
 
 	switch body.Format {
 	case event.FormatHTML:
-		// Hit the fallback case if the HTML is just a Unicode emoji.
-		if md.IsUnicodeEmoji(body.FormattedBody) {
-			text.RenderText(c.ctx, c.TextView, body.FormattedBody)
-			break
-		}
-		if !text.RenderHTML(c.ctx, c.TextView, body.FormattedBody) {
-			// HTML failed; use c.TextView instead.
-			text.RenderText(c.ctx, c.TextView, body.Body)
-		}
+		meta = text.RenderHTML(c.ctx, c.text, body.Body, body.FormattedBody)
 	default:
-		text.RenderText(c.ctx, c.TextView, body.Body)
+		meta = text.RenderText(c.ctx, c.text, body.Body)
+	}
+
+	// We need to wrap the message inside a box if we need embeds.
+	if len(meta.URLs) > 0 {
+		if c.embeds != nil {
+			c.Box.Remove(c.embeds)
+		}
+
+		c.embeds = gtk.NewBox(gtk.OrientationVertical, 0)
+		c.embeds.AddCSSClass("mcontent-embeds")
+		c.Box.Append(c.embeds)
+		// TODO: cancellation
+		loadEmbeds(c.ctx, c.embeds, meta.URLs)
 	}
 
 	if isEdited {

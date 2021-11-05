@@ -20,6 +20,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/compose/autocomplete"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/md"
@@ -436,7 +437,7 @@ func finishAutocomplete(
 		} else {
 			// Queue inserting the pixbuf.
 			client := gotktrix.FromContext(ctx).Offline()
-			url, _ := client.SquareThumbnail(data.Custom.URL, inlineEmojiSize)
+			url, _ := client.SquareThumbnail(data.Custom.URL, inlineEmojiSize, gtkutil.ScaleFactor())
 			md.AsyncInsertImage(ctx, row.Bounds[1], url, imgutil.WithRectRescale(inlineEmojiSize))
 			// Insert the HTML.
 			md.InsertInvisible(row.Bounds[1], customEmojiHTML(data))

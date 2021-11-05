@@ -138,7 +138,7 @@ func (b *Bar) Invalidate() {
 
 		mxc, _ := b.client.AvatarURL(u)
 		if mxc != nil {
-			url, _ := b.client.SquareThumbnail(*mxc, avatarSize)
+			url, _ := b.client.SquareThumbnail(*mxc, avatarSize, gtkutil.ScaleFactor())
 			imgutil.AsyncGET(b.ctx, url, b.avatar.SetCustomImage)
 		}
 	}()

@@ -7,6 +7,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/secret"
 	"github.com/pkg/errors"
@@ -33,7 +34,7 @@ func copyAccount(client *gotktrix.Client) (*Account, error) {
 
 	var avatarURL string
 	if mxc, _ := client.AvatarURL(client.UserID); mxc != nil {
-		avatarURL, _ = client.SquareThumbnail(*mxc, avatarSize)
+		avatarURL, _ = client.SquareThumbnail(*mxc, avatarSize, gtkutil.ScaleFactor())
 	}
 
 	return &Account{

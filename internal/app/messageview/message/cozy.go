@@ -13,6 +13,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
@@ -154,7 +155,7 @@ func (m *cozyMessage) asyncFetch() {
 
 // setAvatar is safe to be called concurrently.
 func setAvatar(ctx context.Context, a *adw.Avatar, client *gotktrix.Client, mxc matrix.URL) {
-	avatarURL, _ := client.SquareThumbnail(mxc, avatarSize)
+	avatarURL, _ := client.SquareThumbnail(mxc, avatarSize, gtkutil.ScaleFactor())
 	imgutil.AsyncGET(
 		ctx, avatarURL, a.SetCustomImage,
 		imgutil.WithErrorFn(func(err error) {

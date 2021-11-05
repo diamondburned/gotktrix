@@ -14,6 +14,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
@@ -288,7 +289,7 @@ func (d EmojiData) Row(ctx context.Context) *gtk.ListBoxRow {
 		i.SetSizeRequest(emojiSize, emojiSize)
 
 		client := gotktrix.FromContext(ctx).Offline()
-		url, _ := client.SquareThumbnail(d.Custom.URL, emojiSize)
+		url, _ := client.SquareThumbnail(d.Custom.URL, emojiSize, gtkutil.ScaleFactor())
 		imgutil.AsyncGET(ctx, url, i.SetFromPaintable)
 
 		b.Append(i)

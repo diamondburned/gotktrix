@@ -297,7 +297,7 @@ func (r *Room) InvalidateAvatar() {
 			return
 		}
 
-		url, _ := client.SquareThumbnail(*mxc, AvatarSize)
+		url, _ := client.SquareThumbnail(*mxc, AvatarSize, gtkutil.ScaleFactor())
 
 		p, err := imgutil.GET(ctx, url)
 		if err == nil {

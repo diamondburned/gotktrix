@@ -400,7 +400,7 @@ func (v *View) useEmoticonEvent(ev emojis.EmoticonEventData) {
 		old.mxc = emoji.URL
 		v.emojis[name] = old
 
-		url, _ := v.client.SquareThumbnail(old.mxc, EmojiSize)
+		url, _ := v.client.SquareThumbnail(old.mxc, EmojiSize, gtkutil.ScaleFactor())
 		imgutil.AsyncGET(v.ctx.Take(), url, old.emoji.SetFromPaintable)
 
 		delete(ev.Emoticons, name)
@@ -428,7 +428,7 @@ func (v *View) addEmoji(name emojis.EmojiName, mxc matrix.URL) emoji {
 	emoji := newEmptyEmoji(name)
 	emoji.mxc = mxc
 
-	url, _ := v.client.SquareThumbnail(emoji.mxc, EmojiSize)
+	url, _ := v.client.SquareThumbnail(emoji.mxc, EmojiSize, gtkutil.ScaleFactor())
 	imgutil.AsyncGET(v.ctx.Take(), url, emoji.emoji.SetFromPaintable)
 
 	v.list.Insert(emoji, -1)

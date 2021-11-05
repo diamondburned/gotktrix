@@ -166,6 +166,8 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 
 	if opts.at {
 		name = "@" + name
+	} else if name == "" {
+		return
 	}
 
 	start := iter.Offset()

@@ -1,6 +1,8 @@
 package gtkutil
 
 import (
+	"sync"
+
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -134,5 +136,59 @@ func SignalToggler(signal string, f interface{}) func(obj glib.Objector) {
 
 		lastObj = obj
 		lastSig = obj.Connect(signal, f)
+	}
+}
+
+var (
+	scaleFactor      int = -1
+	scaleFactorMutex sync.RWMutex
+	initScaleOnce    sync.Once
+)
+
+// ScaleFactor returns the largest scale factor from all the displays. It is
+// thread-safe.
+func ScaleFactor() int {
+	initScale()
+
+	scaleFactorMutex.RLock()
+	defer scaleFactorMutex.RUnlock()
+
+	if scaleFactor == -1 {
+		panic("uninitialized scaleFactor")
+	}
+
+	return scaleFactor
+}
+
+func initScale() {
+	initScaleOnce.Do(func() {
+		dmanager := gdk.DisplayManagerGet()
+		dmanager.Connect("display-opened", func(display *gdk.Display) {
+			updateScaleForDisplay(display)
+		})
+		for _, display := range dmanager.ListDisplays() {
+			updateScaleForDisplay(&display)
+		}
+	})
+}
+
+func updateScaleForDisplay(display *gdk.Display) {
+	monitors := display.Monitors()
+
+	var maxScale = 1
+
+	for i, len := uint(0), monitors.NItems(); i < len; i++ {
+		monitor := monitors.Item(i).Cast().(*gdk.Monitor)
+		scalefc := monitor.ScaleFactor()
+		if maxScale < scalefc {
+			maxScale = scalefc
+		}
+	}
+
+	scaleFactorMutex.Lock()
+	defer scaleFactorMutex.Unlock()
+
+	if scaleFactor < maxScale {
+		scaleFactor = maxScale
 	}
 }

@@ -103,6 +103,9 @@ func Wrap(gtkapp *gtk.Application) *Application {
 	window.SetChild(spinner)
 	window.SetTitlebar(header)
 
+	// Initialize the scale factor state.
+	gtkutil.ScaleFactor()
+
 	return &Application{
 		Application: gtkapp,
 		window:      window,

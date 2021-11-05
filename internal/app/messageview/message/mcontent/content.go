@@ -14,7 +14,7 @@ import (
 
 const (
 	maxWidth  = 300
-	maxHeight = 300
+	maxHeight = 350
 )
 
 // Content is a message content widget.

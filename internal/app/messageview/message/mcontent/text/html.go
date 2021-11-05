@@ -29,11 +29,33 @@ const (
 	maxHeight = 350
 )
 
-// RenderHTML returns true if the HTML parsing and rendering is successful.
-func RenderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) bool {
+const (
+	eventURLPrefix   = "https://matrix.io/#/!"
+	mentionURLPrefix = "https://matrix.to/#/@"
+)
+
+// RenderHTML tries rendering the HTML and falls back to using plain text if
+// the HTML doesn't work.
+func RenderHTML(ctx context.Context, tview *gtk.TextView, text, html string) RenderMetadata {
+	if md.IsUnicodeEmoji(text) {
+		return RenderText(ctx, tview, text)
+	}
+
+	meta, ok := renderHTML(ctx, tview, html)
+	if !ok {
+		meta = RenderText(ctx, tview, text)
+	}
+
+	return meta
+}
+
+// renderHTML returns true if the HTML parsing and rendering is successful.
+func renderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) (RenderMetadata, bool) {
+	var meta RenderMetadata
+
 	n, err := html.Parse(strings.NewReader(htmlBody))
 	if err != nil {
-		return false
+		return meta, false
 	}
 
 	buf := tview.Buffer()
@@ -51,11 +73,22 @@ func RenderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) bool 
 	}
 
 	if state.traverseSiblings(n) == traverseFailed {
-		return false
+		return meta, false
 	}
 
-	autolink(buf)
-	return true
+	if state.replyURL != "" {
+		// The URL is guaranteed to have this suffix. The trimming will also
+		// throw away the event prefix, so add it back.
+		id := "!" + strings.TrimPrefix(state.replyURL, eventURLPrefix)
+		// Scan everything up to the first slash.
+		if end := strings.Index(id, "/"); end > -1 {
+			id = id[:end]
+		}
+		meta.RefID = matrix.EventID(id)
+	}
+
+	meta.URLs = autolink(buf)
+	return meta, true
 }
 
 type traverseStatus uint8
@@ -72,10 +105,13 @@ type renderState struct {
 	table *gtk.TextTagTable
 	iter  *gtk.TextIter
 
-	ctx   context.Context
-	list  int
+	ctx  context.Context
+	list int
+
+	replyURL string
+	reply    bool
+
 	large bool
-	reply bool
 }
 
 func (s *renderState) traverseChildren(n *html.Node) traverseStatus {
@@ -225,9 +261,14 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				href = unescaped
 			}
 
-			const mentionPrefix = "https://matrix.to/#/@"
+			if s.reply && s.replyURL == "" && strings.HasPrefix(href, eventURLPrefix) {
+				// TODO: check that the inner text says "in reply to", but
+				// that's probably a bad idea.
+				s.replyURL = href
+			}
+
 			// See if this is a user mention. If yes, then color it.
-			isMention := strings.HasPrefix(href, mentionPrefix)
+			isMention := strings.HasPrefix(href, mentionURLPrefix)
 
 			if isMention {
 				if n := n.FirstChild; n.Type == html.TextNode {
@@ -256,7 +297,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 				if isMention {
 					// Format the user ID; the trimming will trim the at symbol.
-					uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionPrefix))
+					uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
 					// Color the mention.
 					tag := markuputil.HashTag(s.buf.TagTable(), markuputil.TextTag{
 						"foreground": mauthor.UserColor(uID, mauthor.WithWidgetColor(s.tview)),
@@ -328,7 +369,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				)
 			}
 
-			thumbnail, _ := gotktrix.FromContext(s.ctx).Offline().ScaledThumbnail(src, w, h)
+			thumbnail, _ := gotktrix.FromContext(s.ctx).Offline().ScaledThumbnail(src, w, h, 1)
 			md.AsyncInsertImage(s.ctx, s.iter, thumbnail, imgutil.WithRescale(w, h))
 			return traverseOK
 

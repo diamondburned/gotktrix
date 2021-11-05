@@ -11,6 +11,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/pkg/errors"
 )
@@ -18,6 +19,14 @@ import (
 type opts struct {
 	w, h int
 	err  func(error)
+
+	sizer struct {
+		set interface {
+			SetSizeRequest(w, h int)
+			SizeRequest() (w, h int)
+		}
+		w, h int
+	}
 }
 
 func (o *opts) error(err error) {
@@ -54,6 +63,16 @@ func WithRectRescale(size int) Opts {
 // sizes.
 func WithRescale(w, h int) Opts {
 	return func(o *opts) { o.w, o.h = w, h }
+}
+
+// WithSizeOverrider overrides the widget's size request to be of the given
+// size.
+func WithSizeOverrider(widget gtk.Widgetter, w, h int) Opts {
+	return func(o *opts) {
+		o.sizer.set = gtk.BaseWidget(widget)
+		o.sizer.w = w
+		o.sizer.h = h
+	}
 }
 
 // AsyncRead reads the given reader asynchronously into a paintable.
@@ -196,15 +215,28 @@ func getPixbuf(ctx context.Context, url string, o *opts) (*gdkpixbuf.Pixbuf, err
 	return p, nil
 }
 
+var errNilPixbuf = errors.New("nil pixbuf")
+
 func readPixbuf(r io.Reader, opts *opts) (*gdkpixbuf.Pixbuf, error) {
 	loader := gdkpixbuf.NewPixbufLoader()
-	if opts.w > 0 && opts.h > 0 {
-		loader.Connect("size-prepared", func(loader *gdkpixbuf.PixbufLoader, w, h int) {
+	loader.Connect("size-prepared", func(loader *gdkpixbuf.PixbufLoader, w, h int) {
+		if opts.w > 0 && opts.h > 0 {
 			if w != opts.w || h != opts.h {
-				loader.SetSize(gotktrix.MaxSize(w, h, opts.w, opts.h))
+				w, h = gotktrix.MaxSize(w, h, opts.w, opts.h)
+				loader.SetSize(w, h)
 			}
-		})
-	}
+		}
+		if opts.sizer.set != nil {
+			maxW, maxH := opts.sizer.w, opts.sizer.h
+			if maxW == 0 && maxH == 0 {
+				maxW, maxH = opts.sizer.set.SizeRequest()
+			}
+			if maxW == 0 && maxH == 0 {
+				maxW, maxH = opts.w, opts.h
+			}
+			opts.sizer.set.SetSizeRequest(gotktrix.MaxSize(w, h, maxW, maxH))
+		}
+	})
 
 	if err := pixbufLoaderReadFrom(loader, r); err != nil {
 		return nil, errors.Wrap(err, "reader error")
@@ -212,7 +244,7 @@ func readPixbuf(r io.Reader, opts *opts) (*gdkpixbuf.Pixbuf, error) {
 
 	pixbuf := loader.Pixbuf()
 	if pixbuf == nil {
-		return nil, errors.New("nil pixbuf")
+		return nil, errNilPixbuf
 	}
 
 	return pixbuf, nil

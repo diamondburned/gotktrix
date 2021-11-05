@@ -38,15 +38,18 @@ var urlRegex = regexp.MustCompile(`(?:https?|ftps?|mailto|magnet)://[^\s/$.?#].[
 
 // autolink scans the buffer's text for all unhighlighted URLs and highlight
 // them. Tags that are autolinked will pass the IsEmbeddedURLTag check.
-func autolink(buf *gtk.TextBuffer) {
+func autolink(buf *gtk.TextBuffer) []string {
 	table := buf.TagTable()
 
 	start, end := buf.Bounds()
 	text := buf.Slice(start, end, false)
 
+	var urls []string
+
 matchLoop:
 	for _, match := range urlRegex.FindAllStringIndex(text, -1) {
 		// match[0] : match[1]
+		urls = append(urls, text[match[0]:match[1]])
 
 		// Count lines.
 		line := strings.Count(text[:match[0]], "\n")
@@ -83,6 +86,8 @@ matchLoop:
 		link := emptyTag(table, embeddedURLPrefix+embedURL(start.Offset(), end.Offset(), href))
 		buf.ApplyTag(link, start, end)
 	}
+
+	return urls
 }
 
 // BindLinkHandler binds input handlers for triggering hyperlinks within the

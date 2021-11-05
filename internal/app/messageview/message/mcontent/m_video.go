@@ -5,21 +5,23 @@ import (
 	"log"
 
 	"github.com/chanbakjsd/gotrix/event"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 )
 
 type videoContent struct {
-	*adw.Bin
+	gtk.Widgetter
 }
 
 var videoCSS = cssutil.Applier("mcontent-video", `
-	.mcontent-video > overlay > image {
-		background-color: black;
+	.mcontent-video {
+		padding: 0;
+		margin:  0;
+		margin-top: 6px;
 	}
 	.mcontent-videoplay {
 		background-color: alpha(@theme_bg_color, 0.85);
@@ -34,38 +36,28 @@ var videoCSS = cssutil.Applier("mcontent-video", `
 func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPart {
 	client := gotktrix.FromContext(ctx).Offline()
 
-	var fetched bool
-
 	preview := gtk.NewPicture()
-	preview.SetSizeRequest(100, 100)
 	preview.SetCanShrink(true)
+	preview.SetCanFocus(false)
 	preview.SetKeepAspectRatio(true)
+	preview.SetHAlign(gtk.AlignStart)
 
-	w := maxWidth * thumbnailScale
-	h := maxHeight * thumbnailScale
+	w := maxWidth
+	h := maxHeight
 
 	v, err := msg.VideoInfo()
 	if err == nil {
 		w, h = gotktrix.MaxSize(v.Width, v.Height, w, h)
+		preview.SetSizeRequest(w, h)
 
-		// Recalcualte the max dimensions without scaling.
-		_, actualHeight := gotktrix.MaxSize(v.Width, v.Height, maxWidth, maxHeight)
-		preview.SetSizeRequest(100, actualHeight)
-	}
-
-	if w > 0 && h > 0 {
-		if blur := renderBlurhash(msg.Info, w, h); blur != nil {
-			preview.SetPaintable(blur)
+		if v.Height > 0 && v.Width > 0 {
+			renderBlurhash(msg.Info, w, h, preview.SetPixbuf)
 		}
 	}
 
-	preview.Connect("map", func() {
-		if !fetched {
-			fetched = true
-
-			url, _ := client.ScaledThumbnail(v.ThumbnailURL, w, h)
-			imgutil.AsyncGET(ctx, url, preview.SetPaintable)
-		}
+	onDrawOnce(preview, func() {
+		url, _ := client.ScaledThumbnail(v.ThumbnailURL, w, h, gtkutil.ScaleFactor())
+		imgutil.AsyncGET(ctx, url, preview.SetPaintable, imgutil.WithSizeOverrider(preview, w, h))
 	})
 
 	play := gtk.NewButtonFromIconName("media-playback-start-symbolic")
@@ -74,13 +66,10 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 	play.AddCSSClass("mcontent-videoplay")
 
 	ov := gtk.NewOverlay()
+	ov.SetHAlign(gtk.AlignStart)
+	ov.AddCSSClass("mcontent-video")
 	ov.AddOverlay(play)
 	ov.SetChild(preview)
-
-	bin := adw.NewBin()
-	bin.SetHAlign(gtk.AlignStart)
-	bin.SetChild(ov)
-	videoCSS(bin)
 
 	play.Connect("clicked", func() {
 		u, err := client.MessageMediaURL(msg)
@@ -93,7 +82,7 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 	})
 
 	return videoContent{
-		Bin: bin,
+		Widgetter: ov,
 	}
 }
 
