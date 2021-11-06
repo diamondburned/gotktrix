@@ -366,16 +366,16 @@ var EachBreak = errors.New("each break (not an error)")
 //        return nil
 //    })
 //
-func (n Node) Each(v interface{}, prefix string, fn func(k string, l int) error) error {
-	return n.each(false, v, prefix, fn)
+func (n Node) Each(v interface{}, fn func(k string, l int) error) error {
+	return n.each(false, v, fn)
 }
 
 // EachReverse is like Each, except the iteration is done in reverse.
-func (n Node) EachReverse(v interface{}, prefix string, fn func(k string, l int) error) error {
-	return n.each(true, v, prefix, fn)
+func (n Node) EachReverse(v interface{}, fn func(k string, l int) error) error {
+	return n.each(true, v, fn)
 }
 
-func (n Node) each(rev bool, v interface{}, prefix string, fn func(k string, l int) error) error {
+func (n Node) each(rev bool, v interface{}, fn func(k string, l int) error) error {
 	return n.TxView(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
@@ -405,16 +405,16 @@ func (n Node) each(rev bool, v interface{}, prefix string, fn func(k string, l i
 }
 
 // EachKey iterates over keys.
-func (n Node) EachKey(prefix string, fn func(k string, l int) error) error {
-	return n.eachKey(false, prefix, fn)
+func (n Node) EachKey(fn func(k string, l int) error) error {
+	return n.eachKey(false, fn)
 }
 
 // EachKeyReverse iterates over keys in reverse.
-func (n Node) EachKeyReverse(prefix string, fn func(k string, l int) error) error {
-	return n.eachKey(true, prefix, fn)
+func (n Node) EachKeyReverse(fn func(k string, l int) error) error {
+	return n.eachKey(true, fn)
 }
 
-func (n Node) eachKey(rev bool, prefix string, fn func(k string, l int) error) error {
+func (n Node) eachKey(rev bool, fn func(k string, l int) error) error {
 	return n.TxView(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {

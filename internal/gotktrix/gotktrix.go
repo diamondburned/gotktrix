@@ -503,6 +503,35 @@ func (c *Client) hasSeenEvent(roomID matrix.RoomID, eventID matrix.EventID) (see
 	return false, false
 }
 
+// RoomLatestReadEvent gets the latest read eventID. The event ID is an empty
+// string if the user hasn't read anything.
+func (c *Client) RoomLatestReadEvent(roomID matrix.RoomID) matrix.EventID {
+	e, err := c.RoomEvent(roomID, m.FullyReadEventType)
+	if err == nil {
+		fullyRead := e.(m.FullyReadEvent)
+		return fullyRead.EventID
+	}
+
+	u, err := c.Whoami()
+	if err != nil {
+		return ""
+	}
+
+	e, err = c.RoomEvent(roomID, event.TypeReceipt)
+	if err == nil {
+		e := e.(event.ReceiptEvent)
+
+		for eventID, receipt := range e.Events {
+			_, read := receipt.Read[u]
+			if read {
+				return eventID
+			}
+		}
+	}
+
+	return ""
+}
+
 // MarkRoomAsRead sends to the server that the current user has seen up to the
 // given event in the given room.
 func (c *Client) MarkRoomAsRead(roomID matrix.RoomID, eventID matrix.EventID) error {

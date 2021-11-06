@@ -131,10 +131,15 @@ func (t TextTag) Tag(name string) *gtk.TextTag {
 	tag := gtk.NewTextTag(name)
 
 	for k, v := range t {
+		if isInternalKey(k) {
+			continue
+		}
+
 		// Edge case.
 		if v, ok := v.(string); ok && v == "" {
 			continue
 		}
+
 		tag.SetObjectProperty(k, v)
 	}
 

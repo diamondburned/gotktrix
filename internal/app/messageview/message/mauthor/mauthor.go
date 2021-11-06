@@ -98,11 +98,15 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 	opts := mkopts(mods)
 
 	name, _, _ := uID.Parse()
+	if name == "" {
+		name = string(uID)
+	}
+
 	var ambiguous bool
 
 	if rID != "" {
 		n, err := c.MemberName(rID, uID, !opts.minimal)
-		if err == nil {
+		if err == nil && n.Name != "" {
 			name = n.Name
 			ambiguous = n.Ambiguous
 		}

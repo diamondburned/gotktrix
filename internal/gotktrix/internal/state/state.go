@@ -241,7 +241,7 @@ func (s *State) EachRoomStateRaw(
 	raw := event.RawEvent{RoomID: roomID}
 	path := s.paths.rooms.Tail(string(roomID), string(typ))
 
-	return s.db.NodeFromPath(path).Each(&raw, "", func(_ string, total int) error {
+	return s.db.NodeFromPath(path).Each(&raw, func(_ string, total int) error {
 		if err := f(&raw, total); err != nil {
 			if errors.Is(err, gotrix.ErrStopIter) {
 				return db.EachBreak
@@ -353,7 +353,7 @@ func (s *State) Rooms() ([]matrix.RoomID, error) {
 	var roomIDs []matrix.RoomID
 
 	return roomIDs, s.top.FromPath(s.paths.rooms).TxView(func(n db.Node) error {
-		if err := n.EachKey("", func(k string, l int) error {
+		if err := n.EachKey(func(k string, l int) error {
 			if roomIDs == nil {
 				roomIDs = make([]matrix.RoomID, 0, l)
 			}
@@ -404,7 +404,7 @@ func (s *State) RoomTimelineRaw(roomID matrix.RoomID) ([]event.RawEvent, error) 
 
 	n := s.paths.timelineEventsNode(s.top, roomID)
 
-	if err := n.Each(&raw, "", func(k string, l int) error {
+	if err := n.Each(&raw, func(k string, l int) error {
 		if raws == nil {
 			raws = make([]event.RawEvent, 0, l)
 		}
@@ -427,7 +427,7 @@ func (s *State) EachTimeline(roomID matrix.RoomID, f func(*event.RawEvent) error
 	n := s.paths.timelineEventsNode(s.top, roomID)
 	var raw event.RawEvent
 
-	return n.Each(&raw, "", func(string, int) error {
+	return n.Each(&raw, func(string, int) error {
 		raw := raw // copy raw.
 		return f(&raw)
 	})
@@ -438,10 +438,48 @@ func (s *State) EachTimelineReverse(roomID matrix.RoomID, f func(*event.RawEvent
 	n := s.paths.timelineEventsNode(s.top, roomID)
 	var raw event.RawEvent
 
-	return n.EachReverse(&raw, "", func(string, int) error {
+	return n.EachReverse(&raw, func(string, int) error {
 		raw := raw // copy raw.
 		return f(&raw)
 	})
+}
+
+// LatestInTimeline returns the latest event in the given room that has the
+// given type. If the type is an empty string, then the latest event with any
+// type is returned.
+func (s *State) LatestInTimeline(roomID matrix.RoomID, t event.Type) *event.RawEvent {
+	var found *event.RawEvent
+
+	if t == "" {
+		s.EachTimelineReverse(roomID, func(ev *event.RawEvent) error {
+			found = ev
+			return db.EachBreak
+		})
+		return found
+	}
+
+	n := s.paths.timelineEventsNode(s.top, roomID)
+	var rawType struct {
+		Type event.Type `json:"type"`
+	}
+
+	n.TxView(func(n db.Node) error {
+		return n.EachReverse(&rawType, func(k string, _ int) error {
+			if rawType.Type != t {
+				return nil
+			}
+
+			var raw event.RawEvent
+			if err := n.Get(k, &raw); err != nil {
+				return err
+			}
+
+			found = &raw
+			return db.EachBreak
+		})
+	})
+
+	return found
 }
 
 // UserEvent gets the user event from the given type.

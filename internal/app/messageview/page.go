@@ -239,10 +239,24 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	})
 
 	page.scroll.OnBottomed(func(bottomed bool) {
-		if bottomed {
+		if bottomed && app.Window(ctx).IsActive() {
 			// Mark the latest message as read everytime the user scrolls down
-			// to the bottom.
+			// to the bottom and the window is active.
 			page.MarkAsRead()
+		}
+	})
+
+	gtkutil.MapSubscriber(page, func() func() {
+		w := app.Window(ctx)
+		h := w.Connect("notify::is-active", func() {
+			if w.IsActive() && page.scroll.IsBottomed() {
+				// Mark the page as read if the window is focused and our scroll
+				// is at the bottom.
+				page.MarkAsRead()
+			}
+		})
+		return func() {
+			w.HandlerDisconnect(h)
 		}
 	})
 
@@ -318,10 +332,17 @@ func (p *Page) MarkAsRead() {
 	}
 
 	client := gotktrix.FromContext(p.ctx.Take())
-	latest := matrix.EventID(lastRow.Name())
+	roomID := p.roomID
 
 	go func() {
-		if err := client.MarkRoomAsRead(p.roomID, latest); err != nil {
+		// Pull the events from the room directly from the state. We do this
+		// because the room sometimes coalesce events together.
+		latest := client.State.LatestInTimeline(roomID, "")
+		if latest == nil {
+			return
+		}
+
+		if err := client.MarkRoomAsRead(roomID, latest.ID); err != nil {
 			// No need to interrupt the user for this.
 			log.Println("failed to mark room as read:", err)
 		}

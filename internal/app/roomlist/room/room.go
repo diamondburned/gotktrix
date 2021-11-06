@@ -3,7 +3,6 @@ package room
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -39,6 +38,7 @@ type Room struct {
 
 	name    *gtk.Label
 	preview *gtk.Label
+	unread  *gtk.Label
 	avatar  *adw.Avatar
 
 	ID   matrix.RoomID
@@ -74,6 +74,7 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 	.room-box {
 		padding:  2px 6px;
 		padding-left: 4px;
+		padding-right: 0;
 		border-left:  2px solid transparent;
 	}
 	.room-unread .room-box {
@@ -83,7 +84,15 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 		margin-left: 6px;
 	}
 	.room-preview {
+		margin-right: 2px;
+	}
+	.room-preview,
+	.room-unread-count {
 		font-size: 0.8em;
+	}
+	.room-unread-count {
+		color: @alpha(@theme_fg_color, 0.75);
+		margin-left: 2px;
 	}
 `)
 
@@ -128,11 +137,18 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	previewLabel.SetHExpand(true)
 	previewLabel.SetEllipsize(pango.EllipsizeEnd)
 	previewLabel.AddCSSClass("room-preview")
-	previewLabel.Hide()
+
+	unreadLabel := gtk.NewLabel("")
+	unreadLabel.SetXAlign(1)
+	unreadLabel.AddCSSClass("room-unread-count")
+
+	nameBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	nameBox.Append(nameLabel)
+	nameBox.Append(unreadLabel)
 
 	rightBox := gtk.NewBox(gtk.OrientationVertical, 0)
 	rightBox.SetVAlign(gtk.AlignCenter)
-	rightBox.Append(nameLabel)
+	rightBox.Append(nameBox)
 	rightBox.Append(previewLabel)
 	rightBox.AddCSSClass("room-right")
 
@@ -154,6 +170,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		box:        box,
 		name:       nameLabel,
 		preview:    previewLabel,
+		unread:     unreadLabel,
 		avatar:     adwAvatar,
 
 		ctx:     gtkutil.WithVisibility(ctx, row),
@@ -218,6 +235,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 					r.InvalidateAvatar()
 				case m.FullyReadEvent:
 					r.InvalidateRead()
+					r.InvalidatePreview()
 					r.section.InvalidateSort()
 				}
 			})
@@ -336,57 +354,55 @@ func (r *Room) InvalidatePreview() {
 
 	client := gotktrix.FromContext(r.ctx).Offline()
 
-	var foundEv *gotktrix.EventBox
-	var firstEv *gotktrix.EventBox
-	extra := -1
-
-	err := client.EachTimelineReverse(r.ID, func(ev *gotktrix.EventBox) error {
-		extra++
-
-		isMsg := ev.Type == event.TypeRoomMessage
-		if !isMsg && firstEv != nil {
-			return nil
-		}
-
-		if firstEv == nil {
-			firstEv = ev
-		}
-
-		if isMsg {
-			foundEv = ev
-			return gotktrix.EachBreak
-		}
-
-		return nil
-	})
-
-	if foundEv == nil {
-		foundEv = firstEv
-		extra = 0
+	first := client.State.LatestInTimeline(r.ID, event.TypeRoomMessage)
+	if first == nil {
+		first = client.State.LatestInTimeline(r.ID, "")
 	}
-
-	if err != nil {
-		log.Println("failed to fetch timeline for preview:", err)
-	}
-
-	if foundEv == nil {
+	if first == nil {
 		r.erasePreview()
 		return
 	}
 
-	preview := message.RenderEvent(r.ctx, foundEv)
+	preview := message.RenderEvent(r.ctx, gotktrix.WrapEventBox(first))
+	r.preview.SetMarkup(preview)
 
-	if extra == 0 {
-		r.preview.SetMarkup(preview)
-	} else {
-		r.preview.SetMarkup(fmt.Sprintf(
-			`<span alpha="75%%" size="small">(+%d)</span> %s`,
-			extra, preview,
-		))
-	}
+	count := countUnreadFmt(client, r.ID)
+	r.unread.SetText(count)
 
 	r.preview.SetTooltipMarkup(preview)
 	r.preview.Show()
+}
+
+func countUnreadFmt(client *gotktrix.Client, roomID matrix.RoomID) string {
+	latestID := client.RoomLatestReadEvent(roomID)
+	if latestID == "" {
+		return ""
+	}
+
+	var unread int
+	var found bool
+
+	client.EachTimelineReverse(roomID, func(b *gotktrix.EventBox) error {
+		if b.ID == latestID {
+			found = true
+			return gotktrix.EachBreak
+		}
+		unread++
+		return nil
+	})
+
+	if unread == 0 {
+		return ""
+	}
+
+	var s string
+	if found {
+		s = fmt.Sprintf("(%d)", unread)
+	} else {
+		s = fmt.Sprintf("(%d+)", unread)
+	}
+
+	return s
 }
 
 // InvalidateRead invalidates the read state of this room.

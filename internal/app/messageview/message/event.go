@@ -6,6 +6,7 @@ import (
 	"html"
 
 	"github.com/chanbakjsd/gotrix/event"
+	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -58,20 +59,40 @@ func (m *eventMessage) OnRelatedEvent(ev *gotktrix.EventBox) {}
 func RenderEvent(ctx context.Context, raw *gotktrix.EventBox) string {
 	client := gotktrix.FromContext(ctx).Offline()
 	window := app.FromContext(ctx).Window()
-	author := mauthor.Markup(
-		client, raw.RoomID, raw.Sender,
-		mauthor.WithWidgetColor(&window.Widget),
-		mauthor.WithMinimal(),
-	)
+
+	authorForUser := func(userID matrix.UserID) string {
+		return mauthor.Markup(
+			client, raw.RoomID, userID,
+			mauthor.WithWidgetColor(&window.Widget),
+			mauthor.WithMinimal(),
+		)
+	}
 
 	p := locale.Printer(ctx)
 
+	if redaction := raw.Unsigned.RedactReason; redaction != nil {
+		redacted := p.Sprint("message redacted.")
+		author := authorForUser(raw.Sender)
+		return fmt.Sprintf(`%s: <span alpha="80%%"><i>%s</i></span>`, author, redacted)
+	}
+
 	e, err := raw.Parse()
 	if err != nil {
+		author := authorForUser(raw.Sender)
 		return p.Sprintf(
 			`%s sent an unusual event %s: <span color="red">%v</span>.`,
 			author, raw.Type, err,
 		)
+	}
+
+	var author string
+	// Get the sender's ID, OR the user ID that the event acts on, if there's
+	// one. All the strings below assume that. Don't use the state key if the
+	// event fails to be parsed.
+	if raw.StateKey != "" {
+		author = authorForUser(matrix.UserID(raw.StateKey))
+	} else {
+		author = authorForUser(raw.Sender)
 	}
 
 	// Treat the RoomMemberEvent specially, because it has a UserID field that
