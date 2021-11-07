@@ -91,7 +91,7 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 		font-size: 0.8em;
 	}
 	.room-unread-count {
-		color: @alpha(@theme_fg_color, 0.75);
+		color: alpha(@theme_fg_color, 0.75);
 		margin-left: 2px;
 	}
 `)
