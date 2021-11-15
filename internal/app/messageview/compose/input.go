@@ -328,6 +328,19 @@ func (data inputData) put(client *gotktrix.Client) messageEvent {
 		out = html.String()
 		out = strings.TrimSpace(out)
 
+		// Trim off the paragraph tags if we only have 1 pair of it wrapped
+		// around the block.
+		singleParagraph := true &&
+			// check if surrounded by p tags
+			strings.HasPrefix(out, "<p>") && strings.HasSuffix(out, "</p>") &&
+			// check that there's only 1 pair of p tags
+			strings.Count(out, "<p>") == 1 && strings.Count(out, "</p>") == 1
+
+		if singleParagraph {
+			out = strings.TrimPrefix(out, "<p>")
+			out = strings.TrimSuffix(out, "</p>")
+		}
+
 		ev.Format = event.FormatHTML
 		ev.FormattedBody = out
 	}
