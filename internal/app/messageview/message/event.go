@@ -50,6 +50,10 @@ func (v messageViewer) eventMessage() *eventMessage {
 	}
 }
 
+func (m *eventMessage) SetBlur(blur bool) {
+	blurWidget(m, m, blur)
+}
+
 func (m *eventMessage) OnRelatedEvent(ev *gotktrix.EventBox) {}
 
 // TODO: make EventMessageTail render the full string (-Tail)

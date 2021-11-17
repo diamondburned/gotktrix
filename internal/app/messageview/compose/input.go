@@ -15,6 +15,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/gioutil"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/compose/autocomplete"
@@ -221,11 +222,6 @@ func (i *Input) SetText(text string) {
 	i.buffer.Insert(start, text)
 }
 
-type messageEvent struct {
-	event.RoomMessageEvent
-	NewContent *event.RoomMessageEvent `json:"m.new_content,omitempty"`
-}
-
 // Send sends the message inside the input off.
 func (i *Input) Send() bool {
 	dt, ok := i.put()
@@ -233,14 +229,25 @@ func (i *Input) Send() bool {
 		return false
 	}
 
+	ctx := i.ctx
 	go func() {
-		client := gotktrix.FromContext(i.ctx)
-		roomEv := dt.put(client)
+		client := gotktrix.FromContext(ctx)
+		rawEvt := dt.put(client)
 
-		_, err := client.RoomEventSend(roomEv.RoomID, roomEv.Type(), roomEv)
+		rowCh := make(chan *gtk.ListBoxRow, 1)
+		glib.IdleAdd(func() {
+			rowCh <- i.ctrl.AddSendingMessage(rawEvt)
+		})
+
+		v, err := client.RoomEventSend(rawEvt.RoomID, rawEvt.Type, rawEvt.Content)
 		if err != nil {
 			app.Error(i.ctx, errors.Wrap(err, "failed to send message"))
 		}
+
+		row := <-rowCh
+		glib.IdleAdd(func() {
+			i.ctrl.BindSendingMessage(row, v)
+		})
 	}()
 
 	head := i.buffer.StartIter()
@@ -298,14 +305,23 @@ type inputData struct {
 	inputState
 }
 
+type messageEvent struct {
+	event.RoomMessageEvent
+	NewContent *event.RoomMessageEvent `json:"m.new_content,omitempty"`
+}
+
 // put creates a message event from the input data. It might query the API for
 // the information that it needs.
-func (data inputData) put(client *gotktrix.Client) messageEvent {
+func (data inputData) put(client *gotktrix.Client) *event.RawEvent {
 	ev := messageEvent{
 		RoomMessageEvent: event.RoomMessageEvent{
-			RoomEventInfo: event.RoomEventInfo{RoomID: data.roomID},
-			MsgType:       event.RoomMessageText,
-			RelatesTo:     data.relatesTo(),
+			RoomEventInfo: event.RoomEventInfo{
+				RoomID:     data.roomID,
+				SenderID:   client.UserID,
+				OriginTime: matrix.Timestamp(time.Now().UnixMilli()),
+			},
+			MsgType:   event.RoomMessageText,
+			RelatesTo: data.relatesTo(),
 		},
 	}
 
@@ -363,7 +379,20 @@ func (data inputData) put(client *gotktrix.Client) messageEvent {
 		}
 	}
 
-	return ev
+	b, err := json.Marshal(ev)
+	if err != nil {
+		// lulwut
+		log.Println("cannot marshal message JSON:", err)
+		return nil
+	}
+
+	return &event.RawEvent{
+		Type:             event.TypeRoomMessage,
+		Content:          b,
+		RoomID:           ev.RoomID,
+		Sender:           ev.SenderID,
+		OriginServerTime: ev.OriginTime,
+	}
 }
 
 func (data inputData) relatesTo() json.RawMessage {

@@ -14,11 +14,23 @@ import (
 // Message describes a generic message type.
 type Message interface {
 	gtk.Widgetter
+	// SetBlur greys the message's content if true. It's used to indicate
+	// idling.
+	SetBlur(bool)
 	// RawEvent returns the raw unparsed room event.
 	RawEvent() *gotktrix.EventBox
 	// OnRelatedEvent is called by the caller for each event that's related to
 	// the message. The caller should check the m.relates_to field.
 	OnRelatedEvent(raw *gotktrix.EventBox)
+}
+
+func blurWidget(parent, content gtk.Widgetter, blur bool) {
+	gtk.BaseWidget(content).SetSensitive(!blur)
+	if blur {
+		gtk.BaseWidget(parent).AddCSSClass("message-blurred")
+	} else {
+		gtk.BaseWidget(parent).RemoveCSSClass("message-blurred")
+	}
 }
 
 type eventBox struct {
@@ -80,6 +92,30 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent
 	}
 
 	return viewer.eventMessage()
+}
+
+// EditCozyMessage modifies v directly based on the underlying type that it has.
+// The type of the message is preserved.
+func EditCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent, v Message) {
+	viewer := messageViewer{
+		Context:       ctx,
+		MessageViewer: view,
+		raw:           gotktrix.WrapEventBox(raw),
+	}
+
+	_, err := viewer.raw.Parse()
+	if err != nil {
+		return
+	}
+
+	switch v := v.(type) {
+	case *cozyMessage:
+		*v = *viewer.cozyMessage()
+	case *collapsedMessage:
+		*v = *viewer.collapsedMessage()
+	case *eventMessage:
+		*v = *viewer.eventMessage()
+	}
 }
 
 const maxCozyAge = 10 * time.Minute

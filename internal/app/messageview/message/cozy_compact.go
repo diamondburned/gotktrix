@@ -21,7 +21,7 @@ const (
 )
 
 func (v messageViewer) collapsedMessage() *collapsedMessage {
-	timestamp := newTimestamp(v.raw.OriginServerTime, false)
+	timestamp := newTimestamp(v.raw.OriginServerTime.Time(), false)
 	timestamp.SetSizeRequest(avatarWidth, -1)
 	timestamp.SetVAlign(gtk.AlignStart)
 	timestamp.SetYAlign(1)
@@ -44,6 +44,10 @@ func (v messageViewer) collapsedMessage() *collapsedMessage {
 		timestamp: timestamp,
 		content:   content,
 	}
+}
+
+func (m *collapsedMessage) SetBlur(blur bool) {
+	blurWidget(m, m.content, blur)
 }
 
 func (m *collapsedMessage) OnRelatedEvent(ev *gotktrix.EventBox) {

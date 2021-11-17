@@ -8,6 +8,7 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -25,9 +26,13 @@ type Composer struct {
 
 // Controller describes the parent component that the Composer controls.
 type Controller interface {
-	// AddEphemeralMessage(txID string, g gtk.Widgetter)
+	message.MessageViewer
+
 	ReplyTo(matrix.EventID)
 	Edit(matrix.EventID)
+
+	AddSendingMessage(raw *event.RawEvent) *gtk.ListBoxRow
+	BindSendingMessage(row *gtk.ListBoxRow, evID matrix.EventID) (replaced bool)
 }
 
 const (

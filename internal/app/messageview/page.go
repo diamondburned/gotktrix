@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -38,6 +39,7 @@ type Page struct {
 	// pieces of events in separate places.
 	messages map[matrix.EventID]messageRow
 	mrelated map[matrix.EventID]matrix.EventID // keep track of reactions
+	sending  map[*gtk.ListBoxRow]message.Message
 
 	name    string
 	onTitle func(title string)
@@ -117,6 +119,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		list:     msgList,
 		messages: make(map[matrix.EventID]messageRow),
 		mrelated: make(map[matrix.EventID]matrix.EventID),
+		sending:  make(map[*gtk.ListBoxRow]message.Message),
 
 		onTitle: func(string) {},
 		ctx:     gtkutil.WithVisibility(ctx, msgList),
@@ -375,6 +378,53 @@ func (p *Page) clean() {
 	}
 }
 
+// AddSendingMessage adds the given message into the page and returns the row.
+// The user must call BindSendingMessage afterwards to ensure that the added
+// message is merged with the synchronized one.
+func (p *Page) AddSendingMessage(raw *event.RawEvent) *gtk.ListBoxRow {
+	msg := message.NewCozyMessage(p.ctx.Take(), p, raw)
+	msg.SetBlur(true)
+
+	row := gtk.NewListBoxRow()
+	row.AddCSSClass("messageview-sending")
+	row.SetChild(msg)
+
+	p.sending[row] = msg
+	p.list.Append(row)
+
+	return row
+}
+
+// BindSendingMessage is used after the sending message has been sent through
+// the backend, and that an event ID is returned. The page will try to match the
+// message up with an existing event.
+func (p *Page) BindSendingMessage(row *gtk.ListBoxRow, evID matrix.EventID) (replaced bool) {
+	msg, ok := p.sending[row]
+	if !ok {
+		return false
+	}
+
+	// Check if the message has been synchronized before it's replied.
+	if _, ok := p.messages[evID]; ok {
+		// Yes, so replace our sending message.
+		delete(p.sending, row)
+		p.list.Remove(msg)
+		// Just use the synced message.
+		return true
+	}
+
+	// Not replaced yet, so we arrived first. Place the message in.
+	p.messages[evID] = messageRow{
+		msg:  msg,
+		row:  row,
+		sent: matrix.Timestamp(time.Now().UnixMilli()),
+	}
+
+	msg.SetBlur(false)
+	row.SetName(string(evID))
+	return false
+}
+
 func (p *Page) onRoomEvent(raw *event.RawEvent, append bool) {
 	id := raw.ID
 	relatesToID := relatesTo(raw)
@@ -394,6 +444,21 @@ func (p *Page) onRoomEvent(raw *event.RawEvent, append bool) {
 			return
 		}
 		// Treat as a new message.
+	}
+
+	// Ensure that there isn't already a message with the same ID, which might
+	// happen if this is a message that we sent.
+	if existing, ok := p.messages[id]; ok {
+		// Update the state.
+		message.EditCozyMessage(p.parent.ctx, p, raw, existing.msg)
+		p.messages[id] = messageRow{
+			msg:  existing.msg,
+			row:  existing.row,
+			sent: raw.OriginServerTime,
+		}
+		// Update the widget in the row.
+		existing.row.SetChild(existing.msg)
+		return
 	}
 
 	m := message.NewCozyMessage(p.parent.ctx, p, raw)
