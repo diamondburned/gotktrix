@@ -234,20 +234,28 @@ func (i *Input) Send() bool {
 		client := gotktrix.FromContext(ctx)
 		rawEvt := dt.put(client)
 
-		rowCh := make(chan *gtk.ListBoxRow, 1)
-		glib.IdleAdd(func() {
-			rowCh <- i.ctrl.AddSendingMessage(rawEvt)
-		})
+		var eventID matrix.EventID
+		var err error
 
-		v, err := client.RoomEventSend(rawEvt.RoomID, rawEvt.Type, rawEvt.Content)
+		// Only push a new message if we're not editing.
+		if dt.editing == "" {
+			rowCh := make(chan *gtk.ListBoxRow, 1)
+			glib.IdleAdd(func() {
+				rowCh <- i.ctrl.AddSendingMessage(rawEvt)
+			})
+
+			defer func() {
+				row := <-rowCh
+				glib.IdleAdd(func() {
+					i.ctrl.BindSendingMessage(row, eventID)
+				})
+			}()
+		}
+
+		eventID, err = client.RoomEventSend(rawEvt.RoomID, rawEvt.Type, rawEvt.Content)
 		if err != nil {
 			app.Error(i.ctx, errors.Wrap(err, "failed to send message"))
 		}
-
-		row := <-rowCh
-		glib.IdleAdd(func() {
-			i.ctrl.BindSendingMessage(row, v)
-		})
 	}()
 
 	head := i.buffer.StartIter()

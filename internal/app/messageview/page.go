@@ -404,11 +404,12 @@ func (p *Page) BindSendingMessage(row *gtk.ListBoxRow, evID matrix.EventID) (rep
 		return false
 	}
 
+	delete(p.sending, row)
+
 	// Check if the message has been synchronized before it's replied.
 	if _, ok := p.messages[evID]; ok {
 		// Yes, so replace our sending message.
-		delete(p.sending, row)
-		p.list.Remove(msg)
+		p.list.Remove(row)
 		// Just use the synced message.
 		return true
 	}
@@ -427,9 +428,8 @@ func (p *Page) BindSendingMessage(row *gtk.ListBoxRow, evID matrix.EventID) (rep
 
 func (p *Page) onRoomEvent(raw *event.RawEvent, append bool) {
 	id := raw.ID
-	relatesToID := relatesTo(raw)
 
-	if relatesToID != "" {
+	if relatesToID := relatesTo(raw); relatesToID != "" {
 		rl, ok := p.messages[relatesToID]
 		if !ok {
 			if rel := p.mrelated[relatesToID]; rel != "" {
