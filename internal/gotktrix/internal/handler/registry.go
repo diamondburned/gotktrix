@@ -9,6 +9,7 @@ import (
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
 )
 
 type Registry struct {
@@ -217,6 +218,11 @@ func (r *Registry) invokeTimeline(rID matrix.RoomID, raws []event.RawEvent) {
 	rh, ok := r.timeline[rID]
 	if !ok {
 		return
+	}
+
+	if len(raws) > state.TimelineKeepLast {
+		// Only dispatch the latest 100 room events.
+		raws = raws[len(raws)-state.TimelineKeepLast:]
 	}
 
 	for i := range raws {
