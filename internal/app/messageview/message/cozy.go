@@ -39,8 +39,13 @@ var _ = cssutil.WriteCSS(`
 
 // newTimestamp creates a new timestamp label. If long is true, then the label
 // timestamp is long.
-func newTimestamp(ts time.Time, long bool) *gtk.Label {
-	t := locale.Time(ts, long)
+func newTimestamp(ctx context.Context, ts time.Time, long bool) *gtk.Label {
+	var t string
+	if long {
+		t = locale.TimeAgo(ctx, ts)
+	} else {
+		t = locale.Time(ts, false)
+	}
 
 	l := gtk.NewLabel(t)
 	l.SetTooltipText(ts.Format(time.StampMilli))
@@ -84,7 +89,7 @@ func (v messageViewer) cozyMessage() *cozyMessage {
 		mauthor.WithWidgetColor(nameLabel),
 	))
 
-	timestamp := newTimestamp(v.raw.OriginServerTime.Time(), true)
+	timestamp := newTimestamp(v, v.raw.OriginServerTime.Time(), true)
 	timestamp.SetEllipsize(pango.EllipsizeEnd)
 	timestamp.SetYAlign(0.6)
 

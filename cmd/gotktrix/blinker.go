@@ -20,8 +20,9 @@ const (
 )
 
 const (
-	blinkerSyncIcon  = "object-select-symbolic"
+	blinkerSyncIcon  = "emblem-favorite-symbolic"
 	blinkerErrorIcon = "dialog-error-symbolic"
+	blinkerStayTime  = 200 // ms
 )
 
 func (s blinkerState) Class() string {
@@ -82,7 +83,7 @@ func (b *blinker) sync() {
 		glib.SourceRemove(b.prev)
 	}
 
-	b.prev = glib.TimeoutAdd(100 /* ms */, func() {
+	b.prev = glib.TimeoutAdd(blinkerStayTime, func() {
 		b.set(blinkerNone)
 		b.prev = 0
 	})

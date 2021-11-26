@@ -54,7 +54,7 @@ type canceller struct {
 
 // WithVisibility creates a new context that is canceled when the widget is
 // hidden.
-func WithVisibility(ctx context.Context, w gtk.Widgetter) ContextTaker {
+func WithVisibility(ctx context.Context, w gtk.Widgetter) Cancellable {
 	c := WithCanceller(ctx)
 	w.Connect("map", c.Renew)
 	w.Connect("unmap", c.Cancel)
@@ -91,17 +91,12 @@ func (c *canceller) Cancel() {
 }
 
 func (c *canceller) Renew() {
-	ctx, cancel := context.WithCancel(c.old)
-
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.cancel != nil {
-		c.cancel()
+	if c.cancel == nil {
+		c.ctx, c.cancel = context.WithCancel(c.old)
 	}
-
-	c.ctx = ctx
-	c.cancel = cancel
 }
 
 func (c *canceller) Done() <-chan struct{} {

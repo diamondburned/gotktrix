@@ -30,7 +30,12 @@ func init() {
 }
 
 // SuffixedTitle suffixes the title with the gotktrix label.
-func SuffixedTitle(title string) string { return title + " — gotktrix" }
+func SuffixedTitle(title string) string {
+	if title == "" {
+		return "gotktrix"
+	}
+	return title + " — gotktrix"
+}
 
 // Application describes the state of a Matrix application.
 type Application struct {
@@ -58,13 +63,7 @@ func WithApplication(ctx context.Context, app *Application) context.Context {
 
 // SetTitle sets the main window's title.
 func SetTitle(ctx context.Context, title string) {
-	if title == "" {
-		title = "gotktrix"
-	} else {
-		title += " — gotktrix"
-	}
-
-	FromContext(ctx).Window().SetTitle(title)
+	FromContext(ctx).SetTitle(title)
 }
 
 // Window returns the context's window.
@@ -92,25 +91,21 @@ func Wrap(gtkapp *gtk.Application) *Application {
 	header := gtk.NewHeaderBar()
 	header.SetShowTitleButtons(true)
 
-	spinner := gtk.NewSpinner()
-	spinner.Start()
-	spinner.SetSizeRequest(18, 18)
-	spinner.SetHAlign(gtk.AlignCenter)
-	spinner.SetVAlign(gtk.AlignCenter)
-
 	window := gtk.NewApplicationWindow(gtkapp)
 	window.SetDefaultSize(600, 400)
-	window.SetChild(spinner)
 	window.SetTitlebar(header)
 
 	// Initialize the scale factor state.
 	gtkutil.ScaleFactor()
 
-	return &Application{
+	app := &Application{
 		Application: gtkapp,
 		window:      window,
 		header:      header,
 	}
+	app.SetLoading()
+
+	return app
 }
 
 // Error calls Error on the application inside the context. It panics if the
@@ -162,8 +157,50 @@ func filterAndLogErrors(prefix string, errors []error) []error {
 	return nonNils
 }
 
-func (app *Application) Window() *gtk.Window    { return &app.window.Window }
-func (app *Application) Header() *gtk.HeaderBar { return app.header }
+// SetLoading shows a spinning circle. It disables the window.
+func (app *Application) SetLoading() {
+	spinner := gtk.NewSpinner()
+	spinner.SetSizeRequest(24, 24)
+	spinner.SetHAlign(gtk.AlignCenter)
+	spinner.SetVAlign(gtk.AlignCenter)
+	spinner.Start()
+
+	app.window.SetChild(spinner)
+	app.SetTitle("Loading")
+	app.NotifyChild(true, func() { spinner.Stop() })
+}
+
+// NotifyChild calls f if the main window's child is changed. If once is true,
+// then f is never called again.
+func (app *Application) NotifyChild(once bool, f func()) {
+	var childHandle glib.SignalHandle
+	childHandle = app.window.Connect("notify::child", func() {
+		f()
+		app.window.HandlerDisconnect(childHandle)
+	})
+}
+
+// SetSensitive sets whether or not the application's window is enabled.
+func (app *Application) SetSensitive(sensitive bool) {
+	app.window.SetSensitive(sensitive)
+}
+
+// Window returns the main instance's window.
+func (app *Application) Window() *gtk.Window {
+	return &app.window.Window
+}
+
+// Header returns the main instance window's header bar.
+func (app *Application) Header() *gtk.HeaderBar {
+	app.window.SetTitlebar(app.header)
+	return app.header
+}
+
+// SetTitle sets the application (and the main instance window)'s title.
+func (app *Application) SetTitle(title string) {
+	app.Header()
+	app.window.SetTitle(SuffixedTitle(title))
+}
 
 // AddActions adds multiple actions and returns a callback that removes all of
 // them. Calling the callback is optional.

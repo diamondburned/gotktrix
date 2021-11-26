@@ -21,7 +21,7 @@ const (
 )
 
 func (v messageViewer) collapsedMessage() *collapsedMessage {
-	timestamp := newTimestamp(v.raw.OriginServerTime.Time(), false)
+	timestamp := newTimestamp(v, v.raw.OriginServerTime.Time(), false)
 	timestamp.SetSizeRequest(avatarWidth, -1)
 	timestamp.SetVAlign(gtk.AlignStart)
 	timestamp.SetYAlign(1)

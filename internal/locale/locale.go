@@ -97,14 +97,51 @@ func Printer(ctx context.Context) *message.Printer {
 	return localPrinter
 }
 
-// Time formats the given timestamp as a locale-compatible timestamp. Nothing is
-// actually locale-friendly yet, though.
+const (
+	Day  = 24 * time.Hour
+	Week = 7 * Day
+	Year = 365 * Day
+)
+
+type truncator struct {
+	d time.Duration
+	s message.Reference
+}
+
+var longTruncators = []truncator{
+	{d: Day, s: "Today at %X"},
+	{d: Week, s: "Last Monday at %X"},
+	{d: -1, s: "%X %x"},
+}
+
+// Time formats the given timestamp as a locale-compatible timestamp.
 func Time(t time.Time, long bool) string {
-	glibTime := glib.NewDateTimeFromGo(t)
+	glibTime := glib.NewDateTimeFromGo(t.Local())
 
 	if long {
 		return glibTime.Format("%c")
 	}
 
 	return glibTime.Format("%X")
+}
+
+// TimeAgo formats a long string that expresses the relative time difference
+// from now until t.
+func TimeAgo(ctx context.Context, t time.Time) string {
+	t = t.Local()
+
+	trunc := t
+	now := time.Now().Local()
+
+	for _, truncator := range longTruncators {
+		trunc = trunc.Truncate(truncator.d)
+		now = now.Truncate(truncator.d)
+
+		if trunc.Equal(now) || truncator.d == -1 {
+			glibTime := glib.NewDateTimeFromGo(t.Local())
+			return glibTime.Format(S(ctx, truncator.s))
+		}
+	}
+
+	return ""
 }

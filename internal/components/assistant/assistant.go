@@ -58,6 +58,16 @@ var assistantBreadCSS = cssutil.Applier("assistant-bread", `
 
 // New creates a new Assistant.
 func New(parent *gtk.Window, steps []*Step) *Assistant {
+	window := gtk.NewWindow()
+	window.SetDefaultSize(375, 500)
+	window.SetTransientFor(parent)
+	window.SetModal(true)
+
+	return Use(window, steps)
+}
+
+// Use uses an existing window instead of creating a dialog.
+func Use(window *gtk.Window, steps []*Step) *Assistant {
 	bread := gtk.NewBox(gtk.OrientationHorizontal, 5)
 	bread.SetHExpand(true)
 	assistantBreadCSS(bread)
@@ -86,23 +96,26 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 	content.Append(stack)
 
 	cancel := gtk.NewButtonWithLabel("Close")
+
 	ok := gtk.NewButtonWithLabel("OK")
 	ok.AddCSSClass("suggested-action")
 
 	bar := gtk.NewHeaderBar()
 	bar.SetTitleWidget(gtk.NewLabel(""))
-	bar.SetShowTitleButtons(false)
 	bar.PackStart(cancel)
 	bar.PackEnd(ok)
 
-	window := gtk.NewWindow()
-	window.SetDefaultSize(375, 500)
-	window.SetTransientFor(parent)
-	window.SetModal(true)
+	if window.TransientFor() == nil {
+		// Window is NOT a dialog. Show the close button.
+		bar.SetShowTitleButtons(true)
+	} else {
+		bar.SetShowTitleButtons(false)
+	}
+
 	window.SetTitlebar(bar)
 	window.SetChild(content)
 
-	a := Assistant{
+	a := &Assistant{
 		Window:    window,
 		content:   content,
 		bread:     bread,
@@ -180,7 +193,7 @@ func New(parent *gtk.Window, steps []*Step) *Assistant {
 
 	a.restoreStackTransitions()
 
-	return &a
+	return a
 }
 
 // CanBack returns true if the current step can be undoed.
@@ -420,7 +433,9 @@ func BuildSteps(data ...StepData) []*Step {
 
 var stepBodyCSS = cssutil.Applier("assistant-stepbody", `
 	.assistant-stepbody {
-		padding: 10px 15px;
+		background-color: @theme_base_color;
+		padding: 10px;
+		margin:  15px;
 	}
 `)
 

@@ -1,6 +1,7 @@
 package gtkutil
 
 import (
+	"context"
 	"sync"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -137,6 +138,37 @@ func SignalToggler(signal string, f interface{}) func(obj glib.Objector) {
 		lastObj = obj
 		lastSig = obj.Connect(signal, f)
 	}
+}
+
+// Async runs asyncFn in a goroutine and runs the returned callback in the main
+// thread. If ctx is cancelled during, the returned callback will not be called.
+func Async(ctx context.Context, asyncFn func() func()) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+
+	go func() {
+		fn := asyncFn()
+		if fn == nil {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		glib.IdleAdd(func() {
+			select {
+			case <-ctx.Done():
+			default:
+				fn()
+			}
+		})
+	}()
 }
 
 var (

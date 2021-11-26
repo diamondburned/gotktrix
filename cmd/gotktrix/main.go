@@ -19,6 +19,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/selfbar"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 
@@ -92,34 +93,32 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 	// }
 
 	a := app.Wrap(gtkapp)
-	a.Window().SetDefaultSize(800, 600)
+	a.Window().SetDefaultSize(700, 600)
 	a.Window().SetTitle("gotktrix")
-	a.Window().Show()
 
 	ctx = app.WithApplication(ctx, a)
 	ctx = locale.WithLocalPrinter(ctx)
 
-	authAssistant := auth.New(ctx)
-	authAssistant.Show()
+	authAssistant := auth.Show(ctx)
 	authAssistant.OnConnect(func(client *gotktrix.Client, acc *auth.Account) {
+		a.SetLoading()
 		ctx := gotktrix.WithClient(ctx, client)
 
-		go func() {
+		gtkutil.Async(ctx, func() func() {
 			popup := syncbox.Open(ctx, acc)
 			popup.QueueSetLabel(locale.Sprint(ctx, "Getting rooms..."))
 
 			rooms, err := client.Rooms()
 			if err != nil {
 				app.Fatal(ctx, err)
-				return
+				return nil
 			}
 
-			glib.IdleAdd(func() {
+			return func() {
 				m := manager{ctx: ctx}
 				m.ready(rooms)
-				popup.Close()
-			})
-		}()
+			}
+		})
 	})
 }
 
@@ -188,6 +187,7 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	})
 
 	a := app.FromContext(m.ctx)
+	a.SetTitle("")
 	a.Window().SetChild(flap)
 	a.Header().PackStart(unflap)
 	a.Header().PackEnd(Blinker(m.ctx))

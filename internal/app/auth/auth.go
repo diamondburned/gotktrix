@@ -45,17 +45,15 @@ type assistantAccount struct {
 	src secret.Driver
 }
 
-// New creates a new authentication assistant with the default HTTP client.
-func New(ctx context.Context) *Assistant {
-	return NewWithClient(ctx, httputil.NewClient())
+// Show creates a new authentication assistant with the default HTTP client.
+func Show(ctx context.Context) *Assistant {
+	return ShowWithClient(ctx, httputil.NewClient())
 }
 
-// NewWithClient creates a new authentication assistant with the given HTTP
+// ShowWithClient creates a new authentication assistant with the given HTTP
 // client.
-func NewWithClient(ctx context.Context, client httputil.Client) *Assistant {
-	window := app.FromContext(ctx).Window()
-
-	ass := assistant.New(window, nil)
+func ShowWithClient(ctx context.Context, client httputil.Client) *Assistant {
+	ass := assistant.Use(app.FromContext(ctx).Window(), nil)
 	ass.SetTitle("Getting Started")
 
 	a := Assistant{
@@ -65,14 +63,8 @@ func NewWithClient(ctx context.Context, client httputil.Client) *Assistant {
 		keyring:   secret.KeyringDriver(keyringAppID),
 	}
 
-	ass.Connect("close-request", func() {
-		// If the user hasn't chosen to connect to anything yet, then exit the
-		// main window as well.
-		if !a.hasConnected {
-			window.Close()
-		}
-	})
 	ass.AddStep(accountChooserStep(&a))
+	ass.Show()
 	return &a
 }
 
@@ -123,7 +115,6 @@ func (a *Assistant) finish(c *gotktrix.Client, acc *Account) {
 
 	a.hasConnected = true
 	a.Continue()
-	a.Close()
 	a.onConnect(c, acc)
 }
 

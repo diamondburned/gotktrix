@@ -43,7 +43,7 @@ type Page struct {
 
 	name    string
 	onTitle func(title string)
-	ctx     gtkutil.ContextTaker
+	ctx     gtkutil.Cancellable
 
 	parent *View
 	roomID matrix.RoomID
@@ -242,9 +242,9 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	})
 
 	page.scroll.OnBottomed(func(bottomed bool) {
-		if bottomed && app.Window(ctx).IsActive() {
+		if bottomed {
 			// Mark the latest message as read everytime the user scrolls down
-			// to the bottom and the window is active.
+			// to the bottom.
 			page.MarkAsRead()
 		}
 	})
@@ -325,7 +325,7 @@ func (p *Page) OnRoomEvent(raw *event.RawEvent) {
 
 // MarkAsRead marks the room as read.
 func (p *Page) MarkAsRead() {
-	if !p.IsActive() || !p.scroll.IsBottomed() {
+	if !p.IsActive() || !p.scroll.IsBottomed() || !app.Window(p.ctx).IsActive() {
 		return
 	}
 
@@ -508,12 +508,29 @@ func (p *Page) Load(done func()) {
 		return
 	}
 
+	p.ctx.Renew()
 	ctx := p.ctx.Take()
 	client := p.parent.client.WithContext(ctx)
 
 	fetchName := p.name == ""
 
-	go func() {
+	load := func(events []event.RawEvent) {
+		// Require old messages first, so cozy mode works properly.
+		for i := range events {
+			p.onRoomEvent(&events[i], true)
+		}
+		p.loaded = true
+		p.scroll.ScrollToBottom()
+		done()
+	}
+
+	events, err := client.State.RoomTimelineRaw(p.roomID)
+	if err == nil {
+		load(events)
+		return
+	}
+
+	gtkutil.Async(ctx, func() func() {
 		if fetchName {
 			// Update the name from state if possible.
 			name, err := client.RoomName(p.roomID)
@@ -528,20 +545,11 @@ func (p *Page) Load(done func()) {
 		events, err := client.RoomTimelineRaw(p.roomID)
 		if err != nil {
 			app.Error(ctx, errors.Wrap(err, "failed to load timeline"))
-			glib.IdleAdd(done)
-			return
+			return done
 		}
 
-		glib.IdleAdd(func() {
-			// Require old messages first, so cozy mode works properly.
-			for i := range events {
-				p.onRoomEvent(&events[i], true)
-			}
-			p.loaded = true
-			p.scroll.ScrollToBottom()
-			done()
-		})
-	}()
+		return func() { load(events) }
+	})
 }
 
 // Edit triggers the input composer to edit an existing message.

@@ -30,7 +30,7 @@ var popupCSS = cssutil.Applier("syncbox-popup", `
 `)
 
 type Popup struct {
-	dialog  *gtk.Window
+	app     *app.Application
 	spinner *gtk.Spinner
 	label   *gtk.Label
 }
@@ -147,38 +147,29 @@ func Show(ctx context.Context, account *auth.Account) *Popup {
 	content := gtk.NewBox(gtk.OrientationVertical, 6)
 	content.Append(newAccountGrid(ctx, account))
 	content.Append(spinBox)
+	content.SetHExpand(true)
+	content.SetVExpand(true)
+	content.SetHAlign(gtk.AlignCenter)
+	content.SetVAlign(gtk.AlignCenter)
 	popupCSS(content)
 
-	handle := gtk.NewWindowHandle()
-	handle.SetChild(content)
-
-	window := gtk.NewWindow()
-	window.SetDecorated(false)
-	window.SetTransientFor(app.FromContext(ctx).Window())
-	window.SetModal(true)
-	window.SetDefaultSize(250, 100)
-	window.SetChild(handle)
-	window.SetTitle("Syncing")
-	window.SetTitlebar(gtk.NewBox(gtk.OrientationHorizontal, 0)) // no titlebar
-	window.Show()
+	app := app.FromContext(ctx)
+	app.Window().SetChild(content)
+	app.SetTitle("Syncing")
+	app.NotifyChild(true, func() { spinner.Stop() })
 
 	spinner.Start()
 
 	return &Popup{
-		dialog:  window,
+		app:     app,
 		spinner: spinner,
 		label:   loadLabel,
 	}
 }
 
-// Close closes the sync popup.
-func (p *Popup) Close() {
-	p.spinner.Stop()
-	p.dialog.Close()
-}
-
 // SetLabel sets the popup's label. The default label is "Syncing".
 func (p *Popup) SetLabel(text string) {
+	p.app.SetTitle(text)
 	p.label.SetLabel(text)
 }
 

@@ -1,8 +1,8 @@
 package messageview
 
 import (
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/components/animations"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
@@ -12,27 +12,20 @@ type extraRevealer struct {
 }
 
 var extraCSS = cssutil.Applier("messageview-extra", `
-	@keyframes messageview-extra-breathing {
-		  0% { opacity: 1.0; }
-		 75% { opacity: 1.0; }
-		100% { opacity: 0.8; }
-	}
-
-	.messageview-extra {
-		padding: 0;
-		margin:  0 10px;
-		margin-bottom: -8px; /* I can't believe this works! */
-	}
-	.messageview-extra > * {
-		padding: 0 5px;
-		border-radius: 5px;
-		background-color: mix(@accent_bg_color, @theme_bg_color, 0.75);
-	}
-	.messageview-extralabel {
-		padding: 0;
-		font-size: .8em;
-		animation: messageview-extra-breathing 800ms infinite alternate;
-	}
+    .messageview-extra {
+        padding: 0;
+        margin:  0 10px;
+        margin-bottom: -10px; /* I can't believe this works! */
+    }
+    .messageview-extra > * {
+        padding: 0 5px;
+        border-radius: 5px;
+        background-color: mix(@accent_bg_color, @theme_bg_color, 0.75);
+    }
+    .messageview-extralabel {
+        padding-left: 4px;
+        font-size: .8em;
+    }
 `)
 
 func newExtraRevealer() *extraRevealer {
@@ -40,8 +33,9 @@ func newExtraRevealer() *extraRevealer {
 	l.SetXAlign(0)
 	l.AddCSSClass("messageview-extralabel")
 
-	b := adw.NewBin()
-	b.SetChild(l)
+	b := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	b.Append(animations.NewBreathingDots())
+	b.Append(l)
 
 	r := gtk.NewRevealer()
 	r.SetChild(b)
