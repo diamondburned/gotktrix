@@ -22,4 +22,4 @@ go build
 
 ### Dependencies
 
-See [package.nix][.nix/package.nix].
+See [package.nix](.nix/package.nix).
