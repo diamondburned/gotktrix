@@ -7,12 +7,13 @@ import (
 	"os/signal"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
 	"github.com/diamondburned/gotktrix/internal/app/auth/syncbox"
+	"github.com/diamondburned/gotktrix/internal/app/blinker"
 	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
@@ -29,17 +30,19 @@ import (
 )
 
 var _ = cssutil.WriteCSS(`
-	.selfbar-bar, .composer {
-		min-height: 46px;
-	}
 	.selfbar-bar {
+		min-height: 46px;
 		border-top: 1px solid @borders;
+	}
+
+	.left-sidebar {
+		border-right: 1px solid @borders;
 	}
 
 	/* Use a border-bottom for this instead of border-top so the typing overlay
 	 * can work properly.
 	 */
-	.messageview-rhs > overlay {
+	.messageview-rhs  .messageview-box > overlay {
 		border-bottom: 1px solid @borders;
 	}
 `)
@@ -75,22 +78,7 @@ func main() {
 // open the room, and close it on our end.
 
 func activate(ctx context.Context, gtkapp *gtk.Application) {
-	adw.Init()
-
-	// TODO: Adwaita theming.
-
-	// adw.InitPreserveTheme()
-	// if os.Getenv("GTK_THEME") == "" {
-	// 	for _, display := range gdk.DisplayManagerGet().ListDisplays() {
-	// 		settings := gtk.SettingsGetForDisplay(&display)
-	// 		settings.ResetProperty("gtk-theme-name")
-	//
-	// 		styles := adw.StyleManagerGetForDisplay(&display)
-	//
-	// 		provider := cursed.StyleManagerProvider(styles)
-	// 		gtk.StyleContextRemoveProviderForDisplay(&display, provider)
-	// 	}
-	// }
+	adaptive.Init()
 
 	a := app.Wrap(gtkapp)
 	a.Window().SetDefaultSize(700, 600)
@@ -136,61 +124,43 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 
 	self := selfbar.New(m.ctx, m)
 	self.Invalidate()
+	self.SetVExpand(false)
 	self.AddButton(locale.Sprint(m.ctx, "User Emojis"), func() {
 		emojiview.ForUser(m.ctx)
 	})
 
 	leftBox := gtk.NewBox(gtk.OrientationVertical, 0)
+	leftBox.AddCSSClass("left-sidebar")
 	leftBox.SetSizeRequest(250, -1)
 	leftBox.SetOverflow(gtk.OverflowHidden) // need this for box-shadow
 	leftBox.SetHExpand(false)
 	leftBox.Append(m.roomList)
 	leftBox.Append(self)
 
-	welcome := adw.NewStatusPage()
+	welcome := adaptive.NewStatusPage()
 	welcome.SetIconName("go-previous-symbolic")
 	welcome.SetTitle(locale.Sprint(m.ctx, "Welcome"))
-	welcome.SetDescription(locale.Sprint(m.ctx, "Choose a room on the left panel."))
+	welcome.SetDescriptionText(locale.Sprint(m.ctx, "Choose a room on the left panel."))
 
 	m.msgView = messageview.New(m.ctx, m)
 	m.msgView.SetPlaceholder(welcome)
 
-	flap := adw.NewFlap()
-	flap.SetFlap(leftBox)
-	flap.SetContent(m.msgView)
-	flap.SetSwipeToOpen(true)
-	flap.SetSwipeToClose(true)
-	flap.SetFoldPolicy(adw.FlapFoldPolicyAuto)
-	flap.SetTransitionType(adw.FlapTransitionTypeOver)
-	flap.SetSeparator(gtk.NewSeparator(gtk.OrientationVertical))
+	fold := adaptive.NewFold(gtk.PosLeft)
+	// GTK's awful image scaling requires us to do this. It might be a good idea
+	// to implement a better image view that doesn't resize as greedily.
+	fold.SetFoldThreshold(650)
+	fold.SetFoldWidth(200)
+	fold.SetSideChild(leftBox)
+	fold.SetChild(m.msgView)
 
-	const (
-		revealedIcon   = "pan-start-symbolic"
-		unrevealedIcon = "document-properties-symbolic"
-	)
-
-	unflap := gtk.NewButtonFromIconName(unrevealedIcon)
-
-	updateUnflap := func(flap bool) {
-		if flap {
-			unflap.SetIconName(revealedIcon)
-		} else {
-			unflap.SetIconName(unrevealedIcon)
-		}
-	}
-	updateUnflap(flap.RevealFlap())
-
-	unflap.Connect("clicked", func() {
-		reveal := !flap.RevealFlap()
-		flap.SetRevealFlap(reveal)
-		updateUnflap(reveal)
-	})
+	unfold := adaptive.NewFoldRevealButton()
+	unfold.ConnectFold(fold)
 
 	a := app.FromContext(m.ctx)
 	a.SetTitle("")
-	a.Window().SetChild(flap)
-	a.Header().PackStart(unflap)
-	a.Header().PackEnd(Blinker(m.ctx))
+	a.Window().SetChild(fold)
+	a.Header().PackStart(unfold)
+	a.Header().PackEnd(blinker.New(m.ctx))
 }
 
 func (m *manager) OpenRoom(id matrix.RoomID) {
@@ -201,6 +171,7 @@ func (m *manager) OpenRoom(id matrix.RoomID) {
 	m.SetSelectedRoom(id)
 }
 
+/*
 func (m *manager) OpenRoomInTab(id matrix.RoomID) {
 	name, _ := gotktrix.FromContext(m.ctx).Offline().RoomName(id)
 	log.Println("opening room", name, "in new tab")
@@ -208,6 +179,7 @@ func (m *manager) OpenRoomInTab(id matrix.RoomID) {
 	m.msgView.OpenRoomInNewTab(id)
 	m.SetSelectedRoom(id)
 }
+*/
 
 func (m *manager) SetSelectedRoom(id matrix.RoomID) {
 	m.roomList.SetSelectedRoom(id)

@@ -4,17 +4,22 @@
 
 Work-in-progress Matrix client in Go and GTK4.
 
-## Theming Notice
-
-Currently, `libadwaita` is enforcing the Adwaita theme onto ALL `libadwaita`
-developers, even when people (me included) only want the widget parts of it.
-
-To work around this awful restriction, run with `GTK_THEME=theme-name`.
-
-There may be plans to remove `libadwaita` completely from `gotktrix`. Mobile
-support might be slightly worse, but that is a much smaller price to pay than
-losing themes.
-
 ## What's working?
 
-Basic message sending. Barely usable. Will be usable soon.
+Below is a non-exhaustive list of implemented features:
+
+- Message receiving, sending and editing
+- Emojis, custom and built-in
+- Autocompletion
+- Images
+- Mobile support (partial)
+
+## Building
+
+```sh
+go build
+```
+
+### Dependencies
+
+See [package.nix][.nix/package.nix].

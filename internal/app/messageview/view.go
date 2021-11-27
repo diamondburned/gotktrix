@@ -2,78 +2,25 @@ package messageview
 
 import (
 	"context"
-	"log"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
 )
-
-type pages struct {
-	pages   map[matrix.RoomID]*tabPage
-	visible matrix.RoomID
-}
-
-func newPages() *pages {
-	return &pages{
-		pages:   make(map[matrix.RoomID]*tabPage, 1),
-		visible: "",
-	}
-}
-
-type tabPage struct {
-	*Page
-	tab *adw.TabPage
-}
-
-// SetVisible sets the active room ID and verify that it's present.
-func (p *pages) SetVisible(visible matrix.RoomID) *Page {
-	p.visible = visible
-
-	if visible == "" {
-		return nil
-	}
-
-	pg, ok := p.pages[visible]
-	if !ok {
-		log.Panicf("selected room %s not in page registry", visible)
-	}
-
-	return pg.Page
-}
-
-func (p *pages) FromTab(tab *adw.TabPage) *tabPage {
-	child := gtk.BaseWidget(tab.Child())
-	return p.pages[matrix.RoomID(child.Name())]
-}
-
-func (p *pages) Visible() *tabPage {
-	return p.pages[p.visible]
-}
-
-func (p *pages) Pop(id matrix.RoomID) *tabPage {
-	page := p.pages[id]
-	delete(p.pages, id)
-	return page
-}
 
 // View describes a view for multiple message views.
 type View struct {
 	*gtk.Stack
-	box *gtk.Box
-
-	view  *adw.TabView
-	bar   *adw.TabBar
+	view  *adaptive.Bin
 	empty gtk.Widgetter
 
 	ctx    context.Context
 	ctrl   Controller
 	client *gotktrix.Client
 
-	pages *pages
+	current *Page
 }
 
 type Controller interface {
@@ -82,80 +29,34 @@ type Controller interface {
 
 // New creates a new instance of View.
 func New(ctx context.Context, ctrl Controller) *View {
-	view := adw.NewTabView()
-	view.SetVExpand(true)
+	// view := gtk.NewNotebook()
+	// view.SetVExpand(true)
+	// view.ConnectAfter("page-removed", func() {
+	// 	view.SetShowTabs(view.NPages() > 0)
+	// })
 
-	bar := adw.NewTabBar()
-	bar.SetAutohide(true)
-	bar.SetView(view)
-
-	box := gtk.NewBox(gtk.OrientationVertical, 0)
-	box.Append(bar)
-	box.Append(view)
+	view := adaptive.NewBin()
 
 	stack := gtk.NewStack()
 	stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
-	stack.AddNamed(box, "named")
-
-	pages := newPages()
-
-	setTitle := func(tab *adw.TabPage) {
-		if tab != nil {
-			app.SetTitle(ctx, tab.Title())
-		} else {
-			app.SetTitle(ctx, "")
-		}
-	}
-
-	// Keep track of the last signal handler with the last page that's used to
-	// update the window title.
-	pageToggler := gtkutil.SignalToggler("notify::title", setTitle)
-
-	view.Connect("notify::selected-page", func() {
-		stack.SetVisibleChild(box)
-
-		selected := view.SelectedPage()
-
-		if selected == nil {
-			setTitle(nil)
-			pageToggler(nil)
-
-			ctrl.SetSelectedRoom("")
-			pages.SetVisible("")
-			return
-		}
-
-		setTitle(selected)
-		pageToggler(selected)
-
-		child := gtk.BaseWidget(selected.Child())
-		rpage := pages.SetVisible(matrix.RoomID(child.Name()))
-		rpage.MarkAsRead()
-
-		ctrl.SetSelectedRoom(rpage.roomID)
-	})
-
-	view.Connect("close-page", func(view *adw.TabView, page *adw.TabPage) {
-		// Delete the page from the page registry.
-		child := gtk.BaseWidget(page.Child())
-		pages.Pop(matrix.RoomID(child.Name()))
-	})
+	stack.AddNamed(view, "named")
 
 	return &View{
-		Stack: stack,
-		box:   box,
-		view:  view,
-		bar:   bar,
-
+		Stack:  stack,
+		view:   view,
 		ctx:    ctx,
 		ctrl:   ctrl,
 		client: gotktrix.FromContext(ctx),
-
-		pages: pages,
 	}
 }
 
-func updateWindowTitle(ctx context.Context, page *Page) {
+func updateWindowTitle(ctx context.Context, notebook *gtk.Notebook, page gtk.Widgetter) {
+	if page != nil {
+		label := notebook.TabLabel(page).(*gtk.Label)
+		app.SetTitle(ctx, label.Text())
+	} else {
+		app.SetTitle(ctx, "")
+	}
 }
 
 // SetPlaceholder sets the placeholder widget.
@@ -167,7 +68,7 @@ func (v *View) SetPlaceholder(w gtk.Widgetter) {
 	v.Stack.AddNamed(w, "empty")
 	v.empty = w
 
-	if v.view.NPages() == 0 {
+	if v.current == nil {
 		v.Stack.SetVisibleChild(w)
 	}
 }
@@ -179,50 +80,32 @@ func (v *View) OpenRoom(id matrix.RoomID) *Page {
 	return v.openRoom(id, false)
 }
 
+/*
 // OpenRoomInNewTab opens the room in a new tab. If the room is already opened,
 // then the old tab is focused. If no rooms are opened yet, then the first tab
 // is created, so the function behaves like OpenRoom.
 func (v *View) OpenRoomInNewTab(id matrix.RoomID) *Page {
 	return v.openRoom(id, true)
 }
+*/
 
 func (v *View) openRoom(id matrix.RoomID, newTab bool) *Page {
-	visible := v.pages.Visible()
+	v.Stack.SetVisibleChild(v.view)
 
 	// Break up a potential infinite call recursion.
-	if visible != nil && visible.roomID == id {
-		return visible.Page
+	if v.current != nil && v.current.roomID == id {
+		return v.current
 	}
 
-	page, ok := v.pages.pages[id]
-	if !ok {
-		page = &tabPage{Page: NewPage(v.ctx, v, id)}
-		gtk.BaseWidget(page).SetName(string(id))
+	page := NewPage(v.ctx, v, id)
+	page.Load(func() {})
+	gtk.BaseWidget(page).SetName(string(id))
 
-		v.pages.pages[id] = page
+	v.current = page
+	v.view.SetChild(page)
 
-		// Why does Append trigger a selected-page signal? I have no idea. But
-		// it does, so we have to add the page into the registry before this.
-		page.tab = v.view.Append(page)
-
-		page.OnTitle(func(title string) {
-			page.tab.SetTitle(title)
-
-			if v.pages.visible == page.roomID {
-				updateWindowTitle(v.ctx, page.Page)
-			}
-		})
-
-		page.tab.SetLoading(true)
-		page.Load(func() { page.tab.SetLoading(false) })
-
-		// Close the previous tab if we're not opening in a new tab.
-		if visible != nil && !newTab {
-			v.view.ClosePage(visible.tab)
-		}
-	}
-
-	v.view.SetSelectedPage(page.tab)
-
-	return page.Page
+	page.OnTitle(func(title string) {
+		app.SetTitle(v.ctx, page.name)
+	})
+	return page
 }

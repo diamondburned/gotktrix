@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -57,14 +57,17 @@ var serverAttrs = markuputil.Attrs(
 
 var avatarCSS = cssutil.Applier("auth-avatar", `
 	.auth-avatar {
-		padding: 4px;
+		margin:  4px;
+		padding: 0;
 	}
 `)
 
 func newAccountEntry(account *Account) *gtk.ListBoxRow {
-	icon := adw.NewAvatar(avatarSize, account.Username, true)
-	avatarCSS(&icon.Widget)
-	imgutil.AsyncGET(context.Background(), account.AvatarURL, icon.SetCustomImage)
+	avatar := adaptive.NewAvatar(avatarSize)
+	avatar.SetInitials(account.Username)
+	avatarCSS(avatar)
+
+	imgutil.AsyncGET(context.Background(), account.AvatarURL, avatar.SetFromPaintable)
 
 	name := gtk.NewLabel(account.Username)
 	name.SetXAlign(0)
@@ -80,7 +83,7 @@ func newAccountEntry(account *Account) *gtk.ListBoxRow {
 
 	grid := gtk.NewGrid()
 	grid.SetColumnSpacing(2)
-	grid.Attach(&icon.Widget, 0, 0, 1, 2)
+	grid.Attach(avatar, 0, 0, 1, 2)
 	grid.Attach(name, 1, 0, 1, 1)
 	grid.Attach(server, 1, 1, 1, 1)
 

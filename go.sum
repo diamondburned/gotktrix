@@ -61,11 +61,11 @@ github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964/go.mod h1:Xd9
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20211029022543-3640fb9e9164 h1:hHHNXN4eNpovgAMHlKrFhnKnD8tKSc+1J8pPHnWBACA=
-github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20211029022543-3640fb9e9164/go.mod h1:QfojWNYPv3liy2xQpkbH+6nVjN2knTagFlM9s3D2ssE=
-github.com/diamondburned/gotk4/pkg v0.0.0-20211029022411-ad571a40956f/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotk4/pkg v0.0.0-20211030212342-7924fff586c3 h1:B4g2J/9L5cCh5ryN55lS2TX+2ttUWioCpQsR6iOpvCk=
-github.com/diamondburned/gotk4/pkg v0.0.0-20211030212342-7924fff586c3/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/adaptive v0.0.0-20211127084137-458a439fecb6 h1:TCPdBQ7JsTkUcJo0czMznsXMqS8LGRwnNGjPh/EvobU=
+github.com/diamondburned/adaptive v0.0.0-20211127084137-458a439fecb6/go.mod h1:03zN7sBfi9WiZYnXsFtE6jkcQmyvX9Xay0QwUOZKnV8=
+github.com/diamondburned/gotk4/pkg v0.0.0-20211121095826-148e5d6f3165/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20211127084109-6108ac9e81f8 h1:owFj4Qel7xmN9yV/o/iXKVBrZKPQBnUb9AFZ7qv2baQ=
+github.com/diamondburned/gotk4/pkg v0.0.0-20211127084109-6108ac9e81f8/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dlclark/regexp2 v1.4.0 h1:F1rxgk7p4uKjwIQxBs9oAXe5CqrXlCduYEJvrF4u93E=
 github.com/dlclark/regexp2 v1.4.0/go.mod h1:2pZnwuY/m+8K6iRw6wQdMtk+rH5tNGR1i55kozfMjCc=
 github.com/dvyukov/go-fuzz v0.0.0-20210429054444-fca39067bc72/go.mod h1:11Gm+ccJnvAhCNLlf5+cS9KjtbaD5I5zaZpFMsTHWTw=

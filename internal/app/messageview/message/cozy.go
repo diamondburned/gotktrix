@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -59,7 +59,7 @@ type cozyMessage struct {
 	*eventBox
 	parent messageViewer
 
-	avatar    *adw.Avatar
+	avatar    *adaptive.Avatar
 	sender    *gtk.Label
 	timestamp *gtk.Label
 	content   *mcontent.Content
@@ -67,8 +67,8 @@ type cozyMessage struct {
 
 var _ = cssutil.WriteCSS(`
 	.message-cozy {
-		margin: 0px 10px;
-		margin-top:  2px;
+		margin: 0px;
+		margin-top: 2px;
 	}
 	.message-cozy > box {
 		margin-left: 10px;
@@ -96,7 +96,8 @@ func (v messageViewer) cozyMessage() *cozyMessage {
 	// Pull the username directly from the sender's ID for the avatar initials.
 	username, _, _ := v.raw.Sender.Parse()
 
-	avatar := adw.NewAvatar(avatarSize, username, true)
+	avatar := adaptive.NewAvatar(avatarSize)
+	avatar.SetInitials(username)
 	avatar.SetVAlign(gtk.AlignStart)
 	avatar.SetMarginTop(2)
 	avatar.SetTooltipText(string(v.raw.Sender))
@@ -163,10 +164,10 @@ func (m *cozyMessage) asyncFetch() {
 }
 
 // setAvatar is safe to be called concurrently.
-func setAvatar(ctx context.Context, a *adw.Avatar, client *gotktrix.Client, mxc matrix.URL) {
+func setAvatar(ctx context.Context, a *adaptive.Avatar, client *gotktrix.Client, mxc matrix.URL) {
 	avatarURL, _ := client.SquareThumbnail(mxc, avatarSize, gtkutil.ScaleFactor())
 	imgutil.AsyncGET(
-		ctx, avatarURL, a.SetCustomImage,
+		ctx, avatarURL, a.SetFromPaintable,
 		imgutil.WithErrorFn(func(err error) {
 			log.Print("error getting avatar ", mxc, ": ", err)
 		}),

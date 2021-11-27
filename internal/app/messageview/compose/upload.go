@@ -9,7 +9,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/gioutil"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -100,7 +100,7 @@ func promptUpload(ctx context.Context, room matrix.RoomID, f uploadingFile) {
 		f.name += exts[0]
 	}
 
-	bin := adw.NewBin()
+	bin := adaptive.NewBin()
 	bin.SetHAlign(gtk.AlignCenter)
 	bin.SetVAlign(gtk.AlignCenter)
 

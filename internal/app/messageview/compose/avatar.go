@@ -6,7 +6,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
@@ -24,7 +24,7 @@ const (
 // Avatar is the clickable avatar component.
 type Avatar struct {
 	*gtk.Button
-	avatar *adw.Avatar
+	avatar *adaptive.Avatar
 
 	menuItems func() []gtkutil.PopoverMenuItem
 
@@ -59,7 +59,8 @@ func NewAvatar(ctx context.Context, roomID matrix.RoomID) *Avatar {
 	client := gotktrix.FromContext(ctx).Offline()
 	uID, _ := client.Whoami()
 
-	avy := adw.NewAvatar(AvatarSize, strings.TrimPrefix(string(uID), "@"), true)
+	avy := adaptive.NewAvatar(AvatarSize)
+	avy.SetInitials(strings.TrimPrefix(string(uID), "@"))
 
 	button := gtk.NewButton()
 	button.SetChild(&avy.Widget)
@@ -108,9 +109,9 @@ func (a *Avatar) invalidate() {
 	avy, _ := client.MemberAvatar(a.rID, uID)
 	if avy != nil {
 		url, _ := client.SquareThumbnail(*avy, AvatarSize, gtkutil.ScaleFactor())
-		imgutil.AsyncGET(a.ctx.Take(), url, a.avatar.SetCustomImage)
+		imgutil.AsyncGET(a.ctx.Take(), url, a.avatar.SetFromPaintable)
 	} else {
-		a.avatar.SetCustomImage(nil)
+		a.avatar.SetFromPaintable(nil)
 	}
 }
 

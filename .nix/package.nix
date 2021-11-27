@@ -23,7 +23,6 @@ in internalPkgs.buildGoModule {
 	vendorSha256 = "1v8mlawbl011696xlw839s9j956pyygpff924v1zbq3bpfylxqp4";
 
 	buildInputs = with internalPkgs; [
-		libadwaita
 		gtk4
 		glib
 		graphene

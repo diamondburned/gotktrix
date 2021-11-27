@@ -7,7 +7,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -39,7 +39,7 @@ type Room struct {
 	name    *gtk.Label
 	preview *gtk.Label
 	unread  *gtk.Label
-	avatar  *adw.Avatar
+	avatar  *adaptive.Avatar
 
 	ID   matrix.RoomID
 	Name string
@@ -152,11 +152,12 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	rightBox.Append(previewLabel)
 	rightBox.AddCSSClass("room-right")
 
-	adwAvatar := adw.NewAvatar(AvatarSize, string(roomID), false)
-	avatarCSS(&adwAvatar.Widget)
+	avatar := adaptive.NewAvatar(AvatarSize)
+	avatar.SetInitials(string(roomID))
+	avatarCSS(avatar)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	box.Append(&adwAvatar.Widget)
+	box.Append(avatar)
 	box.Append(rightBox)
 	roomBoxCSS(box)
 
@@ -171,7 +172,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		name:       nameLabel,
 		preview:    previewLabel,
 		unread:     unreadLabel,
-		avatar:     adwAvatar,
+		avatar:     avatar,
 
 		ctx:     gtkutil.WithVisibility(ctx, row),
 		section: section,
@@ -319,7 +320,7 @@ func (r *Room) InvalidateAvatar() {
 
 		p, err := imgutil.GET(ctx, url)
 		if err == nil {
-			glib.IdleAdd(func() { r.avatar.SetCustomImage(p) })
+			glib.IdleAdd(func() { r.avatar.SetFromPaintable(p) })
 		}
 	}()
 }

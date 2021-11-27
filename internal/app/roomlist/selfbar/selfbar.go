@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -27,7 +27,7 @@ type Bar struct {
 	client *gotktrix.Client
 
 	box    *gtk.Box
-	avatar *adw.Avatar
+	avatar *adaptive.Avatar
 	name   *gtk.Label
 
 	actions   *gio.SimpleActionGroup
@@ -67,7 +67,8 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 	uID, _ := client.Offline().Whoami()
 	username, _, _ := uID.Parse()
 
-	avatar := adw.NewAvatar(avatarSize, username, true)
+	avatar := adaptive.NewAvatar(avatarSize)
+	avatar.SetInitials(username)
 
 	name := gtk.NewLabel("")
 	name.SetWrap(true)
@@ -139,7 +140,7 @@ func (b *Bar) Invalidate() {
 		mxc, _ := b.client.AvatarURL(u)
 		if mxc != nil {
 			url, _ := b.client.SquareThumbnail(*mxc, avatarSize, gtkutil.ScaleFactor())
-			imgutil.AsyncGET(b.ctx, url, b.avatar.SetCustomImage)
+			imgutil.AsyncGET(b.ctx, url, b.avatar.SetFromPaintable)
 		}
 	}()
 }

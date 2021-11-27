@@ -6,7 +6,7 @@ import (
 	"math"
 
 	"github.com/chanbakjsd/gotrix/api"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -42,8 +42,9 @@ var serverAttrs = markuputil.Attrs(
 )
 
 func newAccountGrid(ctx context.Context, account *auth.Account) gtk.Widgetter {
-	avatar := adw.NewAvatar(avatarSize, account.Username, true)
-	imgutil.AsyncGET(ctx, account.AvatarURL, avatar.SetCustomImage)
+	avatar := adaptive.NewAvatar(avatarSize)
+	avatar.SetInitials(account.Username)
+	imgutil.AsyncGET(ctx, account.AvatarURL, avatar.SetFromPaintable)
 
 	name := gtk.NewLabel(account.Username)
 	name.SetXAlign(0)

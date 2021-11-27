@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -29,7 +28,7 @@ import (
 const EmojiSize = 32
 
 type View struct {
-	*adw.Clamp
+	*gtk.Box
 	list *gtk.ListBox
 	name *gtk.Label
 	sync *gtk.Button
@@ -147,11 +146,6 @@ func new(ctx context.Context, roomID matrix.RoomID) *View {
 	box.Append(scroll)
 	boxCSS(box)
 
-	clamp := adw.NewClamp()
-	clamp.SetMaximumSize(600)
-	clamp.SetTighteningThreshold(500)
-	clamp.SetChild(box)
-
 	list.Connect("selected-rows-changed", func(list *gtk.ListBox) {
 		// Allow pressing the delete button if we have selected rows.
 		selected := len(list.SelectedRows()) > 0
@@ -160,10 +154,10 @@ func new(ctx context.Context, roomID matrix.RoomID) *View {
 	})
 
 	view := &View{
-		Clamp: clamp,
-		list:  list,
-		name:  boxLabel,
-		sync:  syncButton,
+		Box:  box,
+		list: list,
+		name: boxLabel,
+		sync: syncButton,
 
 		emojis: map[emojis.EmojiName]emoji{},
 		roomID: roomID,

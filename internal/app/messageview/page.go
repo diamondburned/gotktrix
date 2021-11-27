@@ -8,7 +8,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -28,6 +28,9 @@ import (
 type Page struct {
 	gtk.Widgetter
 	Composer *compose.Composer
+
+	main *adaptive.LoadablePage
+	box  *gtk.Box
 
 	extra *extraRevealer
 
@@ -99,15 +102,17 @@ var msgListCSS = cssutil.Applier("messageview-msglist", `
 `)
 
 var rhsCSS = cssutil.Applier("messageview-rhs", `
-	.messageview-rhs {
+	.messageview-rhs .messageview-box {
 		background-image: linear-gradient(to top, @theme_base_color 0px, transparent 40px);
 	}
 `)
 
+/*
 const (
 	MessagesMaxWidth   = 1000
 	MessagesClampWidth = 800
 )
+*/
 
 // NewPage creates a new page.
 func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
@@ -160,14 +165,9 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	// 	return 1 // t1 > t2
 	// })
 
-	clamp := adw.NewClamp()
-	clamp.SetMaximumSize(MessagesMaxWidth)
-	clamp.SetTighteningThreshold(MessagesClampWidth)
-	clamp.SetChild(page.list)
-
 	vp := gtk.NewViewport(nil, nil)
 	vp.SetVScrollPolicy(gtk.ScrollNatural)
-	vp.SetChild(clamp)
+	vp.SetChild(page.list)
 
 	page.scroll = autoscroll.NewWindow()
 	page.scroll.SetVExpand(true)
@@ -187,13 +187,17 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	overlay.SetChild(page.scroll)
 	overlay.AddOverlay(page.extra)
 
-	box := gtk.NewBox(gtk.OrientationVertical, 0)
-	box.Append(overlay)
-	box.Append(page.Composer)
-	rhsCSS(box)
+	page.box = gtk.NewBox(gtk.OrientationVertical, 0)
+	page.box.Append(overlay)
+	page.box.Append(page.Composer)
+	page.box.AddCSSClass("messageview-box")
+
+	page.main = adaptive.NewLoadablePage()
+	page.main.SetChild(page.box)
+	rhsCSS(page.main)
 
 	// main widget
-	page.Widgetter = box
+	page.Widgetter = page.main
 
 	gtkutil.MapSubscriber(page, func() func() {
 		return parent.client.SubscribeTimeline(roomID, func(r *event.RawEvent) {
@@ -268,7 +272,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 // IsActive returns true if this page is the one the user is viewing.
 func (p *Page) IsActive() bool {
-	return p.parent.pages.visible == p.roomID
+	return p.parent.current != nil && p.parent.current.roomID == p.roomID
 }
 
 // OnTitle subscribes to the page's title changes.
@@ -507,6 +511,7 @@ func (p *Page) Load(done func()) {
 		done()
 		return
 	}
+	p.loaded = true
 
 	p.ctx.Renew()
 	ctx := p.ctx.Take()
@@ -519,8 +524,8 @@ func (p *Page) Load(done func()) {
 		for i := range events {
 			p.onRoomEvent(&events[i], true)
 		}
-		p.loaded = true
 		p.scroll.ScrollToBottom()
+		p.main.SetChild(p.box)
 		done()
 	}
 
@@ -529,6 +534,8 @@ func (p *Page) Load(done func()) {
 		load(events)
 		return
 	}
+
+	p.main.SetLoading()
 
 	gtkutil.Async(ctx, func() func() {
 		if fetchName {
@@ -544,8 +551,12 @@ func (p *Page) Load(done func()) {
 
 		events, err := client.RoomTimelineRaw(p.roomID)
 		if err != nil {
-			app.Error(ctx, errors.Wrap(err, "failed to load timeline"))
-			return done
+			err = errors.Wrap(err, "failed to load timeline")
+			app.Error(ctx, err)
+			return func() {
+				p.main.SetError(err)
+				done()
+			}
 		}
 
 		return func() { load(events) }

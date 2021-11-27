@@ -6,7 +6,6 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
@@ -16,8 +15,7 @@ import (
 
 // Composer is a message composer.
 type Composer struct {
-	*adw.Clamp
-	box   *gtk.Box
+	*gtk.Box
 	input *Input
 	send  *gtk.Button
 
@@ -35,10 +33,14 @@ type Controller interface {
 	BindSendingMessage(row *gtk.ListBoxRow, evID matrix.EventID) (replaced bool)
 }
 
+/*
 const (
 	ComposerMaxWidth   = 1000
 	ComposerClampWidth = 800
+)
+*/
 
+const (
 	sendIcon  = "document-send-symbolic"
 	editIcon  = "document-edit-symbolic"
 	replyIcon = "mail-reply-sender-symbolic"
@@ -93,14 +95,8 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 	box.Append(send)
 	composerCSS(box)
 
-	clamp := adw.NewClamp()
-	clamp.SetMaximumSize(ComposerMaxWidth)
-	clamp.SetTighteningThreshold(ComposerClampWidth)
-	clamp.SetChild(box)
-
 	c := Composer{
-		Clamp: clamp,
-		box:   box,
+		Box:   box,
 		input: input,
 		send:  send,
 		ctx:   ctx,

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/chanbakjsd/gotrix/event"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -113,8 +113,7 @@ func showReactEntry(r *reactor, parent gtk.Widgetter) *gtk.Entry {
 	entry.SetPlaceholderText("¯\\_(ツ)_/¯")
 	reactCSS(entry)
 
-	b := adw.NewBin()
-	b.SetVExpand(true)
+	b := adaptive.NewBin()
 	b.SetChild(entry)
 
 	d := dialogs.New(app.Window(r.ctx), "Cancel", "React")

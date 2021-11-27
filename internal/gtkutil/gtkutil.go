@@ -205,6 +205,9 @@ func initScale() {
 }
 
 func updateScaleForDisplay(display *gdk.Display) {
+	if display == nil {
+		return
+	}
 	monitors := display.Monitors()
 
 	var maxScale = 1

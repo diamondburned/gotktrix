@@ -5,7 +5,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -23,7 +23,7 @@ type List struct {
 	ctrl Controller
 
 	scroll   *gtk.ScrolledWindow
-	outer    *adw.Bin
+	outer    *adaptive.Bin
 	inner    *gtk.Box // contains sections
 	sections []*section.Section
 
@@ -65,7 +65,7 @@ type RoomTabOpener interface {
 func New(ctx context.Context, ctrl Controller) *List {
 	roomList := List{
 		Box:      gtk.NewBox(gtk.OrientationVertical, 0),
-		outer:    adw.NewBin(),
+		outer:    adaptive.NewBin(),
 		ctx:      ctx,
 		ctrl:     ctrl,
 		rooms:    make(map[matrix.RoomID]*room.Room, 100),

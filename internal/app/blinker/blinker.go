@@ -1,4 +1,4 @@
-package main
+package blinker
 
 import (
 	"context"
@@ -58,7 +58,8 @@ var blinkerCSS = cssutil.Applier("blinker", `
 	}
 `)
 
-func Blinker(ctx context.Context) gtk.Widgetter {
+// New creates a new blinker.
+func New(ctx context.Context) gtk.Widgetter {
 	img := gtk.NewImageFromIconName(blinkerSyncIcon)
 	img.SetIconSize(gtk.IconSizeNormal)
 	img.SetOpacity(0.8)

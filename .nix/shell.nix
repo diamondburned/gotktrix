@@ -16,8 +16,6 @@ in shell.overrideAttrs (old: {
 	buildInputs = old.buildInputs ++ (with pkgs; [
 		gtk4.debug
 		glib.debug
-
-		libadwaita
 	]);
 
 	nativeBuildInputs = old.nativeBuildInputs ++ [
