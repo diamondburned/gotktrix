@@ -31,8 +31,12 @@ import (
 
 var _ = cssutil.WriteCSS(`
 	.selfbar-bar {
-		min-height: 46px;
 		border-top: 1px solid @borders;
+	}
+
+	.selfbar-bar,
+	.composer {
+		min-height: 46px;
 	}
 
 	.left-sidebar {
@@ -42,7 +46,7 @@ var _ = cssutil.WriteCSS(`
 	/* Use a border-bottom for this instead of border-top so the typing overlay
 	 * can work properly.
 	 */
-	.messageview-rhs  .messageview-box > overlay {
+	.messageview-rhs .messageview-box > overlay {
 		border-bottom: 1px solid @borders;
 	}
 `)
