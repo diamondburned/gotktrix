@@ -8,6 +8,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -85,8 +86,14 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 	adaptive.Init()
 
 	a := app.Wrap(gtkapp)
-	a.Window().SetDefaultSize(700, 600)
-	a.Window().SetTitle("gotktrix")
+	w := a.Window()
+	w.SetDefaultSize(700, 600)
+	w.SetTitle("gotktrix")
+	w.AddTickCallback(func(gtk.Widgetter, gdk.FrameClocker) bool {
+		w.QueueAllocate()
+		w.QueueDraw()
+		return true
+	})
 
 	ctx = app.WithApplication(ctx, a)
 	ctx = locale.WithLocalPrinter(ctx)
