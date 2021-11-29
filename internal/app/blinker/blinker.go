@@ -42,8 +42,10 @@ type blinker struct {
 }
 
 var blinkerCSS = cssutil.Applier("blinker", `
+	@define-color blinker-heart-color #F7A8B8;
+
 	.blinker {
-		color:   @accent_color;
+		color:   @blinker-heart-color;
 		margin:  6px;
 		opacity: 0;
 		transition: linear 650ms;

@@ -24,8 +24,8 @@ var iconButtonCSS = cssutil.Applier("roomlist-iconbutton", `
 		font-weight: bold;
 	}
 	.roomlist-expand:checked {
-		color: @accent_color;
-		background-color: alpha(@accent_fg_color, 0.1);
+		color: mix(@theme_selected_bg_color, @theme_fg_color, 0.35);
+		background-color: alpha(@theme_fg_color, 0.1);
 	}
 
 	.roomlist-showmore {

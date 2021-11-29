@@ -20,7 +20,7 @@ var extraCSS = cssutil.Applier("messageview-extra", `
     .messageview-extra > * {
         padding: 0 5px;
         border-radius: 5px;
-        background-color: mix(@accent_bg_color, @theme_bg_color, 0.75);
+        background-color: mix(@theme_selected_bg_color, @theme_bg_color, 0.75);
     }
     .messageview-extralabel {
         padding-left: 4px;

@@ -84,14 +84,14 @@ var msgListCSS = cssutil.Applier("messageview-msglist", `
 	.messageview-msglist > row.messageview-editing,
 	.messageview-msglist > row.messageview-replyingto {
 		transition: none;
-		background-color: alpha(@accent_bg_color, 0.25);
+		background-color: alpha(@theme_selected_bg_color, 0.25);
 		background-size: 18px;
 		background-repeat: no-repeat;
 		background-position: calc(100% - 5px) 5px;
 	}
 	.messageview-msglist > row.messageview-edited:hover,
 	.messageview-msglist > row.messageview-replyingto:hover {
-		background-color: alpha(@accent_bg_color, 0.45);
+		background-color: alpha(@theme_selected_bg_color, 0.45);
 	}
 	.messageview-msglist > row.messageview-replyingto {
 		background-image: -gtk-icontheme("mail-reply-sender");

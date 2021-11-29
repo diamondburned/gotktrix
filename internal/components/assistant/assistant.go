@@ -353,7 +353,7 @@ var breadcrumbCSS = cssutil.Applier(crumbInactiveClass[0], `
 	}
 	
 	.assistant-active-crumb {
-		color: @accent_bg_color;
+		color: @theme_selected_bg_color;
 	}
 `)
 

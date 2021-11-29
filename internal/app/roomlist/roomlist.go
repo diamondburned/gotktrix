@@ -44,7 +44,7 @@ var listCSS = cssutil.Applier("roomlist-list", `
 		background: inherit;
 	}
 	.roomlist-reorderactions {
-		color: @accent_color;
+		color: @theme_selected_bg_color;
 	}
 	.roomlist-reorderactions button {
 		margin-left: 6px;

@@ -29,7 +29,7 @@ var videoCSS = cssutil.Applier("mcontent-video", `
 	}
 	.mcontent-videoplay:hover,
 	.mcontent-videoplay:active {
-		background-color: @accent_bg_color;
+		background-color: @theme_selected_bg_color;
 	}
 `)
 

@@ -60,11 +60,11 @@ var rowCSS = cssutil.Applier("room-row", `
 		background: alpha(@theme_fg_color, .15);
 	}
 	.room-row.room-active {
-		background-color: alpha(@accent_color, 0.45);
+		background-color: alpha(@theme_selected_bg_color, 0.45);
 	}
 	.room-row.room-active:hover,
 	.room-row.room-active:focus {
-		background: alpha(mix(@theme_fg_color, @accent_bg_color, 0.5), .6);
+		background: alpha(mix(@theme_fg_color, @theme_selected_bg_color, 0.5), .6);
 	}
 `)
 
