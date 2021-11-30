@@ -7,6 +7,7 @@ import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent/text"
@@ -72,6 +73,12 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 }
 
 func (c textContent) content() {}
+
+func (c textContent) SetExtraMenu(menu gio.MenuModeller) {
+	gmenu := gio.NewMenu()
+	gmenu.InsertSection(0, "Message", menu)
+	c.text.SetExtraMenu(gmenu)
+}
 
 func (c textContent) edit(body messageBody) {
 	c.setContent(body, true)

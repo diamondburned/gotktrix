@@ -53,11 +53,11 @@ func bindParent(
 	}
 
 	menuItems := []gtkutil.PopoverMenuItem{
-		gtkutil.MenuItem("Edit", "message.edit", canEdit),
-		gtkutil.MenuItem("Reply", "message.reply"),
-		gtkutil.MenuItem("Add Reaction", "message.react"),
-		gtkutil.MenuItem("Add Reaction with Text", "message.react-text"),
-		gtkutil.MenuItem("Show Source", "message.show-source"),
+		gtkutil.MenuItem("_Edit", "message.edit", canEdit),
+		gtkutil.MenuItem("_Reply", "message.reply"),
+		gtkutil.MenuItem("Add Rea_ction", "message.react"),
+		gtkutil.MenuItem("Add Reaction with _Text", "message.react-text"),
+		gtkutil.MenuItem("Show _Source", "message.show-source"),
 	}
 
 	gtkutil.BindActionMap(parent, "message", actions)
