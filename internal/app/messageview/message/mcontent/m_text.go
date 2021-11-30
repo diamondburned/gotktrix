@@ -97,12 +97,12 @@ func (c textContent) setContent(body messageBody, isEdited bool) {
 		meta = text.RenderText(c.ctx, c.text, body.Body)
 	}
 
+	if c.embeds != nil {
+		c.Box.Remove(c.embeds)
+	}
+
 	// We need to wrap the message inside a box if we need embeds.
 	if len(meta.URLs) > 0 {
-		if c.embeds != nil {
-			c.Box.Remove(c.embeds)
-		}
-
 		c.embeds = gtk.NewBox(gtk.OrientationVertical, 0)
 		c.embeds.AddCSSClass("mcontent-embeds")
 		c.Box.Append(c.embeds)
