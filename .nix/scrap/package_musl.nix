@@ -1,8 +1,14 @@
 { pkgs }:
 
-let src = import ./src.nix;
+let src = import ../src.nix;
+	nativePkgs = import ../pkgs.nix {};
 
 	muslOverlays = self: super: {
+		# These dependencies don't have to be native, so we can use the system's.
+		git = pkgs.git;
+		# go = nativePkgs.go;
+		# buildGoModule = nativePkgs.buildGoModule;
+
 		gst_all_1 = {
 			gst-plugins-base = super.hello;
 			gst-plugins-bad  = super.hello;
@@ -36,20 +42,7 @@ let src = import ./src.nix;
 				# examples.
 				mkdir -p $out/share/icons/hicolor
 			'';
-		});
-		libadwaita = super.libadwaita.overrideAttrs (old: {
-			NIX_CFLAGS_COMPILE = "-w";
-			mesonFlags = [
-				"-Dintrospection=disabled"
-				"-Dgtk_doc=false"
-				"-Dtests=false"
-				"-Dexamples=false"
-				"-Dvapi=false"
-			];
-			outputs = [ "out" "dev" ];
-			outputBin = "";
-			# This is only needed for the docs.
-			postInstall = "";
+			doCheck = false;
 		});
 		# We don't want systemd.
 		procps = super.procps.override {
@@ -58,17 +51,20 @@ let src = import ./src.nix;
 		# We don't need GLib docs.
 		glib = super.glib.overrideAttrs (old: {
 			mesonFlags = old.mesonFlags ++ [ "-Dgtk_doc=false" ];
-			outputs = [ "bin" "out" "dev" ];
+			# outputs = [ "bin" "out" "dev" ];
+			doCheck = false;
 		});
 		# nor gobject-introspection.
 		gobject-introspection = super.gobject-introspection.overrideAttrs (old: {
 			mesonFlags = old.mesonFlags ++ [ "-Dgtk_doc=false" ];
 			outputs = [ "out" "dev" ];
+			doCheck = false;
 		});
 		# nor harfbuzz.
 		harfbuzz = super.harfbuzz.overrideAttrs (old: {
 			outputs = [ "out" "dev" ];
 			mesonFlags = old.mesonFlags ++ [ "-Ddocs=disabled" ];
+			doCheck = false;
 		});
 		pango = super.pango.overrideAttrs (old: {
 			NIX_CFLAGS_COMPILE = "-w";
@@ -79,21 +75,22 @@ let src = import ./src.nix;
 			];
 			outputs = [ "bin" "out" "dev" ];
 			postInstall = "";
+			doCheck = false;
 		});
 		graphene = super.graphene.overrideAttrs (old: {
 			mesonFlags = old.mesonFlags ++ [ "-Dgtk_doc=false" ];
 			outputs = [ "out" "installedTests" ];
+			doCheck = false;
 		});
-		gtk-doc = pkgs.hello;
+		# gtk-doc = pkgs.hello;
 	};
 
 	withPkgs' = {
-		config = {
-			doCheckByDefault = false;
+		crossSystem = {
+			config = "x86_64-unknown-linux-musl";
 		};
-		doCheckByDefault = false;
 		overlays = [
-			(import ./overlay.nix)
+			(import ../overlay.nix)
 			(muslOverlays)
 		];
 	};
@@ -101,7 +98,7 @@ let src = import ./src.nix;
 	withPkgs = import src.nixpkgs withPkgs';
 	muslPkgs = withPkgs.pkgsMusl;
 
-in muslPkgs.callPackage ./package.nix {
-	src = ./..;
-	internalPkgs = muslPkgs;
+in muslPkgs.callPackage ../package.nix {
+	src = ./../..;
+	buildPkgs = muslPkgs;
 }

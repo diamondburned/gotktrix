@@ -6,21 +6,17 @@ let src = import ./src.nix;
 		inherit pkgs;
 	};
 
-	# minitime is a mini-output time wrapper.
-	minitime = pkgs.writeShellScriptBin
-		"minitime"
-		"command time --format $'🕒 -> %es\\n' \"$@\"";
-
-
 in shell.overrideAttrs (old: {
 	buildInputs = old.buildInputs ++ (with pkgs; [
 		gtk4.debug
 		glib.debug
 	]);
 
-	nativeBuildInputs = old.nativeBuildInputs ++ [
-		minitime
-	];
+	# Workaround for the lack of wrapGAppsHook:
+	# https://nixos.wiki/wiki/Development_environment_with_nix-shell
+	shellHook = ''
+		XDG_DATA_DIRS=$GSETTINGS_SCHEMA_PATH
+	'';
 
 	NIX_DEBUG_INFO_DIRS = ''${pkgs.gtk4.debug}/lib/debug:${pkgs.glib.debug}/lib/debug'';
 
