@@ -12,7 +12,6 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/diamondburned/gotktrix/internal/md/hl"
@@ -370,7 +369,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			}
 
 			thumbnail, _ := gotktrix.FromContext(s.ctx).Offline().ScaledThumbnail(src, w, h, 1)
-			md.AsyncInsertImage(s.ctx, s.iter, thumbnail, imgutil.WithRescale(w, h))
+			md.AsyncInsertImage(s.ctx, s.iter, thumbnail, w, h)
 			return traverseOK
 
 		case "mx-reply":

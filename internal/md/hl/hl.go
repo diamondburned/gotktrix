@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/alecthomas/chroma"
@@ -108,7 +109,7 @@ func convertStyle(style *chroma.Style) tagMap {
 }
 
 func styleEntryToTag(e chroma.StyleEntry) markuputil.TextTag {
-	attrs := make(markuputil.TextTag, 3)
+	attrs := make(markuputil.TextTag, 5)
 
 	if e.Colour.IsSet() {
 		attrs["foreground"] = e.Colour.String()
@@ -175,6 +176,8 @@ func ChangeStyle(styleName string) error {
 	return Style.Publish(styleName)
 }
 
+const hlPrefix = "_hl_"
+
 // Highlight highlights the code section starting from start to end using the
 // lexer of the given language. The start and end iterators will be invalidated,
 // but the end iterator will have its previous offset restored.
@@ -194,6 +197,7 @@ func Highlight(ctx context.Context, start, end *gtk.TextIter, language string) {
 	}
 
 	f := newFormatter(ctx, buf, start, end, language)
+	f.resetTags()
 	f.do(i)
 	f.discard()
 
@@ -283,6 +287,20 @@ func (f *formatter) discard() {
 	*f = formatter{}
 }
 
+func (f *formatter) resetTags() {
+	removeTags := make([]*gtk.TextTag, 0, f.tags.Size())
+
+	f.tags.Foreach(func(tag *gtk.TextTag) {
+		if strings.HasPrefix(tag.ObjectProperty("name").(string), hlPrefix) {
+			removeTags = append(removeTags, tag)
+		}
+	})
+
+	for _, tag := range removeTags {
+		f.buf.RemoveTag(tag, f.start, f.end)
+	}
+}
+
 func (f *formatter) do(iter chroma.Iterator) {
 	offset := f.start.Offset()
 
@@ -306,7 +324,7 @@ func (f *formatter) tag(tt chroma.TokenType) *gtk.TextTag {
 		return nil
 	}
 
-	tname := "hl-" + attrs.Hash()
+	tname := hlPrefix + attrs.Hash()
 
 	if tag := f.tags.Lookup(tname); tag != nil {
 		return tag

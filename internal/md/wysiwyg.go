@@ -24,8 +24,7 @@ func init() {
 // WYSIWYG styles the given text buffer according to the Markdown content inside
 // it. It is not fully What-You-See-Is-What-You-Get, but it is mostly so.
 func WYSIWYG(ctx context.Context, buffer *gtk.TextBuffer) {
-	head := buffer.StartIter()
-	tail := buffer.EndIter()
+	head, tail := buffer.Bounds()
 
 	// Be careful to include anything hidden, since we want the offsets that
 	// goldmark processes to be the exact same as what's in the buffer.
@@ -65,6 +64,8 @@ type wysiwyg struct {
 
 	head *gtk.TextIter
 	tail *gtk.TextIter
+
+	invisTag *gtk.TextTag
 
 	src []byte
 }
@@ -151,9 +152,21 @@ func (w *wysiwyg) tag(tagName string) *gtk.TextTag {
 	return wysiwygTags.FromTable(w.table, wysiwygPrefix+tagName)
 }
 
+func (w *wysiwyg) boundIsInvisible() bool {
+	if w.invisTag == nil {
+		w.invisTag = TextTags.FromTable(w.table, "_invisible")
+	}
+
+	return w.head.HasTag(w.invisTag) || w.tail.HasTag(w.invisTag)
+}
+
 func (w *wysiwyg) markBounds(i, j int, names ...string) {
 	w.head.SetOffset(i)
 	w.tail.SetOffset(j)
+
+	if w.boundIsInvisible() {
+		return
+	}
 
 	for _, name := range names {
 		w.buf.ApplyTag(w.tag(name), w.head, w.tail)
@@ -178,12 +191,14 @@ func (w *wysiwyg) markTextFunc(n ast.Node, names []string, f func(h, t *gtk.Text
 		w.head.SetOffset(text.Segment.Start)
 		w.tail.SetOffset(text.Segment.Stop)
 
-		if f != nil {
-			f(w.head, w.tail)
-		}
+		if !w.boundIsInvisible() {
+			if f != nil {
+				f(w.head, w.tail)
+			}
 
-		for _, name := range names {
-			w.buf.ApplyTag(w.tag(name), w.head, w.tail)
+			for _, name := range names {
+				w.buf.ApplyTag(w.tag(name), w.head, w.tail)
+			}
 		}
 
 		return ast.WalkContinue, nil

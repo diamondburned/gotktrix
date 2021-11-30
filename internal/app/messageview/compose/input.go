@@ -23,7 +23,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/pkg/errors"
 )
@@ -464,6 +463,9 @@ func finishAutocomplete(
 	// caller will use bounds[1], so we use that to revalidate it.
 	buffer.Delete(row.Bounds[0], row.Bounds[1])
 
+	end := md.BeginImmutable(row.Bounds[1])
+	defer end()
+
 	// TODO: use TextMarks instead, maybe?
 
 	switch data := row.Data.(type) {
@@ -488,7 +490,7 @@ func finishAutocomplete(
 			// Queue inserting the pixbuf.
 			client := gotktrix.FromContext(ctx).Offline()
 			url, _ := client.SquareThumbnail(data.Custom.URL, inlineEmojiSize, gtkutil.ScaleFactor())
-			md.AsyncInsertImage(ctx, row.Bounds[1], url, imgutil.WithRectRescale(inlineEmojiSize))
+			md.AsyncInsertImage(ctx, row.Bounds[1], url, inlineEmojiSize, inlineEmojiSize)
 			// Insert the HTML.
 			md.InsertInvisible(row.Bounds[1], customEmojiHTML(data))
 		}

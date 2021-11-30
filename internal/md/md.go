@@ -131,7 +131,8 @@ var TextTags = markuputil.TextTagsMap{
 		"foreground": "#808080",
 	},
 	// Meta tags.
-	"_invisible": {"invisible": true},
+	"_invisible": {"editable": false, "invisible": true},
+	"_immutable": {"editable": false},
 	"_emoji":     {"scale": 2.5},
 }
 
@@ -178,6 +179,21 @@ func ParseAndWalk(src []byte, w ast.Walker) error {
 	return ast.Walk(n, w)
 }
 
+// BeginImmutable begins the immutability region in the text buffer that the
+// text iterator belongs to. Calling the returned callback will end the
+// immutable region. Calling it is not required, but the given iterator must
+// still be valid when it's called.
+func BeginImmutable(pos *gtk.TextIter) func() {
+	ix := pos.Offset()
+
+	return func() {
+		buf := pos.Buffer()
+		tbl := buf.TagTable()
+		tag := TextTags.FromTable(tbl, "_immutable")
+		buf.ApplyTag(tag, buf.IterAtOffset(ix), pos)
+	}
+}
+
 // InsertInvisible inserts an invisible string of text into the buffer. This is
 // useful for inserting invisible textual data during editing.
 func InsertInvisible(pos *gtk.TextIter, txt string) {
@@ -203,43 +219,25 @@ func insertInvisible(buf *gtk.TextBuffer, pos *gtk.TextIter, txt string) {
 // the text buffer once the given context is cancelled. If that isn't done, then
 // the function might incorrectly insert an image when it's not needed anymore.
 // This is only a concern if the text buffer is mutable, however.
-func AsyncInsertImage(ctx context.Context, iter *gtk.TextIter, url string, opts ...imgutil.Opts) {
-	buf := iter.Buffer()
+func AsyncInsertImage(
+	ctx context.Context, iter *gtk.TextIter, url string, w, h int, opts ...imgutil.Opts) {
 
-	offset := iter.Offset()
-	// Insert a placeholder character right at the offset.
-	insertInvisible(buf, iter, "\uFFFC")
+	buf := iter.Buffer()
+	mark := buf.CreateMark("image:"+url, iter, false)
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	// Handle mutating the buffer.
-	buf.Connect("changed", func(buf *gtk.TextBuffer) {
-		iter := buf.IterAtOffset(offset)
-		next := buf.IterAtOffset(offset + 1)
-
-		if d := buf.Slice(iter, next, true); d != "\uFFFC" {
-			cancel()
-			return
-		}
-	})
-
 	setImg := func(p gdk.Paintabler) {
-		iter := buf.IterAtOffset(offset)
-		next := buf.IterAtOffset(offset + 1)
-
-		// Verify that the character at the buffer is still the intended one.
-		if d := buf.Slice(iter, next, true); d != "\uFFFC" {
-			// Character is different; don't modify the buffer.
-			return
+		if !mark.Deleted() {
+			// Insert the pixbuf at the location if mark is not deleted.
+			buf.InsertPaintable(buf.IterAtMark(mark), p)
 		}
-
-		// Delete the 0xFFFC character that we temporarily inserted into
-		// the buffer to reserve the offset.
-		buf.Delete(iter, next)
-		// Insert the pixbuf.
-		buf.InsertPaintable(iter, p)
 		// Clean up the context.
 		cancel()
+	}
+
+	if w > 0 && h > 0 {
+		opts = append(opts, imgutil.WithRescale(w, h))
 	}
 
 	imgutil.AsyncGET(ctx, url, setImg, opts...)

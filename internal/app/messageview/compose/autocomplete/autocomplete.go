@@ -148,7 +148,7 @@ func (a *Autocompleter) Autocomplete(ctx context.Context) {
 	if !a.start.BackwardFindChar(func(ch uint32) bool {
 		r := rune(ch)
 		if unicode.IsSpace(r) {
-			return false
+			return true // stop scanning
 		}
 
 		var ok bool
