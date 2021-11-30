@@ -194,6 +194,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 	page.main = adaptive.NewLoadablePage()
 	page.main.SetChild(page.box)
+	page.main.SetFocusChild(page.list)
 	rhsCSS(page.main)
 
 	// main widget
@@ -267,6 +268,19 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		}
 	})
 
+	// Activator to focus on composer when typed on.
+	typingHandler := gtk.NewEventControllerKey()
+	// Run the handler at the last phase, after all key handlers have captured
+	// the event.
+	typingHandler.SetPropagationPhase(gtk.PhaseBubble)
+	typingHandler.Connect("key-pressed", func() bool {
+		input := page.Composer.Input()
+		input.GrabFocus()
+		typingHandler.Forward(input)
+		return true
+	})
+	page.list.AddController(typingHandler)
+
 	return &page
 }
 
@@ -337,6 +351,9 @@ func (p *Page) MarkAsRead() {
 	if lastRow == nil {
 		return
 	}
+
+	// Set the message view's focus to the right last message.
+	p.list.SetFocusChild(lastRow)
 
 	client := gotktrix.FromContext(p.ctx.Take())
 	roomID := p.roomID

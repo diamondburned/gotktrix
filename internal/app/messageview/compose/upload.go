@@ -114,6 +114,7 @@ func promptUpload(ctx context.Context, room matrix.RoomID, f uploadingFile) {
 	d.SetDefaultSize(300, 200)
 	d.SetTitle("Upload File")
 	d.SetChild(content)
+	d.BindEnterOK()
 
 	useStatusPage := func(icon string) {
 		img := gtk.NewImageFromIconName(icon)

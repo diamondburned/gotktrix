@@ -93,6 +93,7 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 	box.Append(more)
 	box.Append(input)
 	box.Append(send)
+	box.SetFocusChild(input)
 	composerCSS(box)
 
 	c := Composer{

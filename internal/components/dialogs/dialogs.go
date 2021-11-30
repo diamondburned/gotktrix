@@ -1,6 +1,9 @@
 package dialogs
 
-import "github.com/diamondburned/gotk4/pkg/gtk/v4"
+import (
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+)
 
 // Dialog provides a dialog with a headerbar.
 type Dialog struct {
@@ -24,9 +27,42 @@ func New(transientFor *gtk.Window, cancel, ok string) *Dialog {
 	okBtn.AddCSSClass("suggested-action")
 	ccBtn := dialog.AddButton(cancel, int(gtk.ResponseCancel)).(*gtk.Button)
 
+	esc := gtk.NewEventControllerKey()
+	esc.SetName("dialog-escape")
+	esc.ConnectKeyPressed(func(val, code uint, state gdk.ModifierType) bool {
+		switch val {
+		case gdk.KEY_Escape:
+			if ccBtn.Sensitive() {
+				ccBtn.Activate()
+				return true
+			}
+		}
+
+		return false
+	})
+	dialog.AddController(esc)
+
 	return &Dialog{
 		Dialog: dialog,
 		OK:     okBtn,
 		Cancel: ccBtn,
 	}
+}
+
+// BindEnterOK binds the Enter key to activate the OK button.
+func (d *Dialog) BindEnterOK() {
+	ev := gtk.NewEventControllerKey()
+	ev.SetName("dialog-ok")
+	ev.ConnectKeyPressed(func(val, code uint, state gdk.ModifierType) bool {
+		switch val {
+		case gdk.KEY_Return:
+			if d.OK.Sensitive() {
+				d.OK.Activate()
+				return true
+			}
+		}
+
+		return false
+	})
+	d.Dialog.AddController(ev)
 }
