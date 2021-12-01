@@ -106,12 +106,19 @@ type Section struct {
 	showPreview bool
 }
 
+var placeholderAttrs = markuputil.Attrs(
+	markuputil.NewAttrOpacity(0.75),
+)
+
 // New creates a new deactivated section.
 func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
+	placeholder := gtk.NewLabel(locale.S(ctx, "Empty"))
+	placeholder.SetAttributes(placeholderAttrs)
+
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionSingle)
 	list.SetActivateOnSingleClick(true)
-	list.SetPlaceholder(gtk.NewLabel(locale.S(ctx, "No rooms yet...")))
+	list.SetPlaceholder(placeholder)
 
 	if vadj := ctrl.VAdjustment(); vadj != nil {
 		list.SetAdjustment(vadj)
@@ -163,14 +170,18 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 		})
 	})
 
-	minify.OnToggled(func(minify bool) string {
+	minify.SetLabelFunc(func(minify bool) string {
 		if !minify {
-			s.Expand()
 			return locale.S(ctx, "Show less")
 		}
-
-		s.Minimize()
 		return locale.Sprintf(ctx, "Show %d more", s.NHidden())
+	})
+	minify.ConnectClicked(func() {
+		if minify.IsMinified() {
+			s.Minimize()
+		} else {
+			s.Expand()
+		}
 	})
 
 	s.listBox.Connect("row-activated", func(list *gtk.ListBox, row *gtk.ListBoxRow) {
@@ -389,6 +400,7 @@ func (s *Section) ReminifyAfter(after func()) {
 		if after != nil {
 			after()
 		}
+		s.minify.Invalidate()
 		return
 	}
 
@@ -417,8 +429,6 @@ func (s *Section) Minimize() {
 		return
 	}
 
-	s.minify.Show()
-
 	// Remove the rooms in backwards order so the list doesn't cascade back.
 	for i := len(s.rooms) - 1; i >= nMinified; i-- {
 		row := s.listBox.RowAtIndex(i)
@@ -437,6 +447,9 @@ func (s *Section) Minimize() {
 			s.hidden[room] = true
 		}
 	}
+
+	s.minify.Show()
+	s.minify.Invalidate()
 }
 
 // Expand makes the section display all rooms inside it.

@@ -190,11 +190,11 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	page.box = gtk.NewBox(gtk.OrientationVertical, 0)
 	page.box.Append(overlay)
 	page.box.Append(page.Composer)
+	page.box.SetFocusChild(page.Composer)
 	page.box.AddCSSClass("messageview-box")
 
 	page.main = adaptive.NewLoadablePage()
 	page.main.SetChild(page.box)
-	page.main.SetFocusChild(page.list)
 	rhsCSS(page.main)
 
 	// main widget

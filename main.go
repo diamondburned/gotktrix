@@ -8,7 +8,6 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -89,11 +88,6 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 	w := a.Window()
 	w.SetDefaultSize(700, 600)
 	w.SetTitle("gotktrix")
-	w.AddTickCallback(func(gtk.Widgetter, gdk.FrameClocker) bool {
-		w.QueueAllocate()
-		w.QueueDraw()
-		return true
-	})
 
 	ctx = app.WithApplication(ctx, a)
 	ctx = locale.WithLocalPrinter(ctx)
@@ -136,15 +130,14 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	self := selfbar.New(m.ctx, m)
 	self.Invalidate()
 	self.SetVExpand(false)
+	self.SetSearchCaptureWidget(m.roomList)
 	self.AddButton(locale.Sprint(m.ctx, "User Emojis"), func() {
 		emojiview.ForUser(m.ctx)
 	})
 
 	leftBox := gtk.NewBox(gtk.OrientationVertical, 0)
 	leftBox.AddCSSClass("left-sidebar")
-	leftBox.SetSizeRequest(250, -1)
 	leftBox.SetOverflow(gtk.OverflowHidden) // need this for box-shadow
-	leftBox.SetHExpand(false)
 	leftBox.Append(m.roomList)
 	leftBox.Append(self)
 
@@ -160,7 +153,7 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	// GTK's awful image scaling requires us to do this. It might be a good idea
 	// to implement a better image view that doesn't resize as greedily.
 	fold.SetFoldThreshold(650)
-	fold.SetFoldWidth(200)
+	fold.SetFoldWidth(250)
 	fold.SetSideChild(leftBox)
 	fold.SetChild(m.msgView)
 
@@ -174,9 +167,13 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	a.Header().PackEnd(blinker.New(m.ctx))
 }
 
+func (m *manager) SearchRoom(name string) {
+	m.roomList.Search(name)
+}
+
 func (m *manager) OpenRoom(id matrix.RoomID) {
-	name, _ := gotktrix.FromContext(m.ctx).Offline().RoomName(id)
-	log.Println("opening room", name)
+	// name, _ := gotktrix.FromContext(m.ctx).Offline().RoomName(id)
+	// log.Println("opening room", name)
 
 	m.msgView.OpenRoom(id)
 	m.SetSelectedRoom(id)

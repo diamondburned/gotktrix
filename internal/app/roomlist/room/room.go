@@ -214,7 +214,6 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 
 	// Bind the message handler to update itself.
 	gtkutil.MapSubscriber(row, func() func() {
-		r.InvalidateRead()
 		r.InvalidateName()
 		r.InvalidateAvatar()
 		r.InvalidatePreview()
@@ -235,7 +234,6 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 				case event.RoomAvatarEvent:
 					r.InvalidateAvatar()
 				case m.FullyReadEvent:
-					r.InvalidateRead()
 					r.InvalidatePreview()
 					r.section.InvalidateSort()
 				}
@@ -348,6 +346,8 @@ func (r *Room) erasePreview() {
 
 // InvalidatePreview invalidate the room's preview. It only queries the state.
 func (r *Room) InvalidatePreview() {
+	defer r.invalidateRead()
+
 	if !r.showPreview {
 		r.erasePreview()
 		return
@@ -406,8 +406,8 @@ func countUnreadFmt(client *gotktrix.Client, roomID matrix.RoomID) string {
 	return s
 }
 
-// InvalidateRead invalidates the read state of this room.
-func (r *Room) InvalidateRead() {
+// invalidateRead invalidates the read state of this room.
+func (r *Room) invalidateRead() {
 	client := gotktrix.FromContext(r.ctx)
 
 	if unread, ok := client.Offline().RoomIsUnread(r.ID); ok {

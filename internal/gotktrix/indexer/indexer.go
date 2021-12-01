@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/search"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -115,15 +116,16 @@ func (s *RoomMemberSearcher) Search(ctx context.Context, str string) []IndexedRo
 				qry.Term = str
 			case *query.TermQuery:
 				qry.Term = str
+			case *query.PrefixQuery:
+				qry.Prefix = str
 			default:
 				log.Panicf("unknown query type %T", qry)
 			}
 		}
 	} else {
 		s.queries = []query.Query{
-			&query.TermQuery{Term: str, FieldVal: "id"},
-			&query.TermQuery{Term: str, FieldVal: "name"},
 			&query.FuzzyQuery{Term: str, FieldVal: "name", Fuzziness: 1},
+			&query.PrefixQuery{Prefix: str, FieldVal: "name"},
 		}
 
 		// Create an AND match so that only queries matching the RoomID is
@@ -139,8 +141,12 @@ func (s *RoomMemberSearcher) Search(ctx context.Context, str string) []IndexedRo
 		})
 
 		s.req = bleve.NewSearchRequestOptions(and, s.size, 0, false)
-		s.req.SortBy([]string{"-_score"})
+		s.req.Size = 50 // limit
 		s.req.Fields = []string{"id", "room_id", "name"}
+		s.req.SortByCustom(search.SortOrder{
+			// Highest-scored results first.
+			&search.SortScore{Desc: true},
+		})
 	}
 
 	results, err := s.idx.SearchInContext(ctx, s.req)

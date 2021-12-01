@@ -110,25 +110,16 @@ func minifyIconName(minify bool) string {
 	return "go-up-symbolic"
 }
 
-func (b *minifyButton) Minify() bool {
+func (b *minifyButton) IsMinified() bool {
 	return !b.Active()
 }
 
-func (b *minifyButton) OnToggled(labelFn func(bool) string) {
-	b.labelFn = labelFn
+// SetLabelFunc sets the function to generate the label.
+func (b *minifyButton) SetLabelFunc(labelFunc func(bool) string) {
+	b.labelFn = labelFunc
 	b.Invalidate()
-
-	icon := b.icon
-	label := b.label
-	label.SetLabel(labelFn(!b.Active()))
-
-	b.Connect("toggled", func(button *gtk.ToggleButton) {
-		minify := !button.Active()
-		icon.SetFromIconName(minifyIconName(minify))
-		label.SetLabel(labelFn(minify))
-	})
 }
 
 func (b *minifyButton) Invalidate() {
-	b.label.SetLabel(b.labelFn(b.Minify()))
+	b.label.SetLabel(b.labelFn(b.IsMinified()))
 }

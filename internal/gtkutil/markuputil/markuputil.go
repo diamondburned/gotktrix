@@ -23,6 +23,14 @@ func Attrs(attrs ...*pango.Attribute) *pango.AttrList {
 	return list
 }
 
+// NewAttrOpacity creates a new AttrForegroundAlpha.
+func NewAttrOpacity(alpha float64) *pango.Attribute {
+	if alpha > 1 || alpha < 0 {
+		panic("alpha out of bounds [0.0, 1.0]")
+	}
+	return pango.NewAttrForegroundAlpha(uint16(math.Round(alpha * 0xFFFF)))
+}
+
 // Error formats the given message red.
 func Error(msg string) string {
 	msg = strings.TrimPrefix(msg, "error ")
