@@ -114,6 +114,11 @@ func (b *minifyButton) IsMinified() bool {
 	return !b.Active()
 }
 
+func (b *minifyButton) SetMinified(minified bool) {
+	b.ToggleButton.SetActive(!minified)
+	b.Invalidate()
+}
+
 // SetLabelFunc sets the function to generate the label.
 func (b *minifyButton) SetLabelFunc(labelFunc func(bool) string) {
 	b.labelFn = labelFunc
@@ -121,5 +126,8 @@ func (b *minifyButton) SetLabelFunc(labelFunc func(bool) string) {
 }
 
 func (b *minifyButton) Invalidate() {
-	b.label.SetLabel(b.labelFn(b.IsMinified()))
+	minified := b.IsMinified()
+
+	b.label.SetLabel(b.labelFn(minified))
+	b.icon.SetFromIconName(minifyIconName(minified))
 }

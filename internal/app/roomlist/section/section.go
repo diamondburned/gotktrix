@@ -102,7 +102,6 @@ type Section struct {
 
 	selected    *room.Room
 	tagName     string
-	minified    bool
 	showPreview bool
 }
 
@@ -356,7 +355,7 @@ func (s *Section) Insert(room *room.Room) {
 	s.rooms[room.ID] = room
 	s.hidden[room] = false
 
-	if len(s.rooms) > nMinified && s.minified {
+	if len(s.rooms) > nMinified && s.minify.IsMinified() {
 		s.Minimize()
 		s.minify.Invalidate()
 	}
@@ -396,7 +395,7 @@ func (s *Section) Reminify() {
 // section is not minified, then after is executed immediately. If after is nil,
 // then it does the same thing as Reminify does.
 func (s *Section) ReminifyAfter(after func()) {
-	if !s.minified || len(s.rooms) < nMinified {
+	if !s.minify.IsMinified() || len(s.rooms) < nMinified {
 		if after != nil {
 			after()
 		}
@@ -415,7 +414,7 @@ func (s *Section) ReminifyAfter(after func()) {
 
 // NHidden returns the number of hidden rooms.
 func (s *Section) NHidden() int {
-	if !s.minified || len(s.rooms) <= nMinified {
+	if !s.minify.IsMinified() || len(s.rooms) <= nMinified {
 		return 0
 	}
 	return len(s.rooms) - nMinified
@@ -423,7 +422,7 @@ func (s *Section) NHidden() int {
 
 // Minimize minimizes the section to only show 8 entries.
 func (s *Section) Minimize() {
-	s.minified = true
+	s.minify.SetMinified(true)
 
 	if len(s.rooms) < nMinified {
 		return
@@ -454,7 +453,7 @@ func (s *Section) Minimize() {
 
 // Expand makes the section display all rooms inside it.
 func (s *Section) Expand() {
-	s.minified = false
+	s.minify.SetMinified(false)
 	s.expand()
 
 	if len(s.rooms) > nMinified {
