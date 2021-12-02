@@ -3,6 +3,7 @@ package mcontent
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -10,9 +11,12 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
 	"github.com/pkg/errors"
 )
@@ -69,8 +73,8 @@ func (r *reactionBox) Add(ctx context.Context, ev m.ReactionEvent) {
 				return 0
 			}
 
-			if r1.amount != r2.amount {
-				return intcmp(r1.amount, r2.amount)
+			if len(r1.people) != len(r2.people) {
+				return intcmp(len(r1.people), len(r2.people))
 			}
 
 			return sortutil.CmpFold(key1, key2)
@@ -109,7 +113,7 @@ func (r *reactionBox) Remove(ctx context.Context, red event.RoomRedactionEvent) 
 	}
 
 	reaction.update(ctx, red.SenderID, "")
-	if reaction.amount > 0 {
+	if len(reaction.people) > 0 {
 		return true
 	}
 
@@ -136,8 +140,14 @@ type reaction struct {
 	label  *gtk.Label
 	number *gtk.Label
 
+	roomID matrix.RoomID
 	selfEv matrix.EventID
-	amount int
+	people []reactedUser
+}
+
+type reactedUser struct {
+	id   matrix.UserID
+	name string
 }
 
 func newReaction(ctx context.Context, ev m.ReactionEvent) *reaction {
@@ -146,6 +156,9 @@ func newReaction(ctx context.Context, ev m.ReactionEvent) *reaction {
 	label.SetEllipsize(pango.EllipsizeEnd)
 	label.SetHExpand(true)
 	label.SetMaxWidthChars(20)
+	if !md.IsUnicodeEmoji(ev.RelatesTo.Key) {
+		label.SetTooltipText(ev.RelatesTo.Key)
+	}
 
 	number := gtk.NewLabel("")
 	number.SetMaxWidthChars(5)
@@ -156,7 +169,6 @@ func newReaction(ctx context.Context, ev m.ReactionEvent) *reaction {
 
 	btn := gtk.NewToggleButton()
 	btn.SetChild(box)
-	btn.SetTooltipText(ev.RelatesTo.Key)
 
 	client := gotktrix.FromContext(ctx).Offline()
 	uID, _ := client.Whoami()
@@ -176,6 +188,7 @@ func newReaction(ctx context.Context, ev m.ReactionEvent) *reaction {
 		box:    box,
 		label:  label,
 		number: number,
+		roomID: ev.RoomID,
 	}
 	reaction.update(ctx, ev.SenderID, ev.EventID)
 
@@ -210,15 +223,28 @@ func (r *reaction) react(ctx context.Context, ev m.ReactionEvent) {
 func (r *reaction) update(
 	ctx context.Context, sender matrix.UserID, addID matrix.EventID) {
 
+	client := gotktrix.FromContext(ctx).Offline()
+
 	if addID != "" {
-		r.amount++
+		r.people = append(r.people, reactedUser{
+			id: sender,
+			name: mauthor.Markup(client, r.roomID, sender,
+				mauthor.WithWidgetColor(r.box),
+				mauthor.WithMinimal(),
+			),
+		})
 	} else {
-		r.amount--
+		for i, user := range r.people {
+			if user.id == sender {
+				r.people = append(r.people[:i], r.people[i+1:]...)
+				break
+			}
+		}
 	}
 
-	r.number.SetLabel(strconv.Itoa(r.amount))
+	r.number.SetLabel(strconv.Itoa(len(r.people)))
+	r.number.SetTooltipMarkup(reactedUserNames(ctx, r.people))
 
-	client := gotktrix.FromContext(ctx).Offline()
 	uID, _ := client.Whoami()
 	if uID == sender {
 		r.btn.SetActive(true)
@@ -229,6 +255,30 @@ func (r *reaction) update(
 			r.selfEv = ""
 		}
 	}
+}
+
+func reactedUserNames(ctx context.Context, people []reactedUser) string {
+	const max = 25
+
+	var hasMore bool
+	n := len(people)
+
+	if n > max {
+		n = max
+		hasMore = true
+	}
+
+	names := make([]string, n)
+	for i := 0; i < n; i++ {
+		names[i] = people[i].name
+	}
+
+	s := strings.Join(names, "\n")
+	if hasMore {
+		s += "\n" + locale.Sprintf(ctx, "and %d more", len(people)-max)
+	}
+
+	return s
 }
 
 func intcmp(i, j int) int {
