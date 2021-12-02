@@ -16,6 +16,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/components/dialogs"
+	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -119,6 +120,12 @@ var roomEvents = []event.Type{
 	event.TypeRoomAvatar,
 	m.FullyReadEventType,
 }
+
+var showMessagePreview = prefs.NewBool(true, prefs.PropMeta{
+	Name:        "Message Preview",
+	Section:     "Appearance",
+	Description: "Show part of the latest message for each room.",
+})
 
 // AddTo adds an empty room with the given ID to the given section Rooms created
 // using this constructor will automatically update itself as soon as it's added

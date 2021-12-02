@@ -6,18 +6,24 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
+type funcBox struct{ f func() }
+
+// Subscriber describes the Subscribe method of Pubsub.
+type Subscriber interface {
+	Subscribe(f func()) (rm func())
+}
+
 // Pubsub provides a simple publish-subscribe API. This instance is safe to use
 // concurrently.
 type Pubsub struct {
-	funcs map[uint64]func()
-	count uint64
+	funcs map[*funcBox]struct{}
 	mu    sync.Mutex
 }
 
 // NewPubsub creates a new Pubsub instance.
 func NewPubsub() *Pubsub {
 	return &Pubsub{
-		funcs: make(map[uint64]func()),
+		funcs: make(map[*funcBox]struct{}),
 	}
 }
 
@@ -27,8 +33,8 @@ func (p *Pubsub) Publish() {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
-		for _, f := range p.funcs {
-			f()
+		for f := range p.funcs {
+			f.f()
 		}
 	})
 }
@@ -38,26 +44,26 @@ func (p *Pubsub) Publish() {
 // receiving goroutine to signal a change. It is guaranteed for the callback to
 // only be consistently called on that goroutine.
 func (p *Pubsub) Subscribe(f func()) (rm func()) {
+	b := &funcBox{f}
+
 	p.mu.Lock()
-	id := p.count
-	p.funcs[id] = f
-	p.count++
+	p.funcs[b] = struct{}{}
 	p.mu.Unlock()
 
 	glib.IdleAddPriority(glib.PriorityHighIdle, f)
 
 	return func() {
 		p.mu.Lock()
-		delete(p.funcs, id)
+		delete(p.funcs, b)
 		p.mu.Unlock()
 	}
 }
 
 // Connect binds f to the lifetime of the given object.
-func (p *Pubsub) Connect(obj glib.Objector, f func()) {
+func Connect(pubsub Pubsubber, obj glib.Objector, f func()) {
 	var unsub func()
 	obj.Connect("map", func() {
-		unsub = p.Subscribe(f)
+		unsub = pubsub.Subscribe(f)
 	})
 	obj.Connect("destroy", func() {
 		unsub()

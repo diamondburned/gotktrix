@@ -1,7 +1,7 @@
 package prefs
 
 import (
-	"fmt"
+	"encoding/json"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -40,6 +40,30 @@ func (b *Bool) Value() bool {
 	return atomic.LoadUint32(&b.v) != 0
 }
 
+func (b *Bool) MarshalJSON() ([]byte, error) { return json.Marshal(b.Value()) }
+
+func (b *Bool) UnmarshalJSON(blob []byte) error {
+	var v bool
+	if err := json.Unmarshal(blob, &v); err != nil {
+		return err
+	}
+	b.Publish(v)
+	return nil
+}
+
+// AnyValue implements Prop.
+func (b *Bool) AnyValue() interface{} { return b.Value() }
+
+// AnyPublish implements Prop.
+func (b *Bool) AnyPublish(v interface{}) error {
+	bv, ok := v.(bool)
+	if !ok {
+		return ErrInvalidAnyType
+	}
+	b.Publish(bv)
+	return nil
+}
+
 func boolToUint32(b bool) (u uint32) {
 	if b {
 		u = 1
@@ -50,17 +74,24 @@ func boolToUint32(b bool) (u uint32) {
 // Int is a preference property of type int.
 type Int struct {
 	Pubsub
-	PropMeta
+	IntMeta
 	v int32
 }
 
+// IntMeta wraps PropMeta for Int.
+type IntMeta struct {
+	PropMeta
+	Min int
+	Max int
+}
+
 // NewInt creates a new int(32) with the given default value and properties.
-func NewInt(v int, prop PropMeta) *Int {
-	prop.validate()
+func NewInt(v int, meta IntMeta) *Int {
+	meta.validate()
 
 	b := &Int{
-		Pubsub:   *NewPubsub(),
-		PropMeta: prop,
+		Pubsub:  *NewPubsub(),
+		IntMeta: meta,
 
 		v: int32(v),
 	}
@@ -80,6 +111,17 @@ func (i *Int) Value() int {
 	return int(atomic.LoadInt32(&i.v))
 }
 
+func (i *Int) MarshalJSON() ([]byte, error) { return json.Marshal(i.Value()) }
+
+func (i *Int) UnmarshalJSON(b []byte) error {
+	var v int
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	i.Publish(v)
+	return nil
+}
+
 // String is a preference property of type string.
 type String struct {
 	Pubsub
@@ -91,7 +133,8 @@ type String struct {
 // StringMeta is the metadata of a string.
 type StringMeta struct {
 	PropMeta
-	Validate func(string) error
+	Placeholder string
+	Validate    func(string) error
 }
 
 // NewString creates a new String instance.
@@ -139,11 +182,23 @@ func (s *String) Value() string {
 	return s.val
 }
 
+func (s *String) MarshalJSON() ([]byte, error) { return json.Marshal(s.Value()) }
+
+func (s *String) UnmarshalJSON(blob []byte) error {
+	var v string
+	if err := json.Unmarshal(blob, &v); err != nil {
+		return err
+	}
+	s.Publish(v)
+	return nil
+}
+
+/*
 // EnumList is a preference property of type stringer.
 type EnumList struct {
 	Pubsub
 	EnumListMeta
-	opts map[fmt.Stringer]struct{}
+	opts []string
 	val  fmt.Stringer
 	mut  sync.RWMutex
 }
@@ -154,18 +209,24 @@ type EnumListMeta struct {
 	Options []fmt.Stringer
 }
 
+// EnumString is a string type for EnumList.
+type EnumString string
+
+// String returns itself.
+func (s EnumString) String() string { return string(s) }
+
 // NewEnumList creates a new EnumList instance.
 func NewEnumList(def fmt.Stringer, prop EnumListMeta) *EnumList {
 	l := &EnumList{
 		Pubsub:       *NewPubsub(),
 		EnumListMeta: prop,
 
-		opts: make(map[fmt.Stringer]struct{}, len(prop.Options)),
+		opts: make([]string, len(prop.Options)),
 		val:  def,
 	}
 
-	for _, opt := range prop.Options {
-		l.opts[opt] = struct{}{}
+	for i, opt := range prop.Options {
+		l.opts[i] = opt.String()
 	}
 
 	if !l.IsValid(def) {
@@ -175,6 +236,11 @@ func NewEnumList(def fmt.Stringer, prop EnumListMeta) *EnumList {
 	registerProp(l)
 
 	return l
+}
+
+// PossibleValueStrings returns the possible enum values as strings.
+func (l *EnumList) PossibleValueStrings() []string {
+	return l.opts
 }
 
 // Publish publishes the new value. If the value isn't within Options, then the
@@ -199,8 +265,44 @@ func (l *EnumList) Value() fmt.Stringer {
 	return l.val
 }
 
+func (l *EnumList) MarshalJSON() ([]byte, error) {
+	return json.Marshal(l.Value().String())
+}
+
+func (l *EnumList) UnmarshalJSON(blob []byte) error {
+	l.mut.RLock()
+	// TODO: refactor this once generics come out
+	t := reflect.TypeOf(l.val)
+	l.mut.Unlock()
+
+	vptr := reflect.New(t)
+
+	if err := json.Unmarshal(blob, vptr.Interface()); err != nil {
+		return err
+	}
+
+	// source type is a stringerr
+	v := vptr.Elem().Interface().(fmt.Stringer)
+
+	if !l.IsValid(v) {
+		return fmt.Errorf("enum %q is not a known values", v.String())
+	}
+
+	l.Publish(v)
+	return nil
+}
+
 // IsValid returns true if the given value is a valid enum value.
 func (l *EnumList) IsValid(v fmt.Stringer) bool {
-	_, ok := l.opts[v]
-	return ok
+	return l.isValid(v.String())
 }
+
+func (l *EnumList) isValid(str string) bool {
+	for _, opt := range l.opts {
+		if opt == str {
+			return true
+		}
+	}
+	return false
+}
+*/
