@@ -117,8 +117,8 @@ func (c *Content) OnRelatedEvent(box *gotktrix.EventBox) {
 	switch ev := ev.(type) {
 	case event.RoomMessageEvent:
 		if body, isEdited := msgBody(box); isEdited {
-			if text, ok := c.part.(textContent); ok {
-				text.edit(body)
+			if editor, ok := c.part.(editableContentPart); ok {
+				editor.edit(body)
 			}
 		}
 	case event.RoomRedactionEvent:

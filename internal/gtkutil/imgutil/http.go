@@ -21,8 +21,7 @@ import (
 var Client = http.Client{
 	Timeout: 15 * time.Second,
 	Transport: &httpcache.Transport{
-		Cache:               diskcache.New(config.CacheDir("img")),
-		MarkCachedResponses: false,
+		Cache: diskcache.New(config.CacheDir("img")),
 	},
 }
 

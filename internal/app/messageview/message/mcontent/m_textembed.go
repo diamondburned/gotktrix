@@ -49,7 +49,18 @@ func loadEmbeds(ctx context.Context, box *gtk.Box, urls []string) {
 	go func() {
 		client := gotktrix.FromContext(ctx)
 
+		// Workaround to keep track of inserted URLs. The actual problem is that
+		// edited messages have duplicated URLs for some reason, but this will
+		// solve it anyway.
+		knownURLs := make(map[string]bool, len(urls))
+
 		for _, url := range urls {
+			if knownURLs[url] {
+				continue
+			} else {
+				knownURLs[url] = true
+			}
+
 			m, err := client.PreviewURL(url, 0)
 			if err != nil || m.Title == "" {
 				continue

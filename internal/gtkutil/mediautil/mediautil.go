@@ -33,13 +33,16 @@ func MIME(f io.ReadSeeker) string {
 		return ""
 	}
 
-	defer f.Seek(-int64(n), io.SeekCurrent)
+	f.Seek(0, io.SeekStart)
 
-	return detectCT(buf)
+	return detectCT(buf[:n])
 }
 
 // FileMIME tries to get the MIME type of the given GIO file.
 func FileMIME(ctx context.Context, f *gio.FileInputStream) string {
+	// By the end of this function, ensure that any consumed read is undone.
+	defer f.Seek(ctx, 0, gioglib.SeekSet)
+
 	info, err := f.QueryInfo(ctx, gio.FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE)
 	if err == nil {
 		if mime := gio.ContentTypeGetMIMEType(info.ContentType()); mime != "" {
@@ -54,9 +57,7 @@ func FileMIME(ctx context.Context, f *gio.FileInputStream) string {
 		return ""
 	}
 
-	f.Seek(ctx, int64(n), gioglib.SeekCur)
-
-	return detectCT(buf)
+	return detectCT(buf[:n])
 }
 
 func detectCT(b []byte) string {

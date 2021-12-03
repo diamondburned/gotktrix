@@ -18,6 +18,10 @@ type contentPart interface {
 	content()
 }
 
+type editableContentPart interface {
+	edit(body messageBody)
+}
+
 // ---
 
 type redactedContent struct {

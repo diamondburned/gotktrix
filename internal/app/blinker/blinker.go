@@ -6,7 +6,6 @@ import (
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
@@ -20,10 +19,21 @@ const (
 )
 
 const (
-	blinkerSyncIcon  = "emblem-favorite-symbolic"
-	blinkerErrorIcon = "dialog-error-symbolic"
-	blinkerStayTime  = 200 // ms
+	// blinkerSyncIcon  = "emblem-favorite-symbolic"
+	// blinkerErrorIcon = "dialog-error-symbolic"
+	blinkerStayTime = 200 // ms
 )
+
+func (s blinkerState) Icon() string {
+	switch s {
+	case blinkerSync:
+		return "emblem-favorite-symbolic"
+	case blinkerError:
+		return "dialog-error-symbolic"
+	default:
+		return ""
+	}
+}
 
 func (s blinkerState) Class() string {
 	switch s {
@@ -39,6 +49,7 @@ type blinker struct {
 	gtk.Image
 	prev  glib.SourceHandle
 	state blinkerState
+	image bool
 }
 
 var blinkerCSS = cssutil.Applier("blinker", `
@@ -52,34 +63,42 @@ var blinkerCSS = cssutil.Applier("blinker", `
 		transition-property: opacity, color;
 	}
 	.blinker-sync {
-		opacity: 1;
+		opacity: 0.8;
 		transition: none;
 	}
 	.blinker-error {
+		opacity: 1;
 		color: red;
 	}
 `)
 
 // New creates a new blinker.
 func New(ctx context.Context) gtk.Widgetter {
-	img := gtk.NewImageFromIconName(blinkerSyncIcon)
+	img := gtk.NewImageFromIconName("content-loading-symbolic")
 	img.SetIconSize(gtk.IconSizeNormal)
-	img.SetOpacity(0.8)
 	blinkerCSS(img)
 
 	b := &blinker{Image: *img}
-	cancel := gotktrix.FromContext(ctx).OnSync(func(*api.SyncResponse) {
-		b.sync()
-	})
 
-	win := app.Window(ctx)
-	win.Connect("destroy", cancel)
+	client := gotktrix.FromContext(ctx)
+
+	var funcs []func()
+	b.ConnectMap(func() {
+		funcs = []func(){
+			client.OnSync(func(*api.SyncResponse) { b.sync() }),
+			client.OnSyncError(func(err error) { b.error(err) }),
+		}
+	})
+	b.ConnectUnmap(func() {
+		for _, fn := range funcs {
+			fn()
+		}
+	})
 
 	return b
 }
 
 func (b *blinker) sync() {
-	b.SetFromIconName(blinkerSyncIcon)
 	b.set(blinkerSync)
 
 	if b.prev != 0 {
@@ -92,23 +111,31 @@ func (b *blinker) sync() {
 	})
 }
 
-func (b *blinker) error() {
-	b.SetFromIconName(blinkerErrorIcon)
+func (b *blinker) error(err error) {
 	b.set(blinkerError)
+	b.SetTooltipText(err.Error())
 }
 
 func (b *blinker) set(state blinkerState) {
+	b.SetTooltipText("")
+
 	if b.state != blinkerNone {
 		b.RemoveCSSClass(b.state.Class())
 		b.state = blinkerNone
 	}
 
 	b.state = state
-	if state != blinkerNone {
-		b.AddCSSClass(state.Class())
+
+	if class := state.Class(); class != "" {
+		b.AddCSSClass(class)
+	}
+
+	if icon := state.Icon(); icon != "" {
+		b.SetFromIconName(icon)
 	}
 }
 
+/*
 func (b *blinker) cas(state, ifState blinkerState) {
 	if b.state != ifState {
 		return
@@ -119,3 +146,4 @@ func (b *blinker) cas(state, ifState blinkerState) {
 
 	b.set(state)
 }
+*/

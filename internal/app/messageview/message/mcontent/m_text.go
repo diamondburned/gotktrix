@@ -24,6 +24,8 @@ type textContent struct {
 	ctx context.Context
 }
 
+var _ editableContentPart = (*textContent)(nil)
+
 var textContentCSS = cssutil.Applier("mcontent-text", `
 	textview.mcontent-text,
 	textview.mcontent-text text {
@@ -33,23 +35,13 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 
 const editedHTML = `<span alpha="75%" size="small">(edited)</span>`
 
-func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent {
+func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) *textContent {
 	tview := gtk.NewTextView()
 	tview.SetHExpand(true)
 	tview.SetEditable(false)
 	tview.SetAcceptsTab(false)
 	tview.SetCursorVisible(false)
 	tview.SetWrapMode(gtk.WrapWordChar)
-
-	tview.ConnectAfter("realize", func() {
-		// Fixes 2 GTK bugs:
-		// - TextViews are invisible sometimes.
-		// - Multiline TextViews are sometimes only drawn as 1.
-		glib.IdleAdd(func() {
-			tview.QueueAllocate()
-			tview.QueueResize()
-		})
-	})
 
 	md.SetTabSize(tview)
 	textContentCSS(tview)
@@ -69,22 +61,26 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) textContent 
 	body, isEdited := msgBody(msgBox)
 	c.setContent(body, isEdited)
 
-	return c
+	tview.ConnectMap(func() {
+		c.invalidateAllocate()
+	})
+
+	return &c
 }
 
-func (c textContent) content() {}
+func (c *textContent) content() {}
 
-func (c textContent) SetExtraMenu(menu gio.MenuModeller) {
+func (c *textContent) SetExtraMenu(menu gio.MenuModeller) {
 	gmenu := gio.NewMenu()
 	gmenu.InsertSection(0, "Message", menu)
 	c.text.SetExtraMenu(gmenu)
 }
 
-func (c textContent) edit(body messageBody) {
+func (c *textContent) edit(body messageBody) {
 	c.setContent(body, true)
 }
 
-func (c textContent) setContent(body messageBody, isEdited bool) {
+func (c *textContent) setContent(body messageBody, isEdited bool) {
 	buf := c.text.Buffer()
 	buf.SetText("")
 
@@ -121,6 +117,18 @@ func (c textContent) setContent(body messageBody, isEdited bool) {
 
 		buf.InsertMarkup(end, append)
 	}
+
+	c.invalidateAllocate()
+}
+
+func (c *textContent) invalidateAllocate() {
+	// Workaround to hopefully fix 2 GTK bugs:
+	// - TextViews are invisible sometimes.
+	// - Multiline TextViews are sometimes only drawn as 1.
+	glib.TimeoutAdd(100, func() {
+		c.text.QueueAllocate()
+		c.text.QueueResize()
+	})
 }
 
 type messageBody struct {

@@ -4,8 +4,8 @@ package osutil
 import (
 	"io"
 	"os"
-	"path/filepath"
 
+	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/pkg/errors"
 )
 
@@ -14,7 +14,7 @@ type TempFile struct {
 	os.File
 }
 
-var tempDir = filepath.Join(os.TempDir(), "gotktrix-temp")
+var tempDir = config.CacheDir("temp")
 
 type copyError struct {
 	err error
@@ -50,6 +50,7 @@ func Consume(r io.Reader) (*TempFile, error) {
 
 	// Seek the cursor back to start of file.
 	if err := f.Rewind(); err != nil {
+		f.Close()
 		return nil, copyError{err}
 	}
 
@@ -67,6 +68,7 @@ func Mktemp(pattern string) (*TempFile, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &TempFile{*f}, nil
 }
 

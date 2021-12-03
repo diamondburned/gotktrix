@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"container/list"
 	"context"
 	"sync"
 
@@ -9,18 +8,19 @@ import (
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/registry"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
 )
 
 type Registry struct {
 	mut sync.Mutex
 
-	timeline map[matrix.RoomID]*list.List
+	timeline map[matrix.RoomID]registry.M
 	roomFns  map[matrix.RoomID]eventHandlers
 	userFns  eventHandlers
 
 	// on-sync handlers
-	sync list.List
+	sync registry.M
 
 	caughtUp bool
 }
@@ -28,8 +28,9 @@ type Registry struct {
 // New creates a new handler registry.
 func New() *Registry {
 	return &Registry{
-		timeline: make(map[matrix.RoomID]*list.List, 100),
+		timeline: make(map[matrix.RoomID]registry.M, 100),
 		roomFns:  make(map[matrix.RoomID]eventHandlers, 100),
+		sync:     make(registry.M, 10),
 		userFns:  newEventHandlers(100),
 	}
 }
@@ -45,8 +46,7 @@ func (r *Registry) OnSync(f func(*api.SyncResponse)) func() {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
-	e := r.sync.PushBack(f)
-	return listRemover(&r.mut, &r.sync, e)
+	return valueRemover(&r.mut, r.sync.Add(f))
 }
 
 // OnSyncCh sends into the channel every sync until the returned callback is
@@ -81,12 +81,19 @@ func (r *Registry) SubscribeTimeline(rID matrix.RoomID, f interface{}) func() {
 
 	tl, ok := r.timeline[rID]
 	if !ok {
-		tl = list.New()
+		tl = make(registry.M)
 		r.timeline[rID] = tl
 	}
 
-	e := tl.PushBack(f)
-	return listRemover(&r.mut, tl, e)
+	return valueRemover(&r.mut, tl.Add(f))
+}
+
+func valueRemover(mu *sync.Mutex, v *registry.Value) func() {
+	return func() {
+		mu.Lock()
+		v.Delete()
+		mu.Unlock()
+	}
 }
 
 // SubscribeUser subscribes the given function with the given event type to be
@@ -135,20 +142,12 @@ func (r *Registry) SubscribeRoomEvents(
 	return sh.addEvsRm(&r.mut, types, f)
 }
 
-func listRemover(mu sync.Locker, l *list.List, e *list.Element) func() {
-	return func() {
-		mu.Lock()
-		l.Remove(e)
-		mu.Unlock()
-	}
-}
-
 // AddEvents satisfies part of gotrix.State.
 func (r *Registry) AddEvents(sync *api.SyncResponse) error {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
-	invokeSync(&r.sync, sync)
+	invokeSync(r.sync, sync)
 
 	r.invokeUser(sync.Presence.Events)
 	r.invokeUser(sync.AccountData.Events)

@@ -238,7 +238,7 @@ func (i *Input) Send() bool {
 
 		// Only push a new message if we're not editing.
 		if dt.editing == "" {
-			rowCh := make(chan *gtk.ListBoxRow, 1)
+			rowCh := make(chan interface{}, 1)
 			glib.IdleAdd(func() {
 				rowCh <- i.ctrl.AddSendingMessage(rawEvt)
 			})

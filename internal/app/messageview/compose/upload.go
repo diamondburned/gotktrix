@@ -11,14 +11,13 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/gioutil"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
@@ -38,11 +37,9 @@ func uploader(ctx context.Context, ctrl Controller, roomID matrix.RoomID) {
 	// Cannot use chooser.File(); see
 	// https://github.com/diamondburned/gotk4/issues/29.
 	chooser.Connect("response", func(chooser *gtk.FileChooserNative, resp int) {
-		if resp != int(gtk.ResponseAccept) {
-			return
+		if resp == int(gtk.ResponseAccept) {
+			go upload(ctx, ctrl, roomID, chooser.File())
 		}
-
-		go upload(ctx, ctrl, roomID, chooser.File())
 	})
 	chooser.Show()
 }
@@ -115,6 +112,7 @@ func promptUpload(ctx context.Context, room matrix.RoomID, f uploadingFile) {
 	d.SetTitle("Upload File")
 	d.SetChild(content)
 	d.BindEnterOK()
+	d.BindCancelClose()
 
 	useStatusPage := func(icon string) {
 		img := gtk.NewImageFromIconName(icon)
@@ -145,25 +143,32 @@ func promptUpload(ctx context.Context, room matrix.RoomID, f uploadingFile) {
 		loading.Start()
 		bin.SetChild(loading)
 
-		fallback := func() {
-			useStatusPage("image-x-generic")
-
-			loading.Stop()
-			d.OK.SetSensitive(true)
-		}
-
-		// done is called in a goroutine.
-		done := func(r io.ReadCloser, p gdk.Paintabler, err error) {
+		gtkutil.Async(ctx, func() func() {
+			r, err := osutil.Consume(f.reader)
 			if err != nil {
-				log.Println("image thumbnailing error:", err)
-				glib.IdleAdd(func() {
-					f.reader = r
-					fallback()
-				})
-				return
+				// This is an error worth notifying the user for, because the
+				// data to be uploaded will definitely be corrupted.
+				app.Error(ctx, errors.Wrap(err, "corrupted data reading clipboard"))
+				// Activate the cancel button to clean up the readers and close
+				// the dialog.
+				return func() { d.Cancel.Activate() }
 			}
 
-			glib.IdleAdd(func() {
+			p, err := imgutil.Read(r)
+			r.Rewind()
+
+			if err != nil {
+				log.Println("image thumbnailing error:", err)
+				return func() {
+					f.reader = r
+					// Load the fallback image.
+					useStatusPage("image-x-generic")
+					loading.Stop()
+					d.OK.SetSensitive(true)
+				}
+			}
+
+			return func() {
 				f.reader = r
 
 				img := gtk.NewPicture()
@@ -177,43 +182,18 @@ func promptUpload(ctx context.Context, room matrix.RoomID, f uploadingFile) {
 
 				loading.Stop()
 				d.OK.SetSensitive(true)
-			})
-		}
-
-		go func() {
-			t, err := osutil.Consume(f.reader)
-			if err != nil {
-				// This is an error worth notifying the user for, because the
-				// data to be uploaded will definitely be corrupted.
-				app.Error(ctx, errors.Wrap(err, "corrupted data reading clipboard"))
-				// Activate the cancel button to clean up the readers and close
-				// the dialog.
-				glib.IdleAdd(func() { d.Cancel.Activate() })
-				return
 			}
-
-			r, err := t.Open()
-			if err != nil {
-				done(t, nil, err)
-				return
-			}
-
-			p, err := imgutil.Read(r)
-			r.Close()
-
-			done(t, p, err)
-		}()
-
+		})
 	default:
 		useStatusPage("x-office-document")
 	}
 
-	d.Cancel.Connect("clicked", func() {
-		f.Close()
-		d.Close()
-	})
+	// Close the file descriptor if either the cancel or OK button is pressed.
+	// Don't connect this to the destroy signal, since that will close the file
+	// prematurely.
+	d.Cancel.ConnectClicked(func() { f.Close() })
 
-	d.OK.Connect("clicked", func() {
+	d.OK.ConnectClicked(func() {
 		go func() {
 			startUpload(ctx, room, f)
 			f.Close()

@@ -57,10 +57,14 @@ var Converter = goldmark.New(
 )
 
 // TabWidth is the width of a tab character in regular monospace characters.
-var TabWidth = prefs.NewInt(4, prefs.PropMeta{
-	Name:        "Tab Width",
-	Section:     "Appearance",
-	Description: "The tab width (in characters).",
+var TabWidth = prefs.NewInt(4, prefs.IntMeta{
+	PropMeta: prefs.PropMeta{
+		Name:        "Tab Width",
+		Section:     "Appearance",
+		Description: "The tab width (in characters).",
+	},
+	Min: 0,
+	Max: 16,
 })
 
 var monospaceAttr = markuputil.Attrs(

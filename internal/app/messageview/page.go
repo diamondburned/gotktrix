@@ -3,7 +3,10 @@ package messageview
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -23,6 +26,55 @@ import (
 	"github.com/pkg/errors"
 )
 
+type messageKey string
+
+const (
+	messageKeyEventPrefix = "event"
+	messageKeyLocalPrefix = "local"
+)
+
+// messageKeyEvent returns the messageKey for a server event.
+func messageKeyEvent(event matrix.EventID) messageKey {
+	return messageKey(messageKeyEventPrefix + ":" + string(event))
+}
+
+var messageKeyLocalInc = new(uint64)
+
+// messageKeyLocal creates a new local messageKey that will never collide with
+// server events.
+func messageKeyLocal() messageKey {
+	inc := atomic.AddUint64(messageKeyLocalInc, 1)
+	return messageKey(fmt.Sprintf("%s:%d-%d", messageKeyLocalPrefix, time.Now().UnixNano(), inc))
+}
+
+func (k messageKey) parts() (typ, val string) {
+	parts := strings.SplitN(string(k), ":", 2)
+	if len(parts) != 2 {
+		log.Panicf("invalid messageKey %q", parts)
+	}
+	return parts[0], parts[1]
+}
+
+// EventID takes the event ID from the messae key. If the key doesn't hold an
+// event ID, then it panics.
+func (k messageKey) EventID() matrix.EventID {
+	typ, val := k.parts()
+	if typ != messageKeyEventPrefix {
+		panic("EventID called on non-event message key")
+	}
+	return matrix.EventID(val)
+}
+
+func (k messageKey) IsEvent() bool {
+	typ, _ := k.parts()
+	return typ == messageKeyEventPrefix
+}
+
+func (k messageKey) IsLocal() bool {
+	typ, _ := k.parts()
+	return typ == messageKeyLocalPrefix
+}
+
 // Page describes a tab page, which is a single message view. It satisfies teh
 // MessageViewer interface.
 type Page struct {
@@ -40,9 +92,8 @@ type Page struct {
 	// event object that simultaneously has a linked anchor. This way, there's
 	// no need to keep two separate maps, and there's no need to handle small
 	// pieces of events in separate places.
-	messages map[matrix.EventID]messageRow
+	messages map[messageKey]messageRow
 	mrelated map[matrix.EventID]matrix.EventID // keep track of reactions
-	sending  map[*gtk.ListBoxRow]message.Message
 
 	name    string
 	onTitle func(title string)
@@ -58,9 +109,9 @@ type Page struct {
 }
 
 type messageRow struct {
-	msg  message.Message
 	row  *gtk.ListBoxRow
-	sent matrix.Timestamp
+	raw  *event.RawEvent
+	body message.Message
 }
 
 var _ message.MessageViewer = (*Page)(nil)
@@ -122,9 +173,8 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 	page := Page{
 		list:     msgList,
-		messages: make(map[matrix.EventID]messageRow),
+		messages: make(map[messageKey]messageRow),
 		mrelated: make(map[matrix.EventID]matrix.EventID),
-		sending:  make(map[*gtk.ListBoxRow]message.Message),
 
 		onTitle: func(string) {},
 		ctx:     gtkutil.WithVisibility(ctx, msgList),
@@ -150,20 +200,20 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	// TODO: API to re-render the message and toggle between compact and full.
 
 	// Sort messages according to the timestamp.
-	// msgList.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
-	// 	m1, ok1 := page.messages[matrix.EventID(r1.Name())]
-	// 	m2, ok2 := page.messages[matrix.EventID(r2.Name())]
-	// 	if !ok1 || !ok2 {
-	// 		return 0
-	// 	}
-	// 	if m1.sent < m2.sent {
-	// 		return -1
-	// 	}
-	// 	if m1.sent == m2.sent {
-	// 		return 0
-	// 	}
-	// 	return 1 // t1 > t2
-	// })
+	msgList.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
+		m1, ok1 := page.messages[messageKey(r1.Name())]
+		m2, ok2 := page.messages[messageKey(r2.Name())]
+		if !ok1 || !ok2 {
+			return 0
+		}
+		if m1.raw.OriginServerTime < m2.raw.OriginServerTime {
+			return -1
+		}
+		if m1.raw.OriginServerTime == m2.raw.OriginServerTime {
+			return 0
+		}
+		return 1 // t1 > t2
+	})
 
 	vp := gtk.NewViewport(nil, nil)
 	vp.SetVScrollPolicy(gtk.ScrollNatural)
@@ -295,28 +345,6 @@ func (p *Page) OnTitle(f func(string)) {
 	f(p.RoomName())
 }
 
-func (p *Page) lastRow() *gtk.ListBoxRow {
-	w := p.list.LastChild()
-	if w != nil {
-		return w.(*gtk.ListBoxRow)
-	}
-	return nil
-}
-
-// LastMessage satisfies MessageViewer.
-func (p *Page) LastMessage() message.Message {
-	lastRow := p.lastRow()
-	if lastRow == nil {
-		return nil
-	}
-
-	if row, ok := p.messages[matrix.EventID(lastRow.Name())]; ok {
-		return row.msg
-	}
-
-	return nil
-}
-
 // RoomID returns this room's ID.
 func (p *Page) RoomID() matrix.RoomID {
 	return p.roomID
@@ -336,9 +364,18 @@ func (p *Page) OnRoomEvent(raw *event.RawEvent) {
 		return
 	}
 
-	p.onRoomEvent(raw, true)
+	p.onRoomEvent(raw)
 	p.clean()
 	p.MarkAsRead()
+}
+
+// lastRow returns the list's last row.
+func (p *Page) lastRow() *gtk.ListBoxRow {
+	w := p.list.LastChild()
+	if w != nil {
+		return w.(*gtk.ListBoxRow)
+	}
+	return nil
 }
 
 // MarkAsRead marks the room as read.
@@ -388,80 +425,104 @@ func (p *Page) clean() {
 
 		p.list.Remove(row)
 
-		id := matrix.EventID(row.Name())
+		id := messageKey(row.Name())
 		delete(p.messages, id)
 
-		for k, relatesTo := range p.mrelated {
-			if relatesTo == id {
-				delete(p.mrelated, k)
+		if id.IsEvent() {
+			for k, relatesTo := range p.mrelated {
+				if relatesTo == id.EventID() {
+					delete(p.mrelated, k)
+				}
 			}
 		}
 	}
+}
+
+// MessageMark is a struct that marks a specific position of a message. It is
+// not guaranteed to be immutable while it is held, and the user should treat it
+// as an opaque structure.
+type MessageMark struct {
+	row *gtk.ListBoxRow
 }
 
 // AddSendingMessage adds the given message into the page and returns the row.
 // The user must call BindSendingMessage afterwards to ensure that the added
 // message is merged with the synchronized one.
-func (p *Page) AddSendingMessage(raw *event.RawEvent) *gtk.ListBoxRow {
-	msg := message.NewCozyMessage(p.ctx.Take(), p, raw)
-	msg.SetBlur(true)
+func (p *Page) AddSendingMessage(raw *event.RawEvent) interface{} {
+	key := messageKeyLocal()
 
 	row := gtk.NewListBoxRow()
-	row.AddCSSClass("messageview-sending")
-	row.SetChild(msg)
+	row.SetName(string(key))
+	row.AddCSSClass("messageview-messagerow")
+	row.AddCSSClass("messageview-usermessage")
 
-	p.sending[row] = msg
+	msg := messageRow{
+		row: row,
+		raw: raw,
+	}
+	p.messages[key] = msg
+
 	p.list.Append(row)
 
-	return row
+	// Grab the before row after insertion.
+	before := p.rowAtIndex(row.Index() - 1)
+
+	msg.body = message.NewCozyMessage(p.ctx.Take(), p, raw, before.body)
+	msg.body.SetBlur(true)
+	p.messages[key] = msg
+
+	row.SetChild(msg.body)
+	return key
 }
 
 // BindSendingMessage is used after the sending message has been sent through
 // the backend, and that an event ID is returned. The page will try to match the
 // message up with an existing event.
-func (p *Page) BindSendingMessage(row *gtk.ListBoxRow, evID matrix.EventID) (replaced bool) {
-	msg, ok := p.sending[row]
+func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replaced bool) {
+	key, ok := mark.(messageKey)
 	if !ok {
 		return false
 	}
 
-	delete(p.sending, row)
+	msg, ok := p.messages[key]
+	if !ok {
+		return false
+	}
+	delete(p.messages, key)
 
+	eventKey := messageKeyEvent(evID)
 	// Check if the message has been synchronized before it's replied.
-	if _, ok := p.messages[evID]; ok {
+	if _, ok := p.messages[eventKey]; ok {
 		// Yes, so replace our sending message.
-		p.list.Remove(row)
+		p.list.Remove(msg.row)
 		// Just use the synced message.
 		return true
 	}
 
 	// Not replaced yet, so we arrived first. Place the message in.
-	p.messages[evID] = messageRow{
-		msg:  msg,
-		row:  row,
-		sent: matrix.Timestamp(time.Now().UnixMilli()),
-	}
+	msg.raw.ID = evID
+	p.messages[eventKey] = msg
 
-	msg.SetBlur(false)
-	row.SetName(string(evID))
+	msg.body.SetBlur(false)
+	msg.row.SetName(string(eventKey))
 	return false
 }
 
-func (p *Page) onRoomEvent(raw *event.RawEvent, append bool) {
-	id := raw.ID
+func (p *Page) onRoomEvent(raw *event.RawEvent) {
+	key := messageKeyEvent(raw.ID)
 
 	if relatesToID := relatesTo(raw); relatesToID != "" {
-		rl, ok := p.messages[relatesToID]
+		rl, ok := p.messages[messageKeyEvent(relatesToID)]
 		if !ok {
 			if rel := p.mrelated[relatesToID]; rel != "" {
-				rl, ok = p.messages[rel]
+				rl, ok = p.messages[messageKeyEvent(rel)]
 			}
 		}
 		if ok {
 			// Register this event as a related event.
-			p.mrelated[raw.ID] = rl.msg.RawEvent().ID
+			p.mrelated[raw.ID] = relatesToID
 			// Trigger the message's callback.
-			rl.msg.OnRelatedEvent(gotktrix.WrapEventBox(raw))
+			rl.body.OnRelatedEvent(gotktrix.WrapEventBox(raw))
 			return
 		}
 		// Treat as a new message.
@@ -469,36 +530,45 @@ func (p *Page) onRoomEvent(raw *event.RawEvent, append bool) {
 
 	// Ensure that there isn't already a message with the same ID, which might
 	// happen if this is a message that we sent.
-	if existing, ok := p.messages[id]; ok {
+	if existing, ok := p.messages[key]; ok {
 		// Update the state.
-		message.EditCozyMessage(p.parent.ctx, p, raw, existing.msg)
-		p.messages[id] = messageRow{
-			msg:  existing.msg,
+		message.EditCozyMessage(p.parent.ctx, p, raw, existing.body)
+		p.messages[key] = messageRow{
 			row:  existing.row,
-			sent: raw.OriginServerTime,
+			raw:  raw,
+			body: existing.body,
 		}
-		// Update the widget in the row.
-		existing.row.SetChild(existing.msg)
+		// Update the widget in the row, but don't actually update the
+		// timestamp, otherwise the cozy/collapse message order will be
+		// incorrect.
+		existing.row.SetChild(existing.body)
 		return
 	}
 
-	m := message.NewCozyMessage(p.parent.ctx, p, raw)
-
 	row := gtk.NewListBoxRow()
-	row.SetName(string(id))
-	row.SetChild(m)
+	row.SetName(string(key))
+	row.AddCSSClass("messageview-messagerow")
 
-	p.messages[id] = messageRow{
-		msg:  m,
-		row:  row,
-		sent: raw.OriginServerTime,
-	}
+	// Prematurely initialize this with an empty body for the sort function to
+	// work.
+	msg := messageRow{row: row, raw: raw}
+	p.messages[key] = msg
 
-	if append {
-		p.list.Append(row)
-	} else {
-		p.list.Prepend(row)
-	}
+	// Appending or prepending to this will cause the ListBox to sort the row
+	// for us. Hopefully, if we hint the position, ListBox won't try to sort too
+	// many times.
+	p.list.Append(row)
+
+	// Grab the before row after insertion.
+	before := p.rowAtIndex(row.Index() - 1)
+
+	// We can now reliably create a new message with the right previous message.
+	// Note that this will break once the message's author starts mutating by
+	// being either modified or removed.
+	msg.body = message.NewCozyMessage(p.parent.ctx, p, raw, before.body)
+	p.messages[key] = msg
+
+	row.SetChild(msg.body)
 }
 
 // relatesTo returns the event ID that the given raw event is supposed to edit,
@@ -521,6 +591,18 @@ func relatesTo(raw *event.RawEvent) matrix.EventID {
 	return body.RelatesTo.EventID
 }
 
+// rowAtIndex gets the messageRow at the given index. A zero-value is returned
+// if it's not found.
+func (p *Page) rowAtIndex(i int) messageRow {
+	row := p.list.RowAtIndex(i)
+	if row == nil {
+		return messageRow{}
+	}
+
+	key := messageKey(row.Name())
+	return p.messages[key]
+}
+
 // Load asynchronously loads the page. The given callback is called once the
 // page finishes loading.
 func (p *Page) Load(done func()) {
@@ -539,7 +621,7 @@ func (p *Page) Load(done func()) {
 	load := func(events []event.RawEvent) {
 		// Require old messages first, so cozy mode works properly.
 		for i := range events {
-			p.onRoomEvent(&events[i], true)
+			p.onRoomEvent(&events[i])
 		}
 		p.scroll.ScrollToBottom()
 		p.main.SetChild(p.box)
@@ -611,17 +693,17 @@ func (p *Page) singleMessageState(
 	field *matrix.EventID, set func(matrix.EventID), class string) {
 
 	if *field != "" {
-		r, ok := p.messages[*field]
+		r, ok := p.messages[messageKeyEvent(*field)]
 		if ok {
 			r.row.RemoveCSSClass(class)
 		}
 		*field = ""
 	}
 
-	mr, ok := p.messages[eventID]
+	mr, ok := p.messages[messageKeyEvent(eventID)]
 	if !ok {
 		if rel := p.mrelated[eventID]; rel != "" {
-			mr, ok = p.messages[rel]
+			mr, ok = p.messages[messageKeyEvent(rel)]
 		}
 	}
 	if !ok {

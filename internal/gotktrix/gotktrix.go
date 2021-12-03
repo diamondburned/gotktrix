@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"log"
 	"mime"
+	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +24,10 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/db"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/handler"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/httptrick"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
+	"github.com/gregjones/httpcache"
+	"github.com/gregjones/httpcache/diskcache"
 	"github.com/pkg/errors"
 )
 
@@ -179,7 +184,11 @@ type Client struct {
 	State *state.State
 	Index *indexer.Indexer
 
-	userID matrix.UserID
+	httpErr *httptrick.RoundTripWarner
+	userID  matrix.UserID
+}
+
+type clientState struct {
 }
 
 // New wraps around gotrix.NewWithClient.
@@ -195,6 +204,13 @@ func New(hcl httputil.Client, serverName string, uID matrix.UserID, token string
 	return wrapClient(c)
 }
 
+var cachedRoutes = map[string]map[string]string{
+	// TODO: this doesn't work. Investigate.
+	"/_matrix/media/r0/*": {
+		"Cache-Control": httptrick.OverrideCacheControl(4 * time.Hour),
+	},
+}
+
 func wrapClient(c *gotrix.Client) (*Client, error) {
 	logInit()
 
@@ -206,6 +222,19 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 	// URLEncoding is path-safe; StdEncoding is not.
 	b64Username := base64.URLEncoding.EncodeToString([]byte(u))
 
+	httpErr := httptrick.WrapRoundTripWarner(&httpcache.Transport{
+		Transport: httptrick.TransportHeaderOverride{
+			R: http.DefaultTransport,
+			H: cachedRoutes,
+		},
+		Cache: diskcache.New(config.CacheDir("api", b64Username)),
+	})
+
+	// Use a global HTTP cache.
+	c.ClientDriver = &http.Client{
+		Transport: httpErr,
+	}
+
 	state, err := state.New(config.Path("matrix-state", b64Username), u)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make state db")
@@ -216,22 +245,34 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 		return nil, errors.Wrap(err, "failed to make indexer")
 	}
 
-	c.AddHandler(func(c *gotrix.Client, member event.RoomMemberEvent) {
-		b := idx.Begin()
-		b.IndexRoomMember(member)
-		b.Commit()
-	})
-
 	registry := handler.New()
 
 	c.State = registry.Wrap(state)
 	c.SyncOpts = SyncOptions
+
+	registry.OnSync(func(s *api.SyncResponse) {
+		for _, room := range s.Rooms.Joined {
+			for _, ev := range room.State.Events {
+				if ev.Type != event.TypeRoomMember {
+					continue
+				}
+
+				member, _ := ev.Parse()
+				if member != nil {
+					b := idx.Begin()
+					b.IndexRoomMember(member.(event.RoomMemberEvent))
+					b.Commit()
+				}
+			}
+		}
+	})
 
 	return &Client{
 		Client:   c,
 		Registry: registry,
 		State:    state,
 		Index:    idx,
+		httpErr:  httpErr,
 		userID:   u,
 	}, nil
 }
@@ -273,15 +314,27 @@ func (c *Client) Online(ctx context.Context) *Client {
 	return c.WithContext(ctx)
 }
 
+// OnHTTPError adds the given function to be called everytime the client's HTTP
+// emits an error
+func (c *Client) OnHTTPError(r func(*http.Request, error)) func() {
+	return c.httpErr.OnError(r)
+}
+
+// OnSyncError adds the given function to be called everytime the client fials
+// to sync.
+func (c *Client) OnSyncError(f func(err error)) func() {
+	return c.httpErr.OnError(func(r *http.Request, err error) {
+		if strings.HasPrefix(r.URL.Path, api.EndpointSync) {
+			f(err)
+		}
+	})
+}
+
 // WithContext replaces the client's internal context with the given one.
 func (c *Client) WithContext(ctx context.Context) *Client {
-	return &Client{
-		Client:   c.Client.WithContext(ctx),
-		Registry: c.Registry,
-		State:    c.State,
-		Index:    c.Index,
-		userID:   c.userID,
-	}
+	cpy := *c
+	cpy.Client = cpy.Client.WithContext(ctx)
+	return &cpy
 }
 
 // Whoami is a cached version of the Whoami method.

@@ -60,10 +60,10 @@ func (p *Pubsub) Subscribe(f func()) (rm func()) {
 }
 
 // Connect binds f to the lifetime of the given object.
-func Connect(pubsub Pubsubber, obj glib.Objector, f func()) {
+func Connect(sub Subscriber, obj glib.Objector, f func()) {
 	var unsub func()
 	obj.Connect("map", func() {
-		unsub = pubsub.Subscribe(f)
+		unsub = sub.Subscribe(f)
 	})
 	obj.Connect("destroy", func() {
 		unsub()

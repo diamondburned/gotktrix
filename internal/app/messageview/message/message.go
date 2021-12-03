@@ -17,8 +17,6 @@ type Message interface {
 	// SetBlur greys the message's content if true. It's used to indicate
 	// idling.
 	SetBlur(bool)
-	// RawEvent returns the raw unparsed room event.
-	RawEvent() *gotktrix.EventBox
 	// OnRelatedEvent is called by the caller for each event that's related to
 	// the message. The caller should check the m.relates_to field.
 	OnRelatedEvent(raw *gotktrix.EventBox)
@@ -49,8 +47,6 @@ var messageCSS = cssutil.Applier("message-message", `
 
 // MessageViewer describes the parent that holds messages.
 type MessageViewer interface {
-	// LastMessage returns the latest message.
-	LastMessage() Message
 	// ReplyTo sets the message event ID that the user wants to reply to.
 	ReplyTo(matrix.EventID)
 	// Edit starts the editing for given message ID.
@@ -71,7 +67,7 @@ func (v messageViewer) client() *gotktrix.Client {
 }
 
 // NewCozyMessage creates a new cozy or collapsed message.
-func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent) Message {
+func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent, before Message) Message {
 	viewer := messageViewer{
 		Context:       ctx,
 		MessageViewer: view,
@@ -84,7 +80,7 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent
 	}
 
 	if _, ok := e.(event.RoomMessageEvent); ok {
-		if lastIsAuthor(view, raw) {
+		if lastIsAuthor(before, raw) {
 			return viewer.collapsedMessage()
 		} else {
 			return viewer.cozyMessage()
@@ -120,13 +116,13 @@ func EditCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEven
 
 const maxCozyAge = 10 * time.Minute
 
-func lastIsAuthor(view MessageViewer, ev *event.RawEvent) bool {
+func lastIsAuthor(before Message, ev *event.RawEvent) bool {
 	// Ensure that the last message IS a cozy OR compact message.
-	switch last := view.LastMessage().(type) {
+	switch before := before.(type) {
 	case *cozyMessage:
-		return lastEventIsAuthor(last.EventBox.RawEvent, ev)
+		return lastEventIsAuthor(before.EventBox.RawEvent, ev)
 	case *collapsedMessage:
-		return lastEventIsAuthor(last.EventBox.RawEvent, ev)
+		return lastEventIsAuthor(before.EventBox.RawEvent, ev)
 	default:
 		return false
 	}

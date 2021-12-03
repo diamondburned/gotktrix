@@ -66,3 +66,11 @@ func (d *Dialog) BindEnterOK() {
 	})
 	d.Dialog.AddController(ev)
 }
+
+// BindCancelClose binds cancel to closing the dialog.
+func (d *Dialog) BindCancelClose() {
+	d.Cancel.ConnectClicked(func() {
+		d.Dialog.Close()
+		d.Dialog.Destroy()
+	})
+}

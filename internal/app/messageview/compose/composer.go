@@ -29,8 +29,11 @@ type Controller interface {
 	ReplyTo(matrix.EventID)
 	Edit(matrix.EventID)
 
-	AddSendingMessage(raw *event.RawEvent) *gtk.ListBoxRow
-	BindSendingMessage(row *gtk.ListBoxRow, evID matrix.EventID) (replaced bool)
+	// AddSendingMessage adds the given RawEvent as a sending message and
+	// returns a mark that is given to BindSendingMessage.
+	AddSendingMessage(raw *event.RawEvent) (mark interface{})
+	// BindSendingMessage takes in the mark value returned by AddSendingMessage.
+	BindSendingMessage(mark interface{}, evID matrix.EventID) (replaced bool)
 }
 
 /*

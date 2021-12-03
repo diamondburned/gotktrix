@@ -55,7 +55,8 @@ func CacheDir(tails ...string) string {
 	cacheDirOnce.Do(func() {
 		d, err := os.UserCacheDir()
 		if err != nil {
-			log.Fatalln("failed to get user cache dir:", err)
+			d = os.TempDir()
+			log.Println("cannot get user cache directory; falling back to", d)
 		}
 
 		cacheDir = filepath.Join(d, "gotktrix")

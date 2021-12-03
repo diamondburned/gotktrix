@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"container/list"
 	"log"
 	"sync"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/registry"
 )
 
 type wrapper struct {
@@ -25,7 +25,7 @@ func (w wrapper) AddEvents(sync *api.SyncResponse) error {
 	return err2
 }
 
-type eventHandlers map[event.Type]*list.List
+type eventHandlers map[event.Type]registry.M
 
 func newEventHandlers(cap int) eventHandlers {
 	return make(eventHandlers, cap)
@@ -41,47 +41,43 @@ func (h eventHandlers) addEvsRm(l sync.Locker, types []event.Type, fn interface{
 		return h.addRm(l, types[0], fn)
 	}
 
-	lists := make([]*list.List, len(types))
-	elems := make([]*list.Element, len(types))
-
+	elems := make([]*registry.Value, len(types))
 	for i, typ := range types {
-		lists[i], elems[i] = h.add(typ, fn)
+		elems[i] = h.add(typ, fn)
 	}
 
 	return func() {
 		l.Lock()
 		defer l.Unlock()
 
-		for i, list := range lists {
-			list.Remove(elems[i])
+		for _, elem := range elems {
+			elem.Delete()
 		}
 	}
 }
 
-func (h eventHandlers) add(typ event.Type, fn interface{}) (*list.List, *list.Element) {
+func (h eventHandlers) add(typ event.Type, fn interface{}) *registry.Value {
 	ls, ok := h[typ]
 	if !ok {
-		ls = list.New()
+		ls = make(registry.M)
 		h[typ] = ls
 	}
 
-	return ls, ls.PushBack(fn)
+	return ls.Add(fn)
 }
 
 func (h eventHandlers) addRm(l sync.Locker, typ event.Type, fn interface{}) func() {
-	ls, el := h.add(typ, fn)
-
+	b := h.add(typ, fn)
 	return func() {
 		l.Lock()
-		defer l.Unlock()
-
-		ls.Remove(el)
+		b.Delete()
+		l.Unlock()
 	}
 }
 
-func invokeSync(list *list.List, sync *api.SyncResponse) {
-	for v := list.Front(); v != nil; v = v.Next() {
-		v.Value.(func(*api.SyncResponse))(sync)
+func invokeSync(r registry.M, sync *api.SyncResponse) {
+	for v := range r {
+		v.V.(func(*api.SyncResponse))(sync)
 	}
 }
 
@@ -112,13 +108,13 @@ func (i *eventInvoker) parse() (event.Event, error) {
 	return p, nil
 }
 
-func (i *eventInvoker) invokeList(list *list.List) {
+func (i *eventInvoker) invokeList(list registry.M) {
 	if list == nil {
 		return
 	}
 
-	for v := list.Front(); v != nil; v = v.Next() {
-		i.invoke(v.Value)
+	for v := range list {
+		i.invoke(v.V)
 	}
 }
 
