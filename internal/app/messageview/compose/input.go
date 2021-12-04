@@ -444,7 +444,7 @@ func customEmojiHTML(emoji autocomplete.EmojiData) string {
 	}
 
 	return fmt.Sprintf(
-		`<img alt="%s" title="%[1]s" width="32" height="32" src="%s" data-mxc-emoticon />`,
+		`<img alt="%s" title="%[1]s" width="32" height="32" src="%s" data-mx-emoticon />`,
 		html.EscapeString(string(emoji.Name)),
 		html.EscapeString(string(emoji.Custom.URL)),
 	)
