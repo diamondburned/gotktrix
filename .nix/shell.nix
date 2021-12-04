@@ -15,7 +15,7 @@ in shell.overrideAttrs (old: {
 	# Workaround for the lack of wrapGAppsHook:
 	# https://nixos.wiki/wiki/Development_environment_with_nix-shell
 	shellHook = ''
-		XDG_DATA_DIRS=$GSETTINGS_SCHEMA_PATH
+		XDG_DATA_DIRS=$GSETTINGS_SCHEMAS_PATH
 	'';
 
 	NIX_DEBUG_INFO_DIRS = ''${pkgs.gtk4.debug}/lib/debug:${pkgs.glib.debug}/lib/debug'';
