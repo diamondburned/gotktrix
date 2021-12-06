@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"log"
+	"sync"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/search"
@@ -12,12 +13,30 @@ import (
 	"github.com/pkg/errors"
 )
 
+var initOnce sync.Once
+
+func doInit() {
+	// The fact that bleve.Config is a global variable of an unexported type is
+	// kind of stupid.
+	initOnce.Do(func() {
+		// Set the number of background Bleve indexers to 1, because we don't do
+		// that much searching.
+		bleve.Config.SetAnalysisQueueSize(1)
+		// Not too sure what this does, but we don't need it to be set to
+		// "html".
+		bleve.Config.DefaultHighlighter = "simple"
+	})
+}
+
 // Indexer provides indexing of many types of Matrix data for querying.
 type Indexer struct {
 	idx bleve.Index
 }
 
+// Open opens an existing Indexer or create a new one if not available.
 func Open(path string) (*Indexer, error) {
+	doInit()
+
 	// Work around Bleve's inherent TOCTTOU racy API.
 	var idx bleve.Index
 	// TODO: index database versioning

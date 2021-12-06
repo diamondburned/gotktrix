@@ -2,6 +2,7 @@ package db
 
 import (
 	"log"
+	"reflect"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -376,6 +377,9 @@ func (n Node) EachReverse(v interface{}, fn func(k string, l int) error) error {
 }
 
 func (n Node) each(rev bool, v interface{}, fn func(k string, l int) error) error {
+	zero := reflect.New(reflect.TypeOf(v).Elem()).Elem() // assume ptr, returns T
+	rval := reflect.ValueOf(v).Elem()
+
 	return n.TxView(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
@@ -395,6 +399,10 @@ func (n Node) each(rev bool, v interface{}, fn func(k string, l int) error) erro
 		})
 
 		return eachBucket(cursor, rev, func(k, b []byte) error {
+			// Reset the value to zero. We should be copying zero's struct
+			// values into rval, so we can just reuse this value.
+			rval.Set(zero)
+
 			if err := n.kv.Unmarshal(b, v); err != nil {
 				return errors.Wrapf(err, "failed to unmarshal %q", string(k))
 			}

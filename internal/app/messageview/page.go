@@ -33,6 +33,19 @@ const (
 	messageKeyLocalPrefix = "local"
 )
 
+func messageKeyRow(row *gtk.ListBoxRow) messageKey {
+	if row == nil {
+		return ""
+	}
+
+	name := row.Name()
+	if !strings.Contains(name, ":") {
+		log.Panicf("row name %q not a messageKey", name)
+	}
+
+	return messageKey(name)
+}
+
 // messageKeyEvent returns the messageKey for a server event.
 func messageKeyEvent(event matrix.EventID) messageKey {
 	return messageKey(messageKeyEventPrefix + ":" + string(event))
@@ -201,8 +214,8 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 	// Sort messages according to the timestamp.
 	msgList.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
-		m1, ok1 := page.messages[messageKey(r1.Name())]
-		m2, ok2 := page.messages[messageKey(r2.Name())]
+		m1, ok1 := page.messages[messageKeyRow(r1)]
+		m2, ok2 := page.messages[messageKeyRow(r2)]
 		if !ok1 || !ok2 {
 			return 0
 		}
@@ -425,7 +438,7 @@ func (p *Page) clean() {
 
 		p.list.Remove(row)
 
-		id := messageKey(row.Name())
+		id := messageKeyRow(row)
 		delete(p.messages, id)
 
 		if id.IsEvent() {
@@ -456,22 +469,12 @@ func (p *Page) AddSendingMessage(raw *event.RawEvent) interface{} {
 	row.AddCSSClass("messageview-messagerow")
 	row.AddCSSClass("messageview-usermessage")
 
-	msg := messageRow{
+	p.setMessage(key, messageRow{
 		row: row,
 		raw: raw,
-	}
-	p.messages[key] = msg
+	})
 
-	p.list.Append(row)
-
-	// Grab the before row after insertion.
-	before := p.rowAtIndex(row.Index() - 1)
-
-	msg.body = message.NewCozyMessage(p.ctx.Take(), p, raw, before.body)
-	msg.body.SetBlur(true)
-	p.messages[key] = msg
-
-	row.SetChild(msg.body)
+	p.messages[key].body.SetBlur(true)
 	return key
 }
 
@@ -493,18 +496,29 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 	eventKey := messageKeyEvent(evID)
 	// Check if the message has been synchronized before it's replied.
 	if _, ok := p.messages[eventKey]; ok {
+		log.Println("found existing message when sent")
+		// Store the index which will be the next message once we remove the
+		// current one.
+		ix := msg.row.Index()
 		// Yes, so replace our sending message.
 		p.list.Remove(msg.row)
+		// Reset the message that fills the gap. This isn't very important, so
+		// we ignore the returned boolean.
+		log.Println("reset previously index", ix)
+		p.resetMessageIx(ix)
 		// Just use the synced message.
 		return true
 	}
+
+	log.Println("no existing message found")
 
 	// Not replaced yet, so we arrived first. Place the message in.
 	msg.raw.ID = evID
 	p.messages[eventKey] = msg
 
-	msg.body.SetBlur(false)
 	msg.row.SetName(string(eventKey))
+	msg.body.SetBlur(false)
+
 	return false
 }
 
@@ -531,17 +545,8 @@ func (p *Page) onRoomEvent(raw *event.RawEvent) {
 	// Ensure that there isn't already a message with the same ID, which might
 	// happen if this is a message that we sent.
 	if existing, ok := p.messages[key]; ok {
-		// Update the state.
-		message.EditCozyMessage(p.parent.ctx, p, raw, existing.body)
-		p.messages[key] = messageRow{
-			row:  existing.row,
-			raw:  raw,
-			body: existing.body,
-		}
-		// Update the widget in the row, but don't actually update the
-		// timestamp, otherwise the cozy/collapse message order will be
-		// incorrect.
-		existing.row.SetChild(existing.body)
+		existing.raw = raw
+		p.setMessage(key, existing)
 		return
 	}
 
@@ -551,24 +556,62 @@ func (p *Page) onRoomEvent(raw *event.RawEvent) {
 
 	// Prematurely initialize this with an empty body for the sort function to
 	// work.
-	msg := messageRow{row: row, raw: raw}
+	p.setMessage(key, messageRow{
+		row: row,
+		raw: raw,
+	})
+}
+
+func (p *Page) setMessage(key messageKey, msg messageRow) {
 	p.messages[key] = msg
 
 	// Appending or prepending to this will cause the ListBox to sort the row
 	// for us. Hopefully, if we hint the position, ListBox won't try to sort too
 	// many times.
-	p.list.Append(row)
+	if msg.row.Parent() == nil {
+		p.list.Append(msg.row)
+	}
 
-	// Grab the before row after insertion.
-	before := p.rowAtIndex(row.Index() - 1)
+	ix := msg.row.Index()
 
 	// We can now reliably create a new message with the right previous message.
 	// Note that this will break once the message's author starts mutating by
 	// being either modified or removed.
-	msg.body = message.NewCozyMessage(p.parent.ctx, p, raw, before.body)
-	p.messages[key] = msg
+	p.resetMessageIx(ix)
 
-	row.SetChild(msg.body)
+	// If we're inserting this message before an existing one, then we should
+	// recreate the one after as well, in case it belongs to a different author.
+	if ix < len(p.messages)-1 {
+		p.resetMessage(p.keyAtIndex(ix+1), msg)
+	}
+}
+
+func (p *Page) resetMessageIx(ix int) bool {
+	return p.resetMessage(
+		p.keyAtIndex(ix),
+		p.rowAtIndex(ix-1),
+	)
+}
+
+func (p *Page) resetMessage(key messageKey, before messageRow) bool {
+	msg, ok := p.messages[key]
+	if !ok {
+		return false
+	}
+
+	// Recreate the body if the raw events don't match.
+	if msg.body == nil || eventEq(msg.raw, msg.body.RawEvent().RawEvent) {
+		msg.body = message.NewCozyMessage(p.parent.ctx, p, msg.raw, before.body)
+		p.messages[key] = msg
+
+		msg.row.SetChild(msg.body)
+	}
+
+	return true
+}
+
+func eventEq(e1, e2 *event.RawEvent) bool {
+	return e1.OriginServerTime == e2.OriginServerTime && e1.ID == e2.ID
 }
 
 // relatesTo returns the event ID that the given raw event is supposed to edit,
@@ -594,13 +637,12 @@ func relatesTo(raw *event.RawEvent) matrix.EventID {
 // rowAtIndex gets the messageRow at the given index. A zero-value is returned
 // if it's not found.
 func (p *Page) rowAtIndex(i int) messageRow {
-	row := p.list.RowAtIndex(i)
-	if row == nil {
-		return messageRow{}
-	}
-
-	key := messageKey(row.Name())
+	key := p.keyAtIndex(i)
 	return p.messages[key]
+}
+
+func (p *Page) keyAtIndex(i int) messageKey {
+	return messageKeyRow(p.list.RowAtIndex(i))
 }
 
 // Load asynchronously loads the page. The given callback is called once the

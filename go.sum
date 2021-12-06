@@ -61,8 +61,8 @@ github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964/go.mod h1:Xd9
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/diamondburned/adaptive v0.0.2-0.20211130224349-329acdb1600e h1:e68b810mV2uI5uymNpKDt9R4iQmwDv5Ak5Dn1V9dY24=
-github.com/diamondburned/adaptive v0.0.2-0.20211130224349-329acdb1600e/go.mod h1:03zN7sBfi9WiZYnXsFtE6jkcQmyvX9Xay0QwUOZKnV8=
+github.com/diamondburned/adaptive v0.0.2-0.20211204102308-52a987d6f409 h1:pb/1bakSV0aL/qT52wLEAOhBHEUycOZ7DvCFh5W+Efc=
+github.com/diamondburned/adaptive v0.0.2-0.20211204102308-52a987d6f409/go.mod h1:03zN7sBfi9WiZYnXsFtE6jkcQmyvX9Xay0QwUOZKnV8=
 github.com/diamondburned/gotk4/pkg v0.0.0-20211121095826-148e5d6f3165/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/diamondburned/gotk4/pkg v0.0.0-20211129201102-9fd3d063c5bb h1:xP01JiVYLytyos/jE/s7/4K+djf/WjPoYz5pmAOJWwU=
 github.com/diamondburned/gotk4/pkg v0.0.0-20211129201102-9fd3d063c5bb/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=

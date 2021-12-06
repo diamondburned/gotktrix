@@ -21,6 +21,7 @@ func BindRightClickAt(w gtk.Widgetter, f func(x, y float64)) {
 	})
 
 	l := gtk.NewGestureLongPress()
+	l.SetTouchOnly(true)
 	l.ConnectAfter("pressed", func(x, y float64) {
 		f(x, y)
 	})

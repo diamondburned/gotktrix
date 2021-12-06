@@ -17,6 +17,8 @@ type Message interface {
 	// SetBlur greys the message's content if true. It's used to indicate
 	// idling.
 	SetBlur(bool)
+	// RawEvent returns the message's raw event.
+	RawEvent() *gotktrix.EventBox
 	// OnRelatedEvent is called by the caller for each event that's related to
 	// the message. The caller should check the m.relates_to field.
 	OnRelatedEvent(raw *gotktrix.EventBox)
@@ -90,45 +92,21 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent
 	return viewer.eventMessage()
 }
 
-// EditCozyMessage modifies v directly based on the underlying type that it has.
-// The type of the message is preserved.
-func EditCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent, v Message) {
-	viewer := messageViewer{
-		Context:       ctx,
-		MessageViewer: view,
-		raw:           gotktrix.WrapEventBox(raw),
-	}
-
-	_, err := viewer.raw.Parse()
-	if err != nil {
-		return
-	}
-
-	switch v := v.(type) {
-	case *cozyMessage:
-		*v = *viewer.cozyMessage()
-	case *collapsedMessage:
-		*v = *viewer.collapsedMessage()
-	case *eventMessage:
-		*v = *viewer.eventMessage()
-	}
-}
-
 const maxCozyAge = 10 * time.Minute
 
 func lastIsAuthor(before Message, ev *event.RawEvent) bool {
 	// Ensure that the last message IS a cozy OR compact message.
 	switch before := before.(type) {
 	case *cozyMessage:
-		return lastEventIsAuthor(before.EventBox.RawEvent, ev)
+		return lastEventIsAuthor(before.RawEvent().RawEvent, ev)
 	case *collapsedMessage:
-		return lastEventIsAuthor(before.EventBox.RawEvent, ev)
+		return lastEventIsAuthor(before.RawEvent().RawEvent, ev)
 	default:
 		return false
 	}
 }
 
 func lastEventIsAuthor(last, ev *event.RawEvent) bool {
-	return last.Sender == ev.Sender &&
+	return last != nil && last.Sender == ev.Sender &&
 		ev.OriginServerTime.Time().Sub(last.OriginServerTime.Time()) < maxCozyAge
 }

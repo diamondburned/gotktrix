@@ -238,16 +238,19 @@ func (s *State) EachRoomStateLen(
 func (s *State) EachRoomStateRaw(
 	roomID matrix.RoomID, typ event.Type, f func(raw *event.RawEvent, total int) error) error {
 
-	raw := event.RawEvent{RoomID: roomID}
+	var raw event.RawEvent
 	path := s.paths.rooms.Tail(string(roomID), string(typ))
 
 	return s.db.NodeFromPath(path).Each(&raw, func(_ string, total int) error {
+		raw.RoomID = roomID
+
 		if err := f(&raw, total); err != nil {
 			if errors.Is(err, gotrix.ErrStopIter) {
 				return db.EachBreak
 			}
 			return err
 		}
+
 		return nil
 	})
 }
@@ -428,8 +431,8 @@ func (s *State) EachTimeline(roomID matrix.RoomID, f func(*event.RawEvent) error
 	var raw event.RawEvent
 
 	return n.Each(&raw, func(string, int) error {
-		raw := raw // copy raw.
-		return f(&raw)
+		cpy := raw // copy raw.
+		return f(&cpy)
 	})
 }
 
@@ -439,8 +442,8 @@ func (s *State) EachTimelineReverse(roomID matrix.RoomID, f func(*event.RawEvent
 	var raw event.RawEvent
 
 	return n.EachReverse(&raw, func(string, int) error {
-		raw := raw // copy raw.
-		return f(&raw)
+		cpy := raw // copy raw.
+		return f(&cpy)
 	})
 }
 
