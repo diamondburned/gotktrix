@@ -23,7 +23,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
-	"github.com/pkg/errors"
 )
 
 type messageKey string
@@ -113,6 +112,7 @@ type Page struct {
 	ctx     gtkutil.Cancellable
 
 	parent *View
+	pager  *gotktrix.RoomPaginator
 	roomID matrix.RoomID
 
 	editing    matrix.EventID
@@ -171,12 +171,9 @@ var rhsCSS = cssutil.Applier("messageview-rhs", `
 	}
 `)
 
-/*
-const (
-	MessagesMaxWidth   = 1000
-	MessagesClampWidth = 800
-)
-*/
+// maxFetch is the number of events to initially display. Keep it low so loading
+// isn't as slow.
+const maxFetch = 35
 
 // NewPage creates a new page.
 func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
@@ -194,6 +191,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		name:    name,
 
 		parent: parent,
+		pager:  parent.client.RoomPaginator(roomID, maxFetch),
 		roomID: roomID,
 	}
 
@@ -212,6 +210,10 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	// TODO: lazy rendering message component inside ListBoxRow.
 	// TODO: API to re-render the message and toggle between compact and full.
 
+	// TODO: this is still subtly buggy. We're currently assuming that the
+	// sorted order stays the same for all messages, but that assumption is
+	// incorrect. We might want to use GListModel for this.
+
 	// Sort messages according to the timestamp.
 	msgList.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
 		m1, ok1 := page.messages[messageKeyRow(r1)]
@@ -228,9 +230,15 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		return 1 // t1 > t2
 	})
 
+	innerBox := gtk.NewBox(gtk.OrientationVertical, 0)
+	innerBox.Append(newLoadMore(page.loadMore))
+	innerBox.Append(page.list)
+	innerBox.SetFocusChild(page.list)
+
 	vp := gtk.NewViewport(nil, nil)
 	vp.SetVScrollPolicy(gtk.ScrollNatural)
-	vp.SetChild(page.list)
+	vp.SetScrollToFocus(true)
+	vp.SetChild(innerBox)
 
 	page.scroll = autoscroll.NewWindow()
 	page.scroll.SetVExpand(true)
@@ -430,7 +438,7 @@ func (p *Page) clean() {
 
 	lastRow := p.lastRow()
 
-	for lastRow.Index() >= gotktrix.TimelimeLimit {
+	for lastRow.Index() >= maxFetch*2 {
 		row := p.list.RowAtIndex(0)
 		if row == nil {
 			return
@@ -496,7 +504,6 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 	eventKey := messageKeyEvent(evID)
 	// Check if the message has been synchronized before it's replied.
 	if _, ok := p.messages[eventKey]; ok {
-		log.Println("found existing message when sent")
 		// Store the index which will be the next message once we remove the
 		// current one.
 		ix := msg.row.Index()
@@ -504,13 +511,10 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 		p.list.Remove(msg.row)
 		// Reset the message that fills the gap. This isn't very important, so
 		// we ignore the returned boolean.
-		log.Println("reset previously index", ix)
 		p.resetMessageIx(ix)
 		// Just use the synced message.
 		return true
 	}
-
-	log.Println("no existing message found")
 
 	// Not replaced yet, so we arrived first. Place the message in.
 	msg.raw.ID = evID
@@ -583,6 +587,9 @@ func (p *Page) setMessage(key messageKey, msg messageRow) {
 	// recreate the one after as well, in case it belongs to a different author.
 	if ix < len(p.messages)-1 {
 		p.resetMessage(p.keyAtIndex(ix+1), msg)
+	} else {
+		// Set default focus to the last row.
+		p.list.SetFocusChild(msg.row)
 	}
 }
 
@@ -670,10 +677,16 @@ func (p *Page) Load(done func()) {
 		done()
 	}
 
-	events, err := client.State.RoomTimelineRaw(p.roomID)
-	if err == nil {
-		load(events)
-		return
+	// We can rely on this comparison to directly call Paginate on the main
+	// thread, since it means the state events will be used instead. To ensure
+	// that no API calls are done, we can give it a cancelled context and
+	// fallback to fetching from the API asynchronously.
+	if maxFetch < gotktrix.TimelimeLimit {
+		events, err := p.pager.Paginate(gotktrix.Cancelled())
+		if err == nil {
+			load(events)
+			return
+		}
 	}
 
 	p.main.SetLoading()
@@ -690,9 +703,8 @@ func (p *Page) Load(done func()) {
 			}
 		}
 
-		events, err := client.RoomTimelineRaw(p.roomID)
+		events, err := p.pager.Paginate(ctx)
 		if err != nil {
-			err = errors.Wrap(err, "failed to load timeline")
 			app.Error(ctx, err)
 			return func() {
 				p.main.SetError(err)
@@ -701,6 +713,29 @@ func (p *Page) Load(done func()) {
 		}
 
 		return func() { load(events) }
+	})
+}
+
+func (p *Page) loadMore(done paginateDoneFunc) {
+	ctx := p.ctx.Take()
+
+	gtkutil.Async(ctx, func() func() {
+		events, err := p.pager.Paginate(ctx)
+		if err != nil {
+			return func() { done(true, err) }
+		}
+
+		return func() {
+			p.scroll.SetScrollLocked(true)
+			defer p.scroll.SetScrollLocked(false)
+
+			for i := range events {
+				p.onRoomEvent(&events[i])
+			}
+
+			// TODO: check for hasMore.
+			done(true, nil)
+		}
 	})
 }
 

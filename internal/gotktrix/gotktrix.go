@@ -682,6 +682,152 @@ func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 	return events, nil
 }
 
+// RoomPaginator is used to fetch older messages from the API client.
+type RoomPaginator struct {
+	c      *Client
+	roomID matrix.RoomID
+	limit  int
+
+	// buffer holds all the unreturned events.
+	buffer []event.RawEvent
+	// lastEvID keeps track of the last event that the user received. Last here
+	// means the earliest or top event.
+	lastEvID matrix.EventID
+	// lastBatch keeps track of the pagination token.
+	lastBatch string
+	// drained is true if the state cache is completely drained.
+	drained bool
+	// onTop is true if we're out of events.
+	onTop bool
+}
+
+// RoomPaginator returns a new paginator that can fetch messages from the bottom
+// up.
+func (c *Client) RoomPaginator(roomID matrix.RoomID, limit int) *RoomPaginator {
+	if limit < 1 {
+		log.Panicln("gotktrix: RoomPaginator limit must be non-zero")
+	}
+
+	return &RoomPaginator{
+		c:      c,
+		limit:  limit,
+		roomID: roomID,
+	}
+}
+
+// Paginate paginates from the client and the server if the database is drained.
+func (p *RoomPaginator) Paginate(ctx context.Context) ([]event.RawEvent, error) {
+	if p.onTop {
+		return nil, nil
+	}
+
+	// Fill the paginator's buffer until we have enough events in the buffer.
+	if p.needFill() {
+		if err := p.fill(ctx); err != nil {
+			if len(p.buffer) == 0 {
+				// Buffer completely drained. We got nothing.
+				return nil, err
+			}
+			// If we get an error and a non-empty buffer, then that probably
+			// means we're out of events in the room. Mark it as such and slice
+			// the rest.
+			p.onTop = true
+			return p.buffer, nil
+		}
+	}
+
+	// Calculate the boundary to which we should slice the buffer. The boundary
+	// will be calculated starting from the end of buffer.
+	bound := len(p.buffer) - p.limit
+	// Reslice the buffer to not have the region that we're about to split away.
+	new := p.buffer[:bound]
+	// Use all latest n=p.limit events.
+	old := p.buffer[bound:]
+
+	p.buffer = new
+	return old, nil
+}
+
+// fill fills the paginator's buffer.
+func (p *RoomPaginator) fill(ctx context.Context) error {
+	if !p.drained {
+		p.drained = true
+
+		events, err := p.c.State.RoomTimelineRaw(p.roomID)
+		if err == nil {
+			p.prepend(events)
+			if !p.needFill() {
+				return nil
+			}
+		}
+	}
+
+	if p.lastBatch == "" {
+		// Acquire the latest known pagination token. This means we'll have to
+		// seek through our cached events, but that's just how it works.
+		b, err := p.c.State.RoomPreviousBatch(p.roomID)
+		if err != nil {
+			return errors.Wrap(err, "failed to get previous batch")
+		}
+		p.lastBatch = b
+	}
+
+	for p.needFill() {
+		// https://matrix.org/docs/spec/client_server/r0.6.1#get-matrix-client-r0-rooms-roomid-messages
+		// Fill up the last batch from start.
+		r, err := p.c.WithContext(ctx).RoomMessages(p.roomID, api.RoomMessagesQuery{
+			From:      p.lastBatch,
+			Direction: api.RoomMessagesForward, // latest last
+			Limit:     100,                     // fetch 100 events a time
+		})
+		if err != nil {
+			return errors.Wrapf(err, "failed to query messages for room %q", p.roomID)
+		}
+
+		// Update the last batch.
+		// End is used to request earlier events IF DIRECTION IS BACKWARDS.
+		// Since we're using forward direction, we use Start.
+		p.lastBatch = r.Start
+
+		// log.Printf("got start %q end %q", r.Start, r.End)
+
+		// Seek until we stumble on the wanted events.
+		for i, ev := range r.Chunk {
+			if ev.ID == p.lastEvID {
+				// Include all events from the found one until the first event,
+				// which is the earliest event.
+				p.prepend(r.Chunk[:i])
+				break
+			}
+		}
+	}
+
+	return nil
+}
+
+// needFill returns true if the paginator's buffer needs filling.
+func (p *RoomPaginator) needFill() bool {
+	return p.limit > len(p.buffer) && !p.onTop
+}
+
+// prepend prepends the given events into the paginator buffer.
+func (p *RoomPaginator) prepend(events []event.RawEvent) {
+	if len(p.buffer)+len(events) == 0 {
+		p.buffer = nil
+		return
+	}
+
+	// TODO: optimize.
+	new := make([]event.RawEvent, len(p.buffer)+len(events))
+
+	n := 0
+	n += copy(new[n:], events)
+	n += copy(new[n:], p.buffer)
+
+	p.buffer = new
+	p.lastEvID = p.buffer[0].ID // first is earliest
+}
+
 // RoomTimelineRaw is RoomTimeline, except events are returned unparsed.
 func (c *Client) RoomTimelineRaw(roomID matrix.RoomID) ([]event.RawEvent, error) {
 	if events, err := c.State.RoomTimelineRaw(roomID); err == nil {

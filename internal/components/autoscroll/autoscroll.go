@@ -16,6 +16,8 @@ type Window struct {
 
 	onBottomed map[*bottomedFunc]struct{}
 
+	upperValue float64
+	lockedPos  bool
 	bottomed   bool // :floshed:
 	willScroll bool
 }
@@ -27,15 +29,26 @@ func NewWindow() *Window {
 	sw.SetPlacement(gtk.CornerBottomLeft)
 
 	sw.vadj.Connect("notify::upper", func() {
+		upperValue := sw.vadj.Upper()
+		if sw.lockedPos {
+			// Subtract the new value w/ the old value to get the new scroll
+			// offset, then add that to the value.
+			sw.vadj.SetValue((upperValue - sw.upperValue) + sw.vadj.Value())
+		}
+		sw.upperValue = upperValue
 		// If the upper value changed, then update the current value
 		// accordingly.
 		if sw.bottomed {
-			sw.vadj.SetValue(sw.vadj.Upper())
+			sw.vadj.SetValue(sw.upperValue)
 		}
 	})
 	sw.vadj.Connect("value-changed", func() {
 		// Manually check if we're anchored on scroll.
 		sw.bottomed = sw.vadj.Value() >= (sw.vadj.Upper() - sw.vadj.PageSize())
+		if sw.bottomed {
+			// Reset scroll locking.
+			sw.lockedPos = false
+		}
 
 		for box := range sw.onBottomed {
 			box.f(sw.bottomed)
@@ -48,6 +61,14 @@ func NewWindow() *Window {
 // VAdjustment overrides gtk.ScrolledWindow's.
 func (w *Window) VAdjustment() *gtk.Adjustment {
 	return &w.vadj
+}
+
+// SetScrollLocked sets whether or not the scroll is locked when new widgets are
+// added. This is useful if new things will be added into the list, but the
+// scroll window shouldn't move away.
+func (w *Window) SetScrollLocked(locked bool) {
+	w.bottomed = false
+	w.lockedPos = true
 }
 
 // IsBottomed returns true if the scrolled window is currently bottomed out.
