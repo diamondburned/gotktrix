@@ -36,8 +36,8 @@ const (
 // RenderHTML tries rendering the HTML and falls back to using plain text if
 // the HTML doesn't work.
 func RenderHTML(ctx context.Context, tview *gtk.TextView, text, html string) RenderMetadata {
-	if md.IsUnicodeEmoji(text) {
-		return RenderText(ctx, tview, text)
+	if md.IsUnicodeEmoji(html) {
+		return RenderText(ctx, tview, html)
 	}
 
 	meta, ok := renderHTML(ctx, tview, html)
@@ -54,6 +54,7 @@ func renderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) (Rend
 
 	n, err := html.Parse(strings.NewReader(htmlBody))
 	if err != nil {
+		log.Println("invalid message HTML:", err)
 		return meta, false
 	}
 

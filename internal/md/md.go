@@ -228,21 +228,20 @@ func AsyncInsertImage(
 	ctx context.Context, iter *gtk.TextIter, url string, w, h int, opts ...imgutil.Opts) {
 
 	buf := iter.Buffer()
-	mark := buf.CreateMark("image:"+url, iter, false)
-
-	ctx, cancel := context.WithCancel(ctx)
+	mark := buf.CreateMark("", iter, false)
 
 	setImg := func(p gdk.Paintabler) {
-		if !mark.Deleted() {
+		if p != nil && !mark.Deleted() {
 			// Insert the pixbuf at the location if mark is not deleted.
 			buf.InsertPaintable(buf.IterAtMark(mark), p)
 		}
-		// Clean up the context.
-		cancel()
 	}
 
 	if w > 0 && h > 0 {
-		opts = append(opts, imgutil.WithRescale(w, h))
+		opts = append(opts,
+			imgutil.WithRescale(w, h),
+			imgutil.WithFallbackIcon("dialog-error"),
+		)
 	}
 
 	imgutil.AsyncGET(ctx, url, setImg, opts...)

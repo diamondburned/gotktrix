@@ -13,6 +13,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent/text"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/md"
 )
 
@@ -33,11 +34,8 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 	}
 `)
 
-const editedHTML = `<span alpha="75%" size="small">(edited)</span>`
-
 func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) *textContent {
 	tview := gtk.NewTextView()
-	tview.SetHExpand(true)
 	tview.SetEditable(false)
 	tview.SetAcceptsTab(false)
 	tview.SetCursorVisible(false)
@@ -109,13 +107,13 @@ func (c *textContent) setContent(body messageBody, isEdited bool) {
 	if isEdited {
 		end := buf.EndIter()
 
-		append := editedHTML
+		edited := `<span alpha="75%" size="small">` + locale.S(c.ctx, "(edited)") + "</span>"
 		if buf.CharCount() > 0 {
 			// Prepend a space if we already have text.
-			append = " " + editedHTML
+			edited = " " + edited
 		}
 
-		buf.InsertMarkup(end, append)
+		buf.InsertMarkup(end, edited)
 	}
 
 	c.invalidateAllocate()

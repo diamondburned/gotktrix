@@ -17,8 +17,9 @@ import (
 )
 
 type opts struct {
-	w, h int
-	err  func(error)
+	w, h  int
+	setFn interface{}
+	err   func(error)
 
 	sizer struct {
 		set interface {
@@ -45,6 +46,49 @@ func processOpts(optFuncs []Opts) opts {
 		opt(&o)
 	}
 	return o
+}
+
+// WithFallbackIcon makes image functions use the icon as the image given into
+// the callback instead of a nil one. If name is empty, then dialog-error is
+// used. Note that this function overrides WithErrorFn if it is after.
+//
+// This function only works with AsyncRead and AsyncGET. Using this elsewhere
+// will result in a panic.
+func WithFallbackIcon(name string) Opts {
+	if name == "" {
+		name = "dialog-error"
+	}
+
+	return func(o *opts) {
+		o.err = func(error) {
+			fn, ok := o.setFn.(func(gdk.Paintabler))
+			if !ok {
+				return
+			}
+
+			theme := gtk.IconThemeGetForDisplay(gdk.DisplayGetDefault())
+			if theme == nil {
+				log.Println("imgutil: cannot get IconTheme on imgutil error")
+				return
+			}
+
+			size := 16
+			if o.sizer.h != 0 {
+				size = o.sizer.h
+			}
+			if o.sizer.w != 0 && o.sizer.w < o.sizer.h {
+				size = o.sizer.w
+			}
+
+			icon := theme.LookupIcon(name, nil, size, 1, gtk.TextDirLTR, 0)
+			if icon == nil {
+				log.Println("imgutil: fallback icon not found")
+				return
+			}
+
+			fn(icon)
+		}
+	}
 }
 
 // WithErrorFn adds a callback that is called on an error.
@@ -85,6 +129,7 @@ func AsyncRead(ctx context.Context, r io.ReadCloser, f func(gdk.Paintabler), opt
 	}()
 
 	o := processOpts(opts)
+	o.setFn = f
 
 	async(ctx, &o, func() (func(), error) {
 		defer cancel()
@@ -100,14 +145,18 @@ func AsyncRead(ctx context.Context, r io.ReadCloser, f func(gdk.Paintabler), opt
 
 // Read synchronously reads the reader into a paintable.
 func Read(r io.Reader, opts ...Opts) (gdk.Paintabler, error) {
+	var paintable gdk.Paintabler
+	var err error
+
 	o := processOpts(opts)
+	o.setFn = func(p gdk.Paintabler) { paintable = p }
 
 	p, err := readPixbuf(r, &o)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		paintable = gdk.NewTextureForPixbuf(p)
 	}
 
-	return gdk.NewTextureForPixbuf(p), nil
+	return paintable, err
 }
 
 // AsyncGET GETs the given URL and calls f in the main loop. If the context is
@@ -122,6 +171,7 @@ func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler), opts ...O
 	}
 
 	o := processOpts(opts)
+	o.setFn = f
 
 	async(ctx, &o, func() (func(), error) {
 		p, err := get(ctx, url, &o)
@@ -176,7 +226,7 @@ func async(ctx context.Context, o *opts, do func() (func(), error)) {
 }
 
 // GET gets the given URL into a Paintable.
-func GET(ctx context.Context, url string, opts ...Opts) (gdk.Paintabler, error) {
+func GET(ctx context.Context, url string, opts ...Opts) (p gdk.Paintabler, err error) {
 	o := processOpts(opts)
 	return get(ctx, url, &o)
 }
