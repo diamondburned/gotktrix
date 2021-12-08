@@ -78,6 +78,8 @@ var sendCSS = cssutil.Applier("composer-send", `
 
 // New creates a new Composer.
 func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
+	// TODO: turn this into a single action button. There's no point in having a
+	// menu that has only 1 working item.
 	more := gtk.NewButtonFromIconName("list-add-symbolic")
 	more.SetVAlign(gtk.AlignStart)
 	more.SetHasFrame(false)

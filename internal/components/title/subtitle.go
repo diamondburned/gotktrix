@@ -19,6 +19,9 @@ var subtitleCSS = cssutil.Applier("subtitle", `
 		min-height: 42px;
 		padding: 0;
 	}
+	.subtitle:not(:backdrop) {
+		color: @theme_fg_color;
+	}
 	.subtitle-title {
 		font-size: 1rem;
 	}

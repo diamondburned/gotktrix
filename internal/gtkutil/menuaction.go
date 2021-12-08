@@ -2,6 +2,8 @@ package gtkutil
 
 import (
 	"log"
+	"strings"
+	"unicode"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
@@ -18,6 +20,20 @@ type CallbackAction struct {
 func NewCallbackAction(name string) *CallbackAction {
 	a := gio.NewSimpleAction(name, nil)
 	return &CallbackAction{a}
+}
+
+// ActionID transforms name into a viable action ID.
+func ActionID(name string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case unicode.IsUpper(r):
+			return unicode.ToLower(r)
+		case unicode.IsLower(r):
+			return r
+		default:
+			return '-'
+		}
+	}, name)
 }
 
 // ActionFunc creates a CallbackActionFunc from a function.

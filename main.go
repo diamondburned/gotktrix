@@ -9,6 +9,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -41,9 +42,7 @@ var _ = cssutil.WriteCSS(`
 		min-height: 46px;
 	}
 
-	.left-header, .right-header {
-		padding:  0px 6px;
-		padding-left: 12px;
+	.adaptive-sidebar-revealer {
 		border-right: 1px solid @borders;
 	}
 
@@ -51,11 +50,17 @@ var _ = cssutil.WriteCSS(`
 		font-weight: 600;
 	}
 
-	.titlebar.left-header {
+	.left-header, .right-header {
+		padding-right: 6px;
+	}
+
+	.left-header {
+		padding-left: 8px;
 		border-top-right-radius: 0;
 	}
 
-	.titlebar.right-header {
+	.right-header {
+		padding-left: 12px;
 		border-top-left-radius: 0;
 	}
 
@@ -71,6 +76,10 @@ var _ = cssutil.WriteCSS(`
 	.right-header .adaptive-sidebar-reveal-button button {
 		margin: 0 2px;
 		margin-right: 12px;
+	}
+
+	.app-menu {
+		margin-right: 6px;
 	}
 
 	.selfbar-bar {
@@ -166,6 +175,9 @@ type manager struct {
 
 	roomList *roomlist.List
 	msgView  *messageview.View
+
+	actions   *gio.SimpleActionGroup
+	menuItems [][2]string // id->label
 }
 
 const (
@@ -234,10 +246,26 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 		roomSearch.SetActive(m.roomList.SearchBar.SearchMode())
 	})
 
+	burger := gtk.NewToggleButton()
+	burger.AddCSSClass("app-menu")
+	burger.SetIconName("open-menu")
+	burger.SetTooltipText(locale.S(m.ctx, "Menu"))
+	burger.SetVAlign(gtk.AlignCenter)
+	burger.ConnectClicked(func() {
+		p := gtkutil.NewPopoverMenu(m.header.left, gtk.PosBottom, m.menuItems)
+		// p.SetOffset(0, -4)
+		// TODO: fix up the arrow to point to the button
+		p.SetHasArrow(false)
+		p.SetSizeRequest(230, -1)
+		p.ConnectClosed(func() { burger.SetActive(false) })
+		p.Popup()
+	})
+
 	m.header.left = gtk.NewBox(gtk.OrientationHorizontal, 0)
 	m.header.left.AddCSSClass("left-header")
 	m.header.left.AddCSSClass("titlebar")
 	m.header.left.Append(gtk.NewWindowControls(gtk.PackStart))
+	m.header.left.Append(burger)
 	m.header.left.Append(m.header.ltext)
 	m.header.left.Append(roomSearch)
 
@@ -272,6 +300,19 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 
 	m.header.WindowHandle = a.NewWindowHandle()
 	m.header.SetChild(m.header.fold)
+
+	m.actions = gio.NewSimpleActionGroup()
+	a.Window().InsertActionGroup("app", m.actions)
+
+	m.addAction("Preferences", func() {})
+	m.addAction("About", func() {})
+}
+
+func (m *manager) addAction(label string, f func()) {
+	// TODO: make abstraction for selfbar as well
+	id := gtkutil.ActionID(label)
+	m.actions.AddAction(gtkutil.ActionFunc(id, f))
+	m.menuItems = append(m.menuItems, [2]string{label, "app." + id})
 }
 
 func (m *manager) width() int {
@@ -283,17 +324,13 @@ func (m *manager) SearchRoom(name string) {
 }
 
 func (m *manager) OpenRoom(id matrix.RoomID) {
-	// name, _ := gotktrix.FromContext(m.ctx).Offline().RoomName(id)
-	// log.Println("opening room", name)
-
 	page := m.msgView.OpenRoom(id)
-	m.SetSelectedRoom(id)
-
 	page.OnTitle(func(string) {
 		app.SetTitle(m.ctx, page.RoomName())
 		m.header.rtext.SetTitle(page.RoomName())
 		m.header.rtext.SetSubtitle(firstLine(page.RoomTopic()))
 	})
+	m.SetSelectedRoom(id)
 }
 
 func firstLine(lines string) string {
@@ -302,16 +339,6 @@ func firstLine(lines string) string {
 	}
 	return strings.SplitN(lines, "\n", 2)[0]
 }
-
-/*
-func (m *manager) OpenRoomInTab(id matrix.RoomID) {
-	name, _ := gotktrix.FromContext(m.ctx).Offline().RoomName(id)
-	log.Println("opening room", name, "in new tab")
-
-	m.msgView.OpenRoomInNewTab(id)
-	m.SetSelectedRoom(id)
-}
-*/
 
 func (m *manager) SetSelectedRoom(id matrix.RoomID) {
 	m.roomList.SetSelectedRoom(id)

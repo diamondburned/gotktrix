@@ -2,36 +2,31 @@ package selfbar
 
 import (
 	"context"
-	"fmt"
-	"html"
-	"strings"
-	"unicode"
 
-	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
+	"github.com/diamondburned/gotktrix/internal/components/title"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 // Bar describes a self bar widget.
 type Bar struct {
-	*gtk.Box
+	*gtk.ToggleButton
 	ctx    context.Context
 	client *gotktrix.Client
 
-	avatar *adaptive.Avatar
-	name   *gtk.Label
+	box *gtk.Box
 
-	burger *gtk.Button
+	avatar *adaptive.Avatar
+	name   *title.Subtitle
 
 	actions   *gio.SimpleActionGroup
 	menuItems [][2]string // id->label
@@ -41,30 +36,14 @@ var avatarSize = 32
 
 var barCSS = cssutil.Applier("selfbar-bar", `
 	.selfbar-bar {
+		color: @theme_fg_color;
 		box-shadow: 0 0 8px 0px rgba(0, 0, 0, 0.35);
-		background-color: @theme_bg_color;
-		border: 0;
 		border-radius: 0;
 		padding: 0 8px;
-		border:  0;
 	}
-	.selfbar-bar label {
+	.selfbar-bar .subtitle {
 		margin-left: 6px;
 		font-weight: initial;
-	}
-	.selfbar-bar button {
-		margin-left: 2px;
-	}
-	.selfbar-bar button:not(:hover):not(:checked) {
-		background: none;
-		box-shadow: none;
-	}
-`)
-
-var roomSearchCSS = cssutil.Applier("selfbar-roomsearch", `
-	.selfbar-roomsearch > revealer > box {
-		border-bottom: 0;
-		border-top: 1px solid @borders;
 	}
 `)
 
@@ -79,7 +58,6 @@ var nameAttrs = markuputil.Attrs(
 
 // New creates a new self bar instance.
 func New(ctx context.Context, ctrl Controller) *Bar {
-	printer := locale.Printer(ctx)
 	client := gotktrix.FromContext(ctx)
 
 	bar := &Bar{
@@ -87,38 +65,36 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 		client: client,
 	}
 
-	bar.burger = gtk.NewButtonFromIconName("open-menu-symbolic")
-	bar.burger.SetTooltipText(printer.Sprint("Menu"))
-	bar.burger.AddCSSClass("selfbar-icon")
-	bar.burger.SetVAlign(gtk.AlignCenter)
-
 	uID, _ := client.Offline().Whoami()
 	username, _, _ := uID.Parse()
 
 	bar.avatar = adaptive.NewAvatar(avatarSize)
+	bar.avatar.AddCSSClass("selfbar-avatar")
 	bar.avatar.SetInitials(username)
 
-	bar.name = gtk.NewLabel("")
-	bar.name.SetAttributes(nameAttrs)
-	bar.name.SetEllipsize(pango.EllipsizeEnd)
-	bar.name.SetHExpand(true)
+	bar.name = title.NewSubtitle()
+	bar.name.AddCSSClass("selfbar-name")
 	bar.name.SetXAlign(0)
-	bar.name.SetMarkup(nameMarkup(client.Offline(), uID, mauthor.WithWidgetColor(bar.name)))
+	bar.name.SetHExpand(true)
 
-	bar.Box = gtk.NewBox(gtk.OrientationHorizontal, 0)
-	bar.Box.Append(bar.avatar)
-	bar.Box.Append(bar.name)
-	bar.Box.Append(bar.burger)
+	bar.box = gtk.NewBox(gtk.OrientationHorizontal, 0)
+	bar.box.Append(bar.avatar)
+	bar.box.Append(bar.name)
+
+	bar.ToggleButton = gtk.NewToggleButton()
+	bar.SetHasFrame(false)
+	bar.SetChild(bar.box)
 	barCSS(bar)
 
 	bar.actions = gio.NewSimpleActionGroup()
 	bar.InsertActionGroup("selfbar", bar.actions)
 
-	bar.burger.ConnectClicked(func() {
+	bar.ToggleButton.ConnectClicked(func() {
 		p := gtkutil.NewPopoverMenu(bar, gtk.PosTop, bar.menuItems)
-		p.SetOffset(0, -8) // move it up a bit
+		// p.SetOffset(0, -4) // move it up a bit
 		p.SetHasArrow(false)
-		p.SetSizeRequest(200, -1)
+		p.SetSizeRequest(230, -1)
+		p.ConnectClosed(func() { bar.ToggleButton.SetActive(false) })
 		p.Popup()
 	})
 
@@ -127,17 +103,7 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 
 // AddButton adds a button into the bar.
 func (b *Bar) AddButton(label string, f func()) {
-	id := strings.Map(func(r rune) rune {
-		switch {
-		case unicode.IsUpper(r):
-			return unicode.ToLower(r)
-		case unicode.IsLower(r):
-			return r
-		default:
-			return '-'
-		}
-	}, label)
-
+	id := gtkutil.ActionID(label)
 	b.actions.AddAction(gtkutil.ActionFunc(id, f))
 	b.menuItems = append(b.menuItems, [2]string{label, "selfbar." + id})
 }
@@ -145,7 +111,10 @@ func (b *Bar) AddButton(label string, f func()) {
 // Invalidate invalidates the data displayed on the bar and refetches
 // everything.
 func (b *Bar) Invalidate() {
-	opt := mauthor.WithWidgetColor(b.name)
+	opts := []mauthor.MarkupMod{
+		mauthor.WithWidgetColor(b.name),
+		mauthor.WithMinimal(),
+	}
 
 	go func() {
 		u, err := b.client.Whoami()
@@ -153,8 +122,13 @@ func (b *Bar) Invalidate() {
 			return // weird
 		}
 
-		markup := nameMarkup(b.client, u, opt)
-		glib.IdleAdd(func() { b.name.SetMarkup(markup) })
+		markup := mauthor.Markup(b.client, "", u, opts...)
+		_, hostname, _ := u.Parse()
+
+		glib.IdleAdd(func() {
+			b.name.Title.SetMarkup(markup)
+			b.name.SetSubtitle(hostname)
+		})
 
 		mxc, _ := b.client.AvatarURL(u)
 		if mxc != nil {
@@ -162,19 +136,4 @@ func (b *Bar) Invalidate() {
 			imgutil.AsyncGET(b.ctx, url, b.avatar.SetFromPaintable)
 		}
 	}()
-}
-
-func nameMarkup(c *gotktrix.Client, uID matrix.UserID, mods ...mauthor.MarkupMod) string {
-	mods = append(mods, mauthor.WithMinimal())
-	markup := mauthor.Markup(c, "", uID, mods...)
-
-	_, hostname, _ := uID.Parse()
-	if hostname != "" {
-		markup += "\n" + fmt.Sprintf(
-			`<span size="small" fgalpha="80%%">%s</span>`,
-			html.EscapeString(hostname),
-		)
-	}
-
-	return markup
 }
