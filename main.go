@@ -5,11 +5,13 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
 	"github.com/diamondburned/gotktrix/internal/app/auth/syncbox"
@@ -18,6 +20,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/selfbar"
+	"github.com/diamondburned/gotktrix/internal/components/title"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -30,22 +33,52 @@ import (
 )
 
 var _ = cssutil.WriteCSS(`
+	windowhandle .adaptive-sidebar-revealer {
+		background: none;
+	}
+
+	windowhandle, .selfbar-bar, .composer {
+		min-height: 46px;
+	}
+
+	.left-header, .right-header {
+		padding:  0px 6px;
+		padding-left: 12px;
+		border-right: 1px solid @borders;
+	}
+
+	.left-header, .right-header .subtitle-title {
+		font-weight: 600;
+	}
+
+	.titlebar.left-header {
+		border-top-right-radius: 0;
+	}
+
+	.titlebar.right-header {
+		border-top-left-radius: 0;
+	}
+
+	.right-header .subtitle {
+		padding: 0px 0px;
+		min-height: 46px;
+	}
+
+	.right-header .subtitle-subtitle {
+		margin-top: -10px;
+	}
+
+	.right-header .adaptive-sidebar-reveal-button button {
+		margin: 0 2px;
+		margin-right: 12px;
+	}
+
 	.selfbar-bar {
 		border-top: 1px solid @borders;
 	}
 
-	.selfbar-bar,
-	.composer {
-		min-height: 46px;
-	}
-
-	.left-sidebar {
-		border-right: 1px solid @borders;
-	}
-
 	/* Use a border-bottom for this instead of border-top so the typing overlay
-	 * can work properly.
-	 */
+	 * can work properly. */
 	.messageview-rhs .messageview-box > overlay {
 		border-bottom: 1px solid @borders;
 	}
@@ -118,19 +151,41 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 type manager struct {
 	ctx context.Context
 
+	window *gtk.Window
+	fold   *adaptive.Fold
+	unfold *adaptive.FoldRevealButton
+
+	header struct {
+		*gtk.WindowHandle
+		fold  *adaptive.Fold
+		left  *gtk.Box
+		ltext *gtk.Label
+		right *gtk.Box
+		rtext *title.Subtitle
+	}
+
 	roomList *roomlist.List
 	msgView  *messageview.View
 }
 
+const (
+	foldThreshold = 650
+	foldWidth     = 250
+)
+
 func (m *manager) ready(rooms []matrix.RoomID) {
+	a := app.FromContext(m.ctx)
+	a.SetTitle("")
+
+	m.window = a.Window()
+
 	m.roomList = roomlist.New(m.ctx, m)
 	m.roomList.SetVExpand(true)
 	m.roomList.AddRooms(rooms)
 
 	self := selfbar.New(m.ctx, m)
-	self.Invalidate()
 	self.SetVExpand(false)
-	self.SetSearchCaptureWidget(m.roomList)
+	self.Invalidate()
 	self.AddButton(locale.Sprint(m.ctx, "User Emojis"), func() {
 		emojiview.ForUser(m.ctx)
 	})
@@ -149,22 +204,78 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	m.msgView = messageview.New(m.ctx, m)
 	m.msgView.SetPlaceholder(welcome)
 
-	fold := adaptive.NewFold(gtk.PosLeft)
+	m.fold = adaptive.NewFold(gtk.PosLeft)
+	m.fold.SetWidthFunc(m.width)
 	// GTK's awful image scaling requires us to do this. It might be a good idea
 	// to implement a better image view that doesn't resize as greedily.
-	fold.SetFoldThreshold(650)
-	fold.SetFoldWidth(250)
-	fold.SetSideChild(leftBox)
-	fold.SetChild(m.msgView)
+	m.fold.SetFoldThreshold(foldThreshold)
+	m.fold.SetFoldWidth(foldWidth)
+	m.fold.SetSideChild(leftBox)
+	m.fold.SetChild(m.msgView)
+
+	a.Window().SetChild(m.fold)
+
+	m.header.ltext = gtk.NewLabel("gotktrix")
+	m.header.ltext.SetEllipsize(pango.EllipsizeEnd)
+	m.header.ltext.SetHExpand(true)
+	m.header.ltext.SetXAlign(0)
+
+	roomSearch := gtk.NewToggleButton()
+	roomSearch.SetIconName("system-search-symbolic")
+	roomSearch.SetTooltipText(locale.S(m.ctx, "Search Room"))
+	roomSearch.AddCSSClass("room-search-button")
+	roomSearch.SetVAlign(gtk.AlignCenter)
+	// Reveal or close the search bar when the button is toggled.
+	roomSearch.ConnectClicked(func() {
+		m.roomList.SearchBar.SetSearchMode(roomSearch.Active())
+	})
+	// Keep the button updated when the user activates search without it.
+	m.roomList.SearchBar.Connect("notify::search-mode-enabled", func() {
+		roomSearch.SetActive(m.roomList.SearchBar.SearchMode())
+	})
+
+	m.header.left = gtk.NewBox(gtk.OrientationHorizontal, 0)
+	m.header.left.AddCSSClass("left-header")
+	m.header.left.AddCSSClass("titlebar")
+	m.header.left.Append(gtk.NewWindowControls(gtk.PackStart))
+	m.header.left.Append(m.header.ltext)
+	m.header.left.Append(roomSearch)
 
 	unfold := adaptive.NewFoldRevealButton()
-	unfold.ConnectFold(fold)
+	unfold.Button.SetVAlign(gtk.AlignCenter)
+	unfold.Button.SetIconName("open-menu")
+	unfold.Revealer.SetTransitionType(gtk.RevealerTransitionTypeSlideRight)
 
-	a := app.FromContext(m.ctx)
-	a.SetTitle("")
-	a.Window().SetChild(fold)
-	a.Header().PackStart(unfold)
-	a.Header().PackEnd(blinker.New(m.ctx))
+	m.header.rtext = title.NewSubtitle()
+	m.header.rtext.SetXAlign(0)
+	m.header.rtext.SetHExpand(true)
+
+	m.header.right = gtk.NewBox(gtk.OrientationHorizontal, 0)
+	m.header.right.AddCSSClass("right-header")
+	m.header.right.AddCSSClass("titlebar")
+	m.header.right.Append(unfold)
+	m.header.right.Append(m.header.rtext)
+	m.header.right.Append(blinker.New(m.ctx))
+	m.header.right.Append(gtk.NewWindowControls(gtk.PackEnd))
+
+	m.header.fold = adaptive.NewFold(gtk.PosLeft)
+	m.header.fold.SetHExpand(true)
+	m.header.fold.SetWidthFunc(m.width)
+	m.header.fold.SetFoldThreshold(foldThreshold)
+	m.header.fold.SetFoldWidth(foldWidth)
+	m.header.fold.SetSideChild(m.header.left)
+	m.header.fold.SetChild(m.header.right)
+
+	unfold.ConnectFold(m.fold)
+	unfold.ConnectFold(m.header.fold)
+	adaptive.BindFolds(m.fold, m.header.fold)
+
+	m.header.WindowHandle = a.NewWindowHandle()
+	m.header.SetChild(m.header.fold)
+}
+
+func (m *manager) width() int {
+	return m.window.AllocatedWidth()
 }
 
 func (m *manager) SearchRoom(name string) {
@@ -175,8 +286,21 @@ func (m *manager) OpenRoom(id matrix.RoomID) {
 	// name, _ := gotktrix.FromContext(m.ctx).Offline().RoomName(id)
 	// log.Println("opening room", name)
 
-	m.msgView.OpenRoom(id)
+	page := m.msgView.OpenRoom(id)
 	m.SetSelectedRoom(id)
+
+	page.OnTitle(func(string) {
+		app.SetTitle(m.ctx, page.RoomName())
+		m.header.rtext.SetTitle(page.RoomName())
+		m.header.rtext.SetSubtitle(firstLine(page.RoomTopic()))
+	})
+}
+
+func firstLine(lines string) string {
+	if lines == "" {
+		return ""
+	}
+	return strings.SplitN(lines, "\n", 2)[0]
 }
 
 /*

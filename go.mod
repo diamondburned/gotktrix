@@ -2,6 +2,8 @@ module github.com/diamondburned/gotktrix
 
 go 1.17
 
+replace github.com/diamondburned/adaptive => ../adaptive
+
 require (
 	github.com/alecthomas/chroma v0.9.2
 	github.com/bbrks/go-blurhash v1.1.1

@@ -41,7 +41,7 @@ func SuffixedTitle(title string) string {
 type Application struct {
 	*gtk.Application
 	window *gtk.ApplicationWindow
-	header *gtk.HeaderBar
+	header gtk.Widgetter
 }
 
 type ctxKey uint
@@ -88,12 +88,8 @@ func OpenURI(ctx context.Context, uri string) {
 func Wrap(gtkapp *gtk.Application) *Application {
 	cssutil.ApplyGlobalCSS()
 
-	header := gtk.NewHeaderBar()
-	header.SetShowTitleButtons(true)
-
 	window := gtk.NewApplicationWindow(gtkapp)
 	window.SetDefaultSize(600, 400)
-	window.SetTitlebar(header)
 
 	// Initialize the scale factor state.
 	gtkutil.ScaleFactor()
@@ -101,7 +97,6 @@ func Wrap(gtkapp *gtk.Application) *Application {
 	app := &Application{
 		Application: gtkapp,
 		window:      window,
-		header:      header,
 	}
 	app.SetLoading()
 
@@ -190,15 +185,29 @@ func (app *Application) Window() *gtk.Window {
 	return &app.window.Window
 }
 
-// Header returns the main instance window's header bar.
-func (app *Application) Header() *gtk.HeaderBar {
+// NewHeader creates a new header and puts it into the application window.
+func (app *Application) NewHeader() *gtk.HeaderBar {
+	header := gtk.NewHeaderBar()
+	header.SetShowTitleButtons(true)
+
+	app.header = header
 	app.window.SetTitlebar(app.header)
-	return app.header
+
+	return header
+}
+
+// NewWindowHeader creates a new blank header.
+func (app *Application) NewWindowHandle() *gtk.WindowHandle {
+	header := gtk.NewWindowHandle()
+
+	app.header = header
+	app.window.SetTitlebar(app.header)
+
+	return header
 }
 
 // SetTitle sets the application (and the main instance window)'s title.
 func (app *Application) SetTitle(title string) {
-	app.Header()
 	app.window.SetTitle(SuffixedTitle(title))
 }
 

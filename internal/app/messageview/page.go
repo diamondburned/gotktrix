@@ -379,6 +379,19 @@ func (p *Page) RoomName() string {
 	return p.name
 }
 
+// RoomTopic returns the room's topic name.
+func (p *Page) RoomTopic() string {
+	client := gotktrix.FromContext(p.ctx).Offline()
+
+	e, _ := client.RoomState(p.roomID, event.TypeRoomTopic, "")
+	if e != nil {
+		nameEvent := e.(event.RoomTopicEvent)
+		return nameEvent.Topic
+	}
+
+	return ""
+}
+
 // OnRoomEvent is called on every room event belonging to this room.
 func (p *Page) OnRoomEvent(raw *event.RawEvent) {
 	if raw.RoomID != p.roomID {

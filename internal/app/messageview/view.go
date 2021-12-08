@@ -104,8 +104,5 @@ func (v *View) openRoom(id matrix.RoomID, newTab bool) *Page {
 	v.current = page
 	v.view.SetChild(page)
 
-	page.OnTitle(func(title string) {
-		app.SetTitle(v.ctx, page.name)
-	})
 	return page
 }

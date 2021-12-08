@@ -85,8 +85,12 @@ func New(ctx context.Context) gtk.Widgetter {
 	var funcs []func()
 	b.ConnectMap(func() {
 		funcs = []func(){
-			client.OnSync(func(*api.SyncResponse) { b.sync() }),
-			client.OnSyncError(func(err error) { b.error(err) }),
+			client.OnSync(func(*api.SyncResponse) {
+				glib.IdleAdd(func() { b.sync() })
+			}),
+			client.OnSyncError(func(err error) {
+				glib.IdleAdd(func() { b.error(err) })
+			}),
 		}
 	})
 	b.ConnectUnmap(func() {

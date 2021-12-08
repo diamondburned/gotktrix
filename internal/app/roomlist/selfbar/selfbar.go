@@ -28,17 +28,9 @@ type Bar struct {
 	ctx    context.Context
 	client *gotktrix.Client
 
-	search *gtk.SearchBar
-	bar    *actionBar
-}
-
-type actionBar struct {
-	*gtk.Box
-
 	avatar *adaptive.Avatar
 	name   *gtk.Label
 
-	search *gtk.ToggleButton
 	burger *gtk.Button
 
 	actions   *gio.SimpleActionGroup
@@ -88,20 +80,17 @@ var nameAttrs = markuputil.Attrs(
 // New creates a new self bar instance.
 func New(ctx context.Context, ctrl Controller) *Bar {
 	printer := locale.Printer(ctx)
+	client := gotktrix.FromContext(ctx)
 
-	bar := &actionBar{}
+	bar := &Bar{
+		ctx:    ctx,
+		client: client,
+	}
+
 	bar.burger = gtk.NewButtonFromIconName("open-menu-symbolic")
 	bar.burger.SetTooltipText(printer.Sprint("Menu"))
 	bar.burger.AddCSSClass("selfbar-icon")
 	bar.burger.SetVAlign(gtk.AlignCenter)
-
-	bar.search = gtk.NewToggleButton()
-	bar.search.SetIconName("system-search-symbolic")
-	bar.search.SetTooltipText(printer.Sprint("Search Room"))
-	bar.search.AddCSSClass("selfbar-search")
-	bar.search.SetVAlign(gtk.AlignCenter)
-
-	client := gotktrix.FromContext(ctx)
 
 	uID, _ := client.Offline().Whoami()
 	username, _, _ := uID.Parse()
@@ -119,66 +108,21 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 	bar.Box = gtk.NewBox(gtk.OrientationHorizontal, 0)
 	bar.Box.Append(bar.avatar)
 	bar.Box.Append(bar.name)
-	bar.Box.Append(bar.search)
 	bar.Box.Append(bar.burger)
 	barCSS(bar)
 
 	bar.actions = gio.NewSimpleActionGroup()
 	bar.InsertActionGroup("selfbar", bar.actions)
 
-	searchEntry := gtk.NewSearchEntry()
-	searchEntry.SetHExpand(true)
-	searchEntry.SetObjectProperty("placeholder-text", "Search Rooms")
-	searchEntry.ConnectSearchChanged(func() {
-		ctrl.SearchRoom(searchEntry.Text())
-	})
-
-	search := gtk.NewSearchBar()
-	search.SetChild(searchEntry)
-	search.ConnectEntry(&searchEntry.Editable)
-	search.SetSearchMode(false)
-	search.SetShowCloseButton(false)
-	search.Connect("notify::search-mode-enabled", func() {
-		searching := search.SearchMode()
-		bar.search.SetActive(searching)
-
-		if !searching {
-			ctrl.SearchRoom("")
-		}
-	})
-	roomSearchCSS(search)
-
-	box := gtk.NewBox(gtk.OrientationVertical, 0)
-	box.Append(search)
-	box.Append(bar)
-
-	b := Bar{
-		Box:    box,
-		ctx:    ctx,
-		client: client,
-		bar:    bar,
-		search: search,
-	}
-
 	bar.burger.ConnectClicked(func() {
-		p := gtkutil.NewPopoverMenu(b.bar, gtk.PosTop, b.bar.menuItems)
+		p := gtkutil.NewPopoverMenu(bar, gtk.PosTop, bar.menuItems)
 		p.SetOffset(0, -8) // move it up a bit
 		p.SetHasArrow(false)
 		p.SetSizeRequest(200, -1)
 		p.Popup()
 	})
 
-	bar.search.ConnectClicked(func() {
-		b.search.SetSearchMode(bar.search.Active())
-	})
-
-	return &b
-}
-
-// SetSearchCaptureWidget sets the widget to capture keypresses in that will
-// automatically activate room searching.
-func (b *Bar) SetSearchCaptureWidget(widget gtk.Widgetter) {
-	b.search.SetKeyCaptureWidget(widget)
+	return bar
 }
 
 // AddButton adds a button into the bar.
@@ -194,14 +138,14 @@ func (b *Bar) AddButton(label string, f func()) {
 		}
 	}, label)
 
-	b.bar.actions.AddAction(gtkutil.ActionFunc(id, f))
-	b.bar.menuItems = append(b.bar.menuItems, [2]string{label, "selfbar." + id})
+	b.actions.AddAction(gtkutil.ActionFunc(id, f))
+	b.menuItems = append(b.menuItems, [2]string{label, "selfbar." + id})
 }
 
 // Invalidate invalidates the data displayed on the bar and refetches
 // everything.
 func (b *Bar) Invalidate() {
-	opt := mauthor.WithWidgetColor(b.bar.name)
+	opt := mauthor.WithWidgetColor(b.name)
 
 	go func() {
 		u, err := b.client.Whoami()
@@ -210,12 +154,12 @@ func (b *Bar) Invalidate() {
 		}
 
 		markup := nameMarkup(b.client, u, opt)
-		glib.IdleAdd(func() { b.bar.name.SetMarkup(markup) })
+		glib.IdleAdd(func() { b.name.SetMarkup(markup) })
 
 		mxc, _ := b.client.AvatarURL(u)
 		if mxc != nil {
 			url, _ := b.client.SquareThumbnail(*mxc, avatarSize, gtkutil.ScaleFactor())
-			imgutil.AsyncGET(b.ctx, url, b.bar.avatar.SetFromPaintable)
+			imgutil.AsyncGET(b.ctx, url, b.avatar.SetFromPaintable)
 		}
 	}()
 }

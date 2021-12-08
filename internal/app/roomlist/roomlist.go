@@ -22,12 +22,13 @@ type List struct {
 	ctx  context.Context
 	ctrl Controller
 
+	SearchBar *gtk.SearchBar
+	search    string
+
 	scroll   *gtk.ScrolledWindow
 	outer    *adaptive.Bin
 	inner    *gtk.Box // contains sections
 	sections []*section.Section
-
-	search string
 
 	rooms   map[matrix.RoomID]*room.Room
 	current matrix.RoomID
@@ -63,7 +64,7 @@ type RoomTabOpener interface {
 
 // New creates a new room list widget.
 func New(ctx context.Context, ctrl Controller) *List {
-	roomList := List{
+	l := List{
 		Box:      gtk.NewBox(gtk.OrientationVertical, 0),
 		outer:    adaptive.NewBin(),
 		ctx:      ctx,
@@ -72,15 +73,34 @@ func New(ctx context.Context, ctrl Controller) *List {
 		sections: make([]*section.Section, 0, 10),
 	}
 
-	listCSS(roomList.outer)
+	listCSS(l.outer)
 
-	roomList.scroll = gtk.NewScrolledWindow()
-	roomList.scroll.SetVExpand(true)
-	roomList.scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	roomList.scroll.SetChild(roomList.outer)
+	l.scroll = gtk.NewScrolledWindow()
+	l.scroll.SetVExpand(true)
+	l.scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	l.scroll.SetChild(l.outer)
 
-	roomList.Append(roomList.scroll)
-	return &roomList
+	searchEntry := gtk.NewSearchEntry()
+	searchEntry.SetHExpand(true)
+	searchEntry.SetObjectProperty("placeholder-text", "Search Rooms")
+	searchEntry.ConnectSearchChanged(func() { l.Search(searchEntry.Text()) })
+
+	l.SearchBar = gtk.NewSearchBar()
+	l.SearchBar.AddCSSClass("roomlist-search")
+	l.SearchBar.ConnectEntry(&searchEntry.Editable)
+	l.SearchBar.SetSearchMode(false)
+	l.SearchBar.SetShowCloseButton(false)
+	l.SearchBar.SetChild(searchEntry)
+	l.SearchBar.SetKeyCaptureWidget(l.scroll)
+	l.SearchBar.Connect("notify::search-mode-enabled", func() {
+		if !l.SearchBar.SearchMode() {
+			l.Search("")
+		}
+	})
+
+	l.Append(l.SearchBar)
+	l.Append(l.scroll)
+	return &l
 }
 
 // VAdjustment returns the list's ScrolledWindow's vertical adjustment for
