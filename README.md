@@ -9,9 +9,10 @@ Work-in-progress Matrix client in Go and GTK4.
 Below is a non-exhaustive list of implemented features:
 
 - Message receiving, sending and editing
-- Emojis, custom and built-in
+- Custom and Unicode Emojis
 - Autocompletion
 - Images
+- Reactions
 - Mobile support (partial)
 
 ## Building
