@@ -1,6 +1,6 @@
 # gotktrix
 
-![screenshot](./.github/screenshot2.png)
+![screenshot](./.github/screenshot3.png)
 
 Work-in-progress Matrix client in Go and GTK4.
 

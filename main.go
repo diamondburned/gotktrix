@@ -14,6 +14,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/app/about"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
 	"github.com/diamondburned/gotktrix/internal/app/auth/syncbox"
 	"github.com/diamondburned/gotktrix/internal/app/blinker"
@@ -42,7 +43,7 @@ var _ = cssutil.WriteCSS(`
 		min-height: 46px;
 	}
 
-	.adaptive-sidebar-revealer {
+	.adaptive-sidebar-revealer > * {
 		border-right: 1px solid @borders;
 	}
 
@@ -305,7 +306,7 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	a.Window().InsertActionGroup("app", m.actions)
 
 	m.addAction("Preferences", func() {})
-	m.addAction("About", func() {})
+	m.addAction("About", func() { about.Show(m.ctx) })
 }
 
 func (m *manager) addAction(label string, f func()) {
