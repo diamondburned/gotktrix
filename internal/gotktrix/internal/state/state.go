@@ -266,10 +266,14 @@ type memberNameCache struct {
 	sync.Map // matrix.RoomID -> roomMemberCache
 }
 
-// memberNameCacheAge is 5s. A short cache age allows us to not worry too much
-// about cache invalidation on events, since the caching time is often short
-// enough to be subtle.
-const memberNameCacheAge = 5 * time.Second
+// memberNameCacheShortAge is 15s. A short cache age allows us to not worry too
+// much about cache invalidation on events, since the caching time is often
+// short enough to be subtle.
+const memberNameCacheShortAge = 15 * time.Second
+
+// memberNameCacheLongAge determines the duration that the whole cache will be
+// removed. It's mostly for optimization.
+const memberNameCacheLongAge = 2 * time.Hour
 
 func (c *memberNameCache) gc() {
 	now := time.Now()
@@ -279,9 +283,16 @@ func (c *memberNameCache) gc() {
 		cache.mu.Lock()
 		defer cache.mu.Unlock()
 
-		if cache.when.Add(memberNameCacheAge).Before(now) {
-			// Expired. Delete.
+		switch {
+		case cache.when.Add(memberNameCacheLongAge).Before(now):
+			// Super expired.
 			c.Delete(k)
+		case cache.when.Add(memberNameCacheShortAge).Before(now):
+			// Expired. Wipe the map but don't force it to reallocate. This will
+			// retain the map on memory, but that's alright.
+			for k := range cache.names {
+				delete(cache.names, k)
+			}
 		}
 
 		return true

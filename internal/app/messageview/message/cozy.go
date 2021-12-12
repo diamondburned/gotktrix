@@ -82,6 +82,7 @@ func (v messageViewer) cozyMessage() *cozyMessage {
 	client := v.client().Offline()
 
 	nameLabel := gtk.NewLabel("")
+	nameLabel.SetTooltipText(string(v.raw.Sender))
 	nameLabel.SetSingleLineMode(true)
 	nameLabel.SetEllipsize(pango.EllipsizeEnd)
 	nameLabel.SetMarkup(mauthor.Markup(
@@ -93,11 +94,8 @@ func (v messageViewer) cozyMessage() *cozyMessage {
 	timestamp.SetEllipsize(pango.EllipsizeEnd)
 	timestamp.SetYAlign(0.6)
 
-	// Pull the username directly from the sender's ID for the avatar initials.
-	username, _, _ := v.raw.Sender.Parse()
-
 	avatar := adaptive.NewAvatar(avatarSize)
-	avatar.SetInitials(username)
+	avatar.ConnectLabel(nameLabel)
 	avatar.SetVAlign(gtk.AlignStart)
 	avatar.SetMarginTop(2)
 	avatar.SetTooltipText(string(v.raw.Sender))
@@ -136,8 +134,6 @@ func (v messageViewer) cozyMessage() *cozyMessage {
 	}
 
 	bindParent(v, msg, content)
-
-	msg.asyncFetch()
 	return msg
 }
 
@@ -147,6 +143,11 @@ func (m *cozyMessage) SetBlur(blur bool) {
 
 func (m *cozyMessage) OnRelatedEvent(ev *gotktrix.EventBox) {
 	m.content.OnRelatedEvent(ev)
+}
+
+func (m *cozyMessage) LoadMore() {
+	m.asyncFetch()
+	m.content.LoadMore()
 }
 
 func (m *cozyMessage) asyncFetch() {

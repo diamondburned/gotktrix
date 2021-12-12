@@ -22,6 +22,9 @@ type Message interface {
 	// OnRelatedEvent is called by the caller for each event that's related to
 	// the message. The caller should check the m.relates_to field.
 	OnRelatedEvent(raw *gotktrix.EventBox)
+	// LoadMore loads more information in the message, such as embeds. It should
+	// be synchronous most of the time.
+	LoadMore()
 }
 
 func blurWidget(parent, content gtk.Widgetter, blur bool) {

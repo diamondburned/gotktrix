@@ -56,6 +56,8 @@ func (m *eventMessage) SetBlur(blur bool) {
 
 func (m *eventMessage) OnRelatedEvent(ev *gotktrix.EventBox) {}
 
+func (m *eventMessage) LoadMore() {}
+
 // TODO: make EventMessageTail render the full string (-Tail)
 // TODO: add Options into EventMessage
 

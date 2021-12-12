@@ -131,7 +131,7 @@ func AsyncRead(ctx context.Context, r io.ReadCloser, f func(gdk.Paintabler), opt
 	o := processOpts(opts)
 	o.setFn = f
 
-	async(ctx, &o, func() (func(), error) {
+	do(ctx, &o, true, func() (func(), error) {
 		defer cancel()
 
 		p, err := Read(r)
@@ -173,7 +173,7 @@ func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler), opts ...O
 	o := processOpts(opts)
 	o.setFn = f
 
-	async(ctx, &o, func() (func(), error) {
+	do(ctx, &o, true, func() (func(), error) {
 		p, err := get(ctx, url, &o)
 		if err != nil {
 			return nil, errors.Wrap(err, "async GET error")
@@ -181,6 +181,34 @@ func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler), opts ...O
 
 		return func() { f(p) }, nil
 	})
+}
+
+// GET gets the given URL into a Paintable.
+func GET(ctx context.Context, url string, f func(gdk.Paintabler), opts ...Opts) {
+	if url == "" {
+		return
+	}
+
+	o := processOpts(opts)
+	o.setFn = f
+
+	do(ctx, &o, false, func() (func(), error) {
+		p, err := get(ctx, url, &o)
+		if err != nil {
+			return nil, errors.Wrap(err, "async GET error")
+		}
+
+		return func() { f(p) }, nil
+	})
+}
+
+func get(ctx context.Context, url string, o *opts) (gdk.Paintabler, error) {
+	pixbuf, err := getPixbuf(ctx, url, o)
+	if err != nil {
+		return nil, err
+	}
+
+	return gdk.NewTextureForPixbuf(pixbuf), nil
 }
 
 // AsyncPixbuf fetches a pixbuf.
@@ -191,7 +219,7 @@ func AsyncPixbuf(ctx context.Context, url string, f func(*gdkpixbuf.Pixbuf), opt
 
 	o := processOpts(opts)
 
-	async(ctx, &o, func() (func(), error) {
+	do(ctx, &o, true, func() (func(), error) {
 		p, err := getPixbuf(ctx, url, &o)
 		if err != nil {
 			return nil, errors.Wrap(err, "async GET error")
@@ -199,45 +227,6 @@ func AsyncPixbuf(ctx context.Context, url string, f func(*gdkpixbuf.Pixbuf), opt
 
 		return func() { f(p) }, nil
 	})
-}
-
-func async(ctx context.Context, o *opts, do func() (func(), error)) {
-	go func() {
-		f, err := do()
-		if err != nil {
-			if o.err != nil {
-				glib.IdleAdd(func() { o.err(err) })
-			} else {
-				log.Println("imgutil GET:", err)
-			}
-			return
-		}
-
-		glib.IdleAdd(func() {
-			select {
-			case <-ctx.Done():
-				// don't call f if cancelledd
-				o.error(ctx.Err())
-			default:
-				f()
-			}
-		})
-	}()
-}
-
-// GET gets the given URL into a Paintable.
-func GET(ctx context.Context, url string, opts ...Opts) (p gdk.Paintabler, err error) {
-	o := processOpts(opts)
-	return get(ctx, url, &o)
-}
-
-func get(ctx context.Context, url string, o *opts) (gdk.Paintabler, error) {
-	pixbuf, err := getPixbuf(ctx, url, o)
-	if err != nil {
-		return nil, err
-	}
-
-	return gdk.NewTextureForPixbuf(pixbuf), nil
 }
 
 // GETPixbuf gets the Pixbuf directly.
@@ -263,6 +252,36 @@ func getPixbuf(ctx context.Context, url string, o *opts) (*gdkpixbuf.Pixbuf, err
 	}
 
 	return p, nil
+}
+
+func do(ctx context.Context, o *opts, async bool, do func() (func(), error)) {
+	if async {
+		go doImpl(ctx, o, do)
+	} else {
+		doImpl(ctx, o, do)
+	}
+}
+
+func doImpl(ctx context.Context, o *opts, do func() (func(), error)) {
+	f, err := do()
+	if err != nil {
+		if o.err != nil {
+			glib.IdleAdd(func() { o.err(err) })
+		} else {
+			log.Println("imgutil GET:", err)
+		}
+		return
+	}
+
+	glib.IdleAdd(func() {
+		select {
+		case <-ctx.Done():
+			// don't call f if cancelledd
+			o.error(ctx.Err())
+		default:
+			f()
+		}
+	})
 }
 
 var errNilPixbuf = errors.New("nil pixbuf")

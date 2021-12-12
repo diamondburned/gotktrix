@@ -22,7 +22,8 @@ type textContent struct {
 	text   *gtk.TextView
 	embeds *gtk.Box
 
-	ctx context.Context
+	meta text.RenderMetadata
+	ctx  context.Context
 }
 
 var _ editableContentPart = (*textContent)(nil)
@@ -82,26 +83,15 @@ func (c *textContent) setContent(body messageBody, isEdited bool) {
 	buf := c.text.Buffer()
 	buf.SetText("")
 
-	var meta text.RenderMetadata
-
 	switch body.Format {
 	case event.FormatHTML:
-		meta = text.RenderHTML(c.ctx, c.text, body.Body, body.FormattedBody)
+		c.meta = text.RenderHTML(c.ctx, c.text, body.Body, body.FormattedBody)
 	default:
-		meta = text.RenderText(c.ctx, c.text, body.Body)
+		c.meta = text.RenderText(c.ctx, c.text, body.Body)
 	}
 
 	if c.embeds != nil {
 		c.Box.Remove(c.embeds)
-	}
-
-	// We need to wrap the message inside a box if we need embeds.
-	if len(meta.URLs) > 0 {
-		c.embeds = gtk.NewBox(gtk.OrientationVertical, 0)
-		c.embeds.AddCSSClass("mcontent-embeds")
-		c.Box.Append(c.embeds)
-		// TODO: cancellation
-		loadEmbeds(c.ctx, c.embeds, meta.URLs)
 	}
 
 	if isEdited {
@@ -117,6 +107,18 @@ func (c *textContent) setContent(body messageBody, isEdited bool) {
 	}
 
 	c.invalidateAllocate()
+}
+
+func (c *textContent) LoadMore() {
+	if len(c.meta.URLs) == 0 {
+		return
+	}
+
+	c.embeds = gtk.NewBox(gtk.OrientationVertical, 0)
+	c.embeds.AddCSSClass("mcontent-embeds")
+	c.Box.Append(c.embeds)
+	// TODO: cancellation
+	loadEmbeds(c.ctx, c.embeds, c.meta.URLs)
 }
 
 func (c *textContent) invalidateAllocate() {

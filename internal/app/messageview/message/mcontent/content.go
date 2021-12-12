@@ -140,6 +140,12 @@ func (c *Content) OnRelatedEvent(box *gotktrix.EventBox) {
 	}
 }
 
+func (c *Content) LoadMore() {
+	if l, ok := c.part.(loadableContentPart); ok {
+		l.LoadMore()
+	}
+}
+
 func (c *Content) isRedacted() bool {
 	_, ok := c.part.(redactedContent)
 	return ok

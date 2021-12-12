@@ -172,7 +172,7 @@ func (p PronounForms) SubjectObject() string {
 // SelfPronouns fetches the current user's preferred pronouns. A zero-value
 // Preferred instance is returned if the user has none.
 func SelfPronouns(c *gotktrix.Client) Preferred {
-	e, err := c.UserEvent(UserPronounsEventType)
+	e, err := c.State.UserEvent(UserPronounsEventType)
 	if err != nil {
 		return Preferred{}
 	}
@@ -186,13 +186,13 @@ func SelfPronouns(c *gotktrix.Client) Preferred {
 // preference is returned (i.e. it acts like SelfPronouns).
 func UserPronouns(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID) Preferred {
 	if rID != "" {
-		if e, _ := c.RoomState(rID, UserPronounsEventType, string(uID)); e != nil {
+		if e, _ := c.State.RoomState(rID, UserPronounsEventType, string(uID)); e != nil {
 			return e.(UserPronounsEvent).Preferred
 		}
 	}
 
 	// Query the user's preference instead.
-	if e, _ := c.UserEvent(SelfPronounsEventType); e != nil {
+	if e, _ := c.State.UserEvent(SelfPronounsEventType); e != nil {
 		pronouns := e.(SelfPronounsEvent)
 
 		p, ok := pronouns.Others[uID]

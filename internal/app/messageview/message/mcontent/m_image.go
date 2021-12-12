@@ -20,6 +20,10 @@ import (
 
 type imageContent struct {
 	gtk.Widgetter
+	ctx context.Context
+	msg event.RoomMessageEvent
+
+	picture *gtk.Picture
 }
 
 var imageCSS = cssutil.Applier("mcontent-image", `
@@ -47,12 +51,6 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 		renderBlurhash(msg.Info, w, h, picture.SetPixbuf)
 	}
 
-	onDrawOnce(picture, func() {
-		client := gotktrix.FromContext(ctx)
-		url, _ := client.ImageThumbnail(msg, w, h, gtkutil.ScaleFactor())
-		imgutil.AsyncGET(ctx, url, picture.SetPaintable, imgutil.WithSizeOverrider(picture, w, h))
-	})
-
 	button := gtk.NewButton()
 	button.AddCSSClass("mcontent-image")
 	button.SetHAlign(gtk.AlignStart)
@@ -69,17 +67,19 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 		app.OpenURI(ctx, u)
 	})
 
-	return imageContent{button}
+	return imageContent{
+		Widgetter: button,
+		ctx:       ctx,
+		msg:       msg,
+		picture:   picture,
+	}
 }
 
-func onDrawOnce(w gtk.Widgetter, f func()) {
-	widget := gtk.BaseWidget(w)
-
-	var signal glib.SignalHandle
-	signal = widget.Connect("map", func() {
-		f()
-		widget.HandlerDisconnect(signal)
-	})
+func (c imageContent) LoadMore() {
+	client := gotktrix.FromContext(c.ctx)
+	pw, ph := c.picture.SizeRequest()
+	url, _ := client.ImageThumbnail(c.msg, pw, ph, gtkutil.ScaleFactor())
+	imgutil.AsyncGET(c.ctx, url, c.picture.SetPaintable, imgutil.WithSizeOverrider(c.picture, pw, ph))
 }
 
 func (c imageContent) content() {}

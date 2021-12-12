@@ -1,7 +1,7 @@
 package autoscroll
 
 import (
-	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
@@ -12,55 +12,63 @@ type bottomedFunc struct {
 // Window describes an automatically scrolled window.
 type Window struct {
 	*gtk.ScrolledWindow
-	vadj gtk.Adjustment
+	view *gtk.Viewport
+	vadj *gtk.Adjustment
 
 	onBottomed map[*bottomedFunc]struct{}
 
 	upperValue float64
 	lockedPos  bool
 	bottomed   bool // :floshed:
-	willScroll bool
 }
 
 func NewWindow() *Window {
-	sw := Window{ScrolledWindow: gtk.NewScrolledWindow()}
-	sw.vadj = *sw.ScrolledWindow.VAdjustment()
-	sw.SetPropagateNaturalHeight(true)
-	sw.SetPlacement(gtk.CornerBottomLeft)
+	w := Window{}
+	w.view = gtk.NewViewport(nil, nil)
 
-	sw.vadj.Connect("notify::upper", func() {
-		upperValue := sw.vadj.Upper()
-		if sw.lockedPos {
+	w.ScrolledWindow = gtk.NewScrolledWindow()
+	w.ScrolledWindow.SetChild(w.view)
+	w.SetPropagateNaturalHeight(true)
+	w.SetPlacement(gtk.CornerBottomLeft)
+
+	w.vadj = w.ScrolledWindow.VAdjustment()
+
+	w.vadj.Connect("notify::upper", func() {
+		var (
+			value = w.vadj.Value()
+			upper = w.vadj.Upper()
+		)
+		if w.lockedPos {
 			// Subtract the new value w/ the old value to get the new scroll
 			// offset, then add that to the value.
-			sw.vadj.SetValue((upperValue - sw.upperValue) + sw.vadj.Value())
+			w.vadj.SetValue((upper - w.upperValue) + value)
 		}
-		sw.upperValue = upperValue
+		w.upperValue = upper
 		// If the upper value changed, then update the current value
 		// accordingly.
-		if sw.bottomed {
-			sw.vadj.SetValue(sw.upperValue)
+		if w.bottomed {
+			w.setBottomed(true)
 		}
 	})
-	sw.vadj.Connect("value-changed", func() {
+
+	w.vadj.Connect("notify::value", func() {
 		// Manually check if we're anchored on scroll.
-		sw.bottomed = sw.vadj.Value() >= (sw.vadj.Upper() - sw.vadj.PageSize())
-		if sw.bottomed {
-			// Reset scroll locking.
-			sw.lockedPos = false
+		w.upperValue = w.vadj.Upper()
+		w.setBottomed(w.vadj.Value() >= (w.upperValue - w.vadj.PageSize()))
+		if w.bottomed {
+			w.lockedPos = false
 		}
-
-		for box := range sw.onBottomed {
-			box.f(sw.bottomed)
+		for box := range w.onBottomed {
+			box.f(w.bottomed)
 		}
 	})
 
-	return &sw
+	return &w
 }
 
 // VAdjustment overrides gtk.ScrolledWindow's.
 func (w *Window) VAdjustment() *gtk.Adjustment {
-	return &w.vadj
+	return w.vadj
 }
 
 // SetScrollLocked sets whether or not the scroll is locked when new widgets are
@@ -78,18 +86,22 @@ func (w *Window) IsBottomed() bool {
 
 // ScrollToBottom scrolls the window to bottom.
 func (w *Window) ScrollToBottom() {
-	if w.willScroll {
-		return
+	w.setBottomed(true)
+}
+
+func (w *Window) setBottomed(bottomed bool) {
+	w.bottomed = bottomed
+	if bottomed {
+		w.AddTickCallback(func(gtk.Widgetter, gdk.FrameClocker) bool {
+			w.bottom()
+			// True if we're not at the bottom, i.e. the value doesn't match up.
+			return w.vadj.Value() != (w.vadj.Upper() - w.vadj.PageSize())
+		})
 	}
+}
 
-	w.willScroll = true
-
-	// Delegate this to when the main loop is free again, just so the dimensions
-	// are properly updated.
-	glib.IdleAdd(func() {
-		w.vadj.SetValue(w.vadj.Upper() + w.vadj.PageIncrement())
-		w.willScroll = false
-	})
+func (w *Window) bottom() {
+	w.vadj.SetValue(w.upperValue)
 }
 
 // OnBottomed registers the given function to be called when the user bottoms
@@ -103,4 +115,9 @@ func (w *Window) OnBottomed(f func(bottomed bool)) func() {
 	w.onBottomed[box] = struct{}{}
 
 	return func() { delete(w.onBottomed, box) }
+}
+
+// SetChild sets the child of the ScrolledWindow.
+func (w *Window) SetChild(child gtk.Widgetter) {
+	w.view.SetChild(child)
 }

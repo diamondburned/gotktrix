@@ -53,3 +53,7 @@ func (m *collapsedMessage) SetBlur(blur bool) {
 func (m *collapsedMessage) OnRelatedEvent(ev *gotktrix.EventBox) {
 	m.content.OnRelatedEvent(ev)
 }
+
+func (m *collapsedMessage) LoadMore() {
+	m.content.LoadMore()
+}

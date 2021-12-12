@@ -68,14 +68,15 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 	uID, _ := client.Offline().Whoami()
 	username, _, _ := uID.Parse()
 
-	bar.avatar = adaptive.NewAvatar(avatarSize)
-	bar.avatar.AddCSSClass("selfbar-avatar")
-	bar.avatar.SetInitials(username)
-
 	bar.name = title.NewSubtitle()
+	bar.name.SetTitle(username)
 	bar.name.AddCSSClass("selfbar-name")
 	bar.name.SetXAlign(0)
 	bar.name.SetHExpand(true)
+
+	bar.avatar = adaptive.NewAvatar(avatarSize)
+	bar.avatar.AddCSSClass("selfbar-avatar")
+	bar.avatar.ConnectLabel(bar.name.Title)
 
 	bar.box = gtk.NewBox(gtk.OrientationHorizontal, 0)
 	bar.box.Append(bar.avatar)

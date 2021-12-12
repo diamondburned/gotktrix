@@ -95,6 +95,7 @@ func userColor(uID matrix.UserID, opts markupOpts) string {
 func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...MarkupMod) string {
 	// TODO: maybe bridge role colors?
 
+	c = c.Offline()
 	opts := mkopts(mods)
 
 	name, _, _ := uID.Parse()

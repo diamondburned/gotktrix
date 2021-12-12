@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/chanbakjsd/gotrix/event"
+	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
@@ -15,6 +16,9 @@ import (
 
 type videoContent struct {
 	gtk.Widgetter
+	ctx          context.Context
+	preview      *gtk.Picture
+	thumbnailURL matrix.URL
 }
 
 var videoCSS = cssutil.Applier("mcontent-video", `
@@ -55,11 +59,6 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 		}
 	}
 
-	onDrawOnce(preview, func() {
-		url, _ := client.ScaledThumbnail(v.ThumbnailURL, w, h, gtkutil.ScaleFactor())
-		imgutil.AsyncGET(ctx, url, preview.SetPaintable, imgutil.WithSizeOverrider(preview, w, h))
-	})
-
 	play := gtk.NewButtonFromIconName("media-playback-start-symbolic")
 	play.SetHAlign(gtk.AlignCenter)
 	play.SetVAlign(gtk.AlignCenter)
@@ -82,8 +81,18 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 	})
 
 	return videoContent{
-		Widgetter: ov,
+		Widgetter:    ov,
+		ctx:          ctx,
+		preview:      preview,
+		thumbnailURL: v.ThumbnailURL,
 	}
+}
+
+func (c videoContent) LoadMore() {
+	pw, ph := c.preview.SizeRequest()
+	client := gotktrix.FromContext(c.ctx)
+	url, _ := client.ScaledThumbnail(c.thumbnailURL, pw, ph, gtkutil.ScaleFactor())
+	imgutil.AsyncGET(c.ctx, url, c.preview.SetPaintable, imgutil.WithSizeOverrider(c.preview, pw, ph))
 }
 
 func (c videoContent) content() {}

@@ -2,11 +2,9 @@ package autocomplete
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -122,7 +120,7 @@ func (s *roomMemberSearcher) Search(ctx context.Context, str string) []Data {
 // NewEmojiSearcher creates a new emoji searcher.
 func NewEmojiSearcher(ctx context.Context, roomID matrix.RoomID) Searcher {
 	return &emojiSearcher{
-		client: gotktrix.FromContext(ctx).Offline(),
+		client: gotktrix.FromContext(ctx),
 		roomID: roomID,
 		res:    make(dataList, 0, MaxResults),
 	}
@@ -152,25 +150,12 @@ func (s *emojiSearcher) update() {
 
 	s.updated = now
 
-	userEmotes, err1 := emojis.UserEmotes(s.client)
-	roomEmotes, err2 := emojis.RoomEmotes(s.client, s.roomID)
-	if err1 != nil || err2 != nil {
-		// Asynchronously fetch the API.
-		// s.fetched = true
-		go func() {
-			client := s.client.Online(context.Background())
+	userEmotes, _ := emojis.UserEmotes(s.client.Offline())
+	roomEmotes, _ := emojis.RoomEmotes(s.client.Offline(), s.roomID)
 
-			if _, err := emojis.UserEmotes(client); err != nil {
-				log.Println("non-fatal: cannot get user emotes:", err)
-			}
-
-			if _, err := emojis.RoomEmotes(client, s.roomID); err != nil {
-				log.Println("non-fatal: cannot get room emotes:", err)
-			}
-
-			// Invalidate the updated marker so we can recheck the cache.
-			glib.IdleAdd(func() { s.updated = time.Time{} })
-		}()
+	if len(userEmotes.Emoticons)+len(roomEmotes.Emoticons) == 0 {
+		s.emotes = nil
+		return
 	}
 
 	// It's likely cheaper to just reallocate the emojis object if the length

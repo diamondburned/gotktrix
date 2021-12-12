@@ -44,8 +44,9 @@ type Autocompleter struct {
 
 	searchers map[rune]Searcher
 
-	cancel  context.CancelFunc
-	timeout time.Duration
+	cancel   context.CancelFunc
+	timeout  time.Duration
+	poppedUp bool
 }
 
 type row struct {
@@ -240,7 +241,10 @@ func (a *Autocompleter) Clear() bool {
 }
 
 func (a *Autocompleter) hide() {
-	a.popover.Popdown()
+	if a.poppedUp {
+		a.popover.Popdown()
+		a.poppedUp = false
+	}
 }
 
 func (a *Autocompleter) show() {
@@ -249,7 +253,11 @@ func (a *Autocompleter) show() {
 
 	ptTo := gdk.NewRectangle(x, y, 1, 1)
 	a.popover.SetPointingTo(&ptTo)
-	a.popover.Popup()
+
+	if !a.poppedUp {
+		a.poppedUp = true
+		a.popover.Popup()
+	}
 }
 
 func (a *Autocompleter) clear() {

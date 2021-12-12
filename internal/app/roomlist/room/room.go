@@ -160,7 +160,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	rightBox.AddCSSClass("room-right")
 
 	avatar := adaptive.NewAvatar(AvatarSize)
-	avatar.SetInitials(string(roomID))
+	avatar.ConnectLabel(nameLabel)
 	avatarCSS(avatar)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
@@ -322,11 +322,7 @@ func (r *Room) InvalidateAvatar() {
 		}
 
 		url, _ := client.SquareThumbnail(*mxc, AvatarSize, gtkutil.ScaleFactor())
-
-		p, err := imgutil.GET(ctx, url)
-		if err == nil {
-			glib.IdleAdd(func() { r.avatar.SetFromPaintable(p) })
-		}
+		imgutil.GET(ctx, url, r.avatar.SetFromPaintable)
 	}()
 }
 

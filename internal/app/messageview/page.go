@@ -13,6 +13,7 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/compose"
@@ -344,7 +345,11 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	// Run the handler at the last phase, after all key handlers have captured
 	// the event.
 	typingHandler.SetPropagationPhase(gtk.PhaseBubble)
-	typingHandler.Connect("key-pressed", func() bool {
+	typingHandler.ConnectKeyPressed(func(_, _ uint, state gdk.ModifierType) bool {
+		if state.Has(gdk.ControlMask) || state.Has(gdk.AltMask) {
+			// Probably a shortcut. Don't forward.
+			return false
+		}
 		input := page.Composer.Input()
 		input.GrabFocus()
 		typingHandler.Forward(input)
@@ -398,7 +403,13 @@ func (p *Page) OnRoomEvent(raw *event.RawEvent) {
 		return
 	}
 
-	p.onRoomEvent(raw)
+	key := p.onRoomEvent(raw)
+
+	r, ok := p.messages[key]
+	if ok {
+		r.body.LoadMore()
+	}
+
 	p.clean()
 	p.MarkAsRead()
 }
@@ -539,8 +550,8 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 	return false
 }
 
-func (p *Page) onRoomEvent(raw *event.RawEvent) {
-	key := messageKeyEvent(raw.ID)
+func (p *Page) onRoomEvent(raw *event.RawEvent) (key messageKey) {
+	key = messageKeyEvent(raw.ID)
 
 	if relatesToID := relatesTo(raw); relatesToID != "" {
 		rl, ok := p.messages[messageKeyEvent(relatesToID)]
@@ -577,6 +588,7 @@ func (p *Page) onRoomEvent(raw *event.RawEvent) {
 		row: row,
 		raw: raw,
 	})
+	return
 }
 
 func (p *Page) setMessage(key messageKey, msg messageRow) {
@@ -681,12 +693,24 @@ func (p *Page) Load(done func()) {
 	fetchName := p.name == ""
 
 	load := func(events []event.RawEvent) {
+		p.main.SetChild(p.box)
+		p.scroll.ScrollToBottom()
+
+		keys := make([]messageKey, len(events))
 		// Require old messages first, so cozy mode works properly.
 		for i := range events {
-			p.onRoomEvent(&events[i])
+			keys[i] = p.onRoomEvent(&events[i])
 		}
-		p.scroll.ScrollToBottom()
-		p.main.SetChild(p.box)
+
+		// Load the oldest messages first so it doesn't screw up scrolling as
+		// hard.
+		for i := len(keys) - 1; i >= 0; i-- {
+			r, ok := p.messages[keys[i]]
+			if ok {
+				r.body.LoadMore()
+			}
+		}
+
 		done()
 	}
 
