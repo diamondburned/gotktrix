@@ -242,6 +242,8 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	vp.SetChild(innerBox)
 
 	page.scroll = autoscroll.NewWindow()
+	page.scroll.SetPropagateNaturalWidth(true)
+	page.scroll.SetPropagateNaturalHeight(true)
 	page.scroll.SetVExpand(true)
 	page.scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	page.scroll.SetChild(vp)

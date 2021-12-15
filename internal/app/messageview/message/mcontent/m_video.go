@@ -52,12 +52,12 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 	v, err := msg.VideoInfo()
 	if err == nil {
 		w, h = gotktrix.MaxSize(v.Width, v.Height, w, h)
-		preview.SetSizeRequest(w, h)
-
 		if v.Height > 0 && v.Width > 0 {
 			renderBlurhash(msg.Info, w, h, preview.SetPixbuf)
 		}
 	}
+
+	preview.SetSizeRequest(w, h)
 
 	play := gtk.NewButtonFromIconName("media-playback-start-symbolic")
 	play.SetHAlign(gtk.AlignCenter)

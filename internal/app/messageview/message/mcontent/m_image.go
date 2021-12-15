@@ -8,6 +8,7 @@ import (
 
 	"github.com/bbrks/go-blurhash"
 	"github.com/chanbakjsd/gotrix/event"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -23,7 +24,10 @@ type imageContent struct {
 	ctx context.Context
 	msg event.RoomMessageEvent
 
-	picture *gtk.Picture
+	button *gtk.Button
+	layout *gtk.ConstraintLayout
+	image  *gtk.Picture
+	size   [2]int
 }
 
 var imageCSS = cssutil.Applier("mcontent-image", `
@@ -35,29 +39,26 @@ var imageCSS = cssutil.Applier("mcontent-image", `
 `)
 
 func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPart {
-	picture := gtk.NewPicture()
-	picture.SetCanShrink(true)
-	picture.SetCanFocus(false)
-	picture.SetKeepAspectRatio(true)
-	picture.SetHAlign(gtk.AlignStart)
-
-	w := maxWidth
-	h := maxHeight
-
-	i, err := msg.ImageInfo()
-	if err == nil && i.Width > 0 && i.Height > 0 {
-		w, h = gotktrix.MaxSize(i.Width, i.Height, w, h)
-		picture.SetSizeRequest(w, h)
-		renderBlurhash(msg.Info, w, h, picture.SetPixbuf)
+	c := imageContent{
+		ctx: ctx,
+		msg: msg,
 	}
 
-	button := gtk.NewButton()
-	button.AddCSSClass("mcontent-image")
-	button.SetHAlign(gtk.AlignStart)
-	button.SetHasFrame(false)
-	button.SetChild(picture)
-	button.SetTooltipText(msg.Body)
-	button.Connect("clicked", func() {
+	c.layout = gtk.NewConstraintLayout()
+
+	c.image = gtk.NewPicture()
+	c.image.SetLayoutManager(c.layout)
+	c.image.SetCanFocus(false)
+	c.image.SetCanShrink(true)
+	c.image.SetKeepAspectRatio(true)
+
+	c.button = gtk.NewButton()
+	c.button.AddCSSClass("mcontent-image")
+	c.button.SetHAlign(gtk.AlignStart)
+	c.button.SetHasFrame(false)
+	c.button.SetChild(c.image)
+	c.button.SetTooltipText(msg.Body)
+	c.button.Connect("clicked", func() {
 		u, err := gotktrix.FromContext(ctx).MessageMediaURL(msg)
 		if err != nil {
 			log.Println("image URL error:", err)
@@ -67,22 +68,70 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 		app.OpenURI(ctx, u)
 	})
 
-	return imageContent{
-		Widgetter: button,
-		ctx:       ctx,
-		msg:       msg,
-		picture:   picture,
+	i, err := msg.ImageInfo()
+	if err == nil && i.Width > 0 && i.Height > 0 {
+		w, h := gotktrix.MaxSize(i.Width, i.Height, maxWidth, maxHeight)
+		c.setSize(w, h)
+		renderBlurhash(msg.Info, w, h, c.image.SetPixbuf)
 	}
+
+	c.Widgetter = c.button
+
+	// 	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	// 	box.SetHExpand(false)
+	// 	box.Append(button)
+
+	return &c
 }
 
-func (c imageContent) LoadMore() {
+func (c *imageContent) LoadMore() {
 	client := gotktrix.FromContext(c.ctx)
-	pw, ph := c.picture.SizeRequest()
-	url, _ := client.ImageThumbnail(c.msg, pw, ph, gtkutil.ScaleFactor())
-	imgutil.AsyncGET(c.ctx, url, c.picture.SetPaintable, imgutil.WithSizeOverrider(c.picture, pw, ph))
+	url, _ := client.ImageThumbnail(c.msg, maxWidth, maxHeight, gtkutil.ScaleFactor())
+
+	imgutil.AsyncGET(c.ctx, url, func(p gdk.Paintabler) {
+		if c.size == [2]int{} {
+			c.setSize(gotktrix.MaxSize(
+				p.IntrinsicWidth(), p.IntrinsicHeight(),
+				maxWidth, maxHeight,
+			))
+		}
+		c.image.SetPaintable(p)
+	})
 }
 
-func (c imageContent) content() {}
+func (c *imageContent) setSize(w, h int) {
+	c.size = [2]int{w, h}
+	c.image.SetSizeRequest(w, h)
+
+	/*
+		guide := gtk.NewConstraintGuide()
+		guide.SetMinSize(gotktrix.MaxSize(w, h, 64, 64))
+		guide.SetNatSize(w, h)
+		guide.SetMaxSize(w, h)
+
+		c.layout.RemoveAllConstraints()
+		c.layout.AddGuide(guide)
+		c.layout.AddConstraint(gtk.NewConstraint(
+			nil, gtk.ConstraintAttributeHeight, gtk.ConstraintRelationEq,
+			nil, gtk.ConstraintAttributeWidth, float64(h)/float64(w), 0,
+			int(gtk.ConstraintStrengthRequired),
+		))
+		c.layout.AddConstraint(gtk.NewConstraint(
+			nil, gtk.ConstraintAttributeWidth, gtk.ConstraintRelationEq,
+			guide, gtk.ConstraintAttributeWidth, 1, 0,
+			int(gtk.ConstraintStrengthRequired),
+		))
+		c.layout.AddConstraint(gtk.NewConstraint(
+			nil, gtk.ConstraintAttributeHeight, gtk.ConstraintRelationEq,
+			guide, gtk.ConstraintAttributeHeight, 1, 0,
+			int(gtk.ConstraintStrengthRequired),
+		))
+
+		c.image.QueueResize()
+	*/
+}
+
+func (c *imageContent) content() {}
 
 const maxBlurhash = 25
 

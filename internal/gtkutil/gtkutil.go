@@ -195,28 +195,28 @@ func ScaleFactor() int {
 func initScale() {
 	initScaleOnce.Do(func() {
 		dmanager := gdk.DisplayManagerGet()
-		dmanager.Connect("display-opened", func(display *gdk.Display) {
-			updateScaleForDisplay(display)
+		dmanager.Connect("display-opened", func(dmanager *gdk.DisplayManager) {
+			updateScale(dmanager)
 		})
-		for _, display := range dmanager.ListDisplays() {
-			updateScaleForDisplay(&display)
-		}
+		updateScale(dmanager)
 	})
 }
 
-func updateScaleForDisplay(display *gdk.Display) {
-	if display == nil {
-		return
-	}
-	monitors := display.Monitors()
+func updateScale(dmanager *gdk.DisplayManager) {
+	maxScale := 1
 
-	var maxScale = 1
+	for _, display := range dmanager.ListDisplays() {
+		if display.IsClosed() {
+			continue
+		}
 
-	for i, len := uint(0), monitors.NItems(); i < len; i++ {
-		monitor := monitors.Item(i).Cast().(*gdk.Monitor)
-		scalefc := monitor.ScaleFactor()
-		if maxScale < scalefc {
-			maxScale = scalefc
+		monitors := display.Monitors()
+		for i, len := uint(0), monitors.NItems(); i < len; i++ {
+			monitor := monitors.Item(i).Cast().(*gdk.Monitor)
+
+			if scale := monitor.ScaleFactor(); maxScale < scale {
+				maxScale = scale
+			}
 		}
 	}
 

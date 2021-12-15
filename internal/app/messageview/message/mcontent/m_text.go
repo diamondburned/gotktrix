@@ -40,6 +40,7 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) *textContent
 	tview.SetEditable(false)
 	tview.SetAcceptsTab(false)
 	tview.SetCursorVisible(false)
+	tview.SetHExpand(true)
 	tview.SetWrapMode(gtk.WrapWordChar)
 
 	md.SetTabSize(tview)

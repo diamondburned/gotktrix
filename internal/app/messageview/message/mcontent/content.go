@@ -2,7 +2,6 @@ package mcontent
 
 import (
 	"context"
-	"log"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -13,8 +12,8 @@ import (
 )
 
 const (
-	maxWidth  = 300
-	maxHeight = 350
+	maxWidth  = 250
+	maxHeight = 300
 )
 
 // Content is a message content widget.
@@ -72,15 +71,13 @@ func wrapParts(ctx context.Context, msgBox *gotktrix.EventBox, part contentPart)
 	client := gotktrix.FromContext(ctx)
 	runsub := client.SubscribeRoom(msgBox.RoomID, m.ReactionEventType, func(ev event.Event) {
 		reaction := ev.(m.ReactionEvent)
-
 		glib.IdleAdd(func() {
 			reactions.Add(ctx, reaction)
 		})
 	})
 
-	box.Connect("destroy", func() {
+	box.ConnectUnrealize(func() {
 		runsub()
-		log.Println("reaction box destroyed")
 	})
 
 	return &Content{

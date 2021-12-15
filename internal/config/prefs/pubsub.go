@@ -65,7 +65,7 @@ func Connect(sub Subscriber, obj glib.Objector, f func()) {
 	obj.Connect("map", func() {
 		unsub = sub.Subscribe(f)
 	})
-	obj.Connect("destroy", func() {
+	obj.Connect("unmap", func() {
 		unsub()
 	})
 }
