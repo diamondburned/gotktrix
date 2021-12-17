@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -111,6 +110,7 @@ type renderState struct {
 	replyURL string
 	reply    bool
 
+	quote bool // TODO: make into a counter
 	large bool
 }
 
@@ -138,6 +138,10 @@ func (s *renderState) traverseSiblings(first *html.Node) traverseStatus {
 
 // nTrailingNewLine counts the number of trailing new lines up to 2.
 func (s *renderState) nTrailingNewLine() int {
+	if !s.isNewLine() {
+		return 0
+	}
+
 	seeker := s.iter.Copy()
 
 	for i := 0; i < 2; i++ {
@@ -147,6 +151,19 @@ func (s *renderState) nTrailingNewLine() int {
 	}
 
 	return 2
+}
+
+func (s *renderState) isNewLine() bool {
+	if !s.iter.BackwardChar() {
+		// empty buffer, so consider yes
+		return true
+	}
+
+	// take the character, then undo the backward immediately
+	char := rune(s.iter.Char())
+	s.iter.ForwardChar()
+
+	return char == '\n'
 }
 
 func (s *renderState) p(n *html.Node, f func()) {
@@ -169,38 +186,60 @@ func (s *renderState) endLine(n *html.Node, amount int) {
 	}
 }
 
-func trimNewLines(str string) (string, int) {
-	new := strings.TrimRightFunc(str, unicode.IsSpace)
-	lns := len(str) - len(strings.TrimRight(str, "\n"))
-	// Cap new lines at 2.
-	if lns > 2 {
-		lns = 2
+type trimmedText struct {
+	text  string
+	left  int
+	right int
+}
+
+func trimNewLines(str string) trimmedText {
+	rhs := len(str) - len(strings.TrimRight(str, "\n"))
+	str = strings.TrimRight(str, "\n")
+
+	lhs := len(str) - len(strings.TrimLeft(str, "\n"))
+	str = strings.TrimLeft(str, "\n")
+
+	return trimmedText{str, lhs, rhs}
+}
+
+func (s *renderState) insertNewLines(n int) {
+	if n < 1 {
+		return
 	}
-	return new, lns
+	s.buf.Insert(s.iter, strings.Repeat("\n", n))
 }
 
 func (s *renderState) renderNode(n *html.Node) traverseStatus {
 	switch n.Type {
 	case html.TextNode:
-		text, newLines := trimNewLines(n.Data)
-		s.buf.Insert(s.iter, text)
+		trimmed := trimNewLines(n.Data)
 
-		nextNode := nodeNextSibling(n)
+		// Make up the left-hand-side new lines.
+		s.insertNewLines(trimmed.left - s.nTrailingNewLine())
 
-		// Calculate the actual number of new lines that we need while
-		// accounting for ones that are already in the buffer.
-		if n := s.nTrailingNewLine(); n > 0 {
-			newLines -= n
-		}
-		// Only make up new lines if we still have nodes.
-		if newLines > 0 && nextNode != nil {
-			s.buf.Insert(s.iter, strings.Repeat("\n", newLines))
+		if trimmed.text == "" {
+			// Ignore this segment entirely and don't write the right-trailing
+			// new lines.
+			return traverseOK
 		}
 
-		// If this is not the last node and the next node is not a text node,
-		// then we have to space out the elements.
-		if nextNode != nil && nextNode.Type != html.TextNode {
-			s.buf.Insert(s.iter, " ")
+		// If we're in a blockquote and we're on a new line, then write the meme
+		// arrow.
+		if s.quote && s.isNewLine() {
+			s.buf.Insert(s.iter, "> ")
+		}
+
+		// Insert the trimmed string.
+		s.buf.Insert(s.iter, trimmed.text)
+
+		if nextNode := nodeNextSibling(n); nextNode != nil {
+			// Only make up new lines if we still have nodes.
+			s.insertNewLines(trimmed.right)
+			// If this is not the last node and the next node is not a text
+			// node, then we have to space out the elements.
+			// if nextNode.Type != html.TextNode {
+			// 	s.buf.Insert(s.iter, " ")
+			// }
 		}
 
 		return traverseOK
@@ -241,7 +280,9 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		// Block Elements.
 		case "blockquote":
+			s.quote = true
 			s.renderChildren(n)
+			s.quote = false
 			s.endLine(n, 1)
 			return traverseSkipChildren
 
@@ -299,8 +340,10 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 					// Format the user ID; the trimming will trim the at symbol.
 					uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
 					// Color the mention.
+					col := mauthor.UserColor(uID, mauthor.WithWidgetColor(s.tview))
 					tag := markuputil.HashTag(s.buf.TagTable(), markuputil.TextTag{
-						"foreground": mauthor.UserColor(uID, mauthor.WithWidgetColor(s.tview)),
+						"foreground": col,
+						"background": col + "33", // alpha
 					})
 					s.buf.ApplyTag(tag, startIter, s.iter)
 				}
@@ -543,8 +586,15 @@ func nodePrependText(n *html.Node, text string) {
 	n.InsertBefore(node, n.FirstChild)
 }
 
+func nodeText(n *html.Node) string {
+	if n != nil && n.Type == html.TextNode {
+		return n.Data
+	}
+	return ""
+}
+
 func nodeHasText(n *html.Node) bool {
-	if n.Type == html.TextNode && strings.TrimSpace(n.Data) != "" {
+	if strings.TrimSpace(nodeText(n)) != "" {
 		return true
 	}
 	for n := n.FirstChild; n != nil; n = n.NextSibling {

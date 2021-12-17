@@ -106,6 +106,19 @@ func RowAtY(list *gtk.ListBox, y float64) (*gtk.ListBoxRow, gtk.PositionType) {
 	return row, gtk.PosBottom
 }
 
+// OnFirstDraw attaches f to be called on the first time the widget is drawn on
+// the screen.
+func OnFirstDraw(w gtk.Widgetter, f func()) {
+	widget := gtk.BaseWidget(w)
+	widget.AddTickCallback(func(_ gtk.Widgetter, clocker gdk.FrameClocker) bool {
+		if clock := gdk.BaseFrameClock(clocker); clock.FPS() > 0 {
+			f()
+			return false
+		}
+		return true // retry
+	})
+}
+
 // MapSubscriber maps any subscriber callback that can unsubscribe to a widget's
 // map and unmap signals.
 func MapSubscriber(w gtk.Widgetter, sub func() (unsub func())) {

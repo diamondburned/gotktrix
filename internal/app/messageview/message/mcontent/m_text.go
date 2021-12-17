@@ -110,13 +110,21 @@ func (c *textContent) setContent(body messageBody, isEdited bool) {
 	c.invalidateAllocate()
 }
 
+var embedsCSS = cssutil.Applier("mcontent-embeds", `
+	.mcontent-embeds > * {
+		margin-top: 6px;
+	}
+`)
+
 func (c *textContent) LoadMore() {
 	if len(c.meta.URLs) == 0 {
 		return
 	}
 
 	c.embeds = gtk.NewBox(gtk.OrientationVertical, 0)
-	c.embeds.AddCSSClass("mcontent-embeds")
+	c.embeds.SetHAlign(gtk.AlignStart)
+	embedsCSS(c.embeds)
+
 	c.Box.Append(c.embeds)
 	// TODO: cancellation
 	loadEmbeds(c.ctx, c.embeds, c.meta.URLs)

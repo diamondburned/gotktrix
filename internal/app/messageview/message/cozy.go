@@ -24,8 +24,8 @@ var _ = cssutil.WriteCSS(`
 		font-size: 0.80em;
 		color: alpha(@theme_fg_color, 0.55);
 	}
-	.message-collapsed {
-		margin-right: 10px;
+	.message-message {
+		margin-right: 8px;
 	}
 	.message-collapsed .message-timestamp {
 		opacity: 0;
@@ -67,8 +67,8 @@ type cozyMessage struct {
 
 var _ = cssutil.WriteCSS(`
 	.message-cozy {
-		margin: 0px;
 		margin-top: 2px;
+		margin-bottom: 0;
 	}
 	.message-cozy > box {
 		margin-left: 10px;

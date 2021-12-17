@@ -80,6 +80,9 @@ func FromContext(ctx context.Context) *Application {
 
 // OpenURI opens the given URI using the system's default application.
 func OpenURI(ctx context.Context, uri string) {
+	if uri == "" {
+		return
+	}
 	ts := uint32(time.Now().Unix())
 	gtk.ShowURI(FromContext(ctx).Window(), uri, ts)
 }

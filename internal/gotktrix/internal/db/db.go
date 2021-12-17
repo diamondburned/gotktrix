@@ -160,5 +160,6 @@ func (kv *KV) Node(names ...string) Node {
 
 // Close closes the database.
 func (kv *KV) Close() error {
+	kv.db.Sync()
 	return kv.db.Close()
 }

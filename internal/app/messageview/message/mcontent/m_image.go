@@ -20,45 +20,40 @@ import (
 )
 
 type imageContent struct {
-	gtk.Widgetter
+	*imageEmbed
 	ctx context.Context
 	msg event.RoomMessageEvent
-
-	button *gtk.Button
-	layout *gtk.ConstraintLayout
-	image  *gtk.Picture
-	size   [2]int
 }
 
 var imageCSS = cssutil.Applier("mcontent-image", `
+	.mcontent-image-content {
+		margin-top: 6px;
+	}
 	.mcontent-image {
 		padding: 0;
 		margin:  0;
-		margin-top: 6px;
+		transition-property: all;
+	}
+	.mcontent-image,
+	.mcontent-image:hover {
+		background: none;
+	}
+	.mcontent-image:hover {
+		outline: 2px solid @theme_selected_bg_color;
+	}
+	.mcontent-image > * {
+		background-color: black;
+		transition: linear 50ms filter;
+	}
+	.mcontent-image:hover > * {
+		filter: contrast(80%) brightness(80%);
 	}
 `)
 
 func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPart {
-	c := imageContent{
-		ctx: ctx,
-		msg: msg,
-	}
-
-	c.layout = gtk.NewConstraintLayout()
-
-	c.image = gtk.NewPicture()
-	c.image.SetLayoutManager(c.layout)
-	c.image.SetCanFocus(false)
-	c.image.SetCanShrink(true)
-	c.image.SetKeepAspectRatio(true)
-
-	c.button = gtk.NewButton()
-	c.button.AddCSSClass("mcontent-image")
-	c.button.SetHAlign(gtk.AlignStart)
-	c.button.SetHasFrame(false)
-	c.button.SetChild(c.image)
-	c.button.SetTooltipText(msg.Body)
-	c.button.Connect("clicked", func() {
+	embed := newImageEmbed(msg.Body, maxWidth, maxHeight)
+	embed.AddCSSClass("mcontent-image-content")
+	embed.setOpenURL(func() {
 		u, err := gotktrix.FromContext(ctx).MessageMediaURL(msg)
 		if err != nil {
 			log.Println("image URL error:", err)
@@ -68,14 +63,11 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 		app.OpenURI(ctx, u)
 	})
 
-	i, err := msg.ImageInfo()
-	if err == nil && i.Width > 0 && i.Height > 0 {
-		w, h := gotktrix.MaxSize(i.Width, i.Height, maxWidth, maxHeight)
-		c.setSize(w, h)
-		renderBlurhash(msg.Info, w, h, c.image.SetPixbuf)
+	c := imageContent{
+		imageEmbed: embed,
+		ctx:        ctx,
+		msg:        msg,
 	}
-
-	c.Widgetter = c.button
 
 	// 	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	// 	box.SetHExpand(false)
@@ -85,53 +77,76 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 }
 
 func (c *imageContent) LoadMore() {
+	i, err := c.msg.ImageInfo()
+	if err == nil && i.Width > 0 && i.Height > 0 {
+		w, h := gotktrix.MaxSize(i.Width, i.Height, maxWidth, maxHeight)
+		c.setSize(w, h)
+		renderBlurhash(c.msg.Info, w, h, c.image.SetPixbuf)
+	}
+
 	client := gotktrix.FromContext(c.ctx)
 	url, _ := client.ImageThumbnail(c.msg, maxWidth, maxHeight, gtkutil.ScaleFactor())
-
-	imgutil.AsyncGET(c.ctx, url, func(p gdk.Paintabler) {
-		if c.size == [2]int{} {
-			c.setSize(gotktrix.MaxSize(
-				p.IntrinsicWidth(), p.IntrinsicHeight(),
-				maxWidth, maxHeight,
-			))
-		}
-		c.image.SetPaintable(p)
-	})
-}
-
-func (c *imageContent) setSize(w, h int) {
-	c.size = [2]int{w, h}
-	c.image.SetSizeRequest(w, h)
-
-	/*
-		guide := gtk.NewConstraintGuide()
-		guide.SetMinSize(gotktrix.MaxSize(w, h, 64, 64))
-		guide.SetNatSize(w, h)
-		guide.SetMaxSize(w, h)
-
-		c.layout.RemoveAllConstraints()
-		c.layout.AddGuide(guide)
-		c.layout.AddConstraint(gtk.NewConstraint(
-			nil, gtk.ConstraintAttributeHeight, gtk.ConstraintRelationEq,
-			nil, gtk.ConstraintAttributeWidth, float64(h)/float64(w), 0,
-			int(gtk.ConstraintStrengthRequired),
-		))
-		c.layout.AddConstraint(gtk.NewConstraint(
-			nil, gtk.ConstraintAttributeWidth, gtk.ConstraintRelationEq,
-			guide, gtk.ConstraintAttributeWidth, 1, 0,
-			int(gtk.ConstraintStrengthRequired),
-		))
-		c.layout.AddConstraint(gtk.NewConstraint(
-			nil, gtk.ConstraintAttributeHeight, gtk.ConstraintRelationEq,
-			guide, gtk.ConstraintAttributeHeight, 1, 0,
-			int(gtk.ConstraintStrengthRequired),
-		))
-
-		c.image.QueueResize()
-	*/
+	c.imageEmbed.useURL(c.ctx, url)
 }
 
 func (c *imageContent) content() {}
+
+type imageEmbed struct {
+	*gtk.Button
+	image   *gtk.Picture
+	openURL func()
+	curSize [2]int
+	maxSize [2]int
+}
+
+func newImageEmbed(name string, maxW, maxH int) *imageEmbed {
+	e := &imageEmbed{
+		maxSize: [2]int{maxW, maxH},
+	}
+
+	e.image = gtk.NewPicture()
+	e.image.SetLayoutManager(gtk.NewConstraintLayout()) // magically left aligned
+	e.image.SetCanFocus(false)
+	e.image.SetCanShrink(true)
+	e.image.SetKeepAspectRatio(true)
+
+	e.Button = gtk.NewButton()
+	e.Button.AddCSSClass("mcontent-image")
+	e.Button.SetOverflow(gtk.OverflowHidden)
+	e.Button.SetHAlign(gtk.AlignStart)
+	e.Button.SetHasFrame(false)
+	e.Button.SetChild(e.image)
+	e.Button.SetTooltipText(name)
+	e.Button.SetSensitive(false)
+	e.Button.Connect("clicked", func() { e.openURL() })
+
+	return e
+}
+
+func (e *imageEmbed) useURL(ctx context.Context, url string) {
+	gtkutil.OnFirstDraw(e, func() {
+		// Only load the image when we actually draw the image.
+		imgutil.AsyncGET(ctx, url, func(p gdk.Paintabler) {
+			if e.curSize == [2]int{} {
+				e.setSize(gotktrix.MaxSize(
+					p.IntrinsicWidth(), p.IntrinsicHeight(),
+					e.maxSize[0], e.maxSize[1],
+				))
+			}
+			e.image.SetPaintable(p)
+		})
+	})
+}
+
+func (e *imageEmbed) setOpenURL(f func()) {
+	e.openURL = f
+	e.Button.SetSensitive(f != nil)
+}
+
+func (e *imageEmbed) setSize(w, h int) {
+	e.curSize = [2]int{w, h}
+	e.image.SetSizeRequest(w, h)
+}
 
 const maxBlurhash = 25
 

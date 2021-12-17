@@ -35,6 +35,9 @@ var videoCSS = cssutil.Applier("mcontent-video", `
 	.mcontent-videoplay:active {
 		background-color: @theme_selected_bg_color;
 	}
+	.mcontent-video picture {
+		background-color: black;
+	}
 `)
 
 func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPart {

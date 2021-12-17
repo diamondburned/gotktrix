@@ -4,15 +4,18 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"net/url"
+	"path"
 	"strings"
 
+	"github.com/chanbakjsd/gotrix/api"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
@@ -33,8 +36,10 @@ const (
 var embedCSS = cssutil.Applier("mcontent-embed", `
 	.mcontent-embed {
 		border-left: 3px solid @theme_fg_color;
-		margin-top:  6px;
-		padding: 6px 10px;
+		padding: 0;
+	}
+	.mcontent-embed-body {
+		margin: 6px 10px;
 	}
 	.mcontent-embed label {
 		margin-right: 6px;
@@ -44,8 +49,6 @@ var embedCSS = cssutil.Applier("mcontent-embed", `
 var descReplacer = strings.NewReplacer("\n", "  ")
 
 func loadEmbeds(ctx context.Context, box *gtk.Box, urls []string) {
-	// children := make([]gtk.Widgetter, len(urls))
-
 	go func() {
 		client := gotktrix.FromContext(ctx)
 
@@ -62,75 +65,108 @@ func loadEmbeds(ctx context.Context, box *gtk.Box, urls []string) {
 			}
 
 			m, err := client.PreviewURL(url, 0)
-			if err != nil || m.Title == "" {
+			if err != nil {
 				continue
 			}
 
-			if m.URL != "" {
-				// Prefer the canonical URL.
-				url = m.URL
+			// Prefer the canonical URL.
+			if m.URL == "" {
+				m.URL = url
 			}
 
-			m.Description = descReplacer.Replace(m.Description)
+			if m.Title != "" || m.Description != "" {
+				addTextEmbed(ctx, box, m)
+				continue
+			}
 
-			imageURL, _ := client.ScaledThumbnail(m.Image,
-				embedImageWidth, embedImageHeight, gtkutil.ScaleFactor())
-
-			glib.IdleAdd(func() {
-				var outer gtk.Widgetter
-
-				b := gtk.NewBox(gtk.OrientationVertical, 0)
-				b.SetHExpand(true)
-				b.AddCSSClass("mcontent-embed-body")
-
-				title := gtk.NewLabel("")
-				title.SetMarkup(fmt.Sprintf(
-					`<a href="%s">%s</a>`,
-					html.EscapeString(url), html.EscapeString(m.Title),
-				))
-				title.SetXAlign(0)
-				title.SetYAlign(0)
-				title.SetSingleLineMode(true)
-				title.SetEllipsize(pango.EllipsizeEnd)
-				title.SetAttributes(titleAttrs)
-				title.AddCSSClass("mcontent-embed-title")
-				b.Append(title)
-
-				if m.Description != "" {
-					desc := gtk.NewLabel(m.Description)
-					desc.SetXAlign(0)
-					desc.SetYAlign(0)
-					desc.SetLines(4)
-					desc.SetEllipsize(pango.EllipsizeEnd)
-					desc.SetWrapMode(pango.WrapWordChar)
-					desc.SetOverflow(gtk.OverflowHidden)
-					desc.SetAttributes(descAttrs)
-					desc.AddCSSClass("mcontent-embed-description")
-					b.Append(desc)
-				}
-
-				if imageURL != "" {
-					img := gtk.NewImage()
-					img.SetHAlign(gtk.AlignEnd)
-					imgutil.AsyncGET(
-						ctx, imageURL, img.SetFromPaintable,
-						imgutil.WithSizeOverrider(img, embedImageWidth, embedImageHeight),
-					)
-
-					imgBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
-					imgBox.SetHExpand(true)
-					imgBox.AddCSSClass("mcontent-embed-imagebox")
-					imgBox.Append(b)
-					imgBox.Append(img)
-					embedCSS(imgBox)
-					outer = imgBox
-				} else {
-					embedCSS(b)
-					outer = b
-				}
-
-				box.Append(outer)
-			})
+			if m.Image != "" {
+				// At least we have an image. Render the image fully.
+				addImageEmbed(ctx, box, m)
+				continue
+			}
 		}
 	}()
+}
+
+func addTextEmbed(ctx context.Context, box *gtk.Box, m *api.URLMetadata) {
+	m.Description = descReplacer.Replace(m.Description)
+
+	client := gotktrix.FromContext(ctx)
+	imageURL, _ := client.ScaledThumbnail(m.Image,
+		embedImageWidth, embedImageHeight, gtkutil.ScaleFactor())
+
+	glib.IdleAdd(func() {
+		b := gtk.NewBox(gtk.OrientationVertical, 0)
+		b.SetHExpand(true)
+		b.AddCSSClass("mcontent-embed-body")
+
+		outer := gtk.NewBox(gtk.OrientationHorizontal, 0)
+		outer.SetHExpand(true)
+		outer.AddCSSClass("mcontent-embed-imagebox")
+		outer.Append(b)
+		embedCSS(outer)
+
+		if m.Title != "" {
+			title := gtk.NewLabel("")
+			title.SetMarkup(fmt.Sprintf(
+				`<a href="%s">%s</a>`,
+				html.EscapeString(m.URL), html.EscapeString(m.Title),
+			))
+			title.SetXAlign(0)
+			title.SetYAlign(0)
+			title.SetSingleLineMode(true)
+			title.SetEllipsize(pango.EllipsizeEnd)
+			title.SetAttributes(titleAttrs)
+			title.AddCSSClass("mcontent-embed-title")
+			b.Append(title)
+		}
+
+		if m.Description != "" {
+			desc := gtk.NewLabel(m.Description)
+			desc.SetXAlign(0)
+			desc.SetYAlign(0)
+			desc.SetLines(4)
+			desc.SetEllipsize(pango.EllipsizeEnd)
+			desc.SetWrapMode(pango.WrapWordChar)
+			desc.SetOverflow(gtk.OverflowHidden)
+			desc.SetAttributes(descAttrs)
+			desc.AddCSSClass("mcontent-embed-description")
+			b.Append(desc)
+		}
+
+		if imageURL != "" {
+			img := newImageEmbed("", embedImageWidth, embedImageHeight)
+			img.AddCSSClass("mcontent-embed-thumbnail")
+			img.SetHAlign(gtk.AlignEnd)
+			img.useURL(ctx, imageURL)
+			img.setOpenURL(func() {
+				url, _ := gotktrix.FromContext(ctx).MediaDownloadURL(m.Image, true, "")
+				app.OpenURI(ctx, url)
+			})
+			outer.Append(img)
+		}
+
+		box.Append(outer)
+	})
+}
+
+func addImageEmbed(ctx context.Context, box *gtk.Box, m *api.URLMetadata) {
+	// Try and parse the name.
+	var name string
+	if u, err := url.Parse(m.URL); err == nil {
+		name = path.Base(u.Path)
+	}
+
+	client := gotktrix.FromContext(ctx)
+	imageURL, _ := client.ScaledThumbnail(m.Image, maxWidth, maxHeight, gtkutil.ScaleFactor())
+
+	glib.IdleAdd(func() {
+		embed := newImageEmbed(name, maxWidth, maxHeight)
+		embed.AddCSSClass("mcontent-image-embed")
+		embed.useURL(ctx, imageURL)
+		embed.setOpenURL(func() {
+			app.OpenURI(ctx, m.URL)
+		})
+		box.Append(embed)
+	})
 }
