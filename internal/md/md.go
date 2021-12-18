@@ -3,7 +3,6 @@ package md
 
 import (
 	"context"
-	"unicode/utf8"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -269,26 +268,24 @@ var emojiRanges = [][2]rune{
 	{0x1F1E6, 0x1F1FF}, // Flags
 }
 
+const minEmojiUnicode = 0x2600 // see above
+
 // IsUnicodeEmoji returns true if the given string only contains a Unicode
 // emoji.
 func IsUnicodeEmoji(v string) bool {
 runeLoop:
-	for {
-		r, sz := utf8.DecodeRuneInString(v)
-		if sz == 0 || r == utf8.RuneError {
-			break
-		}
-		v = v[sz:]
-
-		for _, crange := range emojiRanges {
-			if crange[0] <= r && r <= crange[1] {
-				continue runeLoop
+	for _, r := range v {
+		// Fast path: only run the loop if this character is in any of the
+		// ranges by checking the minimum rune.
+		if r >= minEmojiUnicode {
+			for _, crange := range emojiRanges {
+				if crange[0] <= r && r <= crange[1] {
+					continue runeLoop
+				}
 			}
 		}
-
 		// runeLoop not hit; bail.
 		return false
 	}
-
 	return true
 }

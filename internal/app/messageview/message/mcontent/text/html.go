@@ -36,7 +36,10 @@ const (
 // RenderHTML tries rendering the HTML and falls back to using plain text if
 // the HTML doesn't work.
 func RenderHTML(ctx context.Context, text, html string) RenderWidget {
-	if md.IsUnicodeEmoji(html) {
+	// If html is text, then just render it as plain text, because using the
+	// Label should yield much better performance than running it through the
+	// parser.
+	if (html == text && !mightBeHTML(html)) || md.IsUnicodeEmoji(html) {
 		return RenderText(ctx, html)
 	}
 
@@ -46,6 +49,11 @@ func RenderHTML(ctx context.Context, text, html string) RenderWidget {
 	}
 
 	return rw
+}
+
+// mightBeHTML returns whether or not text might be HTML.
+func mightBeHTML(text string) bool {
+	return strings.Contains(text, "<") || strings.Contains(text, ">")
 }
 
 type htmlBox struct {
