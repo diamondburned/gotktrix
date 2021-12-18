@@ -1,6 +1,9 @@
 package gtkutil
 
-import "github.com/diamondburned/gotk4/pkg/gtk/v4"
+import (
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+)
 
 // BindRightClick binds the given widget to take in right-click gestures. The
 // function will also check for long-hold gestures.
@@ -29,4 +32,25 @@ func BindRightClickAt(w gtk.Widgetter, f func(x, y float64)) {
 	widget := gtk.BaseWidget(w)
 	widget.AddController(c)
 	widget.AddController(l)
+}
+
+// ForwardTyping forwards all typing events from w to dst.
+func ForwardTyping(w, dst gtk.Widgetter) {
+	// Activator to focus on composer when typed on.
+	typingHandler := gtk.NewEventControllerKey()
+	// Run the handler at the last phase, after all key handlers have captured
+	// the event.
+	typingHandler.SetPropagationPhase(gtk.PhaseBubble)
+	typingHandler.ConnectKeyPressed(func(keyval, _ uint, state gdk.ModifierType) bool {
+		if gdk.KeyvalToUnicode(keyval) == 0 {
+			// Don't forward these.
+			return false
+		}
+
+		dst := gtk.BaseWidget(dst)
+		dst.GrabFocus()
+		typingHandler.Forward(dst)
+		return true
+	})
+	gtk.BaseWidget(w).AddController(typingHandler)
 }

@@ -36,6 +36,7 @@ var Parser = parser.NewParser(
 		markutil.Prioritized(parser.NewBlockquoteParser(), 1),
 		markutil.Prioritized(parser.NewATXHeadingParser(), 2),
 		markutil.Prioritized(parser.NewFencedCodeBlockParser(), 3),
+		markutil.Prioritized(parser.NewThematicBreakParser(), 4), // <hr>
 	),
 )
 
@@ -83,6 +84,15 @@ func SetTabSize(text *gtk.TextView) {
 
 	text.SetTabs(stops)
 }
+
+// EmojiScale is the scale of Unicode emojis.
+const EmojiScale = 2.5
+
+// EmojiAttrs is the Pango attributes set for a label showing an emoji. It is
+// kept the same as the _emoji tag in TextTags.
+var EmojiAttrs = markuputil.Attrs(
+	pango.NewAttrScale(EmojiScale),
+)
 
 // TextTags contains the tag table mapping most Matrix HTML tags to GTK
 // TextTags.
@@ -138,7 +148,7 @@ var TextTags = markuputil.TextTagsMap{
 	// Meta tags.
 	"_invisible": {"editable": false, "invisible": true},
 	"_immutable": {"editable": false},
-	"_emoji":     {"scale": 2.5},
+	"_emoji":     {"scale": EmojiScale},
 }
 
 func htag(scale float64) markuputil.TextTag {

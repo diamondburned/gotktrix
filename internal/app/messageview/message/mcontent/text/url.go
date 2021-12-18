@@ -2,6 +2,7 @@ package text
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/url"
 	"regexp"
@@ -35,6 +36,17 @@ const embeddedURLPrefix = "link:"
 // Regex written by @stephenhay, taken from https://mathiasbynens.be/demo/url-regex.
 // Mirror this to allowedSchemes.
 var urlRegex = regexp.MustCompile(`(?:https?|ftps?|mailto|magnet)://[^\s/$.?#].[^\s]*`)
+
+// hyperlink turns all URLs inside the given text to be wrapped around <a> tags.
+// The text is not HTML-escaped.
+func hyperlink(html string) (string, []string) {
+	var urls []string
+	html = urlRegex.ReplaceAllStringFunc(html, func(url string) string {
+		urls = append(urls, url)
+		return fmt.Sprintf(`<a href="%s">%[1]s</a>`, url)
+	})
+	return html, urls
+}
 
 // autolink scans the buffer's text for all unhighlighted URLs and highlight
 // them. Tags that are autolinked will pass the IsEmbeddedURLTag check.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"sort"
-	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -96,7 +95,7 @@ type Section struct {
 	minify  *minifyButton
 
 	rooms  map[matrix.RoomID]*room.Room
-	hidden map[*room.Room]bool
+	hidden map[*room.Room]struct{}
 
 	comparer Comparer
 
@@ -123,7 +122,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 		list.SetAdjustment(vadj)
 	}
 
-	minify := newMinifyButton(true)
+	minify := newMinifyButton(ctx, true)
 	minify.Hide()
 
 	inner := gtk.NewBox(gtk.OrientationVertical, 0)
@@ -150,7 +149,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 		ctrl:        ctrl,
 		minify:      minify,
 		rooms:       make(map[matrix.RoomID]*room.Room),
-		hidden:      make(map[*room.Room]bool),
+		hidden:      make(map[*room.Room]struct{}),
 		listBox:     list,
 		tagName:     name,
 		showPreview: true, // TODO config module
@@ -169,11 +168,13 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 		})
 	})
 
-	minify.SetLabelFunc(func(minify bool) string {
-		if !minify {
-			return locale.S(ctx, "Show less")
+	minify.SetFunc(func() (hidden int, shouldMinify bool) {
+		// Don't show the minify button if we're searching or we don't need to
+		// minify.
+		if len(s.rooms) <= nMinified || ctrl.Searching() != "" {
+			return 0, false
 		}
-		return locale.Sprintf(ctx, "Show %d more", s.NHidden())
+		return s.NHidden(), true
 	})
 	minify.ConnectClicked(func() {
 		if minify.IsMinified() {
@@ -205,7 +206,8 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 			return false
 		}
 
-		return strings.Contains(rm.Name, searching)
+		// TODO: run ToLower on searching only once.
+		return sortutil.ContainsFold(rm.Name, searching)
 	})
 
 	// default drag-and-drop mode.
@@ -353,7 +355,7 @@ func (s *Section) Insert(room *room.Room) {
 	s.listBox.Insert(room.ListBoxRow, -1)
 
 	s.rooms[room.ID] = room
-	s.hidden[room] = false
+	delete(s.hidden, room)
 
 	if len(s.rooms) > nMinified && s.minify.IsMinified() {
 		s.Minimize()
@@ -409,15 +411,18 @@ func (s *Section) ReminifyAfter(after func()) {
 		after()
 	}
 
-	s.Minimize()
+	if s.ctrl.Searching() == "" {
+		s.Minimize()
+	}
+	s.minify.Invalidate()
 }
 
 // NHidden returns the number of hidden rooms.
 func (s *Section) NHidden() int {
-	if !s.minify.IsMinified() || len(s.rooms) <= nMinified {
+	if !s.minify.IsMinified() {
 		return 0
 	}
-	return len(s.rooms) - nMinified
+	return len(s.hidden)
 }
 
 // Minimize minimizes the section to only show 8 entries.
@@ -441,13 +446,12 @@ func (s *Section) Minimize() {
 			log.Panicln("room ID", row.Name(), "missing in registry")
 		}
 
-		if !s.hidden[room] {
+		if _, ok := s.hidden[room]; !ok {
 			s.listBox.Remove(row)
-			s.hidden[room] = true
+			s.hidden[room] = struct{}{}
 		}
 	}
 
-	s.minify.Show()
 	s.minify.Invalidate()
 }
 
@@ -455,17 +459,12 @@ func (s *Section) Minimize() {
 func (s *Section) Expand() {
 	s.minify.SetMinified(false)
 	s.expand()
-
-	if len(s.rooms) > nMinified {
-		s.minify.Show()
-	}
+	s.minify.Invalidate()
 }
 
 func (s *Section) expand() {
-	for r, hidden := range s.hidden {
-		if hidden {
-			s.listBox.Append(r.ListBoxRow)
-			s.hidden[r] = false
-		}
+	for r := range s.hidden {
+		s.listBox.Append(r.ListBoxRow)
+		delete(s.hidden, r)
 	}
 }

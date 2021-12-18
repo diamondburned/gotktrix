@@ -1,6 +1,7 @@
 package sortutil
 
 import (
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -72,4 +73,10 @@ func compareRuneFold(i, j rune) int {
 		return -1
 	}
 	return 1
+}
+
+// ContainsFold is a case-insensitive version of strings.Contains.
+func ContainsFold(s, substr string) bool {
+	// TODO: faster impl.
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

@@ -29,8 +29,8 @@ var descAttrs = markuputil.Attrs(
 )
 
 const (
-	embedImageWidth  = 100
-	embedImageHeight = 100
+	embedImageWidth  = 80
+	embedImageHeight = 80
 )
 
 var embedCSS = cssutil.Applier("mcontent-embed", `
@@ -39,10 +39,13 @@ var embedCSS = cssutil.Applier("mcontent-embed", `
 		padding: 0;
 	}
 	.mcontent-embed-body {
-		margin: 6px 10px;
+		margin: 3px 6px;
 	}
 	.mcontent-embed label {
-		margin-right: 6px;
+		margin-right: 3px;
+	}
+	.mcontent-embeds > *:last-child {
+		margin-bottom: 6px;
 	}
 `)
 

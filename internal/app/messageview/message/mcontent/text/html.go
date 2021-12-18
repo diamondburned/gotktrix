@@ -1,6 +1,7 @@
 package text
 
 import (
+	"container/list"
 	"context"
 	"log"
 	"net/url"
@@ -8,12 +9,12 @@ import (
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/md"
-	"github.com/diamondburned/gotktrix/internal/md/hl"
 	"golang.org/x/net/html"
 )
 
@@ -34,37 +35,51 @@ const (
 
 // RenderHTML tries rendering the HTML and falls back to using plain text if
 // the HTML doesn't work.
-func RenderHTML(ctx context.Context, tview *gtk.TextView, text, html string) RenderMetadata {
+func RenderHTML(ctx context.Context, text, html string) RenderWidget {
 	if md.IsUnicodeEmoji(html) {
-		return RenderText(ctx, tview, html)
+		return RenderText(ctx, html)
 	}
 
-	meta, ok := renderHTML(ctx, tview, html)
+	rw, ok := renderHTML(ctx, html)
 	if !ok {
-		meta = RenderText(ctx, tview, text)
+		rw = RenderText(ctx, text)
 	}
 
-	return meta
+	return rw
+}
+
+type htmlBox struct {
+	*gtk.Box
+	list *list.List
+}
+
+// SetExtraMenu sets the extra menus of all internal texts.
+func (b htmlBox) SetExtraMenu(model gio.MenuModeller) {
+	for n := b.list.Front(); n != nil; n = n.Next() {
+		switch block := n.Value.(type) {
+		case *textBlock:
+			block.SetExtraMenu(model)
+		case *quoteBlock:
+			block.SetExtraMenu(model)
+		case *codeBlock:
+			block.text.SetExtraMenu(model)
+		}
+	}
 }
 
 // renderHTML returns true if the HTML parsing and rendering is successful.
-func renderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) (RenderMetadata, bool) {
-	var meta RenderMetadata
-
+func renderHTML(ctx context.Context, htmlBody string) (RenderWidget, bool) {
 	n, err := html.Parse(strings.NewReader(htmlBody))
 	if err != nil {
 		log.Println("invalid message HTML:", err)
-		return meta, false
+		return RenderWidget{}, false
 	}
 
-	buf := tview.Buffer()
-	iter := buf.StartIter()
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
+	box.AddCSSClass("mcontent-html-box")
 
 	state := renderState{
-		tview: tview,
-		buf:   buf,
-		table: buf.TagTable(),
-		iter:  iter,
+		block: newBlockState(ctx, box),
 		ctx:   ctx,
 		list:  0,
 		// TODO: detect unicode emojis.
@@ -72,7 +87,14 @@ func renderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) (Rend
 	}
 
 	if state.traverseSiblings(n) == traverseFailed {
-		return meta, false
+		return RenderWidget{}, false
+	}
+
+	rendered := RenderWidget{
+		RenderWidgetter: htmlBox{
+			Box:  box,
+			list: state.block.list,
+		},
 	}
 
 	if state.replyURL != "" {
@@ -83,11 +105,32 @@ func renderHTML(ctx context.Context, tview *gtk.TextView, htmlBody string) (Rend
 		if end := strings.Index(id, "/"); end > -1 {
 			id = id[:end]
 		}
-		meta.RefID = matrix.EventID(id)
+		rendered.RefID = matrix.EventID(id)
 	}
 
-	meta.URLs = autolink(buf)
-	return meta, true
+	// Auto-link all buffers.
+	for n := state.block.list.Front(); n != nil; n = n.Next() {
+		var text *textBlock
+
+		switch block := n.Value.(type) {
+		case *textBlock:
+			text = block
+		case *quoteBlock:
+			text = &block.textBlock
+		default:
+			continue
+		}
+
+		urls := autolink(text.buf)
+		if len(urls) == 0 {
+			continue
+		}
+
+		text.hasLink()
+		rendered.URLs = append(rendered.URLs, urls...)
+	}
+
+	return rendered, true
 }
 
 type traverseStatus uint8
@@ -99,123 +142,26 @@ const (
 )
 
 type renderState struct {
-	tview *gtk.TextView
-	buf   *gtk.TextBuffer
-	table *gtk.TextTagTable
-	iter  *gtk.TextIter
+	block currentBlockState
 
 	ctx  context.Context
 	list int
 
 	replyURL string
-	reply    bool
 
-	quote bool // TODO: make into a counter
+	reply bool
+	pre   bool
 	large bool
-}
-
-func (s *renderState) traverseChildren(n *html.Node) traverseStatus {
-	return s.traverseSiblings(n.FirstChild)
-}
-
-func (s *renderState) traverseSiblings(first *html.Node) traverseStatus {
-	for n := first; n != nil; n = n.NextSibling {
-		switch s.renderNode(n) {
-		case traverseOK:
-			// traverseChildren never returns traverseSkipChildren.
-			if s.traverseChildren(n) == traverseFailed {
-				return traverseFailed
-			}
-		case traverseSkipChildren:
-			continue
-		case traverseFailed:
-			return traverseFailed
-		}
-	}
-
-	return traverseOK
-}
-
-// nTrailingNewLine counts the number of trailing new lines up to 2.
-func (s *renderState) nTrailingNewLine() int {
-	if !s.isNewLine() {
-		return 0
-	}
-
-	seeker := s.iter.Copy()
-
-	for i := 0; i < 2; i++ {
-		if !seeker.BackwardChar() || rune(seeker.Char()) != '\n' {
-			return i
-		}
-	}
-
-	return 2
-}
-
-func (s *renderState) isNewLine() bool {
-	if !s.iter.BackwardChar() {
-		// empty buffer, so consider yes
-		return true
-	}
-
-	// take the character, then undo the backward immediately
-	char := rune(s.iter.Char())
-	s.iter.ForwardChar()
-
-	return char == '\n'
-}
-
-func (s *renderState) p(n *html.Node, f func()) {
-	s.startLine(n, 1)
-	f()
-	s.endLine(n, 1)
-}
-
-func (s *renderState) startLine(n *html.Node, amount int) {
-	amount -= s.nTrailingNewLine()
-	if nodePrevSibling(n) != nil && amount > 0 {
-		s.buf.Insert(s.iter, strings.Repeat("\n", amount))
-	}
-}
-
-func (s *renderState) endLine(n *html.Node, amount int) {
-	amount -= s.nTrailingNewLine()
-	if nodeNextSibling(n) != nil && amount > 0 {
-		s.buf.Insert(s.iter, strings.Repeat("\n", amount))
-	}
-}
-
-type trimmedText struct {
-	text  string
-	left  int
-	right int
-}
-
-func trimNewLines(str string) trimmedText {
-	rhs := len(str) - len(strings.TrimRight(str, "\n"))
-	str = strings.TrimRight(str, "\n")
-
-	lhs := len(str) - len(strings.TrimLeft(str, "\n"))
-	str = strings.TrimLeft(str, "\n")
-
-	return trimmedText{str, lhs, rhs}
-}
-
-func (s *renderState) insertNewLines(n int) {
-	if n < 1 {
-		return
-	}
-	s.buf.Insert(s.iter, strings.Repeat("\n", n))
 }
 
 func (s *renderState) renderNode(n *html.Node) traverseStatus {
 	switch n.Type {
 	case html.TextNode:
+		text := s.block.text()
 		trimmed := trimNewLines(n.Data)
 
 		// Make up the left-hand-side new lines.
-		s.insertNewLines(trimmed.left - s.nTrailingNewLine())
+		text.insertNewLines(trimmed.left - text.nTrailingNewLine())
 
 		if trimmed.text == "" {
 			// Ignore this segment entirely and don't write the right-trailing
@@ -223,23 +169,12 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			return traverseOK
 		}
 
-		// If we're in a blockquote and we're on a new line, then write the meme
-		// arrow.
-		if s.quote && s.isNewLine() {
-			s.buf.Insert(s.iter, "> ")
-		}
-
 		// Insert the trimmed string.
-		s.buf.Insert(s.iter, trimmed.text)
+		text.buf.Insert(text.iter, trimmed.text)
 
 		if nextNode := nodeNextSibling(n); nextNode != nil {
 			// Only make up new lines if we still have nodes.
-			s.insertNewLines(trimmed.right)
-			// If this is not the last node and the next node is not a text
-			// node, then we have to space out the elements.
-			// if nextNode.Type != html.TextNode {
-			// 	s.buf.Insert(s.iter, " ")
-			// }
+			text.insertNewLines(trimmed.right)
 		}
 
 		return traverseOK
@@ -251,13 +186,11 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		// Inline.
 		case "font", "span": // data-mx-bg-color, data-mx-color
-			s.renderChildrenTagged(
-				n,
-				markuputil.HashTag(s.buf.TagTable(), markuputil.TextTag{
-					"foreground": nodeAttr(n, "data-mx-color", "color"),
-					"background": nodeAttr(n, "data-mx-bg-color"),
-				}),
-			)
+			tag := markuputil.HashTag(s.block.table, markuputil.TextTag{
+				"foreground": nodeAttr(n, "data-mx-color", "color"),
+				"background": nodeAttr(n, "data-mx-bg-color"),
+			})
+			s.renderChildrenTagged(n, tag)
 			return traverseSkipChildren
 
 		// Inline.
@@ -268,32 +201,48 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		// Inline.
 		case "code":
-			start := s.iter.Offset()
-			s.renderChildren(n)
-
-			if lang := strings.TrimPrefix(nodeAttr(n, "class"), "language-"); lang != "" {
-				startIter := s.buf.IterAtOffset(start)
-				hl.Highlight(s.ctx, startIter, s.iter, lang)
+			switch block := s.block.current().(type) {
+			case *codeBlock:
+				lang := strings.TrimPrefix(nodeAttr(n, "class"), "language-")
+				block.withHighlight(lang, func(text *textBlock) {
+					s.traverseChildren(n)
+				})
+			default:
+				s.renderChildren(n)
 			}
 
 			return traverseSkipChildren
 
 		// Block Elements.
 		case "blockquote":
-			s.quote = true
-			s.renderChildren(n)
-			s.quote = false
-			s.endLine(n, 1)
+			s.block.quote()
+			s.traverseChildren(n)
+			s.block.finalizeBlock()
 			return traverseSkipChildren
 
 		// Block Elements.
-		case "p", "pre", "div":
+		case "pre":
+			s.block.code()
 			s.traverseChildren(n)
-			s.endLine(n, 1)
+			s.block.finalizeBlock()
+			return traverseSkipChildren
+
+		case "p", "div":
+			// Only start and stop a new block if we're not already in a
+			// blockquote, since we're not nesting anything, so doing this will
+			// mess up the blockquote.
+			if _, ok := s.block.current().(*quoteBlock); !ok {
+				s.block.paragraph()
+				defer s.block.finalizeBlock()
+			}
+			s.traverseChildren(n)
 			return traverseSkipChildren
 
 		// Inline.
 		case "a":
+			text := s.block.richText()
+			text.hasLink()
+
 			start := -1
 
 			href := nodeAttr(n, "href")
@@ -324,28 +273,28 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			if isMention || urlIsSafe(href) {
 				// Only bother with adding a link tag if we know that the URL
 				// has a safe scheme.
-				start = s.iter.Offset()
+				start = text.iter.Offset()
 			}
 
 			s.renderChildren(n)
 
 			if start > -1 {
-				startIter := s.buf.IterAtOffset(start)
-				end := s.iter.Offset()
+				startIter := text.buf.IterAtOffset(start)
+				end := text.iter.Offset()
 
-				tag := s.emptyTag(embeddedURLPrefix + embedURL(start, end, href))
-				s.buf.ApplyTag(tag, startIter, s.iter)
+				tag := text.emptyTag(embeddedURLPrefix + embedURL(start, end, href))
+				text.buf.ApplyTag(tag, startIter, text.iter)
 
 				if isMention {
 					// Format the user ID; the trimming will trim the at symbol.
 					uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
 					// Color the mention.
-					col := mauthor.UserColor(uID, mauthor.WithWidgetColor(s.tview))
-					tag := markuputil.HashTag(s.buf.TagTable(), markuputil.TextTag{
+					col := mauthor.UserColor(uID, mauthor.WithWidgetColor(text))
+					tag := markuputil.HashTag(text.buf.TagTable(), markuputil.TextTag{
 						"foreground": col,
 						"background": col + "33", // alpha
 					})
-					s.buf.ApplyTag(tag, startIter, s.iter)
+					text.buf.ApplyTag(tag, startIter, text.iter)
 				}
 			}
 
@@ -369,12 +318,15 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				s.list++
 			}
 
-			s.buf.Insert(s.iter, "    "+bullet)
+			// TODO: make this its own widget somehow.
+			text := s.block.richText()
+			text.buf.Insert(text.iter, "    "+bullet)
+
 			s.renderChildren(n)
 			return traverseSkipChildren
 
 		case "hr":
-			s.p(n, func() { md.AddWidgetAt(s.tview, s.iter, md.NewSeparator()) })
+			s.block.separator()
 			return traverseOK
 		case "br":
 			s.endLine(n, 1)
@@ -386,7 +338,8 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			u, err := url.Parse(string(src))
 			if err != nil || u.Scheme != "mxc" {
 				// Ignore the image entirely.
-				s.buf.InsertMarkup(s.iter, `<span fgalpha="50%">[image]</span>`)
+				text := s.block.richText()
+				text.buf.InsertMarkup(text.iter, `<span fgalpha="50%">[image]</span>`)
 				return traverseOK
 			}
 
@@ -395,6 +348,9 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			// way doesn't work.
 			// s.insertInvisible(nodeAttr(n, "title"))
 
+			// TODO: consider if it's a better idea to only allow emoticons to
+			// be inlined. As far as I know, nothing except emojis are really
+			// good for being inlined, but that might not cover everything.
 			var w, h int
 			if nodeHasAttr(n, "data-mx-emoticon") {
 				// If this image is a custom emoji, then we can make it big.
@@ -413,7 +369,9 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			}
 
 			thumbnail, _ := gotktrix.FromContext(s.ctx).Offline().ScaledThumbnail(src, w, h, 1)
-			md.AsyncInsertImage(s.ctx, s.iter, thumbnail, w, h)
+
+			text := s.block.richText()
+			md.AsyncInsertImage(s.ctx, text.iter, thumbnail, w, h)
 			return traverseOK
 
 		case "mx-reply":
@@ -443,6 +401,28 @@ func parseIntOr(intv string, or int) int {
 	return v
 }
 
+func (s *renderState) traverseChildren(n *html.Node) traverseStatus {
+	return s.traverseSiblings(n.FirstChild)
+}
+
+func (s *renderState) traverseSiblings(first *html.Node) traverseStatus {
+	for n := first; n != nil; n = n.NextSibling {
+		switch s.renderNode(n) {
+		case traverseOK:
+			// traverseChildren never returns traverseSkipChildren.
+			if s.traverseChildren(n) == traverseFailed {
+				return traverseFailed
+			}
+		case traverseSkipChildren:
+			continue
+		case traverseFailed:
+			return traverseFailed
+		}
+	}
+
+	return traverseOK
+}
+
 // renderChildren renders the given node with the same tag name as its data using
 // the given iterator. The iterator will be moved to the last written position
 // when done.
@@ -453,57 +433,56 @@ func (s *renderState) renderChildren(n *html.Node) {
 // renderChildrenTagged is similar to renderChild, except the tag is given
 // explicitly.
 func (s *renderState) renderChildrenTagged(n *html.Node, tag *gtk.TextTag) {
-	start := s.iter.Offset()
+	// There's a minor issue here: if, within the HTML, another block element
+	// begins that creates another widget block, then the styling that we
+	// obtained here will be lost. This is probably fine, since the HTML is
+	// invalid if any of its styling carries across block elements, but it's
+	// worth noting.
+	text := s.block.text()
+	start := text.iter.Offset()
+
 	s.traverseSiblings(n.FirstChild)
 
-	startIter := s.buf.IterAtOffset(start)
-	s.buf.ApplyTag(tag, startIter, s.iter)
-}
-
-func (s *renderState) emptyTag(tagName string) *gtk.TextTag {
-	return emptyTag(s.table, tagName)
-}
-
-func emptyTag(table *gtk.TextTagTable, tagName string) *gtk.TextTag {
-	if tag := table.Lookup(tagName); tag != nil {
-		return tag
-	}
-
-	tag := gtk.NewTextTag(tagName)
-	if !table.Add(tag) {
-		log.Panicf("failed to add new tag %q", tagName)
-	}
-
-	return tag
-}
-
-func (s *renderState) tag(tagName string) *gtk.TextTag {
-	return md.TextTags.FromTable(s.table, tagName)
-}
-
-// tagNameBounded wraps around tagBounded.
-func (s *renderState) tagNameBounded(tagName string, f func()) {
-	s.tagBounded(s.tag(tagName), f)
-}
-
-// tagBounded saves the current offset and calls f, expecting the function to
-// use s.iter. Then, the tag with the given name is applied on top.
-func (s *renderState) tagBounded(tag *gtk.TextTag, f func()) {
-	start := s.iter.Offset()
-	f()
-	startIter := s.buf.IterAtOffset(start)
-	s.buf.ApplyTag(tag, startIter, s.iter)
+	startIter := text.buf.IterAtOffset(start)
+	text.buf.ApplyTag(tag, startIter, text.iter)
 }
 
 // renderChildrenTagName is similar to renderChildrenTagged, except the tag name
 // is used.
 func (s *renderState) renderChildrenTagName(n *html.Node, tagName string) {
-	s.tagNameBounded(tagName, func() { s.traverseSiblings(n.FirstChild) })
+	text := s.block.text()
+	text.tagNameBounded(tagName, func() { s.traverseSiblings(n.FirstChild) })
 }
 
-// insertInvisible inserts the given invisible.
-func (s *renderState) insertInvisible(str string) {
-	s.tagNameBounded("_invisible", func() { s.buf.Insert(s.iter, str) })
+// endLine ensures that either the current block is not a text block or there's
+// a trailing new line in that text block. If the current block is not a text
+// block, then a new text block is created.
+func (s *renderState) endLine(n *html.Node, amount int) {
+	// Ignore the line break if the next sibling is a block element, since those
+	// will always be on a new line.
+	if sibling := nodeNextSibling(n); sibling != nil && sibling.Type == html.ElementNode {
+		switch sibling.Data {
+		// This list is exhaustive enough; it's the only way we can guess if the
+		// next element is a new block without actually progressing.
+		case "p", "div", "pre", "blockquote":
+			amount--
+		}
+	}
+
+	if amount < 1 {
+		return
+	}
+
+	switch block := s.block.current().(type) {
+	case *textBlock:
+		block.endLine(n, amount)
+	case *quoteBlock:
+		block.endLine(n, amount)
+	case *codeBlock:
+		block.text.endLine(n, amount)
+	default:
+		s.block.finalizeBlock()
+	}
 }
 
 // nodeNextSibling returns the node's next sibling in the whole tree, not just

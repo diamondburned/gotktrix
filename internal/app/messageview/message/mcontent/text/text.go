@@ -2,10 +2,13 @@ package text
 
 import (
 	"context"
+	"html"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/md"
 )
 
@@ -19,20 +22,46 @@ type RenderMetadata struct {
 	URLs []string
 }
 
+// RenderWidgetter extends a Widgetter.
+type RenderWidgetter interface {
+	gtk.Widgetter
+	SetExtraMenu(model gio.MenuModeller)
+}
+
+// RenderWidget describes the output of the render including the widget that
+// contains the rendered information.
+type RenderWidget struct {
+	RenderWidgetter
+	RenderMetadata
+}
+
 // RenderText renders the given plain text.
-func RenderText(ctx context.Context, tview *gtk.TextView, text string) RenderMetadata {
-	body := strings.Trim(text, "\n")
-	tbuf := tview.Buffer()
-	tbuf.SetText(body)
+func RenderText(ctx context.Context, text string) RenderWidget {
+	text = strings.Trim(text, "\n")
+
+	body := gtk.NewLabel("")
+	body.AddCSSClass("mcontent-plain-text")
+	body.SetSelectable(true)
+	body.SetWrap(true)
+	body.SetWrapMode(pango.WrapWordChar)
+	body.SetXAlign(0)
 
 	var meta RenderMetadata
 
-	if md.IsUnicodeEmoji(body) {
-		start, end := tbuf.Bounds()
-		tbuf.ApplyTag(md.TextTags.FromTable(tbuf.TagTable(), "_emoji"), start, end)
+	if md.IsUnicodeEmoji(text) {
+		body.SetAttributes(md.EmojiAttrs)
+		body.SetText(text)
 	} else {
-		meta.URLs = autolink(tbuf)
+		if html, urls := hyperlink(html.EscapeString(text)); len(urls) > 0 {
+			meta.URLs = urls
+			body.SetMarkup(html)
+		} else {
+			body.SetText(text)
+		}
 	}
 
-	return meta
+	return RenderWidget{
+		RenderWidgetter: body,
+		RenderMetadata:  meta,
+	}
 }

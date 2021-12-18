@@ -31,7 +31,8 @@ type reactionBox struct {
 var reactionsCSS = cssutil.Applier("mcontent-reactions", `
 	.mcontent-reactions {
 		padding: 0;
-		margin:  0;
+		margin-top:    4px;
+		margin-bottom: 4px;
 	}
 	.mcontent-reaction {
 		padding: 0;
@@ -40,6 +41,12 @@ var reactionsCSS = cssutil.Applier("mcontent-reactions", `
 	.mcontent-reaction > button {
 		padding: 0px 4px;
 		margin:  0;
+	}
+	.mcontent-reaction > button {
+		background-color: mix(@theme_fg_color, @theme_base_color, 0.85);
+	}
+	.mcontent-reaction > button:hover {
+		background-color: mix(@theme_fg_color, @theme_base_color, 0.75);
 	}
 `)
 

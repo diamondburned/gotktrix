@@ -13,7 +13,6 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/compose"
@@ -342,22 +341,9 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		}
 	})
 
-	// Activator to focus on composer when typed on.
-	typingHandler := gtk.NewEventControllerKey()
-	// Run the handler at the last phase, after all key handlers have captured
-	// the event.
-	typingHandler.SetPropagationPhase(gtk.PhaseBubble)
-	typingHandler.ConnectKeyPressed(func(_, _ uint, state gdk.ModifierType) bool {
-		if state.Has(gdk.ControlMask) || state.Has(gdk.AltMask) {
-			// Probably a shortcut. Don't forward.
-			return false
-		}
-		input := page.Composer.Input()
-		input.GrabFocus()
-		typingHandler.Forward(input)
-		return true
-	})
-	page.list.AddController(typingHandler)
+	// Focus and forward all typing events from the message list to the input
+	// composer.
+	gtkutil.ForwardTyping(page.list, page.Composer.Input())
 
 	return &page
 }

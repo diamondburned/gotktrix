@@ -1,8 +1,11 @@
 package section
 
 import (
+	"context"
+
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 var iconButtonCSS = cssutil.Applier("roomlist-iconbutton", `
@@ -89,17 +92,19 @@ func revealIconName(rev bool) string {
 
 type minifyButton struct {
 	iconButton
-	labelFn func(bool) string
+	ctx   context.Context
+	nFunc func() (int, bool)
 }
 
-func newMinifyButton(minify bool) *minifyButton {
+func newMinifyButton(ctx context.Context, minify bool) *minifyButton {
 	button := newIconButton("", minifyIconName(minify))
 	button.SetActive(!minify)
 	button.AddCSSClass("roomlist-showmore")
 
 	return &minifyButton{
 		*button,
-		nil,
+		ctx,
+		func() (int, bool) { return 0, true },
 	}
 }
 
@@ -119,15 +124,25 @@ func (b *minifyButton) SetMinified(minified bool) {
 	b.Invalidate()
 }
 
-// SetLabelFunc sets the function to generate the label.
-func (b *minifyButton) SetLabelFunc(labelFunc func(bool) string) {
-	b.labelFn = labelFunc
-	b.Invalidate()
+func (b *minifyButton) SetFunc(f func() (nHidden int, minify bool)) {
+	b.nFunc = f
 }
 
 func (b *minifyButton) Invalidate() {
 	minified := b.IsMinified()
+	nHidden, shouldMinify := b.nFunc()
 
-	b.label.SetLabel(b.labelFn(minified))
+	if !shouldMinify {
+		b.Hide()
+		return
+	}
+
+	b.Show()
+
+	if minified {
+		b.label.SetLabel(locale.Sprintf(b.ctx, "Show %d more", nHidden))
+	} else {
+		b.label.SetLabel(locale.S(b.ctx, "Show less"))
+	}
 	b.icon.SetFromIconName(minifyIconName(minified))
 }

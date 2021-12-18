@@ -27,16 +27,16 @@ var videoCSS = cssutil.Applier("mcontent-video", `
 		margin:  0;
 		margin-top: 6px;
 	}
-	.mcontent-videoplay {
+	.mcontent-video-preview {
+		background-color: black;
+	}
+	.mcontent-video-play-icon {
 		background-color: alpha(@theme_bg_color, 0.85);
 		border-radius: 999px;
 	}
-	.mcontent-videoplay:hover,
-	.mcontent-videoplay:active {
+	.mcontent-video:hover  .mcontent-video-play-icon,
+	.mcontent-video:active .mcontent-video-play-icon {
 		background-color: @theme_selected_bg_color;
-	}
-	.mcontent-video picture {
-		background-color: black;
 	}
 `)
 
@@ -44,6 +44,7 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 	client := gotktrix.FromContext(ctx).Offline()
 
 	preview := gtk.NewPicture()
+	preview.AddCSSClass("mcontent-video-preview")
 	preview.SetCanShrink(true)
 	preview.SetCanFocus(false)
 	preview.SetKeepAspectRatio(true)
@@ -62,24 +63,27 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 
 	preview.SetSizeRequest(w, h)
 
-	play := gtk.NewButtonFromIconName("media-playback-start-symbolic")
-	play.SetHAlign(gtk.AlignCenter)
-	play.SetVAlign(gtk.AlignCenter)
-	play.AddCSSClass("mcontent-videoplay")
+	playIcon := gtk.NewImageFromIconName("media-playback-start-symbolic")
+	playIcon.AddCSSClass("mcontent-video-play-icon")
+	playIcon.SetHAlign(gtk.AlignCenter)
+	playIcon.SetVAlign(gtk.AlignCenter)
+	playIcon.SetIconSize(gtk.IconSizeLarge)
 
 	ov := gtk.NewOverlay()
 	ov.SetHAlign(gtk.AlignStart)
-	ov.AddCSSClass("mcontent-video")
-	ov.AddOverlay(play)
+	ov.AddOverlay(playIcon)
 	ov.SetChild(preview)
 
-	play.Connect("clicked", func() {
+	play := gtk.NewButtonFromIconName("media-playback-start-symbolic")
+	play.AddCSSClass("mcontent-video")
+	play.SetChild(ov)
+
+	play.ConnectClicked(func() {
 		u, err := client.MessageMediaURL(msg)
 		if err != nil {
 			log.Println("video URL error:", err)
 			return
 		}
-
 		app.OpenURI(ctx, u)
 	})
 
