@@ -123,7 +123,7 @@ func LinkTags() TextTagsMap {
 	m.SetTagAttr("a:hover", "foreground", rgbHex(link)+"FF")
 
 	s.SetState(gtk.StateFlagVisited)
-	m.SetTagAttr("a:visited", "foreground-rgba", s.Color())
+	m.SetTagAttr("a:visited", "foreground", rgbHex(s.Color()))
 
 	// Trick to cache this function shortly.
 	cachedLinkTags = m
