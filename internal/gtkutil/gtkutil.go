@@ -119,18 +119,6 @@ func OnFirstDraw(w gtk.Widgetter, f func()) {
 	})
 }
 
-// MapSubscriber maps any subscriber callback that can unsubscribe to a widget's
-// map and unmap signals.
-func MapSubscriber(w gtk.Widgetter, sub func() (unsub func())) {
-	var unsub func()
-	w.Connect("map", func() {
-		unsub = sub()
-	})
-	w.Connect("unmap", func() {
-		unsub()
-	})
-}
-
 // SignalToggler is a small helper to allow binding the same signal to different
 // objects while unbinding the previous one.
 func SignalToggler(signal string, f interface{}) func(obj glib.Objector) {

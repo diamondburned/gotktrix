@@ -71,21 +71,16 @@ func NewAvatar(ctx context.Context, roomID matrix.RoomID) *Avatar {
 	avatar := Avatar{
 		Button: button,
 		avatar: avy,
-		ctx:    gtkutil.WithCanceller(ctx),
+		ctx:    gtkutil.WithVisibility(ctx, button),
 		rID:    roomID,
 	}
 
-	invalidate := func() {
-		avatar.ctx.Renew()
-		avatar.invalidate()
-	}
-
-	gtkutil.MapSubscriber(button, func() func() {
-		invalidate()
+	avatar.ctx.OnRenew(func(ctx context.Context) func() {
+		avatar.invalidate(ctx)
 
 		return client.SubscribeRoomStateKey(
 			roomID, event.TypeRoomMember, string(uID),
-			func() { glib.IdleAdd(invalidate) },
+			func() { glib.IdleAdd(func() { avatar.invalidate(ctx) }) },
 		)
 	})
 
@@ -99,8 +94,8 @@ func NewAvatar(ctx context.Context, roomID matrix.RoomID) *Avatar {
 	return &avatar
 }
 
-func (a *Avatar) invalidate() {
-	client := gotktrix.FromContext(a.ctx).Offline()
+func (a *Avatar) invalidate(ctx context.Context) {
+	client := gotktrix.FromContext(ctx).Offline()
 	uID, _ := client.Whoami()
 
 	markup := mauthor.Markup(client, a.rID, uID, mauthor.WithMinimal())

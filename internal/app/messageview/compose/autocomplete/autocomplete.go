@@ -248,14 +248,16 @@ func (a *Autocompleter) hide() {
 }
 
 func (a *Autocompleter) show() {
-	rect := a.tview.IterLocation(a.end)
-	x, y := a.tview.BufferToWindowCoords(gtk.TextWindowWidget, rect.X(), rect.Y())
-
-	ptTo := gdk.NewRectangle(x, y, 1, 1)
-	a.popover.SetPointingTo(&ptTo)
-
 	if !a.poppedUp {
 		a.poppedUp = true
+
+		// Put the popover at the start of the word so we can avoid shifting the
+		// popover, otherwise it gets a bit annoying.
+		rect := a.tview.IterLocation(a.start)
+		x, y := a.tview.BufferToWindowCoords(gtk.TextWindowWidget, rect.X(), rect.Y())
+
+		ptTo := gdk.NewRectangle(x, y, 1, 1)
+		a.popover.SetPointingTo(&ptTo)
 		a.popover.Popup()
 	}
 }

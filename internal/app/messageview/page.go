@@ -109,7 +109,7 @@ type Page struct {
 
 	name    string
 	onTitle func(title string)
-	ctx     gtkutil.Cancellable
+	ctx     gtkutil.Canceller
 
 	parent *View
 	pager  *gotktrix.RoomPaginator
@@ -273,14 +273,15 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	// main widget
 	page.Widgetter = page.main
 
-	gtkutil.MapSubscriber(page, func() func() {
+	page.ctx.OnRenew(func(context.Context) func() {
 		return parent.client.SubscribeTimeline(roomID, func(r *event.RawEvent) {
 			glib.IdleAdd(func() { page.OnRoomEvent(r) })
 		})
 	})
 
-	gtkutil.MapSubscriber(page, func() func() {
-		return parent.client.SubscribeRoom(roomID, event.TypeTyping, func(e event.Event) {
+	page.ctx.OnRenew(func(context.Context) func() {
+		client := gotktrix.FromContext(ctx)
+		return client.SubscribeRoom(roomID, event.TypeTyping, func(e event.Event) {
 			ev := e.(event.TypingEvent)
 			if len(ev.UserID) == 0 {
 				page.extra.Clear()
@@ -294,7 +295,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 			names := make([]string, len(ev.UserID))
 			for i, id := range ev.UserID {
-				author := mauthor.Markup(parent.client, roomID, id, mauthor.WithMinimal())
+				author := mauthor.Markup(client, roomID, id, mauthor.WithMinimal())
 				names[i] = "<b>" + author + "</b>"
 			}
 
@@ -303,7 +304,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 
 			switch len(names) {
 			case 0:
-				page.extra.SetMarkup("")
+				glib.IdleAdd(func() { page.extra.SetMarkup("") })
 				return
 			case 1:
 				msg = p.Sprintf("%s is typing...", names[0])
@@ -315,7 +316,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 				msg = p.Sprintf("Several people are typing...")
 			}
 
-			page.extra.SetMarkup(msg)
+			glib.IdleAdd(func() { page.extra.SetMarkup(msg) })
 		})
 	})
 
@@ -327,7 +328,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		}
 	})
 
-	gtkutil.MapSubscriber(page, func() func() {
+	page.ctx.OnRenew(func(ctx context.Context) func() {
 		w := app.Window(ctx)
 		h := w.Connect("notify::is-active", func() {
 			if w.IsActive() && page.scroll.IsBottomed() {
@@ -374,7 +375,7 @@ func (p *Page) RoomName() string {
 
 // RoomTopic returns the room's topic name.
 func (p *Page) RoomTopic() string {
-	client := gotktrix.FromContext(p.ctx).Offline()
+	client := gotktrix.FromContext(p.ctx.Take()).Offline()
 
 	e, _ := client.RoomState(p.roomID, event.TypeRoomTopic, "")
 	if e != nil {
@@ -413,7 +414,7 @@ func (p *Page) lastRow() *gtk.ListBoxRow {
 
 // MarkAsRead marks the room as read.
 func (p *Page) MarkAsRead() {
-	if !p.IsActive() || !p.scroll.IsBottomed() || !app.Window(p.ctx).IsActive() {
+	if !p.IsActive() || !p.scroll.IsBottomed() || !app.Window(p.ctx.Take()).IsActive() {
 		return
 	}
 

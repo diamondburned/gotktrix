@@ -16,6 +16,7 @@ import (
 type markupOpts struct {
 	hasher    ColorHasher
 	at        bool
+	shade     bool
 	minimal   bool
 	multiline bool
 }
@@ -30,6 +31,13 @@ type MarkupMod func(opts *markupOpts)
 func WithMinimal() MarkupMod {
 	return func(opts *markupOpts) {
 		opts.minimal = true
+	}
+}
+
+// WithShade renders the markup with a background shade.
+func WithShade() MarkupMod {
+	return func(opts *markupOpts) {
+		opts.shade = true
 	}
 }
 
@@ -119,10 +127,17 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 
 	b := strings.Builder{}
 	b.Grow(512)
-	b.WriteString(fmt.Sprintf(
-		`<span color="%s">%s</span>`,
-		userColor(uID, opts), html.EscapeString(name),
-	))
+	if opts.shade {
+		b.WriteString(fmt.Sprintf(
+			`<span color="%s" bgcolor="%[1]s33">%s</span>`,
+			userColor(uID, opts), html.EscapeString(name),
+		))
+	} else {
+		b.WriteString(fmt.Sprintf(
+			`<span color="%s">%s</span>`,
+			userColor(uID, opts), html.EscapeString(name),
+		))
+	}
 
 	if opts.minimal {
 		return b.String()
@@ -188,8 +203,12 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 
 	tag := tags.Lookup("_mauthor_" + string(uID))
 	if tag == nil {
+		color := RGBHex(color)
 		attrs := markuputil.TextTag{
-			"foreground": RGBHex(color),
+			"foreground": color,
+		}
+		if opts.shade {
+			attrs["background"] = color + "33" // alpha
 		}
 		tag = attrs.Tag("_mauthor_" + string(uID))
 		tags.Add(tag)

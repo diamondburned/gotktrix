@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/md"
 )
 
@@ -105,6 +106,8 @@ matchLoop:
 // BindLinkHandler binds input handlers for triggering hyperlinks within the
 // TextView.
 func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
+	linkTags := markuputil.LinkTags()
+
 	checkURL := func(x, y float64) *EmbeddedURL {
 		bx, by := tview.WindowToBufferCoords(gtk.TextWindowWidget, int(x), int(y))
 		it, ok := tview.IterAtLocation(bx, by)
@@ -157,7 +160,7 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 			onURL(u.URL)
 
 			needIters()
-			tag := md.TextTags.FromTable(buf.TagTable(), "a:visited")
+			tag := linkTags.FromBuffer(buf, "a:visited")
 
 			iters[0].SetOffset(u.From)
 			iters[1].SetOffset(u.To)
@@ -201,7 +204,7 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 			iters[0].SetOffset(u.From)
 			iters[1].SetOffset(u.To)
 
-			hover := md.TextTags.FromTable(table, "a:hover")
+			hover := linkTags.FromTable(table, "a:hover")
 			buf.ApplyTag(hover, iters[0], iters[1])
 
 			lastURL = u

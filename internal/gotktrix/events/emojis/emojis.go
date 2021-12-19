@@ -93,7 +93,8 @@ func UserEmotes(c *gotktrix.Client) (UserEmotesEvent, error) {
 		return UserEmotesEvent{}, err
 	}
 
-	return e.(UserEmotesEvent), nil
+	ev, _ := e.(UserEmotesEvent)
+	return ev, nil
 }
 
 // RoomHasEmotes returns true if the room is known to have emojis.
@@ -109,5 +110,6 @@ func RoomEmotes(c *gotktrix.Client, roomID matrix.RoomID) (RoomEmotesEvent, erro
 		return RoomEmotesEvent{}, err
 	}
 
-	return e.(RoomEmotesEvent), nil
+	ev, _ := e.(RoomEmotesEvent)
+	return ev, nil
 }

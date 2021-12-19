@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"hash/fnv"
 	"html"
+	"image/color"
 	"log"
 	"math"
 	"strings"
 	"sync"
 
+	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 )
@@ -73,11 +76,86 @@ func ErrorLabel(markup string) *gtk.Label {
 	return errLabel
 }
 
+// RGBHex converts the given color to a HTML hex color string. The alpha value
+// is ignored.
+func RGBHex(c color.RGBA) string {
+	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
+}
+
+var knownLinkTags struct {
+	displays map[string]TextTagsMap
+}
+
+// m := TextTagsMap{
+// 	"a": {
+// 		"foreground":     "#238cf5" + alpha,
+// 		"insert-hyphens": false,
+// 	},
+// 	"a:hover": {
+// 		"foreground": "#238cf5",
+// 	},
+// 	"a:visited": {
+// 		"foreground": "#d38dff",
+// 	},
+// }
+
+// cachedLinkTags is cached for the duration of a single event loop.
+var cachedLinkTags TextTagsMap
+
+// LinkTags gets the text tags with colors for a, a:hover and a:visited. The
+// output of the function is cached for a short while, so the user doesn't have
+// to store it.
+func LinkTags() TextTagsMap {
+	if cachedLinkTags != nil {
+		return cachedLinkTags
+	}
+
+	linkButton := gtk.NewLinkButton("")
+	s := linkButton.StyleContext()
+
+	m := make(TextTagsMap, 3)
+	m.SetTagAttr("a", "insert-hyphens", false)
+
+	s.SetState(gtk.StateFlagLink)
+	link := s.Color()
+	// 85% opacity unhovered; 100% opacity hovered.
+	m.SetTagAttr("a", "foreground", rgbHex(link)+"CC")
+	m.SetTagAttr("a:hover", "foreground", rgbHex(link)+"FF")
+
+	s.SetState(gtk.StateFlagVisited)
+	m.SetTagAttr("a:visited", "foreground-rgba", s.Color())
+
+	// Trick to cache this function shortly.
+	cachedLinkTags = m
+	glib.IdleAddPriority(glib.PriorityLow, func() { cachedLinkTags = nil })
+
+	return m
+}
+
+func rgbHex(rgba *gdk.RGBA) string {
+	return RGBHex(color.RGBA{
+		R: uint8(0xFF * rgba.Red()),
+		G: uint8(0xFF * rgba.Green()),
+		B: uint8(0xFF * rgba.Blue()),
+	})
+}
+
 // TextTagsMap describes a map of tag names to its attributes. It is used to
 // declaratively construct a TextTagTable using NewTextTags.
 type TextTagsMap map[string]TextTag
 
 func isInternalKey(k string) bool { return strings.HasPrefix(k, "__internal") }
+
+// SetTagAttr sets the attribute/property of the tag with the given name.
+func (m TextTagsMap) SetTagAttr(name, attr string, value interface{}) {
+	tag, ok := m[name]
+	if !ok {
+		tag = make(TextTag, 3)
+		m[name] = tag
+	}
+
+	tag[attr] = value
+}
 
 // Combine adds all tags from other into m. If m already contains a tag that
 // appears in other, then the tag is not overridden.
@@ -92,6 +170,11 @@ func (m TextTagsMap) Combine(other TextTagsMap) {
 			m[k] = v
 		}
 	}
+}
+
+// FromBuffer call FromTable on the buffer's tag table.
+func (m TextTagsMap) FromBuffer(buffer *gtk.TextBuffer, name string) *gtk.TextTag {
+	return m.FromTable(buffer.TagTable(), name)
 }
 
 // FromTable gets the tag with the given name from the given tag table, or if

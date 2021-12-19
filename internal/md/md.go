@@ -116,16 +116,6 @@ var TextTags = markuputil.TextTagsMap{
 		"family":         "Monospace",
 		"insert-hyphens": false,
 	},
-	"a": {
-		"foreground":     "#238cf5",
-		"insert-hyphens": false,
-	},
-	"a:hover": { // TODO
-		"underline": pango.UnderlineSingle,
-	},
-	"a:visited": {
-		"foreground": "#d38dff",
-	},
 	"caption": {
 		"weight": pango.WeightLight,
 		"style":  pango.StyleItalic,
@@ -148,6 +138,7 @@ var TextTags = markuputil.TextTagsMap{
 	"_invisible": {"editable": false, "invisible": true},
 	"_immutable": {"editable": false},
 	"_emoji":     {"scale": EmojiScale},
+	"_image":     {"rise": -5 * pango.SCALE},
 }
 
 func htag(scale float64) markuputil.TextTag {
@@ -237,12 +228,15 @@ func AsyncInsertImage(
 	ctx context.Context, iter *gtk.TextIter, url string, w, h int, opts ...imgutil.Opts) {
 
 	buf := iter.Buffer()
-	mark := buf.CreateMark("", iter, false)
+	mark := buf.CreateMark("", iter, true)
 
 	setImg := func(p gdk.Paintabler) {
 		if p != nil && !mark.Deleted() {
 			// Insert the pixbuf at the location if mark is not deleted.
-			buf.InsertPaintable(buf.IterAtMark(mark), p)
+			miter := buf.IterAtMark(mark)
+			start := miter.Offset()
+			buf.InsertPaintable(miter, p)
+			buf.ApplyTag(TextTags.FromBuffer(buf, "_image"), buf.IterAtOffset(start), miter)
 		}
 	}
 

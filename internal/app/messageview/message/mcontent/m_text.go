@@ -15,6 +15,7 @@ import (
 
 type textContent struct {
 	*gtk.Box
+	roomID matrix.RoomID
 	render text.RenderWidget
 	embeds *gtk.Box
 
@@ -25,8 +26,9 @@ var _ editableContentPart = (*textContent)(nil)
 
 func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) *textContent {
 	c := textContent{
-		Box: gtk.NewBox(gtk.OrientationVertical, 0),
-		ctx: ctx,
+		Box:    gtk.NewBox(gtk.OrientationVertical, 0),
+		ctx:    ctx,
+		roomID: msgBox.RoomID,
 	}
 
 	body, isEdited := msgBody(msgBox)
@@ -57,7 +59,7 @@ func (c *textContent) setContent(body messageBody, isEdited bool) {
 
 	switch body.Format {
 	case event.FormatHTML:
-		c.render = text.RenderHTML(c.ctx, body.Body, body.FormattedBody)
+		c.render = text.RenderHTML(c.ctx, body.Body, body.FormattedBody, c.roomID)
 	default:
 		c.render = text.RenderText(c.ctx, body.Body)
 	}

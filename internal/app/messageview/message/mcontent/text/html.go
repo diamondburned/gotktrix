@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	smallEmojiSize = 18
+	smallEmojiSize = 20
 	largeEmojiSize = 48
 )
 
@@ -35,7 +35,7 @@ const (
 
 // RenderHTML tries rendering the HTML and falls back to using plain text if
 // the HTML doesn't work.
-func RenderHTML(ctx context.Context, text, html string) RenderWidget {
+func RenderHTML(ctx context.Context, text, html string, roomID matrix.RoomID) RenderWidget {
 	// If html is text, then just render it as plain text, because using the
 	// Label should yield much better performance than running it through the
 	// parser.
@@ -43,7 +43,7 @@ func RenderHTML(ctx context.Context, text, html string) RenderWidget {
 		return RenderText(ctx, html)
 	}
 
-	rw, ok := renderHTML(ctx, html)
+	rw, ok := renderHTML(ctx, roomID, html)
 	if !ok {
 		rw = RenderText(ctx, text)
 	}
@@ -76,7 +76,7 @@ func (b htmlBox) SetExtraMenu(model gio.MenuModeller) {
 }
 
 // renderHTML returns true if the HTML parsing and rendering is successful.
-func renderHTML(ctx context.Context, htmlBody string) (RenderWidget, bool) {
+func renderHTML(ctx context.Context, roomID matrix.RoomID, htmlBody string) (RenderWidget, bool) {
 	n, err := html.Parse(strings.NewReader(htmlBody))
 	if err != nil {
 		log.Println("invalid message HTML:", err)
@@ -89,6 +89,7 @@ func renderHTML(ctx context.Context, htmlBody string) (RenderWidget, bool) {
 	state := renderState{
 		block: newBlockState(ctx, box),
 		ctx:   ctx,
+		room:  roomID,
 		list:  0,
 		// TODO: detect unicode emojis.
 		large: !nodeHasText(n),
@@ -153,10 +154,11 @@ type renderState struct {
 	block currentBlockState
 
 	ctx  context.Context
-	list int
+	room matrix.RoomID
 
 	replyURL string
 
+	list  int
 	reply bool
 	pre   bool
 	large bool
@@ -251,8 +253,6 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			text := s.block.richText()
 			text.hasLink()
 
-			start := -1
-
 			href := nodeAttr(n, "href")
 			if unescaped, err := url.PathUnescape(href); err == nil {
 				// Unescape the URL if it is escaped.
@@ -265,44 +265,43 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				s.replyURL = href
 			}
 
-			// See if this is a user mention. If yes, then color it.
-			isMention := strings.HasPrefix(href, mentionURLPrefix)
+			// -1 means don't link
+			start := -1
+			color := false
 
-			if isMention {
-				if n := n.FirstChild; n.Type == html.TextNode {
-					// If this is a mention, then ensure that we have an at (@)
-					// character.
-					if !strings.HasPrefix(n.Data, "@") {
-						n.Data = "@" + n.Data
-					}
-				}
-			}
-
-			if isMention || urlIsSafe(href) {
-				// Only bother with adding a link tag if we know that the URL
-				// has a safe scheme.
+			switch {
+			// See if this is a user mention. If yes, then write our own texts.
+			case strings.HasPrefix(href, mentionURLPrefix):
+				// Make the mention a link as well.
 				start = text.iter.Offset()
+				// Format the user ID; the trimming will trim the at symbol so
+				// add it back.
+				uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
+				mauthor.Text(gotktrix.FromContext(s.ctx), text.iter, s.room, uID,
+					mauthor.WithWidgetColor(text),
+					mauthor.WithMention(),
+					mauthor.WithMinimal(),
+					mauthor.WithShade(),
+				)
+
+			// Only bother with adding a link tag if we know that the URL
+			// has a safe scheme.
+			case urlIsSafe(href):
+				start = text.iter.Offset()
+				color = true
+				s.traverseChildren(n)
 			}
 
-			s.renderChildren(n)
-
-			if start > -1 {
+			if start != -1 {
 				startIter := text.buf.IterAtOffset(start)
 				end := text.iter.Offset()
 
 				tag := text.emptyTag(embeddedURLPrefix + embedURL(start, end, href))
 				text.buf.ApplyTag(tag, startIter, text.iter)
 
-				if isMention {
-					// Format the user ID; the trimming will trim the at symbol.
-					uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
-					// Color the mention.
-					col := mauthor.UserColor(uID, mauthor.WithWidgetColor(text))
-					tag := markuputil.HashTag(text.buf.TagTable(), markuputil.TextTag{
-						"foreground": col,
-						"background": col + "33", // alpha
-					})
-					text.buf.ApplyTag(tag, startIter, text.iter)
+				if color {
+					a := markuputil.LinkTags().FromTable(text.table, "a")
+					text.buf.ApplyTag(a, startIter, text.iter)
 				}
 			}
 

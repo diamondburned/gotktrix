@@ -3,7 +3,6 @@ package gtkutil
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -22,20 +21,43 @@ func IdleCtx(ctx context.Context, f func()) {
 	})
 }
 
-// ContextTaker describes a context.Context that can be taken.
-type ContextTaker interface {
-	context.Context
-	// Take returns the current context. This is useful for dropping this
-	// context into a background task.
-	Take() context.Context
+// FuncBatch batches functions for calling.
+type FuncBatch struct {
+	funcs []func()
+}
+
+// FuncBatcher creates a new FuncBatch.
+func FuncBatcher() FuncBatch {
+	return FuncBatch{}
+}
+
+// F batches f.
+func (b *FuncBatch) F(f func()) { b.funcs = append(b.funcs, f) }
+
+// Done returns a function that executes the batch when invoked.
+func (b *FuncBatch) Done() func() {
+	return func() {
+		for _, f := range b.funcs {
+			f()
+		}
+	}
 }
 
 // Cancellable describes a renewable and cancelable context. It is primarily
 // used to box a context inside a widget for convenience.
 type Cancellable interface {
-	context.Context
-	ContextTaker
+	// Take returns the current context. This is useful for dropping this
+	// context into a background task.
+	Take() context.Context
+	// OnRenew adds a function to be called once the context is renewed. If the
+	// callback returns a non-nil function, then that function is called once
+	// the context is cancelled.
+	OnRenew(func(context.Context) (undo func())) (remove func())
+}
 
+// Canceller extends Cancellable to allow the user to control the context.
+type Canceller interface {
+	Cancellable
 	// Renew cancels the previous context, if any, and restarts that context
 	// using the one given into WithCanceller.
 	Renew()
@@ -48,15 +70,76 @@ type canceller struct {
 	mu  sync.Mutex
 	old context.Context
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx      context.Context
+	cancel   context.CancelFunc
+	renewFns renewFns
+}
+
+type renewFns struct {
+	mu      sync.Mutex
+	renewFn map[*funcKey]func() // -> undo
+}
+
+type funcKey struct{ f func(context.Context) func() }
+
+func (r *renewFns) doAll(ctx context.Context) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for k := range r.renewFn {
+		r.renewFn[k] = k.f(ctx)
+	}
+}
+
+func (r *renewFns) cancelAll() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for k, cancel := range r.renewFn {
+		if cancel != nil {
+			cancel()
+			r.renewFn[k] = nil
+		}
+	}
+}
+
+func (r *renewFns) add(ctx context.Context, f func(context.Context) func()) *funcKey {
+	k := &funcKey{f}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.init()
+	if ctx.Err() == nil {
+		r.renewFn[k] = f(ctx)
+	} else {
+		r.renewFn[k] = nil
+	}
+
+	return k
+}
+
+func (r *renewFns) init() {
+	if r.renewFn == nil {
+		r.renewFn = map[*funcKey]func(){}
+	}
+}
+
+func (r *renewFns) remove(k *funcKey) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delete(r.renewFn, k)
 }
 
 // WithVisibility creates a new context that is canceled when the widget is
 // hidden.
-func WithVisibility(ctx context.Context, widget gtk.Widgetter) Cancellable {
+func WithVisibility(ctx context.Context, widget gtk.Widgetter) Canceller {
 	c := WithCanceller(ctx)
 	w := gtk.BaseWidget(widget)
+	if !w.Mapped() && !w.Realized() {
+		c.Cancel()
+	}
 	w.ConnectMap(c.Renew)
 	w.ConnectRealize(c.Renew)
 	w.ConnectUnrealize(c.Cancel)
@@ -64,7 +147,7 @@ func WithVisibility(ctx context.Context, widget gtk.Widgetter) Cancellable {
 }
 
 // WithCanceller wraps around a context.
-func WithCanceller(ctx context.Context) Cancellable {
+func WithCanceller(ctx context.Context) Canceller {
 	old := ctx
 	ctx, cancel := context.WithCancel(old)
 
@@ -84,35 +167,33 @@ func (c *canceller) Take() context.Context {
 
 func (c *canceller) Cancel() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.cancel != nil {
-		c.cancel()
-		c.cancel = nil
+	if c.cancel == nil {
+		c.mu.Unlock()
+		return
 	}
+
+	c.cancel()
+	c.cancel = nil
+	c.mu.Unlock()
+
+	c.renewFns.cancelAll()
+}
+
+func (c *canceller) OnRenew(f func(context.Context) func()) func() {
+	k := c.renewFns.add(c.Take(), f)
+	return func() { c.renewFns.remove(k) }
 }
 
 func (c *canceller) Renew() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.cancel == nil {
-		c.ctx, c.cancel = context.WithCancel(c.old)
+	if c.cancel != nil {
+		c.mu.Unlock()
+		return
 	}
-}
 
-func (c *canceller) Done() <-chan struct{} {
-	return c.Take().Done()
-}
+	c.ctx, c.cancel = context.WithCancel(c.old)
+	ctx := c.ctx
+	c.mu.Unlock()
 
-func (c *canceller) Err() error {
-	return c.Take().Err()
-}
-
-func (c *canceller) Deadline() (time.Time, bool) {
-	return c.old.Deadline()
-}
-
-func (c *canceller) Value(k interface{}) interface{} {
-	return c.old.Value(k)
+	c.renewFns.doAll(ctx)
 }

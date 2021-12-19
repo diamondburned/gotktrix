@@ -185,6 +185,7 @@ func (b *textBlock) hasLink() {
 	if b.hyperlink {
 		return
 	}
+
 	b.hyperlink = true
 
 	BindLinkHandler(b.TextView, func(url string) {

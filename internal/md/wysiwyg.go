@@ -114,7 +114,8 @@ func (w *wysiwyg) enter(n ast.Node) ast.WalkStatus {
 		}
 
 	case *ast.Link:
-		w.markText(n, "a")
+		linkTags := markuputil.LinkTags()
+		w.markTextTags(n, linkTags.FromTable(w.table, "a"))
 		return ast.WalkSkipChildren
 
 	case *ast.CodeSpan:
@@ -152,6 +153,14 @@ func (w *wysiwyg) tag(tagName string) *gtk.TextTag {
 	return wysiwygTags.FromTable(w.table, wysiwygPrefix+tagName)
 }
 
+func (w *wysiwyg) tags(tagNames []string) []*gtk.TextTag {
+	tags := make([]*gtk.TextTag, len(tagNames))
+	for i, name := range tagNames {
+		tags[i] = w.tag(name)
+	}
+	return tags
+}
+
 func (w *wysiwyg) boundIsInvisible() bool {
 	if w.invisTag == nil {
 		w.invisTag = TextTags.FromTable(w.table, "_invisible")
@@ -178,10 +187,20 @@ func (w *wysiwyg) markText(n ast.Node, names ...string) {
 	w.markTextFunc(n, names, nil)
 }
 
-// markTextFunc is similar to markText, except the caller has control over the
-// head and tail iterators before the tags are applied. This is useful for block
-// elements.
+// markTextTags is the tag variant of markText.
+func (w *wysiwyg) markTextTags(n ast.Node, tags ...*gtk.TextTag) {
+	w.markTextTagsFunc(n, tags, nil)
+}
+
+// markTextFunc is similar to markText, except the caller has control over
+// the head and tail iterators before the tags are applied. This is useful for
+// block elements.
 func (w *wysiwyg) markTextFunc(n ast.Node, names []string, f func(h, t *gtk.TextIter)) {
+	w.markTextTagsFunc(n, w.tags(names), f)
+}
+
+// markTextTagsFunc is the tag variant of markTextFunc.
+func (w *wysiwyg) markTextTagsFunc(n ast.Node, tags []*gtk.TextTag, f func(h, t *gtk.TextIter)) {
 	WalkChildren(n, func(n ast.Node, enter bool) (ast.WalkStatus, error) {
 		text, ok := n.(*ast.Text)
 		if !ok {
@@ -196,8 +215,8 @@ func (w *wysiwyg) markTextFunc(n ast.Node, names []string, f func(h, t *gtk.Text
 				f(w.head, w.tail)
 			}
 
-			for _, name := range names {
-				w.buf.ApplyTag(w.tag(name), w.head, w.tail)
+			for _, tag := range tags {
+				w.buf.ApplyTag(tag, w.head, w.tail)
 			}
 		}
 

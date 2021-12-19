@@ -1,12 +1,13 @@
 package mauthor
 
 import (
-	"fmt"
 	"hash"
 	"hash/fnv"
 	"image/color"
 	"math"
 	"sync"
+
+	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
 // ColorHasher describes a string hasher that outputs a color.
@@ -41,7 +42,7 @@ var (
 // RGBHex converts the given color to a HTML hex color string. The alpha value
 // is ignored.
 func RGBHex(c color.RGBA) string {
-	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
+	return markuputil.RGBHex(c)
 }
 
 // HSVHasher describes a color hasher that accepts saturation and value

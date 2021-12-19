@@ -50,17 +50,21 @@ func (p NodePath) BucketExists(tx *bbolt.Tx) (*bbolt.Bucket, bool) {
 
 func (p NodePath) bucket(tx *bbolt.Tx, ro bool) (*bbolt.Bucket, error) {
 	if len(p) == 0 {
-		return getBucketRoot(tx, nil, ro)
+		b, err := getBucketRoot(tx, nil, ro)
+		if err != nil {
+			return nil, BucketError{err}
+		}
+		return b, nil
 	}
 
 	b, err := getBucketRoot(tx, p[0], ro)
 	if err != nil {
-		return nil, err
+		return nil, BucketError{err}
 	}
 
 	for _, path := range p[1:] {
 		if b, err = getBucket(b, path, ro); err != nil {
-			return nil, err
+			return nil, BucketError{err}
 		}
 	}
 

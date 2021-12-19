@@ -275,7 +275,9 @@ func (d EmojiData) Row(ctx context.Context) *gtk.ListBoxRow {
 
 		client := gotktrix.FromContext(ctx).Offline()
 		url, _ := client.SquareThumbnail(d.Custom.URL, emojiSize, gtkutil.ScaleFactor())
-		imgutil.AsyncGET(ctx, url, i.SetFromPaintable)
+		// Use a background context so we don't constantly thrash the server
+		// with cancelled requests every time we time.
+		imgutil.AsyncGET(context.Background(), url, i.SetFromPaintable)
 
 		b.Append(i)
 	}

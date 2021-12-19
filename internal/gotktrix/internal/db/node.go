@@ -9,7 +9,24 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// ErrKeyNotFound is returned if either a key or a bucket is not found.
 var ErrKeyNotFound = errors.New("key not found in database")
+
+// BucketError wraps an error for bucket traversal errors.
+type BucketError struct {
+	error
+}
+
+// Unwrap unwraps the BucketError.
+func (err BucketError) Unwrap() error {
+	return err.error
+}
+
+// IsBucketError returns true if the given error is a bucket error.
+func IsBucketError(err error) bool {
+	var bucketErr *BucketError
+	return errors.As(err, &bucketErr)
+}
 
 const nullKey = "\x00\x00"
 

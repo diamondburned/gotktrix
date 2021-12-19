@@ -143,6 +143,11 @@ func (s *State) RoomState(
 	raw := event.RawEvent{RoomID: roomID}
 
 	if err := n.Get(key, &raw); err != nil {
+		if errors.Is(err, db.ErrKeyNotFound) && !db.IsBucketError(err) {
+			// Room bucket exists but the event itself isn't there, so we know
+			// the event doesn't exist.
+			return nil, nil
+		}
 		return nil, err
 	}
 

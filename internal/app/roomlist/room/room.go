@@ -42,10 +42,11 @@ type Room struct {
 	unread  *gtk.Label
 	avatar  *adaptive.Avatar
 
-	ID   matrix.RoomID
-	Name string
+	ID        matrix.RoomID
+	Name      string
+	AvatarURL matrix.URL
 
-	ctx     gtkutil.ContextTaker
+	ctx     gtkutil.Cancellable
 	section Section
 
 	isUnread    bool
@@ -58,14 +59,14 @@ var rowCSS = cssutil.Applier("room-row", `
 	}
 	.room-row:hover,
 	.room-row:focus {
-		background: alpha(@theme_fg_color, .15);
+		background: @borders;
 	}
 	.room-row.room-active {
-		background-color: alpha(@theme_selected_bg_color, 0.45);
+		background-color: mix(@theme_selected_bg_color, @borders, 0.5); 
 	}
 	.room-row.room-active:hover,
 	.room-row.room-active:focus {
-		background: alpha(mix(@theme_fg_color, @theme_selected_bg_color, 0.5), .6);
+		background: mix(mix(@theme_selected_bg_color, @borders, 0.5), @theme_fg_color, 0.2);
 	}
 `)
 
@@ -195,7 +196,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		"open-in-tab":     func() { section.OpenRoomInTab(roomID) },
 		"prompt-reorder":  func() { r.promptReorder() },
 		"move-to-section": nil,
-		"add-emojis":      func() { emojiview.ForRoom(r.ctx, r.ID) },
+		"add-emojis":      func() { emojiview.ForRoom(r.ctx.Take(), r.ID) },
 	})
 
 	gtkutil.BindRightClick(row, func() {
@@ -217,24 +218,24 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		p.Popup()
 	})
 
-	client := gotktrix.FromContext(r.ctx).Offline()
+	client := gotktrix.FromContext(r.ctx.Take()).Offline()
 
 	// Bind the message handler to update itself.
-	gtkutil.MapSubscriber(row, func() func() {
+	r.ctx.OnRenew(func(ctx context.Context) func() {
+		// Not using ctx here is not perfect, but it doesn't really matter.
 		r.InvalidateName()
 		r.InvalidateAvatar()
 		r.InvalidatePreview()
 
-		f1 := client.SubscribeTimeline(roomID, func(event.RoomEvent) {
-			glib.IdleAdd(func() {
+		b := gtkutil.FuncBatcher()
+		b.F(client.SubscribeTimeline(roomID, func(event.RoomEvent) {
+			gtkutil.IdleCtx(ctx, func() {
 				r.InvalidatePreview()
-				r.setUnread(true)
 				r.section.InvalidateSort()
 			})
-		})
-
-		f2 := client.SubscribeRoomEvents(roomID, roomEvents, func(ev event.Event) {
-			glib.IdleAdd(func() {
+		}))
+		b.F(client.SubscribeRoomEvents(roomID, roomEvents, func(ev event.Event) {
+			gtkutil.IdleCtx(ctx, func() {
 				switch ev.(type) {
 				case event.RoomNameEvent, event.RoomCanonicalAliasEvent:
 					r.InvalidateName()
@@ -245,12 +246,9 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 					r.section.InvalidateSort()
 				}
 			})
-		})
+		}))
 
-		return func() {
-			f1()
-			f2()
-		}
+		return b.Done()
 	})
 
 	// Initialize drag-and-drop.
@@ -293,7 +291,12 @@ func (r *Room) SetActive(active bool) {
 // InvalidateName invalidates the room's name and refetches them from the state
 // or API.
 func (r *Room) InvalidateName() {
-	client := gotktrix.FromContext(r.ctx)
+	ctx := r.ctx.Take()
+	if ctx.Err() != nil {
+		return
+	}
+
+	client := gotktrix.FromContext(ctx)
 
 	n, err := client.Offline().RoomName(r.ID)
 	if err == nil && n != "Empty Room" {
@@ -312,14 +315,32 @@ func (r *Room) InvalidateName() {
 
 // InvalidateAvatar invalidates the room's avatar.
 func (r *Room) InvalidateAvatar() {
-	client := gotktrix.FromContext(r.ctx)
 	ctx := r.ctx.Take()
+	if ctx.Err() != nil {
+		return
+	}
+
+	client := gotktrix.FromContext(ctx)
+
+	mxc, _ := client.Offline().RoomAvatar(r.ID)
+	if mxc != nil {
+		if r.AvatarURL == *mxc {
+			return
+		}
+
+		r.AvatarURL = *mxc
+
+		url, _ := client.SquareThumbnail(*mxc, AvatarSize, gtkutil.ScaleFactor())
+		imgutil.AsyncGET(ctx, url, r.avatar.SetFromPaintable)
+	}
 
 	go func() {
 		mxc, _ := client.RoomAvatar(r.ID)
 		if mxc == nil {
 			return
 		}
+
+		glib.IdleAdd(func() { r.AvatarURL = *mxc })
 
 		url, _ := client.SquareThumbnail(*mxc, AvatarSize, gtkutil.ScaleFactor())
 		imgutil.GET(ctx, url, r.avatar.SetFromPaintable)
@@ -349,32 +370,43 @@ func (r *Room) erasePreview() {
 
 // InvalidatePreview invalidate the room's preview. It only queries the state.
 func (r *Room) InvalidatePreview() {
-	defer r.invalidateRead()
+	ctx := r.ctx.Take()
+	if ctx.Err() != nil {
+		return
+	}
 
 	if !r.showPreview {
 		r.erasePreview()
 		return
 	}
 
-	client := gotktrix.FromContext(r.ctx).Offline()
+	// Do this in a goroutine, since it might freeze up the UI thread trying to
+	// unmarshal a bunch of messages. This might make things arrive out of
+	// order, but honestly, whatever.
+	gtkutil.Async(ctx, func() func() {
+		client := gotktrix.FromContext(ctx)
 
-	first := client.State.LatestInTimeline(r.ID, event.TypeRoomMessage)
-	if first == nil {
-		first = client.State.LatestInTimeline(r.ID, "")
-	}
-	if first == nil {
-		r.erasePreview()
-		return
-	}
+		first := client.State.LatestInTimeline(r.ID, event.TypeRoomMessage)
+		if first == nil {
+			first = client.State.LatestInTimeline(r.ID, "")
+		}
+		if first == nil {
+			return func() { r.erasePreview() }
+		}
 
-	preview := message.RenderEvent(r.ctx, gotktrix.WrapEventBox(first))
-	r.preview.SetMarkup(preview)
+		preview := message.RenderEvent(ctx, gotktrix.WrapEventBox(first))
 
-	count := countUnreadFmt(client, r.ID)
-	r.unread.SetText(count)
+		return func() {
+			r.preview.SetMarkup(preview)
 
-	r.preview.SetTooltipMarkup(preview)
-	r.preview.Show()
+			count := countUnreadFmt(client, r.ID)
+			r.setUnread(count != "")
+			r.unread.SetText(count)
+
+			r.preview.SetTooltipMarkup(preview)
+			r.preview.Show()
+		}
+	})
 }
 
 func countUnreadFmt(client *gotktrix.Client, roomID matrix.RoomID) string {
@@ -409,23 +441,6 @@ func countUnreadFmt(client *gotktrix.Client, roomID matrix.RoomID) string {
 	return s
 }
 
-// invalidateRead invalidates the read state of this room.
-func (r *Room) invalidateRead() {
-	client := gotktrix.FromContext(r.ctx)
-
-	if unread, ok := client.Offline().RoomIsUnread(r.ID); ok {
-		r.setUnread(unread)
-		return
-	}
-
-	go func() {
-		unread, ok := client.RoomIsUnread(r.ID)
-		if ok {
-			glib.IdleAdd(func() { r.setUnread(unread) })
-		}
-	}()
-}
-
 func (r *Room) setUnread(unread bool) {
 	// If the room is currently selected, then don't mark it as unread.
 	if unread && r.IsSelected() {
@@ -457,13 +472,18 @@ func (r *Room) IsUnread() bool {
 func (r *Room) SetOrder(order float64) {
 	r.SetSensitive(false)
 
-	go func() {
-		defer glib.IdleAdd(func() {
+	ctx := r.ctx.Take()
+	if ctx.Err() != nil {
+		return
+	}
+
+	gtkutil.Async(ctx, func() func() {
+		f := func() {
 			r.SetSensitive(true)
 			r.section.InvalidateSort()
-		})
+		}
 
-		client := gotktrix.FromContext(r.ctx)
+		client := gotktrix.FromContext(ctx)
 
 		tag := matrix.Tag{}
 		if order >= 0 && order <= 1 {
@@ -471,21 +491,23 @@ func (r *Room) SetOrder(order float64) {
 		}
 
 		if err := client.TagAdd(r.ID, r.section.Tag(), tag); err != nil {
-			app.Error(r.ctx, errors.Wrap(err, "failed to update tag"))
-			return
+			app.Error(ctx, errors.Wrap(err, "failed to update tag"))
+			return f
 		}
 
 		if err := client.UpdateRoomTags(r.ID); err != nil {
-			app.Error(r.ctx, errors.Wrap(err, "failed to update tag state"))
-			return
+			app.Error(ctx, errors.Wrap(err, "failed to update tag state"))
+			return f
 		}
-	}()
+
+		return f
+	})
 }
 
 // Order returns the current room's order number, or -1 if the room doesn't have
 // one.
 func (r *Room) Order() float64 {
-	e, err := gotktrix.FromContext(r.ctx).Offline().RoomEvent(r.ID, event.TypeTag)
+	e, err := gotktrix.FromContext(r.ctx.Take()).Offline().RoomEvent(r.ID, event.TypeTag)
 	if err == nil {
 		t, ok := e.(event.TagEvent).Tags[r.section.Tag()]
 		if ok && t.Order != nil {
@@ -518,7 +540,8 @@ var reorderDialog = cssutil.Applier("room-reorderdialog", `
 `)
 
 func (r *Room) promptReorder() {
-	msg := locale.S(r.ctx, localemsg.Key("reorder-help", reorderHelp))
+	ctx := r.ctx.Take()
+	msg := locale.S(ctx, localemsg.Key("reorder-help", reorderHelp))
 
 	help := gtk.NewLabel(clean(msg))
 	help.SetUseMarkup(true)
@@ -568,9 +591,9 @@ func (r *Room) promptReorder() {
 	reorderDialog(box)
 
 	dialog := dialogs.New(
-		app.Window(r.ctx),
-		locale.Sprint(r.ctx, "Discard"),
-		locale.Sprint(r.ctx, "Save"),
+		app.Window(ctx),
+		locale.S(ctx, "Discard"),
+		locale.S(ctx, "Save"),
 	)
 	dialog.SetDefaultSize(500, 225)
 	dialog.SetChild(box)
@@ -612,7 +635,7 @@ var moveToSectionCSS = cssutil.Applier("room-movetosection", `
 `)
 
 func (r *Room) moveToSectionBox() gtk.Widgetter {
-	header := gtk.NewLabel(locale.Sprint(r.ctx, "Section Name"))
+	header := gtk.NewLabel(locale.Sprint(r.ctx.Take(), "Section Name"))
 	header.SetXAlign(0)
 	header.SetAttributes(markuputil.Attrs(
 		pango.NewAttrWeight(pango.WeightBold),

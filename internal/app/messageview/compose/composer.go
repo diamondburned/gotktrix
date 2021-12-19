@@ -16,8 +16,9 @@ import (
 // Composer is a message composer.
 type Composer struct {
 	*gtk.Box
-	input *Input
-	send  *gtk.Button
+	iscroll *gtk.ScrolledWindow
+	input   *Input
+	send    *gtk.Button
 
 	ctx context.Context
 }
@@ -87,6 +88,14 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 	more.AddCSSClass("composer-more")
 
 	input := NewInput(ctx, ctrl, roomID)
+	input.SetVScrollPolicy(gtk.ScrollNatural)
+
+	iscroll := gtk.NewScrolledWindow()
+	iscroll.AddCSSClass("composer-input-scroll")
+	iscroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	iscroll.SetPropagateNaturalHeight(true)
+	iscroll.SetMaxContentHeight(500)
+	iscroll.SetChild(input)
 
 	send := gtk.NewButtonFromIconName(sendIcon)
 	send.SetTooltipText("Send")
@@ -96,16 +105,17 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	box.Append(more)
-	box.Append(input)
+	box.Append(iscroll)
 	box.Append(send)
-	box.SetFocusChild(input)
+	box.SetFocusChild(iscroll)
 	composerCSS(box)
 
 	c := Composer{
-		Box:   box,
-		input: input,
-		send:  send,
-		ctx:   ctx,
+		Box:     box,
+		input:   input,
+		iscroll: iscroll,
+		send:    send,
+		ctx:     ctx,
 	}
 
 	gtkutil.BindActionMap(box, "composer", map[string]func(){

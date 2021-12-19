@@ -177,7 +177,8 @@ func SelfPronouns(c *gotktrix.Client) Preferred {
 		return Preferred{}
 	}
 
-	return e.(SelfPronounsEvent).Self
+	ev, _ := e.(SelfPronounsEvent)
+	return ev.Self
 }
 
 // UserPronouns searches the room for the given user's preferred pronouns. If

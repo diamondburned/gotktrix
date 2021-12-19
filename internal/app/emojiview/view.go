@@ -37,7 +37,7 @@ type View struct {
 	emojis map[emojis.EmojiName]emoji
 	roomID matrix.RoomID // empty if user, constant
 
-	ctx    gtkutil.Cancellable
+	ctx    gtkutil.Canceller
 	client *gotktrix.Client
 }
 
@@ -343,7 +343,7 @@ func (v *View) promptRenameEmojis(names []emojis.EmojiName) {
 	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	scroll.SetChild(listBox)
 
-	dialog := dialogs.New(app.Window(v.ctx), "Cancel", "Save")
+	dialog := dialogs.New(app.Window(v.ctx.Take()), "Cancel", "Save")
 	dialog.SetDefaultSize(300, 240)
 	dialog.SetTitle("Rename Emojis")
 	dialog.SetChild(scroll)
