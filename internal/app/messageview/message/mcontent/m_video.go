@@ -33,6 +33,7 @@ var videoCSS = cssutil.Applier("mcontent-video", `
 	.mcontent-video-play-icon {
 		background-color: alpha(@theme_bg_color, 0.85);
 		border-radius: 999px;
+		padding: 8px;
 	}
 	.mcontent-video:hover  .mcontent-video-play-icon,
 	.mcontent-video:active .mcontent-video-play-icon {
@@ -76,6 +77,10 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 
 	play := gtk.NewButtonFromIconName("media-playback-start-symbolic")
 	play.AddCSSClass("mcontent-video")
+	play.SetHAlign(gtk.AlignStart)
+	play.SetOverflow(gtk.OverflowHidden)
+	play.SetHasFrame(false)
+	play.SetTooltipText(msg.Body)
 	play.SetChild(ov)
 
 	play.ConnectClicked(func() {
@@ -88,7 +93,7 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 	})
 
 	return videoContent{
-		Widgetter:    ov,
+		Widgetter:    play,
 		ctx:          ctx,
 		preview:      preview,
 		thumbnailURL: v.ThumbnailURL,
