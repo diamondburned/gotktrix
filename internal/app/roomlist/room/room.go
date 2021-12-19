@@ -222,15 +222,14 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 
 	// Bind the message handler to update itself.
 	r.ctx.OnRenew(func(ctx context.Context) func() {
-		// Not using ctx here is not perfect, but it doesn't really matter.
-		r.InvalidateName()
-		r.InvalidateAvatar()
-		r.InvalidatePreview()
+		r.InvalidateName(ctx)
+		r.InvalidateAvatar(ctx)
+		r.InvalidatePreview(ctx)
 
 		b := gtkutil.FuncBatcher()
 		b.F(client.SubscribeTimeline(roomID, func(event.RoomEvent) {
 			gtkutil.IdleCtx(ctx, func() {
-				r.InvalidatePreview()
+				r.InvalidatePreview(ctx)
 				r.section.InvalidateSort()
 			})
 		}))
@@ -238,11 +237,11 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 			gtkutil.IdleCtx(ctx, func() {
 				switch ev.(type) {
 				case event.RoomNameEvent, event.RoomCanonicalAliasEvent:
-					r.InvalidateName()
+					r.InvalidateName(ctx)
 				case event.RoomAvatarEvent:
-					r.InvalidateAvatar()
+					r.InvalidateAvatar(ctx)
 				case m.FullyReadEvent:
-					r.InvalidatePreview()
+					r.InvalidatePreview(ctx)
 					r.section.InvalidateSort()
 				}
 			})
@@ -290,12 +289,7 @@ func (r *Room) SetActive(active bool) {
 
 // InvalidateName invalidates the room's name and refetches them from the state
 // or API.
-func (r *Room) InvalidateName() {
-	ctx := r.ctx.Take()
-	if ctx.Err() != nil {
-		return
-	}
-
+func (r *Room) InvalidateName(ctx context.Context) {
 	client := gotktrix.FromContext(ctx)
 
 	n, err := client.Offline().RoomName(r.ID)
@@ -314,37 +308,39 @@ func (r *Room) InvalidateName() {
 }
 
 // InvalidateAvatar invalidates the room's avatar.
-func (r *Room) InvalidateAvatar() {
-	ctx := r.ctx.Take()
-	if ctx.Err() != nil {
-		return
-	}
-
+func (r *Room) InvalidateAvatar(ctx context.Context) {
 	client := gotktrix.FromContext(ctx)
 
-	mxc, _ := client.Offline().RoomAvatar(r.ID)
-	if mxc != nil {
-		if r.AvatarURL == *mxc {
-			return
+	mxc, err := client.Offline().RoomAvatar(r.ID)
+	if err == nil {
+		r.setAvatarURL(mxc)
+		if mxc != nil {
+			url, _ := client.SquareThumbnail(*mxc, AvatarSize, gtkutil.ScaleFactor())
+			imgutil.AsyncGET(ctx, url, r.avatar.SetFromPaintable)
 		}
-
-		r.AvatarURL = *mxc
-
-		url, _ := client.SquareThumbnail(*mxc, AvatarSize, gtkutil.ScaleFactor())
-		imgutil.AsyncGET(ctx, url, r.avatar.SetFromPaintable)
 	}
 
 	go func() {
 		mxc, _ := client.RoomAvatar(r.ID)
-		if mxc == nil {
-			return
+		glib.IdleAdd(func() { r.setAvatarURL(mxc) })
+
+		if mxc != nil {
+			url, _ := client.SquareThumbnail(*mxc, AvatarSize, gtkutil.ScaleFactor())
+			imgutil.GET(ctx, url, r.avatar.SetFromPaintable)
 		}
-
-		glib.IdleAdd(func() { r.AvatarURL = *mxc })
-
-		url, _ := client.SquareThumbnail(*mxc, AvatarSize, gtkutil.ScaleFactor())
-		imgutil.GET(ctx, url, r.avatar.SetFromPaintable)
 	}()
+}
+
+func (r *Room) setAvatarURL(mxc *matrix.URL) {
+	if mxc == nil {
+		r.AvatarURL = matrix.URL("")
+		r.avatar.SetFromPaintable(nil)
+		return
+	}
+	if r.AvatarURL == *mxc {
+		return
+	}
+	r.AvatarURL = *mxc
 }
 
 // setLabel sets the room name.
@@ -360,7 +356,7 @@ func (r *Room) setLabel(text string) {
 // preview.
 func (r *Room) SetShowMessagePreview(show bool) {
 	r.showPreview = show
-	r.InvalidatePreview()
+	r.InvalidatePreview(r.ctx.Take())
 }
 
 func (r *Room) erasePreview() {
@@ -369,12 +365,7 @@ func (r *Room) erasePreview() {
 }
 
 // InvalidatePreview invalidate the room's preview. It only queries the state.
-func (r *Room) InvalidatePreview() {
-	ctx := r.ctx.Take()
-	if ctx.Err() != nil {
-		return
-	}
-
+func (r *Room) InvalidatePreview(ctx context.Context) {
 	if !r.showPreview {
 		r.erasePreview()
 		return
