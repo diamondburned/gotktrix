@@ -10,7 +10,6 @@ import (
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/diamondburned/gotktrix/internal/md"
 )
 
 var allowedSchemes = map[string]struct{}{
@@ -92,7 +91,7 @@ matchLoop:
 		end.SetLine(line)
 		end.SetLineIndex(offset1)
 
-		a := md.TextTags.FromTable(table, "a")
+		a := markuputil.LinkTags().FromTable(table, "a")
 		buf.ApplyTag(a, start, end)
 
 		href := text[match[0]:match[1]]

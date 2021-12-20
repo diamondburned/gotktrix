@@ -403,6 +403,25 @@ func (p *Page) OnRoomEvent(raw *event.RawEvent) {
 	p.MarkAsRead()
 }
 
+// FocusLatestUserEventID returns the latest valid event ID of the current user
+// in the room or an empty string if none. It implements compose.Controller.
+func (p *Page) FocusLatestUserEventID() matrix.EventID {
+	userID := gotktrix.FromContext(p.ctx.Take()).UserID
+
+	row := p.list.LastChild().(*gtk.ListBoxRow)
+	for row != nil {
+		m, ok := p.messages[messageKey(row.Name())]
+		if ok && m.raw.Sender == userID {
+			m.row.GrabFocus()
+			return m.raw.ID
+		}
+		// This repeats until index is -1, at which the loop will break.
+		row = p.list.RowAtIndex(row.Index() - 1)
+	}
+
+	return ""
+}
+
 // lastRow returns the list's last row.
 func (p *Page) lastRow() *gtk.ListBoxRow {
 	w := p.list.LastChild()

@@ -184,7 +184,8 @@ func (i *Input) onKey(_ *gtk.EventControllerKey, val, code uint, state gdk.Modif
 		}
 		if i.buffer.CharCount() == 0 {
 			// Scan for the user's latest message and edit that, if there's any.
-			if eventID := i.ourLatestMessageID(); eventID != "" {
+			if eventID := i.ctrl.FocusLatestUserEventID(); eventID != "" {
+				i.TextView.GrabFocus()
 				i.ctrl.Edit(eventID)
 				return true
 			}
@@ -194,22 +195,6 @@ func (i *Input) onKey(_ *gtk.EventControllerKey, val, code uint, state gdk.Modif
 	}
 
 	return false
-}
-
-func (i *Input) ourLatestMessageID() matrix.EventID {
-	client := gotktrix.FromContext(i.ctx)
-	uID, _ := client.Whoami()
-	events, _ := client.RoomTimeline(i.roomID)
-
-	for i := len(events) - 1; i >= 0; i-- {
-		ev, ok := events[i].(event.RoomMessageEvent)
-		if !ok || ev.SenderID != uID {
-			continue
-		}
-		return ev.EventID
-	}
-
-	return ""
 }
 
 // SetText sets the given text (in raw Markdown format, preferably) into the

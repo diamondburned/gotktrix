@@ -26,10 +26,9 @@ type Composer struct {
 // Controller describes the parent component that the Composer controls.
 type Controller interface {
 	message.MessageViewer
-
-	ReplyTo(matrix.EventID)
-	Edit(matrix.EventID)
-
+	// FocusLatestUserEventID returns the latest event ID of the current user,
+	// or an empty string if none.
+	FocusLatestUserEventID() matrix.EventID
 	// AddSendingMessage adds the given RawEvent as a sending message and
 	// returns a mark that is given to BindSendingMessage.
 	AddSendingMessage(raw *event.RawEvent) (mark interface{})
