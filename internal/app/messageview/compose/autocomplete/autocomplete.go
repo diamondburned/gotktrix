@@ -9,6 +9,7 @@ import (
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
@@ -44,6 +45,7 @@ type Autocompleter struct {
 
 	searchers map[rune]Searcher
 
+	parent   context.Context
 	cancel   context.CancelFunc
 	timeout  time.Duration
 	poppedUp bool
@@ -73,22 +75,35 @@ const AutocompleterWidth = 250
 const MaxResults = 8
 
 // New creates a new instance of autocompleter.
-func New(text *gtk.TextView, f SelectedFunc) *Autocompleter {
+func New(ctx context.Context, text *gtk.TextView, f SelectedFunc) *Autocompleter {
 	list := gtk.NewListBox()
 	list.AddCSSClass("autocomplete-list")
 	list.SetActivateOnSingleClick(true)
 	list.SetSelectionMode(gtk.SelectionBrowse)
 
+	viewport := gtk.NewViewport(nil, nil)
+	viewport.SetVScrollPolicy(gtk.ScrollNatural)
+	viewport.SetScrollToFocus(true)
+	viewport.SetChild(list)
+
+	scroll := gtk.NewScrolledWindow()
+	scroll.AddCSSClass("autocomplete-list-scroll")
+	scroll.SetChild(viewport)
+	scroll.SetMinContentHeight(0)
+	scroll.SetMaxContentHeight(250)
+	scroll.SetPropagateNaturalHeight(true)
+
 	popover := gtk.NewPopover()
 	popover.AddCSSClass("autocomplete-popover")
-	popover.SetSizeRequest(AutocompleterWidth, 250)
+	popover.SetSizeRequest(AutocompleterWidth, -1)
 	popover.SetParent(text)
-	popover.SetChild(list)
+	popover.SetChild(scroll)
 	popover.SetPosition(gtk.PosTop)
 	popover.SetAutohide(false)
 	popover.Hide()
 
 	ac := Autocompleter{
+		parent:    ctx,
 		tview:     text,
 		buffer:    text.Buffer(),
 		onSelect:  f,
@@ -131,7 +146,7 @@ func popRune(s string) (rune, string) {
 
 // Autocomplete updates the Autocompleter popover to show what the internal
 // input buffer has.
-func (a *Autocompleter) Autocomplete(ctx context.Context) {
+func (a *Autocompleter) Autocomplete() {
 	if a.cancel != nil {
 		a.cancel()
 		a.cancel = nil
@@ -170,7 +185,8 @@ func (a *Autocompleter) Autocomplete(ctx context.Context) {
 	}
 
 	// cancelled on next run
-	ctx, a.cancel = context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(a.parent)
+	a.cancel = cancel
 
 	searchCtx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()
@@ -298,5 +314,12 @@ func (a *Autocompleter) move(down bool) bool {
 	}
 
 	a.listBox.SelectRow(a.listRows[ix].ListBoxRow)
+
+	// Steal focus. This is a hack to scroll to the selected item without having
+	// to manually calculate the coordinates.
+	focused := gtk.BaseWidget(app.Window(a.parent).Focus())
+	a.listRows[ix].ListBoxRow.GrabFocus()
+	focused.GrabFocus()
+
 	return true
 }

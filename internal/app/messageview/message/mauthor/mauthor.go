@@ -14,6 +14,7 @@ import (
 )
 
 type markupOpts struct {
+	textTag   markuputil.TextTag
 	hasher    ColorHasher
 	at        bool
 	shade     bool
@@ -70,6 +71,14 @@ func WithWidgetColor(w gtk.Widgetter) MarkupMod {
 		return WithColorHasher(LightColorHasher)
 	} else {
 		return WithColorHasher(DarkColorHasher)
+	}
+}
+
+// WithTextTagAttr sets the given attribute into the text tag used for the
+// author. It is only useful for Text.
+func WithTextTagAttr(attr markuputil.TextTag) MarkupMod {
+	return func(opts *markupOpts) {
+		opts.textTag = attr
 	}
 }
 
@@ -209,6 +218,11 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 		}
 		if opts.shade {
 			attrs["background"] = color + "33" // alpha
+		}
+		if opts.textTag != nil {
+			for k, v := range opts.textTag {
+				attrs[k] = v
+			}
 		}
 		tag = attrs.Tag("_mauthor_" + string(uID))
 		tags.Add(tag)

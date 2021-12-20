@@ -339,6 +339,13 @@ var codeBlockCSS = cssutil.Applier("mcontent-code-block", `
 	.mcontent-code-block {
 		background-color: @theme_base_color;
 	}
+	.mcontent-code-block scrollbar {
+		background: none;
+		border:     none;
+	}
+	.mcontent-code-block:active scrollbar {
+		opacity: 0.2;
+	}
 	.mcontent-code-block-text {
 		font-family: monospace;
 		padding: 4px;

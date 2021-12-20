@@ -75,11 +75,9 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	md.SetTabSize(tview)
 	inputCSS(tview)
 
-	buffer := tview.Buffer()
+	astate := newAutocompleteState(ctx, tview)
 
-	ac := autocomplete.New(tview, func(row autocomplete.SelectedData) bool {
-		return finishAutocomplete(ctx, tview, buffer, row)
-	})
+	ac := autocomplete.New(ctx, tview, astate.finish)
 	ac.SetTimeout(time.Second)
 	ac.Use(
 		autocomplete.NewRoomMemberSearcher(ctx, roomID), // @
@@ -91,9 +89,10 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	// It must be invalidated every time to buffer changes, because we don't
 	// want to risk
 
+	buffer := tview.Buffer()
 	buffer.Connect("changed", func(buffer *gtk.TextBuffer) {
 		md.WYSIWYG(ctx, buffer)
-		ac.Autocomplete(ctx)
+		ac.Autocomplete()
 	})
 
 	enterKeyer := gtk.NewEventControllerKey()
@@ -435,27 +434,89 @@ func customEmojiHTML(emoji autocomplete.EmojiData) string {
 	)
 }
 
-func finishAutocomplete(
-	ctx context.Context,
-	text *gtk.TextView,
-	buffer *gtk.TextBuffer,
-	row autocomplete.SelectedData) bool {
+type autocompleteState struct {
+	text   *gtk.TextView
+	buffer *gtk.TextBuffer
+	ctx    context.Context
+	pairs  [][2]*gtk.TextMark
+}
 
-	buffer.BeginUserAction()
-	defer buffer.EndUserAction()
+func iterEq(it1, it2 *gtk.TextIter) bool {
+	return it1.Offset() == it2.Offset()
+}
+
+func newAutocompleteState(ctx context.Context, text *gtk.TextView) *autocompleteState {
+	s := autocompleteState{
+		text:   text,
+		buffer: text.Buffer(),
+		ctx:    ctx,
+	}
+
+	// 	s.buffer.Connect("delete-range", func(start, end *gtk.TextIter) {
+	// 		// Range over the whole deleting region.
+	// 		for iter, ok := start.Copy(), true; ok; ok = iter.ForwardChar() {
+	// 			// Search for all marks within the deleted region.
+	// 			for _, mark := range start.Marks() {
+	// 				i := s.findMark(&mark)
+	// 				if i == -1 {
+	// 					continue
+	// 				}
+	// 				// Found a pair that's within the delete range. Delete both
+	// 				// marks.
+	// 				i1 := s.buffer.IterAtMark(s.pairs[i][0])
+	// 				i2 := s.buffer.IterAtMark(s.pairs[i][1])
+	// 				s.buffer.Delete(i1, i2)
+	// 				s.pairs = append(s.pairs[:i], s.pairs[i+1:]...)
+	// 			}
+	// 		}
+	// 	})
+
+	return &s
+}
+
+func (s *autocompleteState) findMark(mark *gtk.TextMark) int {
+	for i, pair := range s.pairs {
+		if glib.ObjectEq(mark, pair[0]) || glib.ObjectEq(mark, pair[1]) {
+			return i
+		}
+	}
+	return -1
+}
+
+func (s *autocompleteState) finish(row autocomplete.SelectedData) bool {
+	s.buffer.BeginUserAction()
+	defer s.buffer.EndUserAction()
 
 	// Delete the inserted text, which will equalize the two bounds. The
 	// caller will use bounds[1], so we use that to revalidate it.
-	buffer.Delete(row.Bounds[0], row.Bounds[1])
-
-	end := md.BeginImmutable(row.Bounds[1])
-	defer end()
+	s.buffer.Delete(row.Bounds[0], row.Bounds[1])
 
 	// TODO: use TextMarks instead, maybe?
+	// start := s.buffer.CreateMark("", row.Bounds[0], true)
+	// start.SetVisible(true)
+	// defer func() {
+	// 	// Save the end mark.
+	// 	end := s.buffer.CreateMark("", row.Bounds[1], true)
+	// 	end.SetVisible(true)
+	// 	log.Println("start =", s.buffer.IterAtMark(start).Offset())
+	// 	log.Println("end   =", s.buffer.IterAtMark(end).Offset())
+	// 	// Save the pair into the registry to be captured by the handler.
+	// 	s.pairs = append(s.pairs, [2]*gtk.TextMark{start, end})
+	// }()
+
+	// If this works as intended, then it's truly awesome. What this should do
+	// is that it'll prevent the user from deleting the inner segment, but the
+	// user can still delete the surrounding marks, which will wipe the segment
+	// using the signal handler.
+	//
+	// It doesn't.
 
 	switch data := row.Data.(type) {
 	case autocomplete.RoomMemberData:
-		client := gotktrix.FromContext(ctx).Offline()
+		client := gotktrix.FromContext(s.ctx).Offline()
+
+		mut := md.BeginImmutable(row.Bounds[1])
+		defer mut()
 
 		md.InsertInvisible(row.Bounds[1], fmt.Sprintf(
 			`<a href="https://matrix.to/#/%s">`,
@@ -463,19 +524,23 @@ func finishAutocomplete(
 		))
 		mauthor.Text(
 			client, row.Bounds[1], data.Room, data.ID,
-			mauthor.WithWidgetColor(text), mauthor.WithMention(),
+			mauthor.WithMention(),
+			mauthor.WithWidgetColor(s.text),
 		)
 		md.InsertInvisible(row.Bounds[1], "</a>")
 
 	case autocomplete.EmojiData:
 		if data.Unicode != "" {
 			// Unicode emoji means we can just insert it in plain text.
-			buffer.Insert(row.Bounds[1], data.Unicode)
+			s.buffer.Insert(row.Bounds[1], data.Unicode)
 		} else {
+			mut := md.BeginImmutable(row.Bounds[1])
+			defer mut()
+
 			// Queue inserting the pixbuf.
-			client := gotktrix.FromContext(ctx).Offline()
+			client := gotktrix.FromContext(s.ctx).Offline()
 			url, _ := client.SquareThumbnail(data.Custom.URL, inlineEmojiSize, gtkutil.ScaleFactor())
-			md.AsyncInsertImage(ctx, row.Bounds[1], url, inlineEmojiSize, inlineEmojiSize)
+			md.AsyncInsertImage(s.ctx, row.Bounds[1], url, inlineEmojiSize, inlineEmojiSize)
 			// Insert the HTML.
 			md.InsertInvisible(row.Bounds[1], customEmojiHTML(data))
 		}

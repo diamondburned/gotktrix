@@ -41,7 +41,7 @@ func WYSIWYG(ctx context.Context, buffer *gtk.TextBuffer) {
 
 	removeTags := make([]*gtk.TextTag, 0, w.table.Size())
 
-	w.table.Foreach(func(tag *gtk.TextTag) {
+	w.table.ForEach(func(tag *gtk.TextTag) {
 		if strings.HasPrefix(tag.ObjectProperty("name").(string), wysiwygPrefix) {
 			removeTags = append(removeTags, tag)
 		}

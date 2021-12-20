@@ -1,3 +1,5 @@
+// Package markuputil contains utilities for handling Pango markup and
+// TextBuffer shenanigans.
 package markuputil
 
 import (

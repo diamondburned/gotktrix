@@ -114,6 +114,8 @@ type RoomMemberSearcher struct {
 	queries []query.Query
 }
 
+const searchLimit = 25
+
 // SearchRoomMember returns a new instance of RoomMemberSearcher that the client
 // can use to search room members.
 func (idx *Indexer) SearchRoomMember(roomID matrix.RoomID, limit int) RoomMemberSearcher {
@@ -121,6 +123,7 @@ func (idx *Indexer) SearchRoomMember(roomID matrix.RoomID, limit int) RoomMember
 		idx:  idx.idx,
 		room: roomID,
 		size: limit,
+		res:  make([]IndexedRoomMember, 0, searchLimit),
 	}
 }
 
@@ -160,7 +163,7 @@ func (s *RoomMemberSearcher) Search(ctx context.Context, str string) []IndexedRo
 		})
 
 		s.req = bleve.NewSearchRequestOptions(and, s.size, 0, false)
-		s.req.Size = 50 // limit
+		s.req.Size = searchLimit
 		s.req.Fields = []string{"id", "room_id", "name"}
 		s.req.SortByCustom(search.SortOrder{
 			// Highest-scored results first.

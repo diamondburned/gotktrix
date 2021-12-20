@@ -104,6 +104,12 @@ type roomMemberSearcher struct {
 func (s *roomMemberSearcher) Rune() rune { return '@' }
 
 func (s *roomMemberSearcher) Search(ctx context.Context, str string) []Data {
+	// Refuse to search if the user hasn't inputted more than 2 characters. We
+	// have to do this because Bleve will freeze the client slightly otherwise.
+	if len(str) < 2 {
+		return nil
+	}
+
 	results := s.rms.Search(ctx, str)
 	if len(results) == 0 {
 		return nil

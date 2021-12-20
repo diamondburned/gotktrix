@@ -235,8 +235,11 @@ func AsyncInsertImage(
 			// Insert the pixbuf at the location if mark is not deleted.
 			miter := buf.IterAtMark(mark)
 			start := miter.Offset()
+
 			buf.InsertPaintable(miter, p)
 			buf.ApplyTag(TextTags.FromBuffer(buf, "_image"), buf.IterAtOffset(start), miter)
+
+			buf.DeleteMark(mark)
 		}
 	}
 

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/alecthomas/chroma"
 	"github.com/alecthomas/chroma/lexers"
@@ -290,7 +291,7 @@ func (f *formatter) discard() {
 func (f *formatter) resetTags() {
 	removeTags := make([]*gtk.TextTag, 0, f.tags.Size())
 
-	f.tags.Foreach(func(tag *gtk.TextTag) {
+	f.tags.ForEach(func(tag *gtk.TextTag) {
 		if strings.HasPrefix(tag.ObjectProperty("name").(string), hlPrefix) {
 			removeTags = append(removeTags, tag)
 		}
@@ -305,7 +306,7 @@ func (f *formatter) do(iter chroma.Iterator) {
 	offset := f.start.Offset()
 
 	for _, token := range iter.Tokens() {
-		end := offset + len(token.Value)
+		end := offset + utf8.RuneCountInString(token.Value)
 		tag := f.tag(token.Type)
 
 		if tag != nil {
