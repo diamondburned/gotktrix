@@ -39,7 +39,7 @@ List taken from the Features section of the
 - [x] Message editing
 - [ ] Room upgrades
 - [ ] Localizations (untested, outdated)
-- [ ] SSO Support
+- [x] SSO Support
 
 Additionally, the client implements:
 
