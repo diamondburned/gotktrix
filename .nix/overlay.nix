@@ -16,15 +16,20 @@ self: super: {
 	buildGoModule = super.buildGoModule.override {
 		inherit (self) go;
 	};
-	# gtk4 = super.gtk4.overrideAttrs (old: {
-	# 	version = "4.5.0-031aab3";
+
+	# CAUTION, for when I return: uncommenting these will trigger rebuilding a lot of Rust
+	# dependencies, which will take forever! Don't do it!
+
+	# gtk4 = (super.gtk4.override {
+	# 	meson = super.meson_0_60;
+	# }).overrideAttrs (old: {
+	# 	version = "4.5.1";
 	# 	src = super.fetchFromGitLab {
 	# 		domain = "gitlab.gnome.org";
 	# 		owner  = "GNOME";
 	# 		repo   = "gtk";
-	# 		# commit: Unrealize ATContext on unroot
-	# 		rev    = "031aab3ef6633dbea1ead675b0dbdbf562efe5ee";
-	# 		sha256 = "0rxc78p4qnwbcwdgkm2ks1nhz04qzyjivcw7iq1ypp5b2bwfvlys";
+	# 		rev    = "28f0e2eb";
+	# 		sha256 = "1l7a8mdnfn54n30y2ii3x8c5zs0nm5n1c90wbdz1iv8d5hqx0f16";
 	# 	};
 	# 	buildInputs = old.buildInputs ++ (with super; [ xorg.libXdamage ]);
 	# });

@@ -1,4 +1,10 @@
-{ pkgs ? import ./pkgs.nix {} }:
+{
+	pkgs ? import ./pkgs.nix {
+		# Use the fetched Nixpkgs for GTK 4.5.0. Not a strict requirement, but
+		# some bugs are fixed in that version.
+		useFetched = true;
+	}
+}:
 
 let src = import ./src.nix;
 
@@ -7,10 +13,15 @@ let src = import ./src.nix;
 	};
 
 in shell.overrideAttrs (old: {
-	buildInputs = old.buildInputs ++ (with pkgs; [
+	buildInputs = with pkgs; [
+		gtk4
 		gtk4.debug
+		glib
 		glib.debug
-	]);
+		graphene
+		gdk-pixbuf
+		gobjectIntrospection
+	];
 
 	# Workaround for the lack of wrapGAppsHook:
 	# https://nixos.wiki/wiki/Development_environment_with_nix-shell
