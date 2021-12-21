@@ -768,6 +768,23 @@
             "fuzzy": true
         },
         {
+            "id": "and {Lenpeople___max} more",
+            "message": "and {Lenpeople___max} more",
+            "translation": "and {Lenpeople___max} more",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Lenpeople___max",
+                    "string": "%[1]d",
+                    "type": "int",
+                    "underlyingType": "int",
+                    "argNum": 1,
+                    "expr": "len(people) - max"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
             "id": "Show {NHidden} more",
             "message": "Show {NHidden} more",
             "translation": "Show {NHidden} more",
@@ -779,7 +796,7 @@
                     "type": "int",
                     "underlyingType": "int",
                     "argNum": 1,
-                    "expr": "s.NHidden()"
+                    "expr": "nHidden"
                 }
             ],
             "fuzzy": true
