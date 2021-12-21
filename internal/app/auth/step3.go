@@ -1,48 +1,69 @@
 package auth
 
 import (
+	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
-type loginMethod uint8
-
-const (
-	loginPassword loginMethod = iota
-	loginToken
-)
-
-func methodToggler(a *Assistant, method loginMethod) func() {
+func methodToggler(a *Assistant, method matrix.LoginMethod) func() {
 	return func() { a.chooseLoginMethod(method) }
 }
 
-func chooseLoginStep(a *Assistant) *assistant.Step {
-	passwordLogin := gtk.NewButton()
-	passwordLogin.SetChild(bigSmallTitleBox(
-		"Username/Email",
-		"Log in using your username (or email) and password.",
-	))
-	passwordLogin.Connect("clicked", methodToggler(a, loginPassword))
+var supportedLoginMethods = map[matrix.LoginMethod]bool{
+	matrix.LoginPassword: true,
+	matrix.LoginToken:    true,
+	matrix.LoginSSO:      true,
+}
 
-	tokenLogin := gtk.NewButton()
-	tokenLogin.SetChild(bigSmallTitleBox(
-		"Token",
-		"Log in using your session token",
-	))
-	tokenLogin.Connect("clicked", methodToggler(a, loginToken))
-
+func chooseLoginStep(a *Assistant, methods []matrix.LoginMethod) *assistant.Step {
 	step := assistant.NewStep("Log in with", "")
 	step.CanBack = true
 
 	content := step.ContentArea()
 	content.SetOrientation(gtk.OrientationVertical)
 	content.SetSpacing(6)
-	content.Append(passwordLogin)
-	content.Append(tokenLogin)
+
+	if hasLoginMethod(methods, matrix.LoginPassword) {
+		content.Append(loginMethodButton(a, matrix.LoginPassword,
+			"Username/Email",
+			"Log in using your username (or email) and password.",
+		))
+	}
+
+	if hasLoginMethod(methods, matrix.LoginToken) {
+		content.Append(loginMethodButton(a, matrix.LoginToken,
+			"Token",
+			"Log in using your session token",
+		))
+	}
+
+	if hasLoginMethod(methods, matrix.LoginSSO) {
+		content.Append(loginMethodButton(a, matrix.LoginSSO,
+			"Single Sign-on (SSO)",
+			"Log in using a third-party service",
+		))
+	}
 
 	return step
+}
+
+func hasLoginMethod(methods []matrix.LoginMethod, method matrix.LoginMethod) bool {
+	for _, m := range methods {
+		if m == method {
+			return true
+		}
+	}
+	return false
+}
+
+func loginMethodButton(a *Assistant, method matrix.LoginMethod, big, small string) *gtk.Button {
+	button := gtk.NewButton()
+	button.SetChild(bigSmallTitleBox(big, small))
+	button.Connect("clicked", methodToggler(a, method))
+	return button
 }
 
 func bigSmallTitleBox(big, small string) gtk.Widgetter {

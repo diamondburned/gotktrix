@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/pkg/errors"
 )
 
 var homeserverStepCSS = cssutil.Applier("auth-homeserver-step", ``)
@@ -33,18 +34,44 @@ func homeserverStep(a *Assistant) *assistant.Step {
 		ctx := a.CancellableBusy(a.ctx)
 
 		go func() {
+			onErr := func(err error) {
+				glib.IdleAdd(func() {
+					errLabel.SetMarkup(markuputil.Error(err.Error()))
+					errLabel.Show()
+					a.Continue()
+				})
+			}
+
 			client := a.client.WithContext(ctx)
+
 			c, err := gotktrix.Discover(client, inputs[0].Text())
+			if err != nil {
+				onErr(err)
+				return
+			}
+
+			methods, err := c.LoginMethods()
+			if err != nil {
+				onErr(err)
+				return
+			}
+
+			var pass bool
+			for _, method := range methods {
+				if supportedLoginMethods[method] {
+					pass = true
+					break
+				}
+			}
+
+			if !pass {
+				onErr(errors.New("no supported login methods found"))
+				return
+			}
 
 			glib.IdleAdd(func() {
-				if err == nil {
-					a.chooseHomeserver(c.WithContext(context.Background()))
-					return
-				}
-
-				errLabel.SetMarkup(markuputil.Error(err.Error()))
-				errLabel.Show()
-				a.Continue()
+				c := c.WithContext(context.Background())
+				a.chooseHomeserver(c, methods)
 			})
 		}()
 	}

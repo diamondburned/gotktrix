@@ -178,6 +178,31 @@ func (a *ClientAuth) LoginToken(token string) (*Client, error) {
 	return wrapClient(a.c)
 }
 
+// LoginSSO returns the HTTP address for logging in as SSO and the channel
+// indicating if the user is done or not.
+func (a *ClientAuth) LoginSSO(done func(*Client, error)) (string, error) {
+	address, wait, err := a.c.LoginSSO()
+	if err != nil {
+		return "", err
+	}
+
+	go func() {
+		if err := wait(); err != nil {
+			done(nil, err)
+			return
+		}
+
+		done(wrapClient(a.c))
+	}()
+
+	return address, nil
+}
+
+// LoginMethods returns the login methods supported by the homeserver.
+func (a *ClientAuth) LoginMethods() ([]matrix.LoginMethod, error) {
+	return a.c.Client.GetLoginMethods()
+}
+
 type Client struct {
 	*gotrix.Client
 	*handler.Registry

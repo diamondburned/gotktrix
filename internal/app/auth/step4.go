@@ -1,26 +1,48 @@
 package auth
 
 import (
+	"context"
+	"log"
+
+	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/components/errpopup"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/secret"
+	"github.com/pkg/errors"
 )
+
+func loginStep(a *Assistant, method matrix.LoginMethod) *assistant.Step {
+	switch method {
+	case matrix.LoginSSO:
+		return loginStepSSO(a)
+	case matrix.LoginPassword, matrix.LoginToken:
+		return loginStepForm(a, method)
+	default:
+		log.Panicln("unknown login method", method)
+		return nil
+	}
+}
 
 type loginStepData struct {
 	InputBox gtk.Widgetter
 	Login    func(client *gotktrix.ClientAuth) (*gotktrix.Client, error)
 }
 
-func loginStep(a *Assistant, method loginMethod) *assistant.Step {
+func loginStepForm(a *Assistant, method matrix.LoginMethod) *assistant.Step {
 	var data loginStepData
 
 	switch method {
-	case loginPassword:
+	case matrix.LoginPassword:
 		inputBox, inputs := a.makeInputs("Username (or Email)", "Password")
 		inputs[0].SetInputPurpose(gtk.InputPurposeEmail)
 		inputs[1].SetInputPurpose(gtk.InputPurposePassword)
@@ -30,7 +52,7 @@ func loginStep(a *Assistant, method loginMethod) *assistant.Step {
 		data.Login = func(client *gotktrix.ClientAuth) (*gotktrix.Client, error) {
 			return client.LoginPassword(inputs[0].Text(), inputs[1].Text())
 		}
-	case loginToken:
+	case matrix.LoginToken:
 		inputBox, inputs := a.makeInputs("Token")
 		inputs[0].SetInputPurpose(gtk.InputPurposePassword)
 		inputs[0].SetVisibility(false)
@@ -84,6 +106,113 @@ func loginStep(a *Assistant, method loginMethod) *assistant.Step {
 				rememberMe.saveAndFinish(c, a, acc)
 			})
 		}()
+	}
+
+	return step
+}
+
+var ssoLoadingCSS = cssutil.Applier("auth-sso-loading", `
+	.auth-sso-loading > label {
+		margin-bottom: 16px;
+	}
+	.auth-sso-loading > button {
+		margin-bottom: 18px;
+	}
+	.auth-sso-loading > .auth-remember-me {
+		margin-top: 6px;
+	}
+`)
+
+func loginStepSSO(a *Assistant) *assistant.Step {
+	urlButton := gtk.NewLinkButtonWithLabel("", locale.S(a.ctx, "Opening your browser..."))
+	urlButton.SetSensitive(false)
+	urlButton.SetHAlign(gtk.AlignCenter)
+
+	desc := gtk.NewLabel(locale.S(a.ctx, "Continue on your web browser."))
+	desc.SetWrap(true)
+	desc.SetWrapMode(pango.WrapWordChar)
+
+	// TODO: maybe move this into its own step.
+	rememberMe := newRememberMeBox(a)
+
+	loading := gtk.NewBox(gtk.OrientationVertical, 0)
+	loading.AddCSSClass("assistant-stepbody") // hax
+	loading.SetSizeRequest(200, -1)
+	loading.SetHAlign(gtk.AlignCenter)
+	loading.SetVAlign(gtk.AlignCenter)
+	loading.Append(desc)
+	loading.Append(urlButton)
+	loading.Append(gtk.NewSeparator(gtk.OrientationVertical))
+	loading.Append(rememberMe)
+	ssoLoadingCSS(loading)
+
+	step := assistant.NewStep(locale.S(a.ctx, "SSO Login"), "")
+	step.Loading = loading
+	step.CanBack = true
+	step.Done = assistant.MustNotDone
+
+	onError := func(err error) {
+		// Just go back directly if this is a context cancelled error, since
+		// the user hit the back button.
+		if errors.Is(err, context.Canceled) {
+			a.GoBack()
+			return
+		}
+
+		errLabel := adaptive.NewErrorLabel(err)
+
+		content := step.ContentArea()
+		content.SetOrientation(gtk.OrientationVertical)
+		content.SetSpacing(4)
+		content.Append(gtk.NewLabel("Unrecoverable error encountered:"))
+		content.Append(errLabel)
+
+		// Errors are unrecoverable.
+		a.Continue()
+	}
+
+	done := func(c *gotktrix.Client, err error) {
+		if err != nil {
+			glib.IdleAdd(func() { onError(err) })
+			return
+		}
+
+		acc, err := copyAccount(c)
+		if err != nil {
+			glib.IdleAdd(func() { onError(err) })
+			return
+		}
+
+		glib.IdleAdd(func() {
+			// Assistant is still busy at this point.
+			rememberMe.saveAndFinish(c, a, acc)
+		})
+	}
+
+	step.SwitchedTo = func(*assistant.Step) {
+		ctx := a.CancellableBusy(a.ctx)
+
+		gtkutil.Async(context.Background(), func() func() {
+			client := a.currentClient.WithContext(ctx)
+
+			address, err := client.LoginSSO(done)
+			if err != nil {
+				return func() { onError(errors.Wrap(err, "cannot start SSO server")) }
+			}
+
+			app.OpenURI(ctx, address)
+
+			// Give the button 3 seconds before allowing the user to open
+			// the browser again.
+			glib.TimeoutAdd(3, func() {
+				urlButton.SetURI(address)
+				urlButton.SetLabel(locale.S(a.ctx, "Reopen the browser"))
+				urlButton.SetHasFrame(true)
+				urlButton.SetSensitive(true)
+			})
+
+			return nil
+		})
 	}
 
 	return step

@@ -37,6 +37,9 @@ type Assistant struct {
 	steps   []*Step
 	arrows  []*gtk.Label
 	current int
+
+	busyWidget gtk.Widgetter
+	isBusy     bool
 }
 
 // Show is a helper function for showing an Assistant dialog immediately.
@@ -141,26 +144,7 @@ func Use(window *gtk.Window, steps []*Step) *Assistant {
 		}
 
 		if a.CanBack() {
-			// This changes a.current to be --.
-			a.SetIndex(a.current - 1)
-
-			// Remove all pages after this, since the steps may be added again.
-			// Ensure that we nil them out so the GC can pick them up.
-			for i := a.current + 1; i < len(a.steps); i++ {
-				// Remove from the main widget.
-				a.main.Remove(a.steps[i].content)
-				a.bread.Remove(a.steps[i].titleLabel)
-				a.steps[i] = nil
-				// Remove from the breadcrumbs.
-				a.bread.Remove(a.arrows[i])
-				a.arrows[i] = nil
-			}
-
-			a.steps = a.steps[:a.current+1]
-			a.arrows = a.arrows[:a.current+1]
-
-			a.updateBreadcrumb()
-			a.restoreStackTransitions()
+			a.GoBack()
 			return
 		}
 
@@ -196,14 +180,6 @@ func Use(window *gtk.Window, steps []*Step) *Assistant {
 	return a
 }
 
-// CanBack returns true if the current step can be undoed.
-func (a *Assistant) CanBack() bool {
-	// If the current page is not the last one, then we can't allow backing off,
-	// because those pages won't be added back properly.
-	// We're doing a "cannot back" check then negating it here.
-	return !(len(a.steps) == 1 || a.current != len(a.steps)-1 || !a.steps[a.current].CanBack)
-}
-
 // OKButton returns the OK button.
 func (a *Assistant) OKButton() *gtk.Button { return a.ok }
 
@@ -228,12 +204,20 @@ func (a *Assistant) CancellableBusy(parent context.Context) context.Context {
 }
 
 func (a *Assistant) busy(keepCancel bool) {
+	a.isBusy = true
+
 	a.main.SetTransitionDuration(50)
 	a.main.SetTransitionType(gtk.StackTransitionTypeCrossfade)
 
-	a.main.SetSensitive(false)
-	a.main.SetVisibleChild(a.spin)
-	a.spin.Start()
+	if step := a.steps[a.current]; step.Loading != nil {
+		a.main.SetSensitive(true)
+		a.main.AddChild(step.Loading)
+		a.main.SetVisibleChild(step.Loading)
+	} else {
+		a.main.SetSensitive(false)
+		a.main.SetVisibleChild(a.spin)
+		a.spin.Start()
+	}
 
 	a.ok.SetSensitive(false)
 	a.cancel.SetSensitive(keepCancel)
@@ -241,12 +225,73 @@ func (a *Assistant) busy(keepCancel bool) {
 
 // Continue restores the dialog and brings it out of busy mode.
 func (a *Assistant) Continue() {
-	a.SetIndex(a.current)
+	a.isBusy = false
+
+	if a.cancelState.cancel != nil {
+		a.cancelState.cancel()
+		a.cancelState.cancel = nil
+	}
+
+	step := a.steps[a.current]
+
+	a.ok.SetSensitive(step.okLabel != "")
+	a.updateCancelButton()
+
+	a.restoreStackTransitions()
+	a.main.SetVisibleChild(a.steps[a.current].content)
+
+	if step.Loading != nil {
+		a.main.Remove(step.Loading)
+	} else {
+		a.main.SetSensitive(true)
+		a.spin.Stop()
+	}
+
+	if a.busyWidget != nil {
+		a.main.Remove(a.busyWidget)
+	}
 }
 
 func (a *Assistant) restoreStackTransitions() {
 	a.main.SetTransitionDuration(75)
 	a.main.SetTransitionType(gtk.StackTransitionTypeSlideLeftRight)
+}
+
+// CanBack returns true if the current step can be undoed.
+func (a *Assistant) CanBack() bool {
+	// If the current page is not the last one, then we can't allow backing off,
+	// because those pages won't be added back properly.
+	// We're doing a "cannot back" check then negating it here.
+	return !(len(a.steps) == 1 || a.current != len(a.steps)-1 || !a.steps[a.current].CanBack)
+}
+
+// GoBack scrolls the page back. It does nothing if CanBack returns false.
+func (a *Assistant) GoBack() {
+	if !a.CanBack() {
+		return
+	}
+
+	// This changes a.current to be --.
+	a.SetIndex(a.current - 1)
+
+	// Remove all pages after this, since the steps may be added again.
+	// Ensure that we nil them out so the GC can pick them up.
+	for i := a.current + 1; i < len(a.steps); i++ {
+		// Remove from the main widget.
+		a.main.Remove(a.steps[i].content)
+		a.bread.Remove(a.steps[i].titleLabel)
+		a.steps[i] = nil
+		// Remove from the breadcrumbs.
+		a.bread.Remove(a.arrows[i])
+		a.arrows[i] = nil
+	}
+
+	a.steps = a.steps[:a.current+1]
+	a.arrows = a.arrows[:a.current+1]
+
+	a.updateBreadcrumb()
+	a.updateCancelButton()
+	a.restoreStackTransitions()
 }
 
 // AddNewStep creates a new step to be added into the assistant. The new step is
@@ -284,6 +329,7 @@ func (a *Assistant) AddStep(step *Step) {
 	}
 
 	a.updateBreadcrumb()
+	a.updateCancelButton()
 }
 
 // NextStep moves the assistant to the next step. It panics if the assistant is
@@ -305,14 +351,9 @@ func (a *Assistant) SetStep(step *Step) {
 		return
 	}
 
-	if a.cancelState.cancel != nil {
-		a.cancelState.cancel()
-		a.cancelState.cancel = nil
+	if a.isBusy {
+		a.Continue()
 	}
-
-	a.main.SetSensitive(true)
-	a.ok.SetSensitive(true)
-	a.cancel.SetSensitive(true)
 
 	a.current = step.index
 
@@ -321,7 +362,12 @@ func (a *Assistant) SetStep(step *Step) {
 	a.ok.SetVisible(step.okLabel != "") // hide if label is empty
 
 	a.updateBreadcrumb()
+	a.updateCancelButton()
 	a.restoreStackTransitions()
+
+	if step.SwitchedTo != nil {
+		step.SwitchedTo(step)
+	}
 }
 
 var (
@@ -371,13 +417,6 @@ func (a *Assistant) updateBreadcrumb() {
 
 	labelRect := a.steps[a.current].titleLabel.Allocation()
 
-	// Update the back button.
-	if a.CanBack() {
-		a.cancel.SetLabel("Back")
-	} else {
-		a.cancel.SetLabel("Close")
-	}
-
 	// Scroll the breadcrumb to the end.
 	hadj := a.hviewport.HAdjustment()
 	hadj.SetValue(hadj.Upper() - hadj.PageSize() - float64(labelRect.X()))
@@ -387,13 +426,32 @@ func (a *Assistant) updateBreadcrumb() {
 	// a.hviewport.SetFocusChild(a.steps[a.current].titleLabel)
 }
 
+// updateCancelButton updates the cancel/back button.
+func (a *Assistant) updateCancelButton() {
+	if a.CanBack() {
+		a.cancel.SetLabel("Back")
+	} else {
+		a.cancel.SetLabel("Close")
+	}
+	a.cancel.SetSensitive(true)
+}
+
+// MustNotDone panics. It's useful if the user doesn't want Done to be activated
+// whatsoever.
+func MustNotDone(*Step) { panic("unreachable") }
+
 // Step describes each step of the assistant.
 type Step struct {
 	// Done is called when the OK button is clicked and there isn't a next page.
 	Done func(*Step)
+	// SwitchedTo is called once the step is shown.
+	SwitchedTo func(*Step)
 	// CanBack, if true, will allow the assistant to go from this step to the
 	// last step. If this is the first step, then this does nothing.
 	CanBack bool
+	// Loading, if true, will be the widget shown when busy instead of the
+	// default spinner.
+	Loading gtk.Widgetter
 
 	parent     *Assistant
 	content    *gtk.Box

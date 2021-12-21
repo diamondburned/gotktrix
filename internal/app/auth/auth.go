@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/chanbakjsd/gotrix/api/httputil"
+	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -84,20 +85,19 @@ func (a *Assistant) signinPage() {
 	step2 := homeserverStep(a)
 	a.AddStep(step2)
 	a.SetStep(step2)
-
 }
 
 // step 2 activate
-func (a *Assistant) chooseHomeserver(client *gotktrix.ClientAuth) {
+func (a *Assistant) chooseHomeserver(client *gotktrix.ClientAuth, methods []matrix.LoginMethod) {
 	a.currentClient = client
 
-	step3 := chooseLoginStep(a)
+	step3 := chooseLoginStep(a, methods)
 	a.AddStep(step3)
 	a.SetStep(step3)
 }
 
 // step 3 activate
-func (a *Assistant) chooseLoginMethod(method loginMethod) {
+func (a *Assistant) chooseLoginMethod(method matrix.LoginMethod) {
 	step4 := loginStep(a, method)
 	a.AddStep(step4)
 	a.SetStep(step4)
