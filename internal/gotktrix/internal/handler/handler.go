@@ -25,30 +25,40 @@ func (w wrapper) AddEvents(sync *api.SyncResponse) error {
 	return err2
 }
 
-type eventHandlers map[event.Type]registry.M
+type handlerMeta struct {
+	once bool
+}
 
-func newEventHandlers(cap int) eventHandlers {
-	return make(eventHandlers, cap)
+type eventHandlers struct {
+	regs map[event.Type]registry.Registry
+	mut  sync.Locker
+}
+
+func newEventHandlers(mut sync.Locker, cap int) eventHandlers {
+	return eventHandlers{
+		regs: make(map[event.Type]registry.Registry, cap),
+		mut:  mut,
+	}
 }
 
 func (h eventHandlers) invoke(ivk *eventInvoker) {
-	ivk.invokeList(h[ivk.raw.Type])
-	ivk.invokeList(h["*"])
+	ivk.invokeList(h.regs[ivk.raw.Type])
+	ivk.invokeList(h.regs["*"])
 }
 
-func (h eventHandlers) addEvsRm(l sync.Locker, types []event.Type, fn interface{}) func() {
+func (h eventHandlers) addEvsRm(types []event.Type, fn interface{}, meta handlerMeta) func() {
 	if len(types) == 1 {
-		return h.addRm(l, types[0], fn)
+		return h.addRm(types[0], fn, meta)
 	}
 
 	elems := make([]*registry.Value, len(types))
 	for i, typ := range types {
-		elems[i] = h.add(typ, fn)
+		elems[i] = h.add(typ, fn, meta)
 	}
 
 	return func() {
-		l.Lock()
-		defer l.Unlock()
+		h.mut.Lock()
+		defer h.mut.Unlock()
 
 		for _, elem := range elems {
 			elem.Delete()
@@ -56,29 +66,29 @@ func (h eventHandlers) addEvsRm(l sync.Locker, types []event.Type, fn interface{
 	}
 }
 
-func (h eventHandlers) add(typ event.Type, fn interface{}) *registry.Value {
-	ls, ok := h[typ]
+func (h eventHandlers) add(typ event.Type, fn interface{}, meta handlerMeta) *registry.Value {
+	ls, ok := h.regs[typ]
 	if !ok {
-		ls = make(registry.M)
-		h[typ] = ls
+		ls = registry.New(10)
+		h.regs[typ] = ls
 	}
 
-	return ls.Add(fn)
+	return ls.Add(fn, meta)
 }
 
-func (h eventHandlers) addRm(l sync.Locker, typ event.Type, fn interface{}) func() {
-	b := h.add(typ, fn)
+func (h eventHandlers) addRm(typ event.Type, fn interface{}, meta handlerMeta) func() {
+	b := h.add(typ, fn, meta)
 	return func() {
-		l.Lock()
+		h.mut.Lock()
 		b.Delete()
-		l.Unlock()
+		h.mut.Unlock()
 	}
 }
 
-func invokeSync(r registry.M, sync *api.SyncResponse) {
-	for v := range r {
-		v.V.(func(*api.SyncResponse))(sync)
-	}
+func invokeSync(r registry.Registry, sync *api.SyncResponse) {
+	r.Each(func(f, _ interface{}) {
+		f.(func(*api.SyncResponse))(sync)
+	})
 }
 
 type eventInvoker struct {
@@ -108,14 +118,10 @@ func (i *eventInvoker) parse() (event.Event, error) {
 	return p, nil
 }
 
-func (i *eventInvoker) invokeList(list registry.M) {
-	if list == nil {
-		return
-	}
-
-	for v := range list {
-		i.invoke(v.V)
-	}
+func (i *eventInvoker) invokeList(list registry.Registry) {
+	list.Each(func(f, _ interface{}) {
+		i.invoke(f)
+	})
 }
 
 func (i *eventInvoker) invoke(f interface{}) {

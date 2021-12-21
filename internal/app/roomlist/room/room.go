@@ -227,7 +227,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		r.InvalidatePreview(ctx)
 
 		b := gtkutil.FuncBatcher()
-		b.F(client.SubscribeTimeline(roomID, func(event.RoomEvent) {
+		b.F(client.SubscribeTimelineSync(roomID, func(event.RoomEvent) {
 			gtkutil.IdleCtx(ctx, func() {
 				r.InvalidatePreview(ctx)
 				r.section.InvalidateSort()

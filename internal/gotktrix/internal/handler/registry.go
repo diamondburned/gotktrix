@@ -15,24 +15,24 @@ import (
 type Registry struct {
 	mut sync.Mutex
 
-	timeline map[matrix.RoomID]registry.M
+	timeline map[matrix.RoomID]registry.Registry
 	roomFns  map[matrix.RoomID]eventHandlers
 	userFns  eventHandlers
 
 	// on-sync handlers
-	sync registry.M
+	sync registry.Registry
 
 	caughtUp bool
 }
 
 // New creates a new handler registry.
 func New() *Registry {
-	return &Registry{
-		timeline: make(map[matrix.RoomID]registry.M, 100),
-		roomFns:  make(map[matrix.RoomID]eventHandlers, 100),
-		sync:     make(registry.M, 10),
-		userFns:  newEventHandlers(100),
-	}
+	r := &Registry{}
+	r.sync = registry.New(10)
+	r.userFns = newEventHandlers(&r.mut, 100)
+	r.roomFns = make(map[matrix.RoomID]eventHandlers, 100)
+	r.timeline = make(map[matrix.RoomID]registry.Registry, 100)
+	return r
 }
 
 // Wrap returns a state wrapper that wraps the existing gotrix.State to also
@@ -46,7 +46,7 @@ func (r *Registry) OnSync(f func(*api.SyncResponse)) func() {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
-	return valueRemover(&r.mut, r.sync.Add(f))
+	return valueRemover(&r.mut, r.sync.Add(f, nil))
 }
 
 // OnSyncCh sends into the channel every sync until the returned callback is
@@ -76,16 +76,26 @@ func (r *Registry) OnSyncCh(ctx context.Context, ch chan<- *api.SyncResponse) {
 // SubscribeTimeline subscribes the given function to the timeline of a room. If
 // the returned callback is called, then the room is removed from the handlers.
 func (r *Registry) SubscribeTimeline(rID matrix.RoomID, f interface{}) func() {
+	return r.subscribeTimeline(rID, f, handlerMeta{})
+}
+
+// SubscribeTimelineSync is similar to SubscribeTimeline, except f is only
+// called on the latest event each sync instead of on all of them.
+func (r *Registry) SubscribeTimelineSync(rID matrix.RoomID, f interface{}) func() {
+	return r.subscribeTimeline(rID, f, handlerMeta{once: true})
+}
+
+func (r *Registry) subscribeTimeline(rID matrix.RoomID, f interface{}, meta handlerMeta) func() {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
 	tl, ok := r.timeline[rID]
 	if !ok {
-		tl = make(registry.M)
+		tl = registry.New(2)
 		r.timeline[rID] = tl
 	}
 
-	return valueRemover(&r.mut, tl.Add(f))
+	return valueRemover(&r.mut, tl.Add(f, meta))
 }
 
 func valueRemover(mu *sync.Mutex, v *registry.Value) func() {
@@ -102,7 +112,7 @@ func (r *Registry) SubscribeUser(typ event.Type, f interface{}) func() {
 	r.mut.Lock()
 	defer r.mut.Unlock()
 
-	return r.userFns.addRm(&r.mut, typ, f)
+	return r.userFns.addRm(typ, f, handlerMeta{})
 }
 
 // SubscribeRoom subscribes the given function to a room's state and ephemeral
@@ -135,11 +145,11 @@ func (r *Registry) SubscribeRoomEvents(
 
 	sh, ok := r.roomFns[rID]
 	if !ok {
-		sh = newEventHandlers(20)
+		sh = newEventHandlers(&r.mut, 20)
 		r.roomFns[rID] = sh
 	}
 
-	return sh.addEvsRm(&r.mut, types, f)
+	return sh.addEvsRm(types, f, handlerMeta{})
 }
 
 // AddEvents satisfies part of gotrix.State.
@@ -215,7 +225,7 @@ func (r *Registry) invokeRoom(rID matrix.RoomID, raws []event.RawEvent) {
 
 func (r *Registry) invokeTimeline(rID matrix.RoomID, raws []event.RawEvent) {
 	rh, ok := r.timeline[rID]
-	if !ok {
+	if !ok || len(raws) == 0 {
 		return
 	}
 
@@ -224,8 +234,19 @@ func (r *Registry) invokeTimeline(rID matrix.RoomID, raws []event.RawEvent) {
 		raws = raws[len(raws)-state.TimelineKeepLast:]
 	}
 
-	for i := range raws {
-		ev := eventInvoke(rID, &raws[i])
-		ev.invokeList(rh)
-	}
+	rh.Each(func(f, meta interface{}) {
+		hmeta, _ := meta.(handlerMeta)
+		if hmeta.once {
+			invokeList(rh, rID, &raws[len(raws)-1])
+			return
+		}
+		for i := range raws {
+			invokeList(rh, rID, &raws[i])
+		}
+	})
+}
+
+func invokeList(list registry.Registry, rID matrix.RoomID, raw *event.RawEvent) {
+	evk := eventInvoke(rID, raw)
+	evk.invokeList(list)
 }

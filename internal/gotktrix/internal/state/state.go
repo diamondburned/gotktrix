@@ -121,7 +121,10 @@ func (s *State) ResetRoom(roomID matrix.RoomID, key string) {
 // RoomEvent queries the event with the given type. If the event type implies a
 // state event, then the empty key is tried.
 func (s *State) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, error) {
-	raw := event.RawEvent{RoomID: roomID}
+	raw := event.RawEvent{
+		Type:   typ,
+		RoomID: roomID,
+	}
 
 	// Prevent trailing delimiter; see setRawEvent.
 	n := s.db.NodeFromPath(s.paths.rooms).Node(string(roomID), string(typ))
@@ -140,14 +143,13 @@ func (s *State) RoomState(
 
 	n := s.db.NodeFromPath(s.paths.rooms).Node(string(roomID), string(typ))
 
-	raw := event.RawEvent{RoomID: roomID}
+	raw := event.RawEvent{
+		Type:     typ,
+		RoomID:   roomID,
+		StateKey: key,
+	}
 
 	if err := n.Get(key, &raw); err != nil {
-		if errors.Is(err, db.ErrKeyNotFound) && !db.IsBucketError(err) {
-			// Room bucket exists but the event itself isn't there, so we know
-			// the event doesn't exist.
-			return nil, nil
-		}
 		return nil, err
 	}
 

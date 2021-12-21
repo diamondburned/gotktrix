@@ -32,7 +32,7 @@ func (c RoundTripWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
 type RoundTripWarner struct {
 	r http.RoundTripper
 	u sync.Mutex
-	m registry.M
+	m registry.Registry
 }
 
 // WrapRoundTripWarner wraps the given RoundTripper inside a RoundTripWarner.
@@ -43,7 +43,7 @@ func WrapRoundTripWarner(c http.RoundTripper) *RoundTripWarner {
 
 	return &RoundTripWarner{
 		r: c,
-		m: make(registry.M),
+		m: registry.New(2),
 	}
 }
 
@@ -54,7 +54,7 @@ func (r *RoundTripWarner) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	r.u.Lock()
-	r.m.Each(func(f interface{}) {
+	r.m.Each(func(f, _ interface{}) {
 		f.(func(*http.Request, error))(req, err)
 	})
 	r.u.Unlock()
@@ -66,7 +66,7 @@ func (r *RoundTripWarner) RoundTrip(req *http.Request) (*http.Response, error) {
 // RoundTrip errors out.
 func (r *RoundTripWarner) OnError(f func(*http.Request, error)) func() {
 	r.u.Lock()
-	v := r.m.Add(f)
+	v := r.m.Add(f, nil)
 	r.u.Unlock()
 
 	return func() {
