@@ -103,11 +103,9 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 	.room-preview-extra {
 		font-size: 0.8em;
 	}
-	.room-unread-count {
-		color: alpha(@theme_fg_color, 0.75);
-	}
 	.room-unread-count,
 	.room-preview-extra {
+		color: alpha(@theme_fg_color, 0.75);
 		margin-left: 2px;
 	}
 `)
@@ -409,7 +407,7 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 			r.preview.Show()
 
 			if extra > 0 {
-				r.preview.extra.SetLabel(fmt.Sprintf("(+%d)", extra))
+				r.preview.extra.SetLabel(fmt.Sprintf("+%d events", extra))
 			} else {
 				r.preview.extra.SetLabel("")
 			}
