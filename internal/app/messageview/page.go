@@ -451,7 +451,7 @@ func (p *Page) MarkAsRead() {
 	go func() {
 		// Pull the events from the room directly from the state. We do this
 		// because the room sometimes coalesce events together.
-		latest := client.State.LatestInTimeline(roomID, "")
+		latest, _ := client.State.LatestInTimeline(roomID, "")
 		if latest == nil {
 			return
 		}

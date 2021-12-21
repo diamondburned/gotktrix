@@ -37,10 +37,20 @@ type Room struct {
 	*gtk.ListBoxRow
 	box *gtk.Box
 
-	name    *gtk.Label
-	preview *gtk.Label
-	unread  *gtk.Label
-	avatar  *adaptive.Avatar
+	avatar *adaptive.Avatar
+	right  *gtk.Box
+
+	name struct {
+		*gtk.Box
+		label  *gtk.Label
+		unread *gtk.Label
+	}
+
+	preview struct {
+		*gtk.Box
+		label *gtk.Label
+		extra *gtk.Label
+	}
 
 	ID        matrix.RoomID
 	Name      string
@@ -88,12 +98,16 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 	.room-preview {
 		margin-right: 2px;
 	}
+	.room-unread-count,
 	.room-preview,
-	.room-unread-count {
+	.room-preview-extra {
 		font-size: 0.8em;
 	}
 	.room-unread-count {
 		color: alpha(@theme_fg_color, 0.75);
+	}
+	.room-unread-count,
+	.room-preview-extra {
 		margin-left: 2px;
 	}
 `)
@@ -132,66 +146,67 @@ var showMessagePreview = prefs.NewBool(true, prefs.PropMeta{
 // using this constructor will automatically update itself as soon as it's added
 // into a parent, so the caller does not have to trigger the Invalidate methods.
 func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
-	nameLabel := gtk.NewLabel(string(roomID))
-	nameLabel.SetSingleLineMode(true)
-	nameLabel.SetXAlign(0)
-	nameLabel.SetHExpand(true)
-	nameLabel.SetEllipsize(pango.EllipsizeEnd)
-	nameLabel.AddCSSClass("room-name")
-
-	previewLabel := gtk.NewLabel("")
-	previewLabel.SetSingleLineMode(true)
-	previewLabel.SetXAlign(0)
-	previewLabel.SetHExpand(true)
-	previewLabel.SetEllipsize(pango.EllipsizeEnd)
-	previewLabel.AddCSSClass("room-preview")
-
-	unreadLabel := gtk.NewLabel("")
-	unreadLabel.SetXAlign(1)
-	unreadLabel.AddCSSClass("room-unread-count")
-
-	nameBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	nameBox.Append(nameLabel)
-	nameBox.Append(unreadLabel)
-
-	rightBox := gtk.NewBox(gtk.OrientationVertical, 0)
-	rightBox.SetVAlign(gtk.AlignCenter)
-	rightBox.Append(nameBox)
-	rightBox.Append(previewLabel)
-	rightBox.AddCSSClass("room-right")
-
-	avatar := adaptive.NewAvatar(AvatarSize)
-	avatar.ConnectLabel(nameLabel)
-	avatarCSS(avatar)
-
-	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	box.Append(avatar)
-	box.Append(rightBox)
-	roomBoxCSS(box)
-
-	row := gtk.NewListBoxRow()
-	row.SetChild(box)
-	row.SetName(string(roomID))
-	rowCSS(row)
-
 	r := Room{
-		ListBoxRow: row,
-		box:        box,
-		name:       nameLabel,
-		preview:    previewLabel,
-		unread:     unreadLabel,
-		avatar:     avatar,
-
-		ctx:     gtkutil.WithVisibility(ctx, row),
 		section: section,
-
-		ID:   roomID,
-		Name: string(roomID),
+		ID:      roomID,
+		Name:    string(roomID),
 	}
+
+	r.name.label = gtk.NewLabel(string(roomID))
+	r.name.label.SetSingleLineMode(true)
+	r.name.label.SetXAlign(0)
+	r.name.label.SetHExpand(true)
+	r.name.label.SetEllipsize(pango.EllipsizeEnd)
+	r.name.label.AddCSSClass("room-name")
+
+	r.name.unread = gtk.NewLabel("")
+	r.name.unread.SetXAlign(1)
+	r.name.unread.AddCSSClass("room-unread-count")
+
+	r.name.Box = gtk.NewBox(gtk.OrientationHorizontal, 0)
+	r.name.Box.Append(r.name.label)
+	r.name.Box.Append(r.name.unread)
+
+	r.preview.label = gtk.NewLabel("")
+	r.preview.label.AddCSSClass("room-preview")
+	r.preview.label.SetSingleLineMode(true)
+	r.preview.label.SetXAlign(0)
+	r.preview.label.SetHExpand(true)
+	r.preview.label.SetEllipsize(pango.EllipsizeEnd)
+
+	r.preview.extra = gtk.NewLabel("")
+	r.preview.extra.SetXAlign(1)
+	r.preview.extra.AddCSSClass("room-preview-extra")
+
+	r.preview.Box = gtk.NewBox(gtk.OrientationHorizontal, 0)
+	r.preview.Append(r.preview.label)
+	r.preview.Append(r.preview.extra)
+
+	r.right = gtk.NewBox(gtk.OrientationVertical, 0)
+	r.right.AddCSSClass("room-right")
+	r.right.SetVAlign(gtk.AlignCenter)
+	r.right.Append(r.name)
+	r.right.Append(r.preview)
+
+	r.avatar = adaptive.NewAvatar(AvatarSize)
+	r.avatar.ConnectLabel(r.name.label)
+	avatarCSS(r.avatar)
+
+	r.box = gtk.NewBox(gtk.OrientationHorizontal, 0)
+	r.box.Append(r.avatar)
+	r.box.Append(r.right)
+	roomBoxCSS(r.box)
+
+	r.ListBoxRow = gtk.NewListBoxRow()
+	r.ListBoxRow.SetChild(r.box)
+	r.ListBoxRow.SetName(string(roomID))
+	rowCSS(r.ListBoxRow)
+
+	r.ctx = gtkutil.WithVisibility(ctx, r)
 
 	section.Insert(&r)
 
-	gtkutil.BindActionMap(row, "room", map[string]func(){
+	gtkutil.BindActionMap(r, "room", map[string]func(){
 		"open":            func() { section.OpenRoom(roomID) },
 		"open-in-tab":     func() { section.OpenRoomInTab(roomID) },
 		"prompt-reorder":  func() { r.promptReorder() },
@@ -199,10 +214,10 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		"add-emojis":      func() { emojiview.ForRoom(r.ctx.Take(), r.ID) },
 	})
 
-	gtkutil.BindRightClick(row, func() {
+	gtkutil.BindRightClick(r, func() {
 		s := locale.SFunc(ctx)
 
-		p := gtkutil.PopoverMenuCustom(row, gtk.PosBottom, []gtkutil.PopoverMenuItem{
+		p := gtkutil.PopoverMenuCustom(r, gtk.PosBottom, []gtkutil.PopoverMenuItem{
 			gtkutil.MenuItem(s("Open"), "room.open"),
 			gtkutil.MenuItem(s("Open in New Tab"), "room.open-in-tab"),
 			gtkutil.MenuSeparator(s("Section")),
@@ -251,7 +266,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	})
 
 	// Initialize drag-and-drop.
-	drag := gtkutil.NewDragSourceWithContent(row, gdk.ActionMove, string(roomID))
+	drag := gtkutil.NewDragSourceWithContent(r, gdk.ActionMove, string(roomID))
 	r.AddController(drag)
 
 	return &r
@@ -346,8 +361,8 @@ func (r *Room) setAvatarURL(mxc *matrix.URL) {
 // setLabel sets the room name.
 func (r *Room) setLabel(text string) {
 	r.Name = text
-	r.name.SetLabel(text)
-	r.name.SetTooltipText(text)
+	r.name.label.SetLabel(text)
+	r.name.label.SetTooltipText(text)
 	r.avatar.SetName(text)
 	r.avatar.SetTooltipText(text)
 }
@@ -360,7 +375,8 @@ func (r *Room) SetShowMessagePreview(show bool) {
 }
 
 func (r *Room) erasePreview() {
-	r.preview.SetLabel("")
+	r.preview.label.SetLabel("")
+	r.preview.extra.SetLabel("")
 	r.preview.Hide()
 }
 
@@ -377,9 +393,9 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 	gtkutil.Async(ctx, func() func() {
 		client := gotktrix.FromContext(ctx)
 
-		first := client.State.LatestInTimeline(r.ID, event.TypeRoomMessage)
+		first, extra := client.State.LatestInTimeline(r.ID, event.TypeRoomMessage)
 		if first == nil {
-			first = client.State.LatestInTimeline(r.ID, "")
+			first, extra = client.State.LatestInTimeline(r.ID, "")
 		}
 		if first == nil {
 			return func() { r.erasePreview() }
@@ -388,14 +404,19 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 		preview := message.RenderEvent(ctx, gotktrix.WrapEventBox(first))
 
 		return func() {
-			r.preview.SetMarkup(preview)
+			r.preview.label.SetMarkup(preview)
+			r.preview.label.SetTooltipMarkup(preview)
+			r.preview.Show()
+
+			if extra > 0 {
+				r.preview.extra.SetLabel(fmt.Sprintf("(+%d)", extra))
+			} else {
+				r.preview.extra.SetLabel("")
+			}
 
 			count := countUnreadFmt(client, r.ID)
 			r.setUnread(count != "")
-			r.unread.SetText(count)
-
-			r.preview.SetTooltipMarkup(preview)
-			r.preview.Show()
+			r.name.unread.SetText(count)
 		}
 	})
 }

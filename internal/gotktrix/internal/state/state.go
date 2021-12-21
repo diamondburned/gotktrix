@@ -468,15 +468,13 @@ func (s *State) EachTimelineReverse(roomID matrix.RoomID, f func(*event.RawEvent
 // LatestInTimeline returns the latest event in the given room that has the
 // given type. If the type is an empty string, then the latest event with any
 // type is returned.
-func (s *State) LatestInTimeline(roomID matrix.RoomID, t event.Type) *event.RawEvent {
-	var found *event.RawEvent
-
+func (s *State) LatestInTimeline(roomID matrix.RoomID, t event.Type) (found *event.RawEvent, extra int) {
 	if t == "" {
 		s.EachTimelineReverse(roomID, func(ev *event.RawEvent) error {
 			found = ev
 			return db.EachBreak
 		})
-		return found
+		return
 	}
 
 	n := s.paths.timelineEventsNode(s.top, roomID)
@@ -487,6 +485,7 @@ func (s *State) LatestInTimeline(roomID matrix.RoomID, t event.Type) *event.RawE
 	n.TxView(func(n db.Node) error {
 		return n.EachReverse(&rawType, func(k string, _ int) error {
 			if rawType.Type != t {
+				extra++
 				return nil
 			}
 
@@ -500,7 +499,7 @@ func (s *State) LatestInTimeline(roomID matrix.RoomID, t event.Type) *event.RawE
 		})
 	})
 
-	return found
+	return
 }
 
 // UserEvent gets the user event from the given type.
