@@ -605,7 +605,7 @@ func (p *Page) setMessage(key messageKey, msg messageRow) {
 	// Appending or prepending to this will cause the ListBox to sort the row
 	// for us. Hopefully, if we hint the position, ListBox won't try to sort too
 	// many times.
-	if msg.row.Parent() == nil {
+	if msg.row.Index() == -1 {
 		p.list.Append(msg.row)
 	}
 
@@ -644,7 +644,7 @@ func (p *Page) resetMessage(key messageKey, before messageRow) bool {
 	}
 
 	// Recreate the body if the raw events don't match.
-	if msg.body == nil || eventEq(msg.raw, msg.body.RawEvent().RawEvent) {
+	if msg.body == nil || !eventEq(msg.raw, msg.body.RawEvent().RawEvent) {
 		msg.body = message.NewCozyMessage(p.parent.ctx, p, msg.raw, before.body)
 		p.messages[key] = msg
 

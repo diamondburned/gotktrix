@@ -32,6 +32,9 @@ var imageCSS = cssutil.Applier("mcontent-image", `
 	.mcontent-image {
 		padding: 0;
 		margin:  0;
+		margin-left: -2px;
+		border:  2px solid transparent;
+		transition-duration: 150ms;
 		transition-property: all;
 	}
 	.mcontent-image,
@@ -39,7 +42,7 @@ var imageCSS = cssutil.Applier("mcontent-image", `
 		background: none;
 	}
 	.mcontent-image:hover {
-		outline: 2px solid @theme_selected_bg_color;
+		border: 2px solid @theme_selected_bg_color;
 	}
 	.mcontent-image > * {
 		background-color: black;

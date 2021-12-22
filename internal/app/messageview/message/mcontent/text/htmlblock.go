@@ -6,7 +6,10 @@ import (
 	"log"
 	"strings"
 
+	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/md"
@@ -331,15 +334,15 @@ func newQuoteBlock(s *currentBlockState) *quoteBlock {
 }
 
 type codeBlock struct {
-	*gtk.ScrolledWindow
+	*gtk.Overlay
 	context context.Context
-	text    *textBlock
+
+	scroll *gtk.ScrolledWindow
+	lang   *gtk.Label
+	text   *textBlock
 }
 
 var codeBlockCSS = cssutil.Applier("mcontent-code-block", `
-	.mcontent-code-block {
-		background-color: @theme_base_color;
-	}
 	.mcontent-code-block scrollbar {
 		background: none;
 		border:     none;
@@ -347,33 +350,208 @@ var codeBlockCSS = cssutil.Applier("mcontent-code-block", `
 	.mcontent-code-block:active scrollbar {
 		opacity: 0.2;
 	}
+	.mcontent-code-block:not(.mcontent-code-block-expanded) scrollbar {
+		opacity: 0;
+	}
 	.mcontent-code-block-text {
 		font-family: monospace;
-		padding: 4px;
-		padding-bottom: 8px;
+		padding: 4px 6px;
+		padding-bottom: 0px; /* bottom-margin */
+	}
+	.mcontent-code-block-actions > *:not(label) {
+		background-color: @theme_bg_color;
+		margin-top:   4px;
+		margin-right: 4px;
+	}
+	.mcontent-code-block-language {
+		font-family: monospace;
+		font-size: 0.9em;
+		margin: 0px 6px;
+		color: mix(@theme_bg_color, @theme_fg_color, 0.85);
+	}
+	/*
+	 * ease-in-out-gradient -steps 5 -min 0.2 -max 0 
+	 * ease-in-out-gradient -steps 5 -min 0 -max 75 -f $'%.2fpx\n'
+	 */
+	.mcontent-code-block-voverflow .mcontent-code-block-cover {
+		background-image: linear-gradient(
+			to top,
+			alpha(@theme_bg_color, 0.25) 0.00px,
+			alpha(@theme_bg_color, 0.24) 2.40px,
+			alpha(@theme_bg_color, 0.19) 19.20px,
+			alpha(@theme_bg_color, 0.06) 55.80px,
+			alpha(@theme_bg_color, 0.01) 72.60px
+		);
 	}
 `)
+
+const (
+	codeLowerHeight = 200
+	codeUpperHeight = 600 // TODO: derive this from screen height
+)
 
 func newCodeBlock(s *currentBlockState) *codeBlock {
 	text := newTextBlock(s)
 	text.AddCSSClass("mcontent-code-block-text")
 	text.SetWrapMode(gtk.WrapNone)
+	text.SetBottomMargin(18)
 
-	// TODO: this has the annoying quirk of stealing the scroll on a large
-	// codeblock. It's pretty bad.
 	sw := gtk.NewScrolledWindow()
-	sw.SetPolicy(gtk.PolicyAutomatic, gtk.PolicyNever)
+	sw.SetPolicy(gtk.PolicyAutomatic, gtk.PolicyAutomatic)
 	sw.SetChild(text)
-	codeBlockCSS(sw)
+
+	language := gtk.NewLabel("")
+	language.AddCSSClass("mcontent-code-block-language")
+	language.SetHExpand(true)
+	language.SetEllipsize(pango.EllipsizeEnd)
+	language.SetSingleLineMode(true)
+	language.SetXAlign(0)
+	language.SetVAlign(gtk.AlignCenter)
+
+	copy := gtk.NewButton()
+	copy.SetIconName("edit-copy-symbolic")
+	copy.SetTooltipText("Copy All")
+	copy.ConnectClicked(func() {
+		popover := gtk.NewPopover()
+		popover.SetCanTarget(false)
+		popover.SetAutohide(false)
+		popover.SetChild(gtk.NewLabel("Copied!"))
+		popover.SetPosition(gtk.PosLeft)
+		popover.SetParent(copy)
+
+		start, end := text.buf.Bounds()
+		text := text.buf.Text(start, end, false)
+
+		clipboard := gdk.DisplayGetDefault().Clipboard()
+		clipboard.SetText(text)
+
+		popover.Popup()
+		glib.TimeoutSecondsAdd(3, func() { popover.Popdown() })
+	})
+
+	expand := gtk.NewToggleButton()
+	expand.SetTooltipText("Toggle reveal code")
+
+	actions := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	actions.AddCSSClass("mcontent-code-block-actions")
+	actions.SetHAlign(gtk.AlignFill)
+	actions.SetVAlign(gtk.AlignStart)
+	actions.Append(language)
+	actions.Append(copy)
+	actions.Append(expand)
+
+	overlay := gtk.NewOverlay()
+	overlay.SetOverflow(gtk.OverflowHidden)
+	overlay.SetChild(sw)
+	overlay.AddOverlay(actions)
+	overlay.AddCSSClass("frame")
+	codeBlockCSS(overlay)
+
+	// Lazily initialized in notify::upper below.
+	var cover *gtk.Box
+	coverSetVisible := func(visible bool) {
+		if cover != nil {
+			cover.SetVisible(visible)
+		}
+	}
+
+	// Clicking on the codeblock will click the button for us, but only if it's
+	// collapsed.
+	click := gtk.NewGestureClick()
+	click.SetPropagationPhase(gtk.PhaseBubble)
+	click.SetExclusive(true)
+	click.SetButton(gdk.BUTTON_PRIMARY)
+	click.Connect("pressed", func() bool {
+		// TODO: don't handle this on a touchscreen.
+		if !expand.Active() {
+			expand.Activate()
+			return true
+		}
+		return false
+	})
+	overlay.AddController(click)
+
+	// Manually keep track of the expanded height, since SetMaxContentHeight
+	// doesn't work (below issue).
+	var maxHeight int
+	var minHeight int
+
+	vadj := text.VAdjustment()
+
+	updateExpand := func() {
+		if expand.Active() {
+			overlay.AddCSSClass("mcontent-code-block-expanded")
+			expand.SetIconName("view-restore-symbolic")
+			sw.SetCanTarget(true)
+			sw.SetSizeRequest(-1, maxHeight)
+			sw.SetMarginTop(actions.AllocatedHeight())
+			language.SetOpacity(1)
+			coverSetVisible(false)
+		} else {
+			overlay.RemoveCSSClass("mcontent-code-block-expanded")
+			expand.SetIconName("view-fullscreen-symbolic")
+			sw.SetCanTarget(false)
+			sw.SetSizeRequest(-1, minHeight)
+			sw.SetMarginTop(0)
+			language.SetOpacity(0)
+			coverSetVisible(true)
+			// Restore scrolling when uncollapsed.
+			vadj.SetValue(0)
+		}
+	}
+
+	expand.ConnectClicked(updateExpand)
+
+	// Workaround for issue https://gitlab.gnome.org/GNOME/gtk/-/issues/3515.
+	vadj.Connect("notify::upper", func() {
+		upper := int(vadj.Upper())
+
+		maxHeight = upper
+		minHeight = upper
+
+		if maxHeight > codeUpperHeight {
+			maxHeight = codeUpperHeight
+		}
+
+		if minHeight > codeLowerHeight {
+			minHeight = codeLowerHeight
+			overlay.AddCSSClass("mcontent-code-block-voverflow")
+
+			if cover == nil {
+				// Use a fading gradient to let the user know (visually) that
+				// there's still more code hidden. This isn't very accessible.
+				cover = gtk.NewBox(gtk.OrientationHorizontal, 0)
+				cover.AddCSSClass("mcontent-code-block-cover")
+				cover.SetCanTarget(false)
+				cover.SetVAlign(gtk.AlignFill)
+				cover.SetHAlign(gtk.AlignFill)
+				overlay.AddOverlay(cover)
+			}
+		}
+
+		// Quite expensive when it's put here, but it's safer.
+		updateExpand()
+	})
 
 	return &codeBlock{
-		ScrolledWindow: sw,
-		context:        s.context,
-		text:           text,
+		Overlay: overlay,
+		context: s.context,
+		scroll:  sw,
+		lang:    language,
+		text:    text,
 	}
 }
 
+func min(i, j int) int {
+	if i < j {
+		return i
+	}
+	return j
+}
+
 func (b *codeBlock) withHighlight(lang string, f func(*textBlock)) {
+	b.lang.SetText(lang)
+
 	if lang == "" {
 		f(b.text)
 		return
@@ -396,6 +574,7 @@ func newSeparatorBlock() *separatorBlock {
 	return &separatorBlock{sep}
 }
 
-func (b *textBlock) block()  {}
-func (b *codeBlock) block()  {}
-func (b *quoteBlock) block() {}
+func (b *textBlock) block()      {}
+func (b *codeBlock) block()      {}
+func (b *quoteBlock) block()     {}
+func (b *separatorBlock) block() {}

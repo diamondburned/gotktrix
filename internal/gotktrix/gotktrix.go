@@ -763,7 +763,11 @@ func (p *RoomPaginator) Paginate(ctx context.Context) ([]event.RawEvent, error) 
 
 	// Calculate the boundary to which we should slice the buffer. The boundary
 	// will be calculated starting from the end of buffer.
-	bound := len(p.buffer) - p.limit
+	bound := len(p.buffer)
+	if bound > p.limit {
+		bound -= p.limit
+	}
+
 	// Reslice the buffer to not have the region that we're about to split away.
 	new := p.buffer[:bound]
 	// Use all latest n=p.limit events.
@@ -802,25 +806,33 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 		// Fill up the last batch from start.
 		r, err := p.c.WithContext(ctx).RoomMessages(p.roomID, api.RoomMessagesQuery{
 			From:      p.lastBatch,
-			Direction: api.RoomMessagesForward, // latest last
-			Limit:     100,                     // fetch 100 events a time
+			Direction: api.RoomMessagesBackward,
+			Limit:     100,
 		})
 		if err != nil {
 			return errors.Wrapf(err, "failed to query messages for room %q", p.roomID)
 		}
 
-		// Update the last batch.
-		// End is used to request earlier events IF DIRECTION IS BACKWARDS.
-		// Since we're using forward direction, we use Start.
-		p.lastBatch = r.Start
+		// If start and end matches, then we're out of messages.
+		if r.Start == r.End {
+			p.onTop = true
+			break
+		}
 
-		// log.Printf("got start %q end %q", r.Start, r.End)
+		// Update the last batch.
+		// End is used to request earlier events if direction is backwards.
+		p.lastBatch = r.End
+
+		// Flip the message list. Code from SliceTricks.
+		for i, j := 0, len(r.Chunk)-1; i < j; i, j = i+1, j-1 {
+			r.Chunk[i], r.Chunk[j] = r.Chunk[j], r.Chunk[i]
+		}
 
 		// Seek until we stumble on the wanted events.
 		for i, ev := range r.Chunk {
 			if ev.ID == p.lastEvID {
-				// Include all events from the found one until the first event,
-				// which is the earliest event.
+				// Include all events from before the found one to the first
+				// event, which is the earliest event.
 				p.prepend(r.Chunk[:i])
 				break
 			}

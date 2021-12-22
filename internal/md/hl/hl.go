@@ -50,13 +50,22 @@ var Style = prefs.NewString("", prefs.StringMeta{
 })
 
 func init() {
+	Style.SubscribeInit(updateGlobal)
+	// Realistically the user will never see it when the thing isn't
+	// initialized, anyway.
+	go updateGlobal()
+}
+
+func updateGlobal() {
 	s, err := findStyle(Style.Value())
 	if err != nil {
 		log.Panicln("hl: failed to parse default style:", err)
 	}
 
 	if s != styles.Fallback {
+		globalMu.Lock()
 		global = convertStyle(s)
+		globalMu.Unlock()
 	}
 }
 
@@ -114,6 +123,9 @@ func styleEntryToTag(e chroma.StyleEntry) markuputil.TextTag {
 
 	if e.Colour.IsSet() {
 		attrs["foreground"] = e.Colour.String()
+	}
+	if e.Border.IsSet() {
+		attrs["background"] = e.Border.String()
 	}
 	if e.Background.IsSet() {
 		attrs["background"] = e.Background.String()

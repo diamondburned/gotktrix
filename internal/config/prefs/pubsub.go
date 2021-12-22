@@ -59,6 +59,14 @@ func (p *Pubsub) Subscribe(f func()) (rm func()) {
 	}
 }
 
+// SubscribeInit is like Subscribe, except you can't unsubscribe, the callback
+// is not called, and the method is not thread-safe. It is only meant to be
+// called in init() functions.
+func (p *Pubsub) SubscribeInit(f func()) {
+	b := &funcBox{f}
+	p.funcs[b] = struct{}{}
+}
+
 // Connect binds f to the lifetime of the given object.
 func Connect(sub Subscriber, obj glib.Objector, f func()) {
 	var unsub func()

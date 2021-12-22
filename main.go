@@ -80,11 +80,18 @@ var _ = cssutil.WriteCSS(`
 		margin-right: 12px;
 	}
 
+	.left-header button, .right-header button {
+		min-width:  32px; /* keep these in sync wcith room.AvatarSize */
+		min-height: 32px;
+		padding: 0;
+	}
+
 	.app-menu {
-		margin-right: 6px;
+		margin-right:  6px;
 	}
 
 	.selfbar-bar {
+		border: none;
 		border-top: 1px solid @borders;
 	}
 
@@ -92,6 +99,11 @@ var _ = cssutil.WriteCSS(`
 	 * can work properly. */
 	.messageview-rhs .messageview-box > overlay {
 		border-bottom: 1px solid @borders;
+	}
+
+	/* Fix a quirk to do with the Default theme. */
+	.titlebar box {
+		opacity: initial;
 	}
 `)
 

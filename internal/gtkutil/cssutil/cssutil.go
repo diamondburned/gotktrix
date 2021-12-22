@@ -11,7 +11,11 @@ import (
 	"github.com/diamondburned/gotktrix/internal/config"
 )
 
-var globalCSS strings.Builder
+var globalCSS = func() *strings.Builder {
+	b := strings.Builder{}
+	b.Grow(50 << 10) // 50KB
+	return &b
+}()
 
 // Applier returns a constructor that applies a class to the given widgetter. It
 // also writes the CSS to the global CSS.

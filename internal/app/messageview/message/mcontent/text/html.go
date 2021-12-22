@@ -241,7 +241,9 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			// Only start and stop a new block if we're not already in a
 			// blockquote, since we're not nesting anything, so doing this will
 			// mess up the blockquote.
-			if _, ok := s.block.current().(*quoteBlock); !ok {
+			if _, ok := s.block.current().(*quoteBlock); ok {
+				s.endLine(n, 1)
+			} else {
 				s.block.paragraph()
 				defer s.block.finalizeBlock()
 			}
