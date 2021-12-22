@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"embed"
 	"os"
 	"os/signal"
 	"strings"
@@ -28,6 +28,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
+	"golang.org/x/text/message"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 
@@ -94,12 +95,20 @@ var _ = cssutil.WriteCSS(`
 	}
 `)
 
+//go:embed locales
+var locales embed.FS
+
 func main() {
 	glib.LogUseDefaultLogger()
 
 	// Quit the application on a SIGINT.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+
+	// Initialize translations and locales.
+	ctx = locale.WithPrinter(ctx, locale.NewLocalPrinter(
+		message.Catalog(locale.MustLoadLocales(locales)),
+	))
 
 	app := gtk.NewApplication(config.AppIDDot("gotktrix"), 0)
 	app.Connect("activate", func() { activate(ctx, app) })
@@ -114,7 +123,6 @@ func main() {
 	defer app.Quit()
 
 	if code := app.Run(os.Args); code > 0 {
-		log.Println("exit status", code)
 		os.Exit(code)
 	}
 }
@@ -133,7 +141,6 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 	w.SetTitle("gotktrix")
 
 	ctx = app.WithApplication(ctx, a)
-	ctx = locale.WithLocalPrinter(ctx)
 
 	authAssistant := auth.Show(ctx)
 	authAssistant.OnConnect(func(client *gotktrix.Client, acc *auth.Account) {

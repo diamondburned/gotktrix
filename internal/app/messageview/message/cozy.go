@@ -3,7 +3,6 @@ package message
 import (
 	"context"
 	"log"
-	"time"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
@@ -11,58 +10,17 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
-	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
 )
-
-var _ = cssutil.WriteCSS(`
-	.message-timestamp {
-		font-size: 0.80em;
-		color: alpha(@theme_fg_color, 0.55);
-	}
-	.message-message {
-		margin-right: 8px;
-	}
-	.message-collapsed .message-timestamp {
-		opacity: 0;
-		font-size: .65em;
-		min-height: 1.9em;
-	}
-	.message-collapsed:hover .message-timestamp {
-		opacity: 1;
-	}
-`)
-
-// newTimestamp creates a new timestamp label. If long is true, then the label
-// timestamp is long.
-func newTimestamp(ctx context.Context, ts time.Time, long bool) *gtk.Label {
-	var t string
-	if long {
-		t = locale.TimeAgo(ctx, ts)
-	} else {
-		t = locale.Time(ts, false)
-	}
-
-	l := gtk.NewLabel(t)
-	l.SetTooltipText(ts.Format(time.StampMilli))
-	l.AddCSSClass("message-timestamp")
-
-	return l
-}
 
 type cozyMessage struct {
 	*gtk.Box
-	*eventBox
-	parent messageViewer
-
-	avatar    *adaptive.Avatar
-	sender    *gtk.Label
-	timestamp *gtk.Label
-	content   *mcontent.Content
+	*message
+	avatar *adaptive.Avatar
+	sender *gtk.Label
 }
 
 var _ = cssutil.WriteCSS(`
@@ -81,73 +39,56 @@ var _ = cssutil.WriteCSS(`
 func (v messageViewer) cozyMessage() *cozyMessage {
 	client := v.client().Offline()
 
-	nameLabel := gtk.NewLabel("")
-	nameLabel.SetTooltipText(string(v.raw.Sender))
-	nameLabel.SetSingleLineMode(true)
-	nameLabel.SetEllipsize(pango.EllipsizeEnd)
-	nameLabel.SetMarkup(mauthor.Markup(
+	msg := cozyMessage{}
+	msg.message = v.newMessage(true)
+	msg.message.timestamp.SetYAlign(0.6)
+
+	msg.sender = gtk.NewLabel("")
+	msg.sender.SetTooltipText(string(v.raw.Sender))
+	msg.sender.SetSingleLineMode(true)
+	msg.sender.SetEllipsize(pango.EllipsizeEnd)
+	msg.sender.SetMarkup(mauthor.Markup(
 		client, v.raw.RoomID, v.raw.Sender,
-		mauthor.WithWidgetColor(nameLabel),
+		mauthor.WithWidgetColor(msg.sender),
 	))
 
-	timestamp := newTimestamp(v, v.raw.OriginServerTime.Time(), true)
-	timestamp.SetEllipsize(pango.EllipsizeEnd)
-	timestamp.SetYAlign(0.6)
-
-	avatar := adaptive.NewAvatar(avatarSize)
-	avatar.ConnectLabel(nameLabel)
-	avatar.SetVAlign(gtk.AlignStart)
-	avatar.SetMarginTop(2)
-	avatar.SetTooltipText(string(v.raw.Sender))
+	msg.avatar = adaptive.NewAvatar(avatarSize)
+	msg.avatar.ConnectLabel(msg.sender)
+	msg.avatar.SetVAlign(gtk.AlignStart)
+	msg.avatar.SetMarginTop(2)
+	msg.avatar.SetTooltipText(string(v.raw.Sender))
 
 	mxc, _ := client.MemberAvatar(v.raw.RoomID, v.raw.Sender)
 	if mxc != nil {
-		setAvatar(v, avatar, client, *mxc)
+		setAvatar(v, msg.avatar, client, *mxc)
 	}
 
 	authorTsBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	authorTsBox.Append(nameLabel)
-	authorTsBox.Append(timestamp)
-
-	content := mcontent.New(v.Context, v.raw)
+	authorTsBox.Append(msg.sender)
+	authorTsBox.Append(msg.timestamp)
 
 	rightBox := gtk.NewBox(gtk.OrientationVertical, 0)
 	rightBox.Append(authorTsBox)
-	rightBox.Append(content)
+	rightBox.Append(msg.content)
 
-	bigBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	bigBox.Append(&avatar.Widget)
-	bigBox.Append(rightBox)
+	msg.Box = gtk.NewBox(gtk.OrientationHorizontal, 0)
+	msg.Box.Append(msg.avatar)
+	msg.Box.Append(rightBox)
 
-	bigBox.AddCSSClass("message-cozy")
-	messageCSS(bigBox)
+	msg.AddCSSClass("message-cozy")
+	messageCSS(msg)
 
-	msg := &cozyMessage{
-		Box:      bigBox,
-		eventBox: &eventBox{v.raw},
-		parent:   v,
-
-		avatar:    avatar,
-		sender:    nameLabel,
-		timestamp: timestamp,
-		content:   content,
-	}
-
-	bindParent(v, msg, content)
-	return msg
+	bindParent(v, msg, msg.content)
+	return &msg
 }
 
 func (m *cozyMessage) SetBlur(blur bool) {
-	blurWidget(m, m.content, blur)
-}
-
-func (m *cozyMessage) OnRelatedEvent(ev *gotktrix.EventBox) {
-	m.content.OnRelatedEvent(ev)
+	m.message.setBlur(m, blur)
 }
 
 func (m *cozyMessage) LoadMore() {
 	m.asyncFetch()
-	m.content.LoadMore()
+	m.message.LoadMore()
 }
 
 func (m *cozyMessage) asyncFetch() {
@@ -173,9 +114,4 @@ func setAvatar(ctx context.Context, a *adaptive.Avatar, client *gotktrix.Client,
 			log.Print("error getting avatar ", mxc, ": ", err)
 		}),
 	)
-}
-
-// apiUpdate performs an asynchronous API update.
-func (m *cozyMessage) apiUpdate() {
-	// TODO
 }

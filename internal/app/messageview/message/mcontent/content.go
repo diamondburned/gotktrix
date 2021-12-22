@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/chanbakjsd/gotrix/event"
+	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -24,6 +25,8 @@ type Content struct {
 
 	part  contentPart
 	react *reactionBox
+
+	editedTime matrix.Timestamp
 }
 
 // New parses the given room message event and renders it into a Content widget.
@@ -101,6 +104,12 @@ func (c *Content) SetExtraMenu(menu gio.MenuModeller) {
 	}
 }
 
+// EditedTimestamp returns either the Matrix timestamp if the message content
+// has been edited or false if not.
+func (c *Content) EditedTimestamp() (matrix.Timestamp, bool) {
+	return c.editedTime, c.editedTime > 0
+}
+
 func (c *Content) OnRelatedEvent(box *gotktrix.EventBox) {
 	if c.isRedacted() {
 		return
@@ -113,9 +122,10 @@ func (c *Content) OnRelatedEvent(box *gotktrix.EventBox) {
 
 	switch ev := ev.(type) {
 	case event.RoomMessageEvent:
-		if body, isEdited := msgBody(box); isEdited {
+		if body, isEdited := MsgBody(box); isEdited {
 			if editor, ok := c.part.(editableContentPart); ok {
 				editor.edit(body)
+				c.editedTime = ev.OriginTime
 			}
 		}
 	case event.RoomRedactionEvent:

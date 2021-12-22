@@ -37,7 +37,7 @@ func TagIsIntern(name matrix.TagName) bool {
 
 // TagName returns the name of the given tag.
 func TagName(ctx context.Context, name matrix.TagName) string {
-	p := locale.Printer(ctx)
+	p := locale.FromContext(ctx)
 
 	switch {
 	case name.HasNamespace("m"):

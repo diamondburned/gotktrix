@@ -300,7 +300,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 			}
 
 			var msg string
-			p := locale.Printer(ctx)
+			p := locale.FromContext(ctx)
 
 			switch len(names) {
 			case 0:
@@ -637,6 +637,10 @@ func (p *Page) resetMessage(key messageKey, before messageRow) bool {
 	msg, ok := p.messages[key]
 	if !ok {
 		return false
+	}
+
+	if before.body != nil {
+		log.Printf("for message by %q, found %q (ours=%q) before", msg.raw.Sender, before.body.RawEvent().Sender, before.raw.Sender)
 	}
 
 	// Recreate the body if the raw events don't match.

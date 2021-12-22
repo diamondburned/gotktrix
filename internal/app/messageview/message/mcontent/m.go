@@ -20,7 +20,7 @@ type contentPart interface {
 }
 
 type editableContentPart interface {
-	edit(body messageBody)
+	edit(body MessageBody)
 }
 
 type loadableContentPart interface {
@@ -60,7 +60,7 @@ func newRedactedContent(ctx context.Context, red event.RoomRedactionEvent) redac
 	label := gtk.NewLabel("")
 	label.SetYAlign(0)
 
-	p := locale.Printer(ctx)
+	p := locale.FromContext(ctx)
 
 	if red.Reason != "" {
 		red.Reason = strings.TrimSuffix(red.Reason, ".")
@@ -95,7 +95,7 @@ var unknownContentCSS = cssutil.Applier("mcontent-unknown", `
 func newUnknownContent(ctx context.Context, msgBox *gotktrix.EventBox) unknownContent {
 	var msg string
 
-	p := locale.Printer(ctx)
+	p := locale.FromContext(ctx)
 
 	if msgBox.Type == event.TypeRoomMessage {
 		e, _ := msgBox.Parse()
@@ -123,7 +123,7 @@ type erroneousContent struct {
 }
 
 func newErroneousContent(ctx context.Context, desc string, w, h int) erroneousContent {
-	p := locale.Printer(ctx)
+	p := locale.FromContext(ctx)
 
 	l := gtk.NewLabel("")
 	l.SetMarkup(p.Sprintf(

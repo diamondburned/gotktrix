@@ -7,6 +7,8 @@ import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
@@ -25,23 +27,6 @@ type Message interface {
 	// LoadMore loads more information in the message, such as embeds. It should
 	// be synchronous most of the time.
 	LoadMore()
-}
-
-func blurWidget(parent, content gtk.Widgetter, blur bool) {
-	gtk.BaseWidget(content).SetSensitive(!blur)
-	if blur {
-		gtk.BaseWidget(parent).AddCSSClass("message-blurred")
-	} else {
-		gtk.BaseWidget(parent).RemoveCSSClass("message-blurred")
-	}
-}
-
-type eventBox struct {
-	*gotktrix.EventBox
-}
-
-func (b *eventBox) RawEvent() *gotktrix.EventBox {
-	return b.EventBox
 }
 
 var messageCSS = cssutil.Applier("message-message", `
@@ -112,4 +97,60 @@ func lastIsAuthor(before Message, ev *event.RawEvent) bool {
 func lastEventIsAuthor(last, ev *event.RawEvent) bool {
 	return last != nil && last.Sender == ev.Sender &&
 		ev.OriginServerTime.Time().Sub(last.OriginServerTime.Time()) < maxCozyAge
+}
+
+var _ = cssutil.WriteCSS(`
+	.message-message {
+		margin-right: 8px;
+	}
+`)
+
+// message is the base message type that other message types can compose upon.
+type message struct {
+	parent    messageViewer
+	timestamp *timestamp
+	content   *mcontent.Content
+}
+
+func (v messageViewer) newMessage(longTimestamp bool) *message {
+	timestamp := newTimestamp(v, v.raw.OriginServerTime.Time(), longTimestamp)
+	timestamp.SetEllipsize(pango.EllipsizeEnd)
+
+	content := mcontent.New(v.Context, v.raw)
+
+	return &message{
+		parent:    v,
+		timestamp: timestamp,
+		content:   content,
+	}
+}
+
+func (m *message) RawEvent() *gotktrix.EventBox {
+	return m.parent.raw
+}
+
+func (m *message) OnRelatedEvent(ev *gotktrix.EventBox) {
+	m.content.OnRelatedEvent(ev)
+
+	t, edited := m.content.EditedTimestamp()
+	if edited {
+		m.timestamp.setEdited(t.Time())
+	}
+}
+
+func (m *message) LoadMore() {
+	m.content.LoadMore()
+}
+
+func (m *message) setBlur(parent gtk.Widgetter, blur bool) {
+	gtk.BaseWidget(m.content).SetSensitive(!blur)
+	setBlurClass(m.content, blur)
+}
+
+func setBlurClass(w gtk.Widgetter, blur bool) {
+	if blur {
+		gtk.BaseWidget(w).AddCSSClass("message-blurred")
+	} else {
+		gtk.BaseWidget(w).RemoveCSSClass("message-blurred")
+	}
 }

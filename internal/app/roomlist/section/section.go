@@ -241,7 +241,7 @@ func (s *Section) Tag() matrix.TagName {
 }
 
 func (s *Section) showPreviewBox() gtk.Widgetter {
-	printer := locale.Printer(s.ctx)
+	printer := locale.FromContext(s.ctx)
 
 	check := gtk.NewCheckButtonWithLabel(printer.Sprint("Show Message Preview"))
 	check.Connect("toggled", func() {

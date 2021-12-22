@@ -2,9 +2,7 @@ package locale
 
 import (
 	"context"
-	"log"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
@@ -18,43 +16,30 @@ const (
 	printerKey ctxKey = iota
 )
 
-var (
-	localPrinter *message.Printer
-	initOnce     sync.Once
-)
+// NewLocalPrinter creates a new printer from the given options, with the
+// language tags taken from the system's locales using GLib's API.
+func NewLocalPrinter(opts ...message.Option) *message.Printer {
+	var langs []language.Tag
 
-func initialize() {
-	initOnce.Do(func() {
-		var langs []language.Tag
-
-		for _, lang := range glib.GetLanguageNames() {
-			if lang == "C" {
-				continue
-			}
-
-			icuLocale := strings.SplitN(lang, ".", 2)[0]
-
-			t, err := language.Parse(icuLocale)
-			if err != nil {
-				log.Printf("cannot parse language %s: %v", lang, err)
-			} else {
-				langs = append(langs, t)
-			}
+	for _, lang := range glib.GetLanguageNames() {
+		if lang == "C" {
+			continue
 		}
 
-		// English fallback.
-		if len(langs) < 1 {
-			langs = append(langs, language.English)
+		icuLocale := strings.SplitN(lang, ".", 2)[0]
+
+		t, err := language.Parse(icuLocale)
+		if err == nil {
+			langs = append(langs, t)
 		}
+	}
 
-		localPrinter = message.NewPrinter(langs[0])
-	})
-}
+	// English fallback.
+	if len(langs) < 1 {
+		langs = append(langs, language.English)
+	}
 
-// WithLocalPrinter inserts the local printer into the context scope.
-func WithLocalPrinter(ctx context.Context) context.Context {
-	initialize()
-	return WithPrinter(ctx, localPrinter)
+	return message.NewPrinter(langs[0], opts...)
 }
 
 // WithPrinter inserts the given printer into a new context and  returns it.
@@ -64,13 +49,13 @@ func WithPrinter(ctx context.Context, p *message.Printer) context.Context {
 
 // S returns the translated string from the given reference.
 func S(ctx context.Context, a message.Reference) string {
-	return Printer(ctx).Sprint(a)
+	return FromContext(ctx).Sprint(a)
 }
 
 // SFunc is a helper function that wraps the given context to format multiple
 // strings in a shorter syntax.
 func SFunc(ctx context.Context) func(a message.Reference) string {
-	p := Printer(ctx)
+	p := FromContext(ctx)
 	return func(a message.Reference) string { return p.Sprint(a) }
 }
 
@@ -80,21 +65,39 @@ func Sprint(ctx context.Context, a ...message.Reference) string {
 	for i, v := range a {
 		vs[i] = v
 	}
-	return Printer(ctx).Sprint(vs...)
+	return FromContext(ctx).Sprint(vs...)
 }
 
 // Sprintf calls ctx's message printer's Sprintf.
 func Sprintf(ctx context.Context, k message.Reference, a ...interface{}) string {
-	return Printer(ctx).Sprintf(k, a...)
+	return FromContext(ctx).Sprintf(k, a...)
 }
 
-// Printer returns the printer inside the context OR the local printer if none.
-func Printer(ctx context.Context) *message.Printer {
-	p, ok := ctx.Value(printerKey).(*message.Printer)
+// Printer is a message printer.
+type Printer = message.Printer
+
+// Printer returns the printer inside the context or nil.
+func FromContext(ctx context.Context) *Printer {
+	p, ok := ctx.Value(printerKey).(*Printer)
 	if ok {
 		return p
 	}
-	return localPrinter
+	return nil
+}
+
+// doubleSpaceCollider is used for some formatted timestamps to get rid of
+// padding spaces.
+var doubleSpaceCollider = strings.NewReplacer("  ", " ")
+
+// Time formats the given timestamp as a locale-compatible timestamp.
+func Time(t time.Time, long bool) string {
+	glibTime := glib.NewDateTimeFromGo(t.Local())
+
+	if long {
+		return doubleSpaceCollider.Replace(glibTime.Format("%c"))
+	}
+
+	return glibTime.Format("%X")
 }
 
 const (
@@ -114,17 +117,6 @@ var longTruncators = []truncator{
 	{d: -1, s: "%X %x"},
 }
 
-// Time formats the given timestamp as a locale-compatible timestamp.
-func Time(t time.Time, long bool) string {
-	glibTime := glib.NewDateTimeFromGo(t.Local())
-
-	if long {
-		return glibTime.Format("%c")
-	}
-
-	return glibTime.Format("%X")
-}
-
 // TimeAgo formats a long string that expresses the relative time difference
 // from now until t.
 func TimeAgo(ctx context.Context, t time.Time) string {
@@ -138,7 +130,7 @@ func TimeAgo(ctx context.Context, t time.Time) string {
 		now = now.Truncate(truncator.d)
 
 		if trunc.Equal(now) || truncator.d == -1 {
-			glibTime := glib.NewDateTimeFromGo(t.Local())
+			glibTime := glib.NewDateTimeFromGo(t)
 			return glibTime.Format(S(ctx, truncator.s))
 		}
 	}

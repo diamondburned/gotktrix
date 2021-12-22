@@ -8,7 +8,7 @@ require (
 	github.com/blevesearch/bleve/v2 v2.1.0
 	github.com/chanbakjsd/gotrix v0.3.2-0.20211101211156-af54c7b545cf
 	github.com/diamondburned/adaptive v0.0.2-0.20211210081242-eb0212efa77c
-	github.com/diamondburned/gotk4/pkg v0.0.0-20211220082539-d07325301868
+	github.com/diamondburned/gotk4/pkg v0.0.0-20211222052231-f25d4246e860
 	github.com/enescakir/emoji v1.0.0
 	github.com/fxamacker/cbor/v2 v2.3.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
@@ -55,5 +55,8 @@ require (
 	github.com/steveyen/gtreap v0.1.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063 // indirect
+	golang.org/x/mod v0.3.0 // indirect
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
+	golang.org/x/tools v0.0.0-20200928182047-19e03678916f // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 )

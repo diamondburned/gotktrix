@@ -14,13 +14,12 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
-	"golang.org/x/text/message"
 )
 
 // eventMessage is a mini-message.
 type eventMessage struct {
 	*gtk.Label
-	*eventBox
+	parent messageViewer
 }
 
 var _ = cssutil.WriteCSS(`
@@ -45,13 +44,18 @@ func (v messageViewer) eventMessage() *eventMessage {
 	bindParent(v, action, action)
 
 	return &eventMessage{
-		Label:    action,
-		eventBox: &eventBox{v.raw},
+		Label:  action,
+		parent: v,
 	}
 }
 
+func (m *eventMessage) RawEvent() *gotktrix.EventBox {
+	return m.parent.raw
+}
+
 func (m *eventMessage) SetBlur(blur bool) {
-	blurWidget(m, m, blur)
+	m.SetSensitive(!blur)
+	setBlurClass(m, blur)
 }
 
 func (m *eventMessage) OnRelatedEvent(ev *gotktrix.EventBox) {}
@@ -74,7 +78,7 @@ func RenderEvent(ctx context.Context, raw *gotktrix.EventBox) string {
 		)
 	}
 
-	p := locale.Printer(ctx)
+	p := locale.FromContext(ctx)
 
 	if redaction := raw.Unsigned.RedactReason; redaction != nil {
 		redacted := p.Sprint("message redacted.")
@@ -183,7 +187,7 @@ func pastMemberEvent(raw *gotktrix.EventBox) event.RoomMemberEvent {
 }
 
 func memberEvent(ctx context.Context, raw *gotktrix.EventBox, author string) string {
-	printer := locale.Printer(ctx)
+	printer := locale.FromContext(ctx)
 
 	parsed, _ := raw.Parse()
 	ev := parsed.(event.RoomMemberEvent)
@@ -195,12 +199,12 @@ func memberEvent(ctx context.Context, raw *gotktrix.EventBox, author string) str
 	case event.MemberInvited:
 		switch ev.NewState {
 		case event.MemberJoined:
-			return printer.Sprintf("%s joined.", author)
+			return locale.Sprintf(ctx, "%s joined.", author)
 		case event.MemberLeft:
 			if ev.SenderID == ev.UserID {
-				return printer.Sprintf("%s rejected the invite.", author)
+				return locale.Sprintf(ctx, "%s rejected the invite.", author)
 			} else {
-				return printer.Sprintf("%s had their invitation revoked.", author)
+				return locale.Sprintf(ctx, "%s had their invitation revoked.", author)
 			}
 		}
 	case event.MemberJoined:
@@ -208,25 +212,25 @@ func memberEvent(ctx context.Context, raw *gotktrix.EventBox, author string) str
 		case event.MemberJoined:
 			switch {
 			case past.AvatarURL != ev.AvatarURL:
-				return printer.Sprintf("%s changed their avatar.", author)
+				return locale.Sprintf(ctx, "%s changed their avatar.", author)
 			case !sameDisplayName(past.DisplayName, ev.DisplayName):
-				return printer.Sprintf("%s changed their name.", author)
+				return locale.Sprintf(ctx, "%s changed their name.", author)
 			default:
-				return printer.Sprintf("%s updated their information.", author)
+				return locale.Sprintf(ctx, "%s updated their information.", author)
 			}
 		case event.MemberLeft:
 			if ev.SenderID == ev.UserID {
-				return printer.Sprintf("%s left the room.", author)
+				return locale.Sprintf(ctx, "%s left the room.", author)
 			} else {
-				return printer.Sprintf("%s was kicked.", author)
+				return locale.Sprintf(ctx, "%s was kicked.", author)
 			}
 		case event.MemberBanned:
-			return printer.Sprintf("%s was kicked and banned.", author)
+			return locale.Sprintf(ctx, "%s was kicked and banned.", author)
 		}
 	case event.MemberBanned:
 		switch ev.NewState {
 		case event.MemberLeft:
-			return printer.Sprintf("%s was unbanned.", author)
+			return locale.Sprintf(ctx, "%s was unbanned.", author)
 		}
 	}
 
@@ -243,7 +247,7 @@ func sameDisplayName(n1, n2 *string) bool {
 	return *n1 == *n2
 }
 
-func basicMemberEventTail(p *message.Printer, ev event.RoomMemberEvent, author string) string {
+func basicMemberEventTail(p *locale.Printer, ev event.RoomMemberEvent, author string) string {
 	switch ev.NewState {
 	case event.MemberInvited:
 		return p.Sprintf("%s was invited.", author)

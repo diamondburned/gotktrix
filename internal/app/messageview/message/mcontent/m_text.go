@@ -19,7 +19,8 @@ type textContent struct {
 	render text.RenderWidget
 	embeds *gtk.Box
 
-	ctx context.Context
+	menu gio.MenuModeller
+	ctx  context.Context
 }
 
 var _ editableContentPart = (*textContent)(nil)
@@ -31,7 +32,7 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) *textContent
 		roomID: msgBox.RoomID,
 	}
 
-	body, isEdited := msgBody(msgBox)
+	body, isEdited := MsgBody(msgBox)
 	c.setContent(body, isEdited)
 
 	return &c
@@ -39,17 +40,20 @@ func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) *textContent
 
 func (c *textContent) content() {}
 
-func (c *textContent) SetExtraMenu(menu gio.MenuModeller) {
-	gmenu := gio.NewMenu()
-	gmenu.InsertSection(0, "Message", menu)
-	c.render.SetExtraMenu(gmenu)
+func (c *textContent) SetExtraMenu(messageMenu gio.MenuModeller) {
+	menu := gio.NewMenu()
+	menu.InsertSection(0, "Message", messageMenu)
+
+	c.menu = menu
+	c.render.SetExtraMenu(c.menu)
 }
 
-func (c *textContent) edit(body messageBody) {
+func (c *textContent) edit(body MessageBody) {
 	c.setContent(body, true)
+	c.LoadMore()
 }
 
-func (c *textContent) setContent(body messageBody, isEdited bool) {
+func (c *textContent) setContent(body MessageBody, isEdited bool) {
 	if c.render.RenderWidgetter != nil {
 		c.Box.Remove(c.render.RenderWidgetter)
 	}
@@ -64,23 +68,8 @@ func (c *textContent) setContent(body messageBody, isEdited bool) {
 		c.render = text.RenderText(c.ctx, body.Body)
 	}
 
+	c.render.SetExtraMenu(c.menu)
 	c.Box.Append(c.render)
-
-	// TODO
-
-	// if isEdited {
-	// 	end := buf.EndIter()
-
-	// 	edited := `<span alpha="75%" size="small">` + locale.S(c.ctx, "(edited)") + "</span>"
-	// 	if buf.CharCount() > 0 {
-	// 		// Prepend a space if we already have text.
-	// 		edited = " " + edited
-	// 	}
-
-	// 	buf.InsertMarkup(end, edited)
-	// }
-
-	// c.invalidateAllocate()
 }
 
 var embedsCSS = cssutil.Applier("mcontent-embeds", `
@@ -103,27 +92,18 @@ func (c *textContent) LoadMore() {
 	loadEmbeds(c.ctx, c.embeds, c.render.URLs)
 }
 
-// func (c *textContent) invalidateAllocate() {
-// 	// Workaround to hopefully fix 2 GTK bugs:
-// 	// - TextViews are invisible sometimes.
-// 	// - Multiline TextViews are sometimes only drawn as 1.
-// 	glib.TimeoutAdd(100, func() {
-// 		c.text.QueueAllocate()
-// 		c.text.QueueResize()
-// 	})
-// }
-
-type messageBody struct {
+type MessageBody struct {
 	Body          string              `json:"body"`
 	MsgType       event.MessageType   `json:"msgtype"`
 	Format        event.MessageFormat `json:"format,omitempty"`
 	FormattedBody string              `json:"formatted_body,omitempty"`
 }
 
-func msgBody(box *gotktrix.EventBox) (m messageBody, edited bool) {
+// MsgBody parses the message event and accounts for edited ones.
+func MsgBody(box *gotktrix.EventBox) (m MessageBody, edited bool) {
 	var body struct {
-		messageBody
-		NewContent messageBody `json:"m.new_content"`
+		MessageBody
+		NewContent MessageBody `json:"m.new_content"`
 
 		RelatesTo struct {
 			RelType string         `json:"rel_type"`
@@ -133,11 +113,11 @@ func msgBody(box *gotktrix.EventBox) (m messageBody, edited bool) {
 
 	if err := json.Unmarshal(box.Content, &body); err != nil {
 		// This shouldn't happen, since we already unmarshaled above.
-		return messageBody{}, false
+		return MessageBody{}, false
 	}
 
 	if body.RelatesTo.RelType == "m.replace" {
 		return body.NewContent, true
 	}
-	return body.messageBody, false
+	return body.MessageBody, false
 }
