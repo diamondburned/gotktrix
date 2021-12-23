@@ -85,9 +85,7 @@ const maxCozyAge = 10 * time.Minute
 func lastIsAuthor(before Message, ev *event.RawEvent) bool {
 	// Ensure that the last message IS a cozy OR compact message.
 	switch before := before.(type) {
-	case *cozyMessage:
-		return lastEventIsAuthor(before.RawEvent().RawEvent, ev)
-	case *collapsedMessage:
+	case *cozyMessage, *collapsedMessage:
 		return lastEventIsAuthor(before.RawEvent().RawEvent, ev)
 	default:
 		return false

@@ -539,6 +539,7 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 		// Store the index which will be the next message once we remove the
 		// current one.
 		ix := msg.row.Index()
+		log.Println("message bound after arrival from server, deleting")
 		// Yes, so replace our sending message.
 		p.list.Remove(msg.row)
 		// Reset the message that fills the gap. This isn't very important, so
@@ -554,6 +555,7 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 
 	msg.row.SetName(string(eventKey))
 	msg.body.SetBlur(false)
+	log.Println("message bound from API")
 
 	return false
 }
@@ -572,6 +574,7 @@ func (p *Page) onRoomEvent(raw *event.RawEvent) (key messageKey) {
 			// Register this event as a related event.
 			p.mrelated[raw.ID] = relatesToID
 			// Trigger the message's callback.
+			log.Println("spotted related message")
 			rl.body.OnRelatedEvent(gotktrix.WrapEventBox(raw))
 			return
 		}
@@ -582,9 +585,15 @@ func (p *Page) onRoomEvent(raw *event.RawEvent) (key messageKey) {
 	// happen if this is a message that we sent.
 	if existing, ok := p.messages[key]; ok {
 		existing.raw = raw
+		log.Println("message arrived from server with existing ID")
 		p.setMessage(key, existing)
 		return
 	}
+
+	// Bug with sequence:
+	//  1. message bound from API
+	//  2. message arrived from server with existing ID
+	// Seems like on step 2, the message is incorrectly collapsed.
 
 	row := gtk.NewListBoxRow()
 	row.SetName(string(key))
