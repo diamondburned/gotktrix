@@ -72,19 +72,20 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 		msg:        msg,
 	}
 
-	// 	box := gtk.NewBox(gtk.OrientationVertical, 0)
-	// 	box.SetHExpand(false)
-	// 	box.Append(button)
+	i, err := msg.ImageInfo()
+	if err == nil && i.Width > 0 && i.Height > 0 {
+		c.setSize(i.Width, i.Height)
+	} else {
+		// Oversize and resize it back after.
+		c.setSize(maxWidth, maxHeight)
+	}
 
 	return &c
 }
 
 func (c *imageContent) LoadMore() {
-	i, err := c.msg.ImageInfo()
-	if err == nil && i.Width > 0 && i.Height > 0 {
-		w, h := gotktrix.MaxSize(i.Width, i.Height, maxWidth, maxHeight)
-		c.setSize(w, h)
-		renderBlurhash(c.msg.Info, w, h, c.image.SetPixbuf)
+	if c.curSize != [2]int{} && c.msg.Info != nil {
+		renderBlurhash(c.msg.Info, c.curSize[0], c.curSize[1], c.image.SetPixbuf)
 	}
 
 	client := gotktrix.FromContext(c.ctx)
@@ -130,12 +131,7 @@ func (e *imageEmbed) useURL(ctx context.Context, url string) {
 	gtkutil.OnFirstDraw(e, func() {
 		// Only load the image when we actually draw the image.
 		imgutil.AsyncGET(ctx, url, func(p gdk.Paintabler) {
-			if e.curSize == [2]int{} {
-				e.setSize(gotktrix.MaxSize(
-					p.IntrinsicWidth(), p.IntrinsicHeight(),
-					e.maxSize[0], e.maxSize[1],
-				))
-			}
+			e.setSize(p.IntrinsicWidth(), p.IntrinsicHeight())
 			e.image.SetPaintable(p)
 		})
 	})
@@ -147,6 +143,7 @@ func (e *imageEmbed) setOpenURL(f func()) {
 }
 
 func (e *imageEmbed) setSize(w, h int) {
+	w, h = gotktrix.MaxSize(w, h, e.maxSize[0], e.maxSize[1])
 	e.curSize = [2]int{w, h}
 	e.image.SetSizeRequest(w, h)
 }

@@ -48,6 +48,14 @@ var reactionsCSS = cssutil.Applier("mcontent-reactions", `
 	.mcontent-reaction > button:hover {
 		background-color: mix(@theme_fg_color, @theme_base_color, 0.75);
 	}
+	.mcontent-reaction > button:checked {
+		color: @theme_selected_fg_color;
+		background-color: mix(mix(@theme_fg_color, @theme_base_color, 0.85), @theme_selected_bg_color, 0.4);
+	}
+	.mcontent-reaction > button:checked:hover {
+		color: @theme_selected_fg_color;
+		background-color: mix(mix(@theme_fg_color, @theme_base_color, 0.65), @theme_selected_bg_color, 0.4);
+	}
 `)
 
 func newReactionBox() *reactionBox {

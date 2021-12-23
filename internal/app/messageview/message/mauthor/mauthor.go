@@ -130,7 +130,7 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 		}
 	}
 
-	if opts.at {
+	if opts.at && !strings.HasPrefix(name, "@") {
 		name = "@" + name
 	}
 
@@ -193,7 +193,7 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 		}
 	}
 
-	if opts.at {
+	if opts.at && !strings.HasPrefix(name, "@") {
 		name = "@" + name
 	} else if name == "" {
 		return
