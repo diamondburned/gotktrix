@@ -35,6 +35,12 @@ import (
 	_ "github.com/diamondburned/gotktrix/internal/gtkutil/aggressivegc"
 )
 
+/*
+TODO:
+	- code block Copy button should not expand
+	- typing in the room list should go in the message view, not room search
+*/
+
 var _ = cssutil.WriteCSS(`
 	windowhandle .adaptive-sidebar-revealer {
 		background: none;
