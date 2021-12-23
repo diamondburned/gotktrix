@@ -7,7 +7,6 @@ import (
 	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/event"
-	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/registry"
 )
 
@@ -41,9 +40,9 @@ func newEventHandlers(mut sync.Locker, cap int) eventHandlers {
 	}
 }
 
-func (h eventHandlers) invoke(ivk *eventInvoker) {
-	ivk.invokeList(h.regs[ivk.raw.Type])
-	ivk.invokeList(h.regs["*"])
+func (h eventHandlers) invoke(ev event.Event) {
+	invokeList(ev, h.regs[ev.Info().Type])
+	invokeList(ev, h.regs["*"])
 }
 
 func (h eventHandlers) addEvsRm(types []event.Type, fn interface{}, meta handlerMeta) func() {
@@ -91,71 +90,58 @@ func invokeSync(r registry.Registry, sync *api.SyncResponse) {
 	})
 }
 
-type eventInvoker struct {
-	raw    *event.RawEvent
-	parsed event.Event
+func invokeHandlers(ev event.Event, handlers eventHandlers) {
+	invokeList(ev, handlers.regs[ev.Info().Type])
+	invokeList(ev, handlers.regs["*"])
 }
 
-func eventInvoke(rID matrix.RoomID, raw *event.RawEvent) eventInvoker {
-	if raw.RoomID == "" && rID != "" {
-		raw.RoomID = rID
-	}
-
-	return eventInvoker{raw: raw}
-}
-
-func (i *eventInvoker) parse() (event.Event, error) {
-	if i.parsed != nil {
-		return i.parsed, nil
-	}
-
-	p, err := i.raw.Parse()
-	if err != nil {
-		return nil, err
-	}
-
-	i.parsed = p
-	return p, nil
-}
-
-func (i *eventInvoker) invokeList(list registry.Registry) {
+func invokeList(ev event.Event, list registry.Registry) {
 	list.Each(func(f, _ interface{}) {
-		i.invoke(f)
+		invoke(ev, f)
 	})
 }
 
-func (i *eventInvoker) invoke(f interface{}) {
+func invoke(ev event.Event, f interface{}) {
 	switch fn := f.(type) {
 	case func(event.Event):
-		v, err := i.parse()
-		if err != nil {
-			return
-		}
-		fn(v)
+		fn(ev)
 	case func(event.RoomEvent):
-		v, err := i.parse()
-		if err != nil {
-			return
-		}
-		rv, ok := v.(event.RoomEvent)
+		rv, ok := ev.(event.RoomEvent)
 		if !ok {
 			return
 		}
 		fn(rv)
 	case func(event.StateEvent):
-		v, err := i.parse()
-		if err != nil {
-			return
-		}
-		sv, ok := v.(event.StateEvent)
+		sv, ok := ev.(event.StateEvent)
 		if !ok {
 			return
 		}
 		fn(sv)
-	case func(*event.RawEvent):
-		fn(i.raw)
-	case func(*eventInvoker):
-		fn(i)
+	case func():
+		fn()
+	default:
+		log.Panicf("BUG: unknown handler type %T", fn)
+	}
+}
+
+func invokeRoomList(ev event.RoomEvent, list registry.Registry) {
+	list.Each(func(f, _ interface{}) {
+		invokeRoom(ev, f)
+	})
+}
+
+func invokeRoom(ev event.RoomEvent, f interface{}) {
+	switch fn := f.(type) {
+	case func(event.Event):
+		fn(ev)
+	case func(event.RoomEvent):
+		fn(ev)
+	case func(event.StateEvent):
+		sv, ok := ev.(event.StateEvent)
+		if !ok {
+			return
+		}
+		fn(sv)
 	case func():
 		fn()
 	default:

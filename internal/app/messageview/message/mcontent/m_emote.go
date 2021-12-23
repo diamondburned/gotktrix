@@ -18,7 +18,7 @@ var emoteContentCSS = cssutil.Applier("mcontent-emote", `
 	}
 `)
 
-func newEmojiContent(msg event.RoomMessageEvent) emoteContent {
+func newEmojiContent(msg *event.RoomMessageEvent) emoteContent {
 	l := gtk.NewLabel("*" + msg.Body + "*")
 	l.SetXAlign(0)
 	l.SetWrap(true)

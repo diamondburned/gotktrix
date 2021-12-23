@@ -2,7 +2,6 @@ package db
 
 import (
 	"log"
-	"reflect"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -54,6 +53,24 @@ type Node struct {
 	txn  *bbolt.Tx
 	buck *bbolt.Bucket
 	path NodePath
+}
+
+// Unmarshal calls te node's unmarshaler.
+func (n Node) Unmarshal(b []byte, v interface{}) error {
+	return n.kv.Unmarshal(b, v)
+}
+
+// UnmarshalFunc creates a new function for unmarshaling with Get.
+func (n Node) UnmarshalFunc(v interface{}) func([]byte) error {
+	return func(b []byte) error { return n.kv.Unmarshal(b, v) }
+}
+
+// StringFunc returns a new function for setting a string with Get
+func StringFunc(s *string) func(b []byte) error {
+	return func(b []byte) error {
+		*s = string(b)
+		return nil
+	}
 }
 
 // TxUpdate creates a new Node with an active transaction and calls f. If this
@@ -184,12 +201,7 @@ func (n Node) Node(names ...string) Node {
 // SetIfNone sets the key into the database only if the key does not exist. This
 // method is useful primarily for filling up the cache with data fetched from
 // the API while data from /sync should be prioritized.
-func (n Node) SetIfNone(k string, v interface{}) error {
-	bytes, err := n.kv.Marshal(v)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal")
-	}
-
+func (n Node) SetIfNone(k string, v []byte) error {
 	k = mustKey(k)
 
 	return n.TxUpdate(func(n Node) error {
@@ -202,26 +214,34 @@ func (n Node) SetIfNone(k string, v interface{}) error {
 			return nil
 		}
 
-		return b.Put([]byte(k), bytes)
+		return b.Put([]byte(k), v)
 	})
 }
 
-// Set sets the key into the database.
-func (n Node) Set(k string, v interface{}) error {
+// SetAny marshals v before setting.
+func (n Node) SetAny(k string, v interface{}) error {
 	bytes, err := n.kv.Marshal(v)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal")
 	}
+	return n.Set(k, bytes)
+}
 
+// Set sets the key into the database.
+func (n Node) Set(k string, v []byte) error {
 	k = mustKey(k)
+
+	// v must never be nil.
+	if v == nil {
+		v = []byte{}
+	}
 
 	return n.TxUpdate(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
 			return err
 		}
-
-		return b.Put([]byte(k), bytes)
+		return b.Put([]byte(k), v)
 	})
 }
 
@@ -237,7 +257,7 @@ func (n Node) Exists(k string) (exists bool) {
 			return err
 		}
 
-		// If k is empty, then check for the bucket's presence.
+		// If k is empty, then use the bucket's presence.
 		exists = k == "" || b.Get([]byte(k)) != nil
 		return nil
 	})
@@ -246,7 +266,7 @@ func (n Node) Exists(k string) (exists bool) {
 }
 
 // Get gets the given key from the node.
-func (n Node) Get(k string, v interface{}) error {
+func (n Node) Get(k string, f func([]byte) error) error {
 	k = mustKey(k)
 
 	return n.TxView(func(n Node) error {
@@ -260,12 +280,13 @@ func (n Node) Get(k string, v interface{}) error {
 			return ErrKeyNotFound
 		}
 
-		if err := n.kv.Unmarshal(bytes, v); err != nil {
-			return errors.Wrap(err, "failed to unmarshal")
-		}
-
-		return nil
+		return f(bytes)
 	})
+}
+
+// Get calls get and unmarshals on any value.
+func (n Node) GetAny(k string, v interface{}) error {
+	return n.Get(k, n.UnmarshalFunc(v))
 }
 
 func (n Node) Delete(k string) error {
@@ -384,19 +405,16 @@ var EachBreak = errors.New("each break (not an error)")
 //        return nil
 //    })
 //
-func (n Node) Each(v interface{}, fn func(k string, l int) error) error {
-	return n.each(false, v, fn)
+func (n Node) Each(fn func(k string, b []byte, len int) error) error {
+	return n.each(false, fn)
 }
 
 // EachReverse is like Each, except the iteration is done in reverse.
-func (n Node) EachReverse(v interface{}, fn func(k string, l int) error) error {
-	return n.each(true, v, fn)
+func (n Node) EachReverse(fn func(k string, b []byte, len int) error) error {
+	return n.each(true, fn)
 }
 
-func (n Node) each(rev bool, v interface{}, fn func(k string, l int) error) error {
-	zero := reflect.New(reflect.TypeOf(v).Elem()).Elem() // assume ptr, returns T
-	rval := reflect.ValueOf(v).Elem()
-
+func (n Node) each(rev bool, fn func(k string, b []byte, len int) error) error {
 	return n.TxView(func(n Node) error {
 		b, err := n.bucket()
 		if err != nil {
@@ -416,50 +434,7 @@ func (n Node) each(rev bool, v interface{}, fn func(k string, l int) error) erro
 		})
 
 		return eachBucket(cursor, rev, func(k, b []byte) error {
-			// Reset the value to zero. We should be copying zero's struct
-			// values into rval, so we can just reuse this value.
-			rval.Set(zero)
-
-			if err := n.kv.Unmarshal(b, v); err != nil {
-				return errors.Wrapf(err, "failed to unmarshal %q", string(k))
-			}
-
-			return fn(string(k), length)
-		})
-	})
-}
-
-// EachKey iterates over keys.
-func (n Node) EachKey(fn func(k string, l int) error) error {
-	return n.eachKey(false, fn)
-}
-
-// EachKeyReverse iterates over keys in reverse.
-func (n Node) EachKeyReverse(fn func(k string, l int) error) error {
-	return n.eachKey(true, fn)
-}
-
-func (n Node) eachKey(rev bool, fn func(k string, l int) error) error {
-	return n.TxView(func(n Node) error {
-		b, err := n.bucket()
-		if err != nil {
-			if errors.Is(err, ErrKeyNotFound) {
-				// Ignore ErrKeyNotFound and just don't iterate.
-				return nil
-			}
-			return err
-		}
-
-		cursor := b.Cursor()
-
-		var length int
-		eachBucket(cursor, rev, func(_, _ []byte) error {
-			length++
-			return nil
-		})
-
-		return eachBucket(cursor, rev, func(k, _ []byte) error {
-			return fn(string(k), length)
+			return fn(string(k), b, length)
 		})
 	})
 }

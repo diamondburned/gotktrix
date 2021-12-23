@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -36,19 +37,19 @@ var _ = cssutil.WriteCSS(`
 	}
 `)
 
-func (v messageViewer) cozyMessage() *cozyMessage {
+func (v messageViewer) cozyMessage(ev *event.RoomMessageEvent) *cozyMessage {
 	client := v.client().Offline()
 
 	msg := cozyMessage{}
-	msg.message = v.newMessage(true)
+	msg.message = v.newMessage(ev, true)
 	msg.message.timestamp.SetYAlign(0.6)
 
 	msg.sender = gtk.NewLabel("")
-	msg.sender.SetTooltipText(string(v.raw.Sender))
+	msg.sender.SetTooltipText(string(ev.Sender))
 	msg.sender.SetSingleLineMode(true)
 	msg.sender.SetEllipsize(pango.EllipsizeEnd)
 	msg.sender.SetMarkup(mauthor.Markup(
-		client, v.raw.RoomID, v.raw.Sender,
+		client, ev.RoomID, ev.Sender,
 		mauthor.WithWidgetColor(msg.sender),
 	))
 
@@ -56,9 +57,9 @@ func (v messageViewer) cozyMessage() *cozyMessage {
 	msg.avatar.ConnectLabel(msg.sender)
 	msg.avatar.SetVAlign(gtk.AlignStart)
 	msg.avatar.SetMarginTop(2)
-	msg.avatar.SetTooltipText(string(v.raw.Sender))
+	msg.avatar.SetTooltipText(string(ev.Sender))
 
-	mxc, _ := client.MemberAvatar(v.raw.RoomID, v.raw.Sender)
+	mxc, _ := client.MemberAvatar(ev.RoomID, ev.Sender)
 	if mxc != nil {
 		setAvatar(v, msg.avatar, client, *mxc)
 	}
@@ -94,11 +95,12 @@ func (m *cozyMessage) LoadMore() {
 func (m *cozyMessage) asyncFetch() {
 	opt := mauthor.WithWidgetColor(m.sender)
 
+	roomEv := m.parent.event.RoomInfo()
 	go func() {
-		markup := mauthor.Markup(m.parent.client(), m.parent.raw.RoomID, m.parent.raw.Sender, opt)
+		markup := mauthor.Markup(m.parent.client(), roomEv.RoomID, roomEv.Sender, opt)
 		glib.IdleAdd(func() { m.sender.SetMarkup(markup) })
 
-		mxc, _ := m.parent.client().MemberAvatar(m.parent.raw.RoomID, m.parent.raw.Sender)
+		mxc, _ := m.parent.client().MemberAvatar(roomEv.RoomID, roomEv.Sender)
 		if mxc != nil {
 			setAvatar(m.parent, m.avatar, m.parent.client(), *mxc)
 		}

@@ -111,7 +111,7 @@ func NewKVFile(path string) (*KV, error) {
 	}
 
 	return &KV{
-		Marshaler: CBORMarshaler,
+		Marshaler: JSONMarshaler,
 		db:        db,
 	}, nil
 }

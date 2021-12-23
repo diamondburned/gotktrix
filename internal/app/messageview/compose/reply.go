@@ -44,16 +44,16 @@ func renderReply(
 	html, plain *strings.Builder, client *gotktrix.Client, msg *event.RoomMessageEvent) {
 
 	var name string
-	if n, err := client.MemberName(msg.RoomID, msg.SenderID, false); err == nil {
+	if n, err := client.MemberName(msg.RoomID, msg.Sender, false); err == nil {
 		name = n.Name
 	} else {
-		name, _, _ = msg.SenderID.Parse()
+		name, _, _ = msg.Sender.Parse()
 	}
 
 	data := replyData{
 		RoomID:     msg.RoomID,
-		EventID:    msg.EventID,
-		SenderID:   msg.SenderID,
+		EventID:    msg.ID,
+		SenderID:   msg.Sender,
 		SenderName: name,
 		Content:    trim(msg.Body, 128),
 	}

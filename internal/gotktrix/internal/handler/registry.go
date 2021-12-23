@@ -8,6 +8,7 @@ import (
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/registry"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
 )
@@ -126,12 +127,12 @@ func (r *Registry) SubscribeRoom(rID matrix.RoomID, typ event.Type, f interface{
 func (r *Registry) SubscribeRoomStateKey(
 	rID matrix.RoomID, typ event.Type, key string, f interface{}) func() {
 
-	return r.SubscribeRoom(rID, typ, func(ivk *eventInvoker) {
-		if ivk.raw.StateKey != key {
+	return r.SubscribeRoom(rID, typ, func(ev event.StateEvent) {
+		if ev.StateInfo().StateKey != key {
 			return
 		}
 
-		ivk.invoke(f)
+		invoke(ev, f)
 	})
 }
 
@@ -193,9 +194,8 @@ func (r *Registry) AddEvents(sync *api.SyncResponse) error {
 }
 
 func (r *Registry) invokeUser(raws []event.RawEvent) {
-	for i := range raws {
-		ev := eventInvoke("", &raws[i])
-		r.userFns.invoke(&ev)
+	for _, ev := range sys.ParseAll(raws) {
+		r.userFns.invoke(ev)
 	}
 }
 
@@ -205,9 +205,8 @@ func (r *Registry) invokeRoomStripped(rID matrix.RoomID, stripped []event.Stripp
 		return
 	}
 
-	for i := range stripped {
-		ev := eventInvoke(rID, &stripped[i].RawEvent)
-		rh.invoke(&ev)
+	for _, raw := range stripped {
+		invokeHandlers(sys.ParseRoom(raw, rID), rh)
 	}
 }
 
@@ -217,9 +216,8 @@ func (r *Registry) invokeRoom(rID matrix.RoomID, raws []event.RawEvent) {
 		return
 	}
 
-	for i := range raws {
-		ev := eventInvoke(rID, &raws[i])
-		rh.invoke(&ev)
+	for _, ev := range sys.ParseAllRoom(raws, rID) {
+		invokeHandlers(ev, rh)
 	}
 }
 
@@ -229,24 +227,40 @@ func (r *Registry) invokeTimeline(rID matrix.RoomID, raws []event.RawEvent) {
 		return
 	}
 
+	if rh.IsEmpty() {
+		return
+	}
+
 	if len(raws) > state.TimelineKeepLast {
 		// Only dispatch the latest 100 room events.
 		raws = raws[len(raws)-state.TimelineKeepLast:]
 	}
 
+	var evs []event.RoomEvent
+	var once event.RoomEvent
+
 	rh.Each(func(f, meta interface{}) {
 		hmeta, _ := meta.(handlerMeta)
-		if hmeta.once {
-			invokeList(rh, rID, &raws[len(raws)-1])
+		if !hmeta.once {
+			if evs == nil {
+				evs = sys.ParseAllRoom(raws, rID)
+			}
+
+			for _, ev := range evs {
+				invokeRoomList(ev, rh)
+			}
+
 			return
 		}
-		for i := range raws {
-			invokeList(rh, rID, &raws[i])
-		}
-	})
-}
 
-func invokeList(list registry.Registry, rID matrix.RoomID, raw *event.RawEvent) {
-	evk := eventInvoke(rID, raw)
-	evk.invokeList(list)
+		if once == nil {
+			if evs != nil {
+				once = evs[len(evs)-1]
+			} else {
+				once = sys.ParseRoom(raws[len(raws)-1], rID)
+			}
+		}
+
+		invokeList(once, rh)
+	})
 }

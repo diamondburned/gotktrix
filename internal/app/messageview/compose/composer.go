@@ -31,7 +31,7 @@ type Controller interface {
 	FocusLatestUserEventID() matrix.EventID
 	// AddSendingMessage adds the given RawEvent as a sending message and
 	// returns a mark that is given to BindSendingMessage.
-	AddSendingMessage(raw *event.RawEvent) (mark interface{})
+	AddSendingMessage(ev event.RoomEvent) (mark interface{})
 	// BindSendingMessage takes in the mark value returned by AddSendingMessage.
 	BindSendingMessage(mark interface{}, evID matrix.EventID) (replaced bool)
 }
@@ -173,9 +173,14 @@ func (c *Composer) Edit(eventID matrix.EventID) {
 		return
 	}
 
-	msg, ok := revent.(event.RoomMessageEvent)
+	msg, ok := revent.(*event.RoomMessageEvent)
 	if ok {
-		c.input.SetText(msg.Body)
+		switch msg.Format {
+		case event.FormatHTML:
+			c.input.SetText(msg.FormattedBody)
+		default:
+			c.input.SetText(msg.Body)
+		}
 	}
 }
 
@@ -184,7 +189,7 @@ func roomTimelineEvent(
 
 	events, _ := c.RoomTimeline(roomID)
 	for _, ev := range events {
-		if ev.ID() == eventID {
+		if ev.RoomInfo().ID == eventID {
 			return ev
 		}
 	}

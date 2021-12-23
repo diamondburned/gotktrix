@@ -9,7 +9,6 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent/text"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
@@ -25,14 +24,14 @@ type textContent struct {
 
 var _ editableContentPart = (*textContent)(nil)
 
-func newTextContent(ctx context.Context, msgBox *gotktrix.EventBox) *textContent {
+func newTextContent(ctx context.Context, ev *event.RoomMessageEvent) *textContent {
 	c := textContent{
 		Box:    gtk.NewBox(gtk.OrientationVertical, 0),
 		ctx:    ctx,
-		roomID: msgBox.RoomID,
+		roomID: ev.RoomID,
 	}
 
-	body, isEdited := MsgBody(msgBox)
+	body, isEdited := MsgBody(ev)
 	c.setContent(body, isEdited)
 
 	return &c
@@ -100,24 +99,42 @@ type MessageBody struct {
 }
 
 // MsgBody parses the message event and accounts for edited ones.
-func MsgBody(box *gotktrix.EventBox) (m MessageBody, edited bool) {
-	var body struct {
-		MessageBody
-		NewContent MessageBody `json:"m.new_content"`
-
-		RelatesTo struct {
-			RelType string         `json:"rel_type"`
-			EventID matrix.EventID `json:"event_id"`
-		} `json:"m.relates_to"`
+func MsgBody(ev *event.RoomMessageEvent) (m MessageBody, edited bool) {
+	type relatesTo struct {
+		RelType string         `json:"rel_type"`
+		EventID matrix.EventID `json:"event_id"`
 	}
 
-	if err := json.Unmarshal(box.Content, &body); err != nil {
+	unedited := MessageBody{
+		Body:          ev.Body,
+		MsgType:       ev.MessageType,
+		Format:        ev.Format,
+		FormattedBody: ev.FormattedBody,
+	}
+
+	if ev.Raw == nil {
+		// No raw, so we can't get the new_content field. We can still guess if
+		// the message is edited or not.
+		var relates relatesTo
+		json.Unmarshal(ev.RelatesTo, &relates)
+
+		edited = relates.RelType == "m.replace"
+		return unedited, edited
+	}
+
+	var body struct {
+		NewContent MessageBody `json:"m.new_content"`
+		RelatesTo  relatesTo   `json:"m.relates_to"`
+	}
+
+	if err := json.Unmarshal(ev.Raw, &body); err != nil {
 		// This shouldn't happen, since we already unmarshaled above.
-		return MessageBody{}, false
+		return unedited, false
 	}
 
 	if body.RelatesTo.RelType == "m.replace" {
 		return body.NewContent, true
 	}
-	return body.MessageBody, false
+
+	return unedited, false
 }

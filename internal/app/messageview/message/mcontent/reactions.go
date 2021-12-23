@@ -68,7 +68,7 @@ func newReactionBox() *reactionBox {
 	}
 }
 
-func (r *reactionBox) Add(ctx context.Context, ev m.ReactionEvent) {
+func (r *reactionBox) Add(ctx context.Context, ev *m.ReactionEvent) {
 	if r.flowBox == nil {
 		r.reactions = make(map[string]*reaction, 1)
 		r.events = make(map[matrix.EventID]string, 1)
@@ -102,7 +102,7 @@ func (r *reactionBox) Add(ctx context.Context, ev m.ReactionEvent) {
 	} else {
 		r, ok := r.reactions[ev.RelatesTo.Key]
 		if ok {
-			r.update(ctx, ev.SenderID, ev.EventID)
+			r.update(ctx, ev.Sender, ev.ID)
 			return
 		}
 	}
@@ -114,20 +114,20 @@ func (r *reactionBox) Add(ctx context.Context, ev m.ReactionEvent) {
 }
 
 // Remove returns true if the given redaction event corresponds to a reaction.
-func (r *reactionBox) Remove(ctx context.Context, red event.RoomRedactionEvent) bool {
-	key, ok := r.events[red.EventID]
+func (r *reactionBox) Remove(ctx context.Context, red *event.RoomRedactionEvent) bool {
+	key, ok := r.events[red.ID]
 	if !ok {
 		return false
 	}
 
-	delete(r.events, red.EventID)
+	delete(r.events, red.ID)
 
 	reaction, ok := r.reactions[key]
 	if !ok {
 		return true
 	}
 
-	reaction.update(ctx, red.SenderID, "")
+	reaction.update(ctx, red.Sender, "")
 	if len(reaction.people) > 0 {
 		return true
 	}
@@ -165,7 +165,7 @@ type reactedUser struct {
 	name string
 }
 
-func newReaction(ctx context.Context, ev m.ReactionEvent) *reaction {
+func newReaction(ctx context.Context, ev *m.ReactionEvent) *reaction {
 	label := gtk.NewLabel(ev.RelatesTo.Key)
 	label.SetSingleLineMode(true)
 	label.SetEllipsize(pango.EllipsizeEnd)
@@ -187,7 +187,7 @@ func newReaction(ctx context.Context, ev m.ReactionEvent) *reaction {
 
 	client := gotktrix.FromContext(ctx).Offline()
 	uID, _ := client.Whoami()
-	if uID == ev.SenderID {
+	if uID == ev.Sender {
 		btn.SetActive(true)
 	}
 
@@ -205,7 +205,7 @@ func newReaction(ctx context.Context, ev m.ReactionEvent) *reaction {
 		number: number,
 		roomID: ev.RoomID,
 	}
-	reaction.update(ctx, ev.SenderID, ev.EventID)
+	reaction.update(ctx, ev.Sender, ev.ID)
 
 	// Use the first ever reaction event for this key as the event to send over.
 	btn.Connect("clicked", func() { reaction.react(ctx, ev) })
@@ -213,7 +213,7 @@ func newReaction(ctx context.Context, ev m.ReactionEvent) *reaction {
 	return &reaction
 }
 
-func (r *reaction) react(ctx context.Context, ev m.ReactionEvent) {
+func (r *reaction) react(ctx context.Context, ev *m.ReactionEvent) {
 	client := gotktrix.FromContext(ctx)
 
 	if r.selfEv != "" {

@@ -19,11 +19,11 @@ type Message interface {
 	// SetBlur greys the message's content if true. It's used to indicate
 	// idling.
 	SetBlur(bool)
-	// RawEvent returns the message's raw event.
-	RawEvent() *gotktrix.EventBox
+	// Event returns the message's event.
+	Event() event.RoomEvent
 	// OnRelatedEvent is called by the caller for each event that's related to
 	// the message. The caller should check the m.relates_to field.
-	OnRelatedEvent(raw *gotktrix.EventBox)
+	OnRelatedEvent(event.RoomEvent)
 	// LoadMore loads more information in the message, such as embeds. It should
 	// be synchronous most of the time.
 	LoadMore()
@@ -48,8 +48,7 @@ type MessageViewer interface {
 type messageViewer struct {
 	MessageViewer
 	context.Context
-
-	raw *gotktrix.EventBox
+	event event.RoomEvent
 }
 
 func (v messageViewer) client() *gotktrix.Client {
@@ -57,23 +56,18 @@ func (v messageViewer) client() *gotktrix.Client {
 }
 
 // NewCozyMessage creates a new cozy or collapsed message.
-func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent, before Message) Message {
+func NewCozyMessage(ctx context.Context, view MessageViewer, ev event.RoomEvent, before Message) Message {
 	viewer := messageViewer{
 		Context:       ctx,
 		MessageViewer: view,
-		raw:           gotktrix.WrapEventBox(raw),
+		event:         ev,
 	}
 
-	e, err := viewer.raw.Parse()
-	if err != nil {
-		return viewer.eventMessage()
-	}
-
-	if _, ok := e.(event.RoomMessageEvent); ok {
-		if lastIsAuthor(before, raw) {
-			return viewer.collapsedMessage()
+	if ev, ok := ev.(*event.RoomMessageEvent); ok {
+		if lastIsAuthor(before, ev) {
+			return viewer.collapsedMessage(ev)
 		} else {
-			return viewer.cozyMessage()
+			return viewer.cozyMessage(ev)
 		}
 	}
 
@@ -82,19 +76,16 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, raw *event.RawEvent
 
 const maxCozyAge = 10 * time.Minute
 
-func lastIsAuthor(before Message, ev *event.RawEvent) bool {
+func lastIsAuthor(before Message, ev *event.RoomMessageEvent) bool {
 	// Ensure that the last message IS a cozy OR compact message.
 	switch before := before.(type) {
 	case *cozyMessage, *collapsedMessage:
-		return lastEventIsAuthor(before.RawEvent().RawEvent, ev)
+		last := before.Event().RoomInfo()
+		return last.Sender == ev.Sender &&
+			ev.OriginServerTime.Time().Sub(last.OriginServerTime.Time()) < maxCozyAge
 	default:
 		return false
 	}
-}
-
-func lastEventIsAuthor(last, ev *event.RawEvent) bool {
-	return last != nil && last.Sender == ev.Sender &&
-		ev.OriginServerTime.Time().Sub(last.OriginServerTime.Time()) < maxCozyAge
 }
 
 var _ = cssutil.WriteCSS(`
@@ -110,24 +101,22 @@ type message struct {
 	content   *mcontent.Content
 }
 
-func (v messageViewer) newMessage(longTimestamp bool) *message {
-	timestamp := newTimestamp(v, v.raw.OriginServerTime.Time(), longTimestamp)
+func (v messageViewer) newMessage(ev *event.RoomMessageEvent, longTimestamp bool) *message {
+	timestamp := newTimestamp(v, v.event.RoomInfo().OriginServerTime.Time(), longTimestamp)
 	timestamp.SetEllipsize(pango.EllipsizeEnd)
-
-	content := mcontent.New(v.Context, v.raw)
 
 	return &message{
 		parent:    v,
 		timestamp: timestamp,
-		content:   content,
+		content:   mcontent.New(v.Context, ev),
 	}
 }
 
-func (m *message) RawEvent() *gotktrix.EventBox {
-	return m.parent.raw
+func (m *message) Event() event.RoomEvent {
+	return m.parent.event
 }
 
-func (m *message) OnRelatedEvent(ev *gotktrix.EventBox) {
+func (m *message) OnRelatedEvent(ev event.RoomEvent) {
 	m.content.OnRelatedEvent(ev)
 
 	t, edited := m.content.EditedTimestamp()

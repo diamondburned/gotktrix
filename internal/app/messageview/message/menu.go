@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 
@@ -8,14 +9,13 @@ import (
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotktrix/internal/md/hl"
 	"github.com/pkg/errors"
 )
 
@@ -25,15 +25,15 @@ func bindParent(
 
 	reactor := reactor{
 		ctx: v.Context,
-		raw: v.raw.RawEvent,
+		ev:  v.event,
 	}
 
 	actions := map[string]func(){
 		"show-source": func() {
-			showMsgSource(v.Context, v.raw.RawEvent)
+			showMsgSource(v.Context, v.event)
 		},
 		"reply": func() {
-			v.MessageViewer.ReplyTo(v.raw.ID)
+			v.MessageViewer.ReplyTo(v.event.RoomInfo().ID)
 		},
 		"react": func() {
 			showReactEmoji(&reactor, parent)
@@ -44,11 +44,11 @@ func bindParent(
 	}
 
 	uID, _ := v.client().Whoami()
-	canEdit := uID == v.raw.Sender
+	canEdit := uID == v.event.RoomInfo().Sender
 
 	if canEdit {
 		actions["edit"] = func() {
-			v.MessageViewer.Edit(v.raw.ID)
+			v.MessageViewer.Edit(v.event.RoomInfo().ID)
 		}
 	}
 
@@ -141,44 +141,60 @@ func showReactEntry(r *reactor, parent gtk.Widgetter) *gtk.Entry {
 
 type reactor struct {
 	ctx context.Context
-	raw *event.RawEvent
+	ev  event.RoomEvent
 }
 
 func (r *reactor) react(text string) {
+	roomEv := r.ev.RoomInfo()
+
 	ev := m.ReactionEvent{
 		RoomEventInfo: event.RoomEventInfo{
-			RoomID: r.raw.RoomID,
+			RoomID: roomEv.RoomID,
 		},
 		RelatesTo: m.ReactionRelatesTo{
 			RelType: m.Annotation,
-			EventID: r.raw.ID,
+			EventID: roomEv.ID,
 			Key:     text,
 		},
 	}
 
 	go func() {
 		client := gotktrix.FromContext(r.ctx)
-		if err := client.SendRoomEvent(ev.RoomID, ev); err != nil {
+		if err := client.SendRoomEvent(ev.RoomID, r.ev); err != nil {
 			app.Error(r.ctx, errors.Wrap(err, "failed to react"))
 		}
 	}()
 }
 
-var msgSourceAttrs = markuputil.Attrs(
-	pango.NewAttrFamily("monospace"),
-)
-
 var sourceCSS = cssutil.Applier("message-source", `
 	.message-source {
 		padding: 6px 4px;
+		font-family: monospace;
 	}
 `)
 
-func showMsgSource(ctx context.Context, raw *event.RawEvent) {
-	j, err := json.MarshalIndent(raw, "", "  ")
-	if err != nil {
-		app.Error(ctx, err)
-		return
+type partialRoomEvent struct {
+	event.RoomEventInfo
+	Content interface{} `json:"content"`
+}
+
+func showMsgSource(ctx context.Context, event event.RoomEvent) {
+	raw := event.Info().Raw
+	if raw != nil {
+		var buf bytes.Buffer
+		if json.Indent(&buf, raw, "", "  ") == nil {
+			raw = buf.Bytes()
+		}
+	} else {
+		j, err := json.MarshalIndent(partialRoomEvent{
+			RoomEventInfo: *event.RoomInfo(),
+			Content:       event,
+		}, "", "  ")
+		if err != nil {
+			app.Error(ctx, err)
+		}
+		raw = []byte("// Event missing raw JSON.\n")
+		raw = append(raw, j...)
 	}
 
 	d := gtk.NewDialog()
@@ -186,19 +202,21 @@ func showMsgSource(ctx context.Context, raw *event.RawEvent) {
 	d.SetModal(true)
 	d.SetDefaultSize(400, 300)
 
-	l := gtk.NewLabel(string(j))
-	l.SetSelectable(true)
-	l.SetAttributes(msgSourceAttrs)
-	l.SetWrap(true)
-	l.SetWrapMode(pango.WrapWordChar)
-	l.SetXAlign(0)
-	sourceCSS(l)
+	buf := gtk.NewTextBuffer(nil)
+	buf.SetText(string(raw))
+	hl.Highlight(ctx, buf.StartIter(), buf.EndIter(), "json")
+
+	t := gtk.NewTextViewWithBuffer(buf)
+	t.SetEditable(false)
+	t.SetCursorVisible(false)
+	t.SetWrapMode(gtk.WrapWordChar)
+	sourceCSS(t)
 
 	s := gtk.NewScrolledWindow()
 	s.SetVExpand(true)
 	s.SetHExpand(true)
 	s.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	s.SetChild(l)
+	s.SetChild(t)
 
 	box := d.ContentArea()
 	box.Append(s)

@@ -159,7 +159,7 @@ func (s *emojiSearcher) update() {
 	userEmotes, _ := emojis.UserEmotes(s.client.Offline())
 	roomEmotes, _ := emojis.RoomEmotes(s.client.Offline(), s.roomID)
 
-	if len(userEmotes.Emoticons)+len(roomEmotes.Emoticons) == 0 {
+	if len(userEmotes)+len(roomEmotes) == 0 {
 		s.emotes = nil
 		return
 	}
@@ -167,7 +167,7 @@ func (s *emojiSearcher) update() {
 	// It's likely cheaper to just reallocate the emojis object if the length
 	// does not match. We can allow some cache inconsistency; it doesn't impact
 	// that significantly.
-	if t := len(userEmotes.Emoticons) + len(roomEmotes.Emoticons); t != len(s.emotes) {
+	if t := len(userEmotes) + len(roomEmotes); t != len(s.emotes) {
 		s.emotes = make(map[emojis.EmojiName]emojis.Emoji, t)
 	}
 
@@ -176,7 +176,7 @@ func (s *emojiSearcher) update() {
 	var changed bool
 
 	// Prioritize user emotes over room emotes.
-	for name, emote := range userEmotes.Emoticons {
+	for name, emote := range userEmotes {
 		if _, ok := s.emotes[name]; ok {
 			continue
 		}
@@ -184,7 +184,7 @@ func (s *emojiSearcher) update() {
 		changed = true
 	}
 
-	for name, emote := range roomEmotes.Emoticons {
+	for name, emote := range roomEmotes {
 		if _, ok := s.emotes[name]; ok {
 			continue
 		}

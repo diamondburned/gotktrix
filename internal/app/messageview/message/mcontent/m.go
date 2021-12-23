@@ -2,14 +2,13 @@ package mcontent
 
 import (
 	"context"
-	"html"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
+	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 )
@@ -53,7 +52,7 @@ var redactedCSS = cssutil.Applier("mcontent-redacted", `
 	}
 `)
 
-func newRedactedContent(ctx context.Context, red event.RoomRedactionEvent) redactedContent {
+func newRedactedContent(ctx context.Context, red *event.RoomRedactionEvent) redactedContent {
 	image := gtk.NewImageFromIconName("edit-delete-symbolic")
 	image.SetIconSize(gtk.IconSizeNormal)
 
@@ -92,25 +91,16 @@ var unknownContentCSS = cssutil.Applier("mcontent-unknown", `
 	}
 `)
 
-func newUnknownContent(ctx context.Context, msgBox *gotktrix.EventBox) unknownContent {
-	var msg string
-
+func newUnknownContent(ctx context.Context, ev *event.RoomMessageEvent) unknownContent {
 	p := locale.FromContext(ctx)
-
-	if msgBox.Type == event.TypeRoomMessage {
-		e, _ := msgBox.Parse()
-		emsg := e.(event.RoomMessageEvent)
-
-		msg = p.Sprintf("Unknown message type %q.", string(emsg.MsgType))
-	} else {
-		msg = p.Sprintf("Unknown event type %q.", msgBox.Type)
-	}
+	msg := p.Sprintf("Unknown message type %q.", string(ev.MessageType))
 
 	l := gtk.NewLabel(msg)
 	l.SetXAlign(0)
 	l.SetWrap(true)
 	l.SetWrapMode(pango.WrapWordChar)
 	unknownContentCSS(l)
+
 	return unknownContent{l}
 }
 
@@ -119,26 +109,12 @@ func (c unknownContent) content() {}
 // ---
 
 type erroneousContent struct {
-	*gtk.Box
+	*adaptive.ErrorLabel
 }
 
 func newErroneousContent(ctx context.Context, desc string, w, h int) erroneousContent {
-	p := locale.FromContext(ctx)
-
-	l := gtk.NewLabel("")
-	l.SetMarkup(p.Sprintf(
-		`<span color="red">Content error:</span> %s`,
-		html.EscapeString(desc),
-	))
-
-	img := gtk.NewImageFromIconName("image-missing-symbolic")
-	img.SetIconSize(gtk.IconSizeNormal)
-
-	b := gtk.NewBox(gtk.OrientationHorizontal, 2)
-	b.Append(img)
-	b.Append(l)
-
-	return erroneousContent{b}
+	err := adaptive.NewErrorLabelFull(locale.S(ctx, "Content error."), desc)
+	return erroneousContent{err}
 }
 
 func (c erroneousContent) content() {}

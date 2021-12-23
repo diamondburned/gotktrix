@@ -274,13 +274,11 @@ func (v *View) onlineFetch() {
 	}()
 }
 
-func fetchEmotes(client *gotktrix.Client, roomID matrix.RoomID) (emojis.EmoticonEventData, error) {
+func fetchEmotes(client *gotktrix.Client, roomID matrix.RoomID) (emojis.EmojiMap, error) {
 	if roomID != "" {
-		e, err := emojis.RoomEmotes(client, roomID)
-		return e.EmoticonEventData, err
+		return emojis.RoomEmotes(client, roomID)
 	} else {
-		e, err := emojis.UserEmotes(client)
-		return e.EmoticonEventData, err
+		return emojis.UserEmotes(client)
 	}
 }
 
@@ -374,9 +372,9 @@ func (v *View) renameEmoji(old, new emojis.EmojiName) {
 	v.emojis[new] = emoji
 }
 
-func (v *View) useEmoticonEvent(ev emojis.EmoticonEventData) {
+func (v *View) useEmoticonEvent(emojiMap emojis.EmojiMap) {
 	// Check for existing emojis.
-	for name, emoji := range ev.Emoticons {
+	for name, emoji := range emojiMap {
 		old, ok := v.emojis[name]
 		if !ok {
 			// Emoji does not exist; fetch it later.
@@ -397,7 +395,7 @@ func (v *View) useEmoticonEvent(ev emojis.EmoticonEventData) {
 		url, _ := v.client.SquareThumbnail(old.mxc, EmojiSize, gtkutil.ScaleFactor())
 		imgutil.AsyncGET(v.ctx.Take(), url, old.emoji.SetFromPaintable)
 
-		delete(ev.Emoticons, name)
+		delete(emojiMap, name)
 		continue
 	}
 
@@ -413,7 +411,7 @@ func (v *View) useEmoticonEvent(ev emojis.EmoticonEventData) {
 	}
 
 	// Add missing emojis.
-	for name, emoji := range ev.Emoticons {
+	for name, emoji := range emojiMap {
 		v.addEmoji(name, emoji.URL)
 	}
 }

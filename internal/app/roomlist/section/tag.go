@@ -96,7 +96,7 @@ func RoomTags(c *gotktrix.Client, id matrix.RoomID) []OrderedTag {
 		return defaultRoomTag(c, id)
 	}
 
-	ev := e.(event.TagEvent)
+	ev := e.(*event.TagEvent)
 	if len(ev.Tags) == 0 {
 		return defaultRoomTag(c, id)
 	}

@@ -256,7 +256,7 @@ func (l *List) MoveRoomToSection(src matrix.RoomID, dst *section.Section) bool {
 
 		e, err := client.RoomEvent(src, event.TypeTag)
 		if err == nil {
-			oldTags = e.(event.TagEvent).Tags
+			oldTags = e.(*event.TagEvent).Tags
 		}
 
 		omitNamespaces := func(nsps ...string) bool {

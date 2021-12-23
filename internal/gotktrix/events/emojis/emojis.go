@@ -3,18 +3,19 @@ package emojis
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/pkg/errors"
 )
+
+// EmojiMap is a map (object) of emoji names to emoji objects.
+type EmojiMap = map[EmojiName]Emoji
 
 // EmoticonEventData is a subevent struct that describes part of an emoji event.
 type EmoticonEventData struct {
-	Emoticons map[EmojiName]Emoji `json:"emoticons"`
+	Emoticons EmojiMap `json:"emoticons"`
 }
 
 // EmojiName describes the name of an emoji, which is surrounded by colons, such
@@ -30,8 +31,8 @@ type Emoji struct {
 }
 
 func init() {
-	event.Register(RoomEmotesEventType, parseRoomEmotesEvent)
-	event.Register(UserEmotesEventType, parseUserEmotesEvent)
+	event.RegisterDefault(RoomEmotesEventType, parseRoomEmotesEvent)
+	event.RegisterDefault(UserEmotesEventType, parseUserEmotesEvent)
 }
 
 const (
@@ -41,75 +42,62 @@ const (
 
 // RoomEmotesEvent describes the im.ponies.room_emotes event.
 type RoomEmotesEvent struct {
-	event.RoomEventInfo
+	event.StateEventInfo `json:"-"`
 	EmoticonEventData
 }
 
 var _ event.StateEvent = (*RoomEmotesEvent)(nil)
 
-func parseRoomEmotesEvent(raw event.RawEvent) (event.Event, error) {
+func parseRoomEmotesEvent(content json.RawMessage) (event.Event, error) {
 	var ev RoomEmotesEvent
-	if raw.Type != ev.Type() {
-		return nil, fmt.Errorf("unexpected event type %q", raw.Type)
-	}
-
-	if err := json.Unmarshal(raw.Content, &ev); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal RoomEmotesEvent")
-	}
-
-	return ev, nil
+	err := json.Unmarshal(content, &ev)
+	return &ev, err
 }
-
-func (ev RoomEmotesEvent) StateKey() string { return "" }
-
-// Type implements event.Type.
-func (ev RoomEmotesEvent) Type() event.Type { return RoomEmotesEventType }
 
 // UserEmotesEvent describes the im.ponies.user_emotes event.
 type UserEmotesEvent struct {
+	event.EventInfo `json:"-"`
 	EmoticonEventData
 }
 
-func parseUserEmotesEvent(raw event.RawEvent) (event.Event, error) {
+func parseUserEmotesEvent(content json.RawMessage) (event.Event, error) {
 	var ev UserEmotesEvent
-	if raw.Type != ev.Type() {
-		return nil, fmt.Errorf("unexpected event type %q for UserEmotesEvent", raw.Type)
-	}
-
-	if err := json.Unmarshal(raw.Content, &ev); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal UserEmotesEvent")
-	}
-
-	return ev, nil
+	err := json.Unmarshal(content, &ev)
+	return &ev, err
 }
 
-// Type impleemnts event.Type.
-func (ev UserEmotesEvent) Type() event.Type { return UserEmotesEventType }
-
 // UserEmotes gets the current user's emojis.
-func UserEmotes(c *gotktrix.Client) (UserEmotesEvent, error) {
+func UserEmotes(c *gotktrix.Client) (EmojiMap, error) {
 	e, err := c.UserEvent(UserEmotesEventType)
 	if err != nil {
-		return UserEmotesEvent{}, err
+		return nil, err
 	}
 
-	ev, _ := e.(UserEmotesEvent)
-	return ev, nil
+	ev, ok := e.(*UserEmotesEvent)
+	if !ok {
+		return nil, nil
+	}
+
+	return ev.Emoticons, nil
 }
 
 // RoomHasEmotes returns true if the room is known to have emojis.
 func RoomHasEmotes(c *gotktrix.Client, roomID matrix.RoomID) bool {
 	e, _ := RoomEmotes(c, roomID)
-	return len(e.Emoticons) > 0
+	return len(e) > 0
 }
 
 // RoomEmotes gets the room's emojis.
-func RoomEmotes(c *gotktrix.Client, roomID matrix.RoomID) (RoomEmotesEvent, error) {
+func RoomEmotes(c *gotktrix.Client, roomID matrix.RoomID) (EmojiMap, error) {
 	e, err := c.RoomState(roomID, RoomEmotesEventType, "")
 	if err != nil {
-		return RoomEmotesEvent{}, err
+		return nil, err
 	}
 
-	ev, _ := e.(RoomEmotesEvent)
-	return ev, nil
+	ev, ok := e.(*RoomEmotesEvent)
+	if !ok {
+		return nil, nil
+	}
+
+	return ev.Emoticons, nil
 }

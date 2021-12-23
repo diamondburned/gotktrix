@@ -86,8 +86,8 @@ func (b BatchIndexer) Commit() {
 }
 
 // IndexRoomMember indexes the given room member from the event.
-func (b BatchIndexer) IndexRoomMember(m event.RoomMemberEvent) {
-	data := indexRoomMember(&m)
+func (b BatchIndexer) IndexRoomMember(m *event.RoomMemberEvent) {
+	data := indexRoomMember(m)
 	b.index(&data)
 }
 

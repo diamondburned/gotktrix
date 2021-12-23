@@ -215,7 +215,7 @@ func (i *Input) Send() bool {
 	ctx := i.ctx
 	go func() {
 		client := gotktrix.FromContext(ctx)
-		rawEvt := dt.put(client)
+		roomEv := dt.put(client)
 
 		var eventID matrix.EventID
 		var err error
@@ -224,7 +224,9 @@ func (i *Input) Send() bool {
 		if dt.editing == "" {
 			rowCh := make(chan interface{}, 1)
 			glib.IdleAdd(func() {
-				rowCh <- i.ctrl.AddSendingMessage(rawEvt)
+				// Give the controller the RoomMessageEvent instead of our
+				// private type.
+				rowCh <- i.ctrl.AddSendingMessage(&roomEv.RoomMessageEvent)
 			})
 
 			defer func() {
@@ -235,7 +237,7 @@ func (i *Input) Send() bool {
 			}()
 		}
 
-		eventID, err = client.RoomEventSend(rawEvt.RoomID, rawEvt.Type, rawEvt.Content)
+		eventID, err = client.RoomEventSend(roomEv.RoomID, roomEv.Type, roomEv)
 		if err != nil {
 			app.Error(i.ctx, errors.Wrap(err, "failed to send message"))
 		}
@@ -303,16 +305,19 @@ type messageEvent struct {
 
 // put creates a message event from the input data. It might query the API for
 // the information that it needs.
-func (data inputData) put(client *gotktrix.Client) *event.RawEvent {
+func (data inputData) put(client *gotktrix.Client) *messageEvent {
 	ev := messageEvent{
 		RoomMessageEvent: event.RoomMessageEvent{
 			RoomEventInfo: event.RoomEventInfo{
-				RoomID:     data.roomID,
-				SenderID:   client.UserID,
-				OriginTime: matrix.Timestamp(time.Now().UnixMilli()),
+				EventInfo: event.EventInfo{
+					Type: event.TypeRoomMessage,
+				},
+				RoomID:           data.roomID,
+				Sender:           client.UserID,
+				OriginServerTime: matrix.Timestamp(time.Now().UnixMilli()),
 			},
-			MsgType:   event.RoomMessageText,
-			RelatesTo: data.relatesTo(),
+			MessageType: event.RoomMessageText,
+			RelatesTo:   data.relatesTo(),
 		},
 	}
 
@@ -322,8 +327,8 @@ func (data inputData) put(client *gotktrix.Client) *event.RawEvent {
 	if data.replyingTo != "" {
 		replEv := roomTimelineEvent(client, data.roomID, data.replyingTo)
 
-		if msg, ok := replEv.(event.RoomMessageEvent); ok {
-			renderReply(&html, &plain, client, &msg)
+		if msg, ok := replEv.(*event.RoomMessageEvent); ok {
+			renderReply(&html, &plain, client, msg)
 		}
 	}
 
@@ -356,7 +361,7 @@ func (data inputData) put(client *gotktrix.Client) *event.RawEvent {
 	if data.editing != "" {
 		ev.NewContent = &event.RoomMessageEvent{
 			Body:          ev.Body,
-			MsgType:       ev.MsgType,
+			MessageType:   ev.MessageType,
 			Format:        ev.Format,
 			FormattedBody: ev.FormattedBody,
 		}
@@ -370,20 +375,7 @@ func (data inputData) put(client *gotktrix.Client) *event.RawEvent {
 		}
 	}
 
-	b, err := json.Marshal(ev)
-	if err != nil {
-		// lulwut
-		log.Println("cannot marshal message JSON:", err)
-		return nil
-	}
-
-	return &event.RawEvent{
-		Type:             event.TypeRoomMessage,
-		Content:          b,
-		RoomID:           ev.RoomID,
-		Sender:           ev.SenderID,
-		OriginServerTime: ev.OriginTime,
-	}
+	return &ev
 }
 
 func (data inputData) relatesTo() json.RawMessage {

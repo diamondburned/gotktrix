@@ -46,8 +46,8 @@ github.com/blevesearch/zapx/v14 v14.2.2 h1:lRZCBvQIByW8F+mCoY4uA6Uen2DCj7K+wCh5n
 github.com/blevesearch/zapx/v14 v14.2.2/go.mod h1:zb01unR63/DfV2nvyAvgj64K8AKtj7WP6w23jtuHntQ=
 github.com/blevesearch/zapx/v15 v15.2.2 h1:5+oWWAQTV3M0UNor05qrZujzxIXVuwtYU3ppZ7Y1aNI=
 github.com/blevesearch/zapx/v15 v15.2.2/go.mod h1:I4QVJ432LKkZyNK1kZkh3OweKa+NSblZzIF0YSSExak=
-github.com/chanbakjsd/gotrix v0.3.2-0.20211101211156-af54c7b545cf h1:AmfQoy0qkyvGQmPbnT33/g1iqj9Rl/w3VZSfAxWb5UM=
-github.com/chanbakjsd/gotrix v0.3.2-0.20211101211156-af54c7b545cf/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
+github.com/chanbakjsd/gotrix v0.3.2-0.20211223112718-05e09553d624 h1:KuhADrwQEzO93XclM0DWi5WDfYsGEUz+2WqFXQcBzeQ=
+github.com/chanbakjsd/gotrix v0.3.2-0.20211223112718-05e09553d624/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-etcd v2.0.0+incompatible/go.mod h1:Jez6KQU2B/sWsbdaef3ED8NzMklzPG4d5KIOhIy30Tk=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
@@ -75,8 +75,6 @@ github.com/enescakir/emoji v1.0.0/go.mod h1:Bt1EKuLnKDTYpLALApstIkAjdDrS/8IAgTkK
 github.com/fatih/color v1.10.0 h1:s36xzo75JdqLaaWoiEHk767eHiwo0598uUxyfiPkDsg=
 github.com/fatih/color v1.10.0/go.mod h1:ELkj/draVOlAH/xkhN6mQ50Qd0MPOk5AAr3maGEBuJM=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
-github.com/fxamacker/cbor/v2 v2.3.0 h1:aM45YGMctNakddNNAezPxDUpv38j44Abh+hifNuqXik=
-github.com/fxamacker/cbor/v2 v2.3.0/go.mod h1:TA1xS00nchWmaBnEIxPSE5oHLuJBAVvqrtAnWBwBCVo=
 github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2/go.mod h1:/20jfyN9Y5QPEAprSgKAUr+glWDY39ZiUEAYOEv5dsE=
 github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31/go.mod h1:Ogl1Tioa0aV7gstGFO7KhffUsb9M4ydbEbbxpcEDc24=
 github.com/godbus/dbus/v5 v5.0.3 h1:ZqHaoEF7TBzh4jzPmqVhE/5A1z9of6orkAe5uHoAeME=
@@ -151,8 +149,6 @@ github.com/syndtr/goleveldb v1.0.0/go.mod h1:ZVVdQEZoIme9iO1Ch2Jdy24qqXrMMOU6lpP
 github.com/tinylib/msgp v1.1.0/go.mod h1:+d+yLhGm8mzTaHzB+wgMYrodPfmZrzkirds8fDWklFE=
 github.com/ugorji/go/codec v0.0.0-20181204163529-d75b2dcb6bc8/go.mod h1:VFNgLljTbGfSG7qAOspJ7OScBnGdDN/yBr0sguwnwf0=
 github.com/willf/bitset v1.1.10/go.mod h1:RjeCKbqT1RxIR/KWY6phxZiaY1IyutSBfGjNPySAYV4=
-github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
-github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.4.0 h1:OtISOGfH6sOWa1/qXqqAiOIAO6Z5J3AEAE18WAq6BiQ=

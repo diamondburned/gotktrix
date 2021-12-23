@@ -93,7 +93,7 @@ func (c *Comparer) roomOrder(id matrix.RoomID) float64 {
 		return 2
 	}
 
-	t, ok := e.(event.TagEvent).Tags[c.Tag]
+	t, ok := e.(*event.TagEvent).Tags[c.Tag]
 	if ok && t.Order != nil {
 		c.roomTags[id] = *t.Order
 		return *t.Order
@@ -116,7 +116,7 @@ func (c *Comparer) roomTimestamp(id matrix.RoomID) int64 {
 		return 0
 	}
 
-	ts := int64(events[len(events)-1].OriginServerTime())
+	ts := int64(events[len(events)-1].RoomInfo().OriginServerTime)
 	c.roomData[id] = ts
 
 	return ts

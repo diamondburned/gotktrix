@@ -1,6 +1,7 @@
 package state
 
 import (
+	"encoding/json"
 	"log"
 	"math"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/db"
 )
 
@@ -30,21 +32,25 @@ func newDBPaths(topPath db.NodePath) dbPaths {
 	}
 }
 
-func setRawEvent(n db.Node, roomID matrix.RoomID, raw *event.RawEvent, state bool) {
-	raw.RoomID = roomID
+// eventBase should be kept in sync with some of EventInfo and StateEventInfo.
+type eventBase struct {
+	Type     event.Type `json:"type"`
+	StateKey string     `json:"state_key"`
+}
 
-	var dbKey string
-	if raw.StateKey != "" {
-		dbKey = string(raw.StateKey)
+func setRawEvent(n db.Node, roomID matrix.RoomID, raw event.RawEvent, state bool) {
+	var base eventBase
+	if err := json.Unmarshal(raw, &base); err != nil {
+		return // ignore
 	}
 
-	n = n.Node(string(raw.Type))
+	n = n.Node(string(base.Type))
 
 	var err error
 	if state {
-		err = n.Set(dbKey, raw)
+		err = n.Set(base.StateKey, raw)
 	} else {
-		err = n.SetIfNone(dbKey, raw)
+		err = n.SetIfNone(base.StateKey, raw)
 	}
 
 	if err != nil {
@@ -62,8 +68,8 @@ func (p *dbPaths) setRaws(
 		n = n.FromPath(p.user)
 	}
 
-	for i := range raws {
-		setRawEvent(n, roomID, &raws[i], state)
+	for _, raw := range raws {
+		setRawEvent(n, roomID, raw, state)
 	}
 }
 
@@ -77,8 +83,8 @@ func (p *dbPaths) setStrippeds(
 		n = n.FromPath(p.user)
 	}
 
-	for i := range raws {
-		setRawEvent(n, roomID, &raws[i].RawEvent, state)
+	for _, raw := range raws {
+		setRawEvent(n, roomID, event.RawEvent(raw), state)
 	}
 }
 
@@ -87,7 +93,7 @@ func (p *dbPaths) setSummary(n db.Node, roomID matrix.RoomID, s api.SyncRoomSumm
 		return // unexpecting
 	}
 
-	if err := n.FromPath(p.summaries).Set(string(roomID), &s); err != nil {
+	if err := n.FromPath(p.summaries).SetAny(string(roomID), &s); err != nil {
 		log.Printf("failed to set Matrix room summary for room %q: %v", roomID, err)
 	}
 }
@@ -105,12 +111,21 @@ var i64ZeroPadding = func() string {
 	return strings.Repeat("0", v)
 }()
 
+// timelineEventBase should be kept in sync with event.RoomEvent.
+type timelineEventBase struct {
+	ID               matrix.EventID   `json:"event_id,omitempty"`
+	OriginServerTime matrix.Timestamp `json:"origin_server_ts"`
+}
+
 // timelineEventKey formats a key that the internal database can use to sort the
 // returned values lexicographically.
-func timelineEventKey(ev *event.RawEvent) string {
-	str := strconv.FormatInt(int64(ev.OriginServerTime), 32)
+func timelineEventKey(ev event.RawEvent) string {
+	var base timelineEventBase
+	json.Unmarshal(ev, &base)
+
+	str := strconv.FormatInt(int64(base.OriginServerTime), 32)
 	// Pad the timestamp with zeroes to validate sorting.
-	if ev.OriginServerTime >= 0 {
+	if base.OriginServerTime >= 0 {
 		str = i64ZeroPadding[len(i64ZeroPadding)-len(str):] + str
 	} else {
 		// Account for negative number.
@@ -118,18 +133,15 @@ func timelineEventKey(ev *event.RawEvent) string {
 	}
 
 	// use \x01 to avoid colliding delimiter
-	return str + "\x01" + string(ev.ID)
+	return str + "\x01" + string(base.ID)
 }
 
 func (p *dbPaths) setTimeline(n db.Node, roomID matrix.RoomID, tl api.SyncTimeline) {
 	tnode := p.timelineEventsNode(n, roomID)
 
-	for i := range tl.Events {
-		tl.Events[i].RoomID = roomID
-
-		key := timelineEventKey(&tl.Events[i])
-
-		if err := tnode.Set(key, &tl.Events[i]); err != nil {
+	for _, raw := range tl.Events {
+		key := timelineEventKey(raw)
+		if err := tnode.Set(key, raw); err != nil {
 			log.Printf("failed to set Matrix timeline event for room %q: %v", roomID, err)
 		}
 	}
@@ -143,7 +155,7 @@ func (p *dbPaths) setTimeline(n db.Node, roomID matrix.RoomID, tl api.SyncTimeli
 	if tl.PreviousBatch != "" {
 		rnode := p.timelineNode(n, roomID)
 
-		if err := rnode.Set("previous_batch", tl.PreviousBatch); err != nil {
+		if err := rnode.Set("previous_batch", []byte(tl.PreviousBatch)); err != nil {
 			log.Printf("failed to set previous_batch for room %q: %v", roomID, err)
 		}
 	}
@@ -162,12 +174,25 @@ func (p *dbPaths) setDirect(n db.Node, roomID matrix.RoomID, direct bool) {
 
 	var err error
 	if direct {
-		err = n.Set(string(roomID), struct{}{})
+		err = n.Set(string(roomID), nil)
 	} else {
 		err = n.Delete(string(roomID))
 	}
 
 	if err != nil {
 		log.Printf("failed to save direct room %q: %v", roomID, err)
+	}
+}
+
+func getEvent(n db.Node, k string, expect event.Type) (event.Event, error) {
+	var ev event.Event
+	err := n.Get(k, eventFunc(&ev, expect))
+	return ev, err
+}
+
+func eventFunc(ev *event.Event, expect event.Type) func(b []byte) error {
+	return func(b []byte) (err error) {
+		*ev, err = sys.ParseAs(b, expect)
+		return
 	}
 }

@@ -12,20 +12,20 @@ type extraRevealer struct {
 }
 
 var extraCSS = cssutil.Applier("messageview-extra", `
-    .messageview-extra {
-        padding: 0;
-        margin:  0 10px;
-        margin-bottom: -10px; /* I can't believe this works! */
-    }
-    .messageview-extra > * {
-        padding: 0 5px;
-        border-radius: 5px;
-        background-color: mix(@theme_selected_bg_color, @theme_bg_color, 0.75);
-    }
-    .messageview-extralabel {
-        padding-left: 4px;
-        font-size: .8em;
-    }
+	.messageview-extra {
+		padding: 0;
+		margin:  0 10px;
+		margin-bottom: -10px; /* I can't believe this works! */
+	}
+	.messageview-extra > * {
+		padding: 0 5px;
+		border-radius: 5px;
+		background-color: mix(@theme_selected_bg_color, @theme_bg_color, 0.75);
+	}
+	.messageview-extralabel {
+		padding-left: 4px;
+		font-size: .8em;
+	}
 `)
 
 func newExtraRevealer() *extraRevealer {

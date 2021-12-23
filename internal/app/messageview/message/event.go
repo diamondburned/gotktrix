@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 )
@@ -38,7 +40,7 @@ func (v messageViewer) eventMessage() *eventMessage {
 	action.SetWrapMode(pango.WrapWordChar)
 	action.SetMarginStart(avatarWidth)
 
-	action.SetMarkup(RenderEvent(v.Context, v.raw))
+	action.SetMarkup(RenderEvent(v.Context, v.event))
 
 	messageCSS(action)
 	bindParent(v, action, action)
@@ -49,8 +51,8 @@ func (v messageViewer) eventMessage() *eventMessage {
 	}
 }
 
-func (m *eventMessage) RawEvent() *gotktrix.EventBox {
-	return m.parent.raw
+func (m *eventMessage) Event() event.RoomEvent {
+	return m.parent.event
 }
 
 func (m *eventMessage) SetBlur(blur bool) {
@@ -58,153 +60,131 @@ func (m *eventMessage) SetBlur(blur bool) {
 	setBlurClass(m, blur)
 }
 
-func (m *eventMessage) OnRelatedEvent(ev *gotktrix.EventBox) {}
+func (m *eventMessage) OnRelatedEvent(ev event.RoomEvent) {}
 
 func (m *eventMessage) LoadMore() {}
 
 // TODO: make EventMessageTail render the full string (-Tail)
 // TODO: add Options into EventMessage
 
-// RenderEvent returns the markup tail of an event message.
-func RenderEvent(ctx context.Context, raw *gotktrix.EventBox) string {
-	client := gotktrix.FromContext(ctx).Offline()
-	window := app.FromContext(ctx).Window()
+type eventRenderer struct {
+	ctx    context.Context
+	client *gotktrix.Client
+	window *gtk.Window
+	roomEv *event.RoomEventInfo
+}
 
-	authorForUser := func(userID matrix.UserID) string {
-		return mauthor.Markup(
-			client, raw.RoomID, userID,
-			mauthor.WithWidgetColor(&window.Widget),
-			mauthor.WithMinimal(),
-		)
+func (r eventRenderer) author(uID matrix.UserID) string {
+	return mauthor.Markup(r.client, r.roomEv.RoomID, uID,
+		mauthor.WithWidgetColor(r.window),
+		mauthor.WithMinimal(),
+	)
+}
+
+func (r eventRenderer) sender() string {
+	return r.author(r.roomEv.Sender)
+}
+
+// RenderEvent returns the markup tail of an event message.
+func RenderEvent(ctx context.Context, ev event.RoomEvent) string {
+	r := eventRenderer{
+		ctx:    ctx,
+		client: gotktrix.FromContext(ctx).Offline(),
+		window: app.FromContext(ctx).Window(),
+		roomEv: ev.RoomInfo(),
 	}
 
 	p := locale.FromContext(ctx)
 
-	if redaction := raw.Unsigned.RedactReason; redaction != nil {
-		redacted := p.Sprint("message redacted.")
-		author := authorForUser(raw.Sender)
-		return fmt.Sprintf(`%s: <span alpha="80%%"><i>%s</i></span>`, author, redacted)
-	}
-
-	e, err := raw.Parse()
-	if err != nil {
-		author := authorForUser(raw.Sender)
-		return p.Sprintf(
-			`%s sent an unusual event %s: <span color="red">%v</span>.`,
-			author, raw.Type, err,
+	if redaction := r.roomEv.Unsigned.RedactReason; redaction != nil {
+		return fmt.Sprintf(
+			`%s: <span alpha="80%%"><i>%s</i></span>`,
+			r.sender(), locale.S(ctx, "message redacted."),
 		)
-	}
-
-	var author string
-	// Get the sender's ID, OR the user ID that the event acts on, if there's
-	// one. All the strings below assume that. Don't use the state key if the
-	// event fails to be parsed.
-	if raw.StateKey != "" {
-		author = authorForUser(matrix.UserID(raw.StateKey))
-	} else {
-		author = authorForUser(raw.Sender)
 	}
 
 	// Treat the RoomMemberEvent specially, because it has a UserID field that
 	// may not always match the SenderID, especially if it's banning.
-	if _, ok := e.(event.RoomMemberEvent); ok {
+	if member, ok := ev.(*event.RoomMemberEvent); ok {
 		// TODO: re-render author to be UserID instead.
-		return memberEvent(ctx, raw, author)
+		return memberEvent(r, member)
 	}
 
-	switch ev := e.(type) {
-	case event.RoomMessageEvent:
-		return fmt.Sprintf(`%s: <span alpha="80%%">%s</span>`, author, html.EscapeString(ev.Body))
-	case event.RoomCreateEvent:
-		return p.Sprintf("%s created this room.", author)
-	case event.RoomPowerLevelsEvent:
-		return p.Sprintf("%s changed the room's permissions.", author)
-	case event.RoomJoinRulesEvent:
+	switch ev := ev.(type) {
+	case *event.RoomMessageEvent:
+		// TODO: light HTML renderer to Pango markup.
+		return fmt.Sprintf(`%s: <span alpha="80%%">%s</span>`, r.sender(), html.EscapeString(ev.Body))
+	case *event.RoomCreateEvent:
+		return p.Sprintf("%s created this room.", r.sender())
+	case *event.RoomPowerLevelsEvent:
+		return p.Sprintf("%s changed the room's permissions.", r.sender())
+	case *event.RoomJoinRulesEvent:
 		switch ev.JoinRule {
 		case event.JoinPublic:
-			return p.Sprintf("%s made the room public.", author)
+			return p.Sprintf("%s made the room public.", r.sender())
 		case event.JoinInvite:
-			return p.Sprintf("%s made the room invite-only.", author)
+			return p.Sprintf("%s made the room invite-only.", r.sender())
 		default:
-			return p.Sprintf("%s changed the join rule to %q.", author, ev.JoinRule)
+			return p.Sprintf("%s changed the join rule to %q.", r.sender(), ev.JoinRule)
 		}
-	case event.RoomHistoryVisibilityEvent:
+	case *event.RoomHistoryVisibilityEvent:
 		switch ev.Visibility {
 		case event.VisibilityInvited:
-			return p.Sprintf("%s made the room's history visible to all invited members.", author)
+			return p.Sprintf("%s made the room's history visible to all invited members.", r.sender())
 		case event.VisibilityJoined:
-			return p.Sprintf("%s made the room's history visible to all current members.", author)
+			return p.Sprintf("%s made the room's history visible to all current members.", r.sender())
 		case event.VisibilityShared:
-			return p.Sprintf("%s made the room's history visible to all past members.", author)
+			return p.Sprintf("%s made the room's history visible to all past members.", r.sender())
 		case event.VisibilityWorldReadable:
-			return p.Sprintf("%s made the room's history world-readable.", author)
+			return p.Sprintf("%s made the room's history world-readable.", r.sender())
 		default:
-			return p.Sprintf("%s changed the room history visibility to %q.", author, ev.Visibility)
+			return p.Sprintf("%s changed the room history visibility to %q.", r.sender(), ev.Visibility)
 		}
-	case event.RoomGuestAccessEvent:
+	case *event.RoomGuestAccessEvent:
 		switch ev.GuestAccess {
 		case event.GuestAccessCanJoin:
-			return p.Sprintf("%s allowed guests to join the room.", author)
+			return p.Sprintf("%s allowed guests to join the room.", r.sender())
 		case event.GuestAccessForbidden:
-			return p.Sprintf("%s denied guests from joining the room.", author)
+			return p.Sprintf("%s denied guests from joining the room.", r.sender())
 		default:
-			return p.Sprintf("%s changed the room's guess access rule to %q.", author, ev.GuestAccess)
+			return p.Sprintf("%s changed the room's guess access rule to %q.", r.sender(), ev.GuestAccess)
 		}
-	case event.RoomNameEvent:
-		return p.Sprintf("%s changed the room's name to <i>%s</i>.", author, html.EscapeString(ev.Name))
-	case event.RoomTopicEvent:
-		return p.Sprintf("%s changed the room's topic to <i>%s</i>.", author, html.EscapeString(ev.Topic))
+	case *event.RoomNameEvent:
+		return p.Sprintf("%s changed the room's name to <i>%s</i>.", r.sender(), html.EscapeString(ev.Name))
+	case *event.RoomTopicEvent:
+		return p.Sprintf("%s changed the room's topic to <i>%s</i>.", r.sender(), html.EscapeString(ev.Topic))
+	case *sys.ErroneousEvent:
+		return p.Sprintf(
+			`%s sent an unusual event: <span color="red">%v</span>.`,
+			r.sender(), ev.Err,
+		)
 	default:
-		return p.Sprintf("%s sent a %T event.", author, ev)
+		return p.Sprintf("%s sent a %T event.", r.sender(), ev)
 	}
 }
 
-func pastMemberEvent(raw *gotktrix.EventBox) event.RoomMemberEvent {
-	prev := event.RawEvent{
-		Type: raw.Type,
+var emptyRoomMember = &event.RoomMemberEvent{}
+
+func memberEvent(r eventRenderer, ev *event.RoomMemberEvent) string {
+	p := locale.FromContext(r.ctx)
+
+	past := pastMemberEvent(ev)
+	if past == nil {
+		// We can read zero values inside the struct.
+		past = emptyRoomMember
 	}
-
-	switch {
-	case raw.Unsigned.PrevContent != nil:
-		prev.Content = raw.Unsigned.PrevContent
-	case raw.PrevContent != nil:
-		prev.Content = raw.PrevContent
-	default:
-		return event.RoomMemberEvent{}
-	}
-
-	p, err := prev.Parse()
-	if err != nil {
-		return event.RoomMemberEvent{}
-	}
-
-	past, ok := p.(event.RoomMemberEvent)
-	if !ok {
-		return event.RoomMemberEvent{}
-	}
-
-	return past
-}
-
-func memberEvent(ctx context.Context, raw *gotktrix.EventBox, author string) string {
-	printer := locale.FromContext(ctx)
-
-	parsed, _ := raw.Parse()
-	ev := parsed.(event.RoomMemberEvent)
-
-	past := pastMemberEvent(raw)
 
 	// See https://matrix.org/docs/spec/client_server/r0.6.1#m-room-member.
 	switch past.NewState {
 	case event.MemberInvited:
 		switch ev.NewState {
 		case event.MemberJoined:
-			return locale.Sprintf(ctx, "%s joined.", author)
+			return p.Sprintf("%s joined.", r.author(ev.UserID))
 		case event.MemberLeft:
-			if ev.SenderID == ev.UserID {
-				return locale.Sprintf(ctx, "%s rejected the invite.", author)
+			if ev.Sender == ev.UserID {
+				return p.Sprintf("%s rejected the invite.", r.author(ev.UserID))
 			} else {
-				return locale.Sprintf(ctx, "%s had their invitation revoked.", author)
+				return p.Sprintf("%s had their invitation revoked.", r.author(ev.UserID))
 			}
 		}
 	case event.MemberJoined:
@@ -212,29 +192,29 @@ func memberEvent(ctx context.Context, raw *gotktrix.EventBox, author string) str
 		case event.MemberJoined:
 			switch {
 			case past.AvatarURL != ev.AvatarURL:
-				return locale.Sprintf(ctx, "%s changed their avatar.", author)
+				return p.Sprintf("%s changed their avatar.", r.author(ev.UserID))
 			case !sameDisplayName(past.DisplayName, ev.DisplayName):
-				return locale.Sprintf(ctx, "%s changed their name.", author)
+				return p.Sprintf("%s changed their name.", r.author(ev.UserID))
 			default:
-				return locale.Sprintf(ctx, "%s updated their information.", author)
+				return p.Sprintf("%s updated their information.", r.author(ev.UserID))
 			}
 		case event.MemberLeft:
-			if ev.SenderID == ev.UserID {
-				return locale.Sprintf(ctx, "%s left the room.", author)
+			if ev.Sender == ev.UserID {
+				return p.Sprintf("%s left.", r.author(ev.UserID))
 			} else {
-				return locale.Sprintf(ctx, "%s was kicked.", author)
+				return p.Sprintf("%s was kicked.", r.author(ev.UserID))
 			}
 		case event.MemberBanned:
-			return locale.Sprintf(ctx, "%s was kicked and banned.", author)
+			return p.Sprintf("%s was kicked and banned.", r.author(ev.UserID))
 		}
 	case event.MemberBanned:
 		switch ev.NewState {
 		case event.MemberLeft:
-			return locale.Sprintf(ctx, "%s was unbanned.", author)
+			return p.Sprintf("%s was unbanned.", r.author(ev.UserID))
 		}
 	}
 
-	return basicMemberEventTail(printer, ev, author)
+	return basicMemberEventTail(r, p, ev)
 }
 
 func sameDisplayName(n1, n2 *string) bool {
@@ -247,17 +227,42 @@ func sameDisplayName(n1, n2 *string) bool {
 	return *n1 == *n2
 }
 
-func basicMemberEventTail(p *locale.Printer, ev event.RoomMemberEvent, author string) string {
+func basicMemberEventTail(r eventRenderer, p *locale.Printer, ev *event.RoomMemberEvent) string {
 	switch ev.NewState {
 	case event.MemberInvited:
-		return p.Sprintf("%s was invited.", author)
+		return p.Sprintf("%s was invited.", r.author(ev.UserID))
 	case event.MemberJoined:
-		return p.Sprintf("%s joined.", author)
+		return p.Sprintf("%s joined.", r.author(ev.UserID))
 	case event.MemberLeft:
-		return p.Sprintf("%s left.", author)
+		return p.Sprintf("%s left.", r.author(ev.UserID))
 	case event.MemberBanned:
-		return p.Sprintf("%s was banned.", author)
+		return p.Sprintf("%s was banned by %s.", r.author(ev.UserID), r.sender())
 	default:
-		return p.Sprintf("%s performed member action %q.", author, ev.NewState)
+		return p.Sprintf("%s performed member action %q.", r.sender(), ev.NewState)
 	}
+}
+
+func pastMemberEvent(ev *event.RoomMemberEvent) *event.RoomMemberEvent {
+	partial := event.Partial{
+		StateEventInfo: ev.StateEventInfo,
+		Content:        ev.RoomEventInfo.Unsigned.PrevContent,
+	}
+	if partial.Content == nil {
+		return nil
+	}
+
+	b, err := json.Marshal(partial)
+	if err != nil {
+		return nil
+	}
+
+	e, err := sys.ParseAs(b, event.TypeRoomMember)
+	if err != nil {
+		return nil
+	}
+
+	past := e.(*event.RoomMemberEvent)
+	past.RoomID = ev.RoomID
+
+	return past
 }

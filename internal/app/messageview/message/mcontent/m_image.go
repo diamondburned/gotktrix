@@ -22,7 +22,7 @@ import (
 type imageContent struct {
 	*imageEmbed
 	ctx context.Context
-	msg event.RoomMessageEvent
+	msg *event.RoomMessageEvent
 }
 
 var imageCSS = cssutil.Applier("mcontent-image", `
@@ -53,7 +53,7 @@ var imageCSS = cssutil.Applier("mcontent-image", `
 	}
 `)
 
-func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPart {
+func newImageContent(ctx context.Context, msg *event.RoomMessageEvent) contentPart {
 	embed := newImageEmbed(msg.Body, maxWidth, maxHeight)
 	embed.AddCSSClass("mcontent-image-content")
 	embed.setOpenURL(func() {
@@ -85,7 +85,7 @@ func newImageContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 
 func (c *imageContent) LoadMore() {
 	if c.curSize != [2]int{} && c.msg.Info != nil {
-		renderBlurhash(c.msg.Info, c.curSize[0], c.curSize[1], c.image.SetPixbuf)
+		renderBlurhash(c.msg.AdditionalInfo, c.curSize[0], c.curSize[1], c.image.SetPixbuf)
 	}
 
 	client := gotktrix.FromContext(c.ctx)

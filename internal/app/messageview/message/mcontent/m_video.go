@@ -41,7 +41,7 @@ var videoCSS = cssutil.Applier("mcontent-video", `
 	}
 `)
 
-func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPart {
+func newVideoContent(ctx context.Context, msg *event.RoomMessageEvent) contentPart {
 	client := gotktrix.FromContext(ctx).Offline()
 
 	preview := gtk.NewPicture()
@@ -58,7 +58,7 @@ func newVideoContent(ctx context.Context, msg event.RoomMessageEvent) contentPar
 	if err == nil {
 		w, h = gotktrix.MaxSize(v.Width, v.Height, w, h)
 		if v.Height > 0 && v.Width > 0 {
-			renderBlurhash(msg.Info, w, h, preview.SetPixbuf)
+			renderBlurhash(msg.AdditionalInfo, w, h, preview.SetPixbuf)
 		}
 	}
 

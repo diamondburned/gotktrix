@@ -1,7 +1,7 @@
 package db
 
 import (
-	"github.com/fxamacker/cbor/v2"
+	"encoding/json"
 )
 
 type Marshaler interface {
@@ -9,15 +9,15 @@ type Marshaler interface {
 	Unmarshal([]byte, interface{}) error
 }
 
-// CBORMarshaler is the default key-value marshaler.
-var CBORMarshaler Marshaler = cborMarshaler{}
+// JSONMarshaler is the default key-value marshaler.
+var JSONMarshaler Marshaler = jsonMarshaler{}
 
-type cborMarshaler struct{}
+type jsonMarshaler struct{}
 
-func (cborMarshaler) Marshal(v interface{}) ([]byte, error) {
-	return cbor.Marshal(v)
+func (jsonMarshaler) Marshal(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
 }
 
-func (cborMarshaler) Unmarshal(b []byte, v interface{}) error {
-	return cbor.Unmarshal(b, v)
+func (jsonMarshaler) Unmarshal(b []byte, v interface{}) error {
+	return json.Unmarshal(b, v)
 }

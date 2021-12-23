@@ -21,6 +21,7 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/db"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/handler"
@@ -62,31 +63,6 @@ func init() {
 	if err == nil {
 		deviceName += " (" + hostname + ")"
 	}
-}
-
-// EventBox provides a concurrently-safe wrapper around a raw event that caches
-// event parsing.
-type EventBox struct {
-	*event.RawEvent
-	parsed event.Event
-	error  error
-	once   sync.Once
-}
-
-// WrapEventBox wraps the given raw event.
-func WrapEventBox(raw *event.RawEvent) *EventBox {
-	if raw == nil {
-		return nil
-	}
-	return &EventBox{RawEvent: raw}
-}
-
-// Parse parses the raw event.
-func (b *EventBox) Parse() (event.Event, error) {
-	b.once.Do(func() {
-		b.parsed, b.error = b.RawEvent.Parse()
-	})
-	return b.parsed, b.error
 }
 
 var (
@@ -260,7 +236,7 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 		Transport: httpErr,
 	}
 
-	state, err := state.New(config.Path("matrix-state", b64Username), u)
+	s, err := state.New(config.Path("matrix-state", b64Username), u)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make state db")
 	}
@@ -272,20 +248,19 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 
 	registry := handler.New()
 
-	c.State = registry.Wrap(state)
+	c.State = registry.Wrap(s)
 	c.SyncOpts = SyncOptions
 
 	registry.OnSync(func(s *api.SyncResponse) {
 		for _, room := range s.Rooms.Joined {
 			for _, ev := range room.State.Events {
-				if ev.Type != event.TypeRoomMember {
+				if state.GuessType(ev) != event.TypeRoomMember {
 					continue
 				}
 
-				member, _ := ev.Parse()
-				if member != nil {
+				if member, ok := sys.Parse(ev).(*event.RoomMemberEvent); ok {
 					b := idx.Begin()
-					b.IndexRoomMember(member.(event.RoomMemberEvent))
+					b.IndexRoomMember(member)
 					b.Commit()
 				}
 			}
@@ -295,7 +270,7 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 	return &Client{
 		Client:   c,
 		Registry: registry,
-		State:    state,
+		State:    s,
 		Index:    idx,
 		httpErr:  httpErr,
 		userID:   u,
@@ -311,8 +286,9 @@ func (c *Client) AddHandler(function interface{}) error {
 
 // Open opens the client with the last next batch string.
 func (c *Client) Open() error {
-	next, _ := c.State.NextBatch()
-	return c.Client.OpenWithNext(next)
+	// next, _ := c.State.NextBatch()
+	// log.Println("next =", next)
+	return c.Client.OpenWithNext("")
 }
 
 // Close closes the event loop and the internal database, as well as halting all
@@ -430,7 +406,7 @@ func (c *Client) ScaledThumbnail(mURL matrix.URL, w, h, scale int) (string, erro
 
 // ImageThumbnail gets the thumbnail or direct URL of the image from the
 // message.
-func (c *Client) ImageThumbnail(msg event.RoomMessageEvent, maxW, maxH, scale int) (string, error) {
+func (c *Client) ImageThumbnail(msg *event.RoomMessageEvent, maxW, maxH, scale int) (string, error) {
 	i, err := msg.ImageInfo()
 	if err == nil {
 		maxW, maxH = MaxSize(i.Width, i.Height, maxW, maxH)
@@ -440,7 +416,7 @@ func (c *Client) ImageThumbnail(msg event.RoomMessageEvent, maxW, maxH, scale in
 		}
 	}
 
-	if msg.MsgType != event.RoomMessageImage {
+	if msg.MessageType != event.RoomMessageImage {
 		return "", errors.New("message is not image")
 	}
 
@@ -472,7 +448,7 @@ func MaxSize(w, h, maxW, maxH int) (int, int) {
 }
 
 // MessageMediaURL gets the message's media URL, if any.
-func (c *Client) MessageMediaURL(msg event.RoomMessageEvent) (string, error) {
+func (c *Client) MessageMediaURL(msg *event.RoomMessageEvent) (string, error) {
 	filename := msg.Body
 
 	if filename == "" {
@@ -504,9 +480,9 @@ func (c *Client) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, e
 func (c *Client) RoomState(
 	roomID matrix.RoomID, typ event.Type, key string) (event.StateEvent, error) {
 
-	e, err := c.State.RoomState(roomID, typ, key)
+	s, err := c.State.RoomState(roomID, typ, key)
 	if err == nil {
-		return e, nil
+		return s, nil
 	}
 
 	raw, err := c.Client.Client.RoomState(roomID, typ, key)
@@ -514,18 +490,21 @@ func (c *Client) RoomState(
 		return nil, err
 	}
 
-	parsed, err := raw.Parse()
+	e, err := sys.ParseAs(raw, typ)
 	if err != nil {
 		return nil, err
 	}
 
-	stateEvent, ok := parsed.(event.StateEvent)
+	stateEvent, ok := e.(event.StateEvent)
 	if !ok {
 		return nil, gotrix.ErrInvalidStateEvent
 	}
 
+	info := stateEvent.StateInfo()
+	info.RoomID = roomID
+
 	// Update the state cache for future calls.
-	c.State.AddRoomEvents(roomID, []event.RawEvent{*raw})
+	c.State.AddRoomEvents(roomID, []event.RawEvent{raw})
 
 	return stateEvent, nil
 }
@@ -541,14 +520,13 @@ func (c *Client) RoomIsUnread(roomID matrix.RoomID) (unread, ok bool) {
 		return false, false
 	}
 
-	seen, ok := c.hasSeenEvent(roomID, t[len(t)-1].ID())
+	seen, ok := c.hasSeenEvent(roomID, t[len(t)-1].RoomInfo().ID)
 	return !seen, ok
 }
 
 func (c *Client) hasSeenEvent(roomID matrix.RoomID, eventID matrix.EventID) (seen, ok bool) {
-	e, err := c.RoomEvent(roomID, m.FullyReadEventType)
-	if err == nil {
-		fullyRead := e.(m.FullyReadEvent)
+	e, _ := c.RoomEvent(roomID, m.FullyReadEventType)
+	if fullyRead, ok := e.(*m.FullyReadEvent); ok {
 		// Assume that the user has caught up to the room if the latest event's
 		// ID matches. Technically, there shouldn't ever be a case where the
 		// fully read event would point to an event in the future, so this
@@ -563,11 +541,9 @@ func (c *Client) hasSeenEvent(roomID matrix.RoomID, eventID matrix.EventID) (see
 		return false, false
 	}
 
-	e, err = c.RoomEvent(roomID, event.TypeReceipt)
-	if err == nil {
-		// Query to see if the current user has read the latest message.
-		e := e.(event.ReceiptEvent)
-
+	// Query to see if the current user has read the latest message.
+	e, _ = c.RoomEvent(roomID, event.TypeReceipt)
+	if e, ok := e.(*event.ReceiptEvent); ok {
 		rc, ok := e.Events[eventID]
 		if !ok {
 			// Nobody has read the latest message, including the current user.
@@ -586,7 +562,7 @@ func (c *Client) hasSeenEvent(roomID matrix.RoomID, eventID matrix.EventID) (see
 func (c *Client) RoomLatestReadEvent(roomID matrix.RoomID) matrix.EventID {
 	e, err := c.RoomEvent(roomID, m.FullyReadEventType)
 	if err == nil {
-		fullyRead := e.(m.FullyReadEvent)
+		fullyRead := e.(*m.FullyReadEvent)
 		return fullyRead.EventID
 	}
 
@@ -597,7 +573,7 @@ func (c *Client) RoomLatestReadEvent(roomID matrix.RoomID) matrix.EventID {
 
 	e, err = c.RoomEvent(roomID, event.TypeReceipt)
 	if err == nil {
-		e := e.(event.ReceiptEvent)
+		e := e.(*event.ReceiptEvent)
 
 		for eventID, receipt := range e.Events {
 			_, read := receipt.Read[u]
@@ -661,13 +637,7 @@ func (c *Client) RoomEnsureMembers(roomID matrix.RoomID) error {
 	defer batch.Commit()
 
 	for _, raw := range e {
-		e, err := raw.Parse()
-		if err != nil {
-			log.Println("error parsing RoomMembers event:", err)
-			continue
-		}
-
-		me, ok := e.(event.RoomMemberEvent)
+		me, ok := sys.ParseRoom(raw, roomID).(*event.RoomMemberEvent)
 		if !ok {
 			log.Printf("error: RoomMember event is of unexpected type %T", e)
 			continue
@@ -679,34 +649,6 @@ func (c *Client) RoomEnsureMembers(roomID matrix.RoomID) error {
 	return nil
 }
 
-// RoomTimeline queries the state cache for the timeline of the given room. If
-// it's not available, the API will be queried directly. The order of these
-// events is guaranteed to be latest last.
-func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
-	rawEvents, err := c.RoomTimelineRaw(roomID)
-	if err != nil {
-		return nil, err
-	}
-
-	events := make([]event.RoomEvent, 0, len(rawEvents))
-
-	for i := range rawEvents {
-		rawEvents[i].RoomID = roomID
-
-		e, err := rawEvents[i].Parse()
-		if err != nil {
-			continue
-		}
-
-		state, ok := e.(event.RoomEvent)
-		if ok {
-			events = append(events, state)
-		}
-	}
-
-	return events, nil
-}
-
 // RoomPaginator is used to fetch older messages from the API client.
 type RoomPaginator struct {
 	c      *Client
@@ -714,7 +656,7 @@ type RoomPaginator struct {
 	limit  int
 
 	// buffer holds all the unreturned events.
-	buffer []event.RawEvent
+	buffer []event.RoomEvent
 	// lastEvID keeps track of the last event that the user received. Last here
 	// means the earliest or top event.
 	lastEvID matrix.EventID
@@ -741,7 +683,7 @@ func (c *Client) RoomPaginator(roomID matrix.RoomID, limit int) *RoomPaginator {
 }
 
 // Paginate paginates from the client and the server if the database is drained.
-func (p *RoomPaginator) Paginate(ctx context.Context) ([]event.RawEvent, error) {
+func (p *RoomPaginator) Paginate(ctx context.Context) ([]event.RoomEvent, error) {
 	if p.onTop {
 		return nil, nil
 	}
@@ -782,7 +724,7 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 	if !p.drained {
 		p.drained = true
 
-		events, err := p.c.State.RoomTimelineRaw(p.roomID)
+		events, err := p.c.State.RoomTimeline(p.roomID)
 		if err == nil {
 			p.prepend(events)
 			if !p.needFill() {
@@ -829,11 +771,12 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 		}
 
 		// Seek until we stumble on the wanted events.
-		for i, ev := range r.Chunk {
-			if ev.ID == p.lastEvID {
+		events := sys.ParseAllRoom(r.Chunk, p.roomID)
+		for i, ev := range events {
+			if ev.RoomInfo().ID == p.lastEvID {
 				// Include all events from before the found one to the first
 				// event, which is the earliest event.
-				p.prepend(r.Chunk[:i])
+				p.prepend(events[:i])
 				break
 			}
 		}
@@ -848,26 +791,28 @@ func (p *RoomPaginator) needFill() bool {
 }
 
 // prepend prepends the given events into the paginator buffer.
-func (p *RoomPaginator) prepend(events []event.RawEvent) {
+func (p *RoomPaginator) prepend(events []event.RoomEvent) {
 	if len(p.buffer)+len(events) == 0 {
 		p.buffer = nil
 		return
 	}
 
 	// TODO: optimize.
-	new := make([]event.RawEvent, len(p.buffer)+len(events))
+	new := make([]event.RoomEvent, len(p.buffer)+len(events))
 
 	n := 0
 	n += copy(new[n:], events)
 	n += copy(new[n:], p.buffer)
 
 	p.buffer = new
-	p.lastEvID = p.buffer[0].ID // first is earliest
+	p.lastEvID = p.buffer[0].RoomInfo().ID // first is earliest
 }
 
-// RoomTimelineRaw is RoomTimeline, except events are returned unparsed.
-func (c *Client) RoomTimelineRaw(roomID matrix.RoomID) ([]event.RawEvent, error) {
-	if events, err := c.State.RoomTimelineRaw(roomID); err == nil {
+// RoomTimeline queries the state cache for the timeline of the given room. If
+// it's not available, the API will be queried directly. The order of these
+// events is guaranteed to be latest last.
+func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
+	if events, err := c.State.RoomTimeline(roomID); err == nil {
 		return events, nil
 	}
 
@@ -879,7 +824,7 @@ func (c *Client) RoomTimelineRaw(roomID matrix.RoomID) ([]event.RawEvent, error)
 
 	// Re-check the state for the timeline, because we don't want to miss out
 	// any events whil we were fetching the previous_batch string.
-	if events, err := c.State.RoomTimelineRaw(roomID); err == nil {
+	if events, err := c.State.RoomTimeline(roomID); err == nil {
 		return events, nil
 	}
 
@@ -892,19 +837,18 @@ func (c *Client) RoomTimelineRaw(roomID matrix.RoomID) ([]event.RawEvent, error)
 		return nil, errors.Wrapf(err, "failed to get messages for room %q", roomID)
 	}
 
-	return r.Chunk, nil
+	return sys.ParseAllRoom(r.Chunk, roomID), nil
 }
 
 // LatestMessage finds the latest room message event from the given list of
 // events. The list is assumed to have the latest events last.
-func LatestMessage(events []event.RoomEvent) (event.RoomMessageEvent, bool) {
+func LatestMessage(events []event.RoomEvent) *event.RoomMessageEvent {
 	for i := len(events) - 1; i >= 0; i-- {
-		msg, ok := events[i].(event.RoomMessageEvent)
-		if ok {
-			return msg, true
+		if msg, ok := events[i].(*event.RoomMessageEvent); ok {
+			return msg
 		}
 	}
-	return event.RoomMessageEvent{}, false
+	return nil
 }
 
 // AsyncSetConfig updates the state cache first, and then updates the API in the
@@ -919,7 +863,7 @@ func (c *Client) AsyncSetConfig(ev event.Event, done func(error)) {
 	c.State.SetUserEvent(ev)
 
 	go func() {
-		err := c.ClientConfigSet(string(ev.Type()), ev)
+		err := c.ClientConfigSet(string(ev.Info().Type), ev)
 		if done != nil {
 			done(err)
 		}
@@ -933,13 +877,12 @@ func (c *Client) UserEvent(typ event.Type) (event.Event, error) {
 		return e, nil
 	}
 
-	raw := event.RawEvent{Type: typ}
-
-	if err := c.ClientConfig(string(typ), &raw.Content); err != nil {
+	var raw json.RawMessage
+	if err := c.ClientConfig(string(typ), &raw); err != nil {
 		return nil, errors.Wrap(err, "failed to get client config")
 	}
 
-	e, err := raw.Parse()
+	e, err := sys.ParseUserEventContent(typ, raw)
 	if err != nil {
 		log.Printf("failed to parse UserEvent %s: %v", typ, err)
 		return nil, errors.Wrap(err, "failed to parse event from API")
@@ -963,7 +906,7 @@ func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, err
 	var events []event.RoomMemberEvent
 
 	onEach := func(e event.Event, total int) error {
-		ev, ok := e.(event.RoomMemberEvent)
+		ev, ok := e.(*event.RoomMemberEvent)
 		if !ok {
 			return nil
 		}
@@ -972,11 +915,11 @@ func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, err
 			events = make([]event.RoomMemberEvent, 0, total)
 		}
 
-		events = append(events, ev)
+		events = append(events, *ev)
 		return nil
 	}
 
-	if err := c.State.EachRoomStateLen(roomID, event.TypeRoomMember, onEach); err == nil {
+	if err := c.State.EachRoomEventLen(roomID, event.TypeRoomMember, onEach); err == nil {
 		if events != nil {
 			return events, nil
 		}
@@ -995,42 +938,31 @@ func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, err
 
 	events = make([]event.RoomMemberEvent, 0, len(rawEvs))
 
-	for i := range rawEvs {
-		rawEvs[i].RoomID = roomID
-
-		e, err := rawEvs[i].Parse()
-		if err != nil {
-			continue
-		}
-
-		ev, ok := e.(event.RoomMemberEvent)
+	for _, raw := range rawEvs {
+		ev, ok := sys.ParseRoom(raw, roomID).(*event.RoomMemberEvent)
 		if !ok {
 			continue
 		}
 
-		events = append(events, ev)
+		events = append(events, *ev)
 	}
 
 	return events, nil
 }
 
 // EachTimeline iterates through the timeline.
-func (c *Client) EachTimeline(roomID matrix.RoomID, f func(*EventBox) error) error {
-	return c.State.EachTimeline(roomID, func(raw *event.RawEvent) error {
-		return f(WrapEventBox(raw))
-	})
+func (c *Client) EachTimeline(roomID matrix.RoomID, f func(event.RoomEvent) error) error {
+	return c.State.EachTimeline(roomID, f)
 }
 
 // EachTimelineReverse iterates through the timeline in reverse.
-func (c *Client) EachTimelineReverse(roomID matrix.RoomID, f func(*EventBox) error) error {
-	return c.State.EachTimelineReverse(roomID, func(raw *event.RawEvent) error {
-		return f(WrapEventBox(raw))
-	})
+func (c *Client) EachTimelineReverse(roomID matrix.RoomID, f func(event.RoomEvent) error) error {
+	return c.State.EachTimelineReverse(roomID, f)
 }
 
 // SendRoomEvent is a convenient function around RoomEventSend.
 func (c *Client) SendRoomEvent(roomID matrix.RoomID, ev event.Event) error {
-	_, err := c.Client.RoomEventSend(roomID, ev.Type(), ev)
+	_, err := c.Client.RoomEventSend(roomID, ev.Info().Type, ev)
 	return err
 }
 
@@ -1080,7 +1012,7 @@ func (c *Client) memberNames(
 			continue
 		}
 
-		memberEvent := e.(event.RoomMemberEvent)
+		memberEvent := e.(*event.RoomMemberEvent)
 		if memberEvent.DisplayName == nil || *memberEvent.DisplayName == "" {
 			results[i].Name = string(userID)
 			continue
@@ -1112,19 +1044,14 @@ func (c *Client) UpdateRoomTags(roomID matrix.RoomID) error {
 		return err
 	}
 
-	b, err := json.Marshal(event.TagEvent{
-		RoomID: roomID,
-		Tags:   t,
-	})
+	b, err := json.Marshal(event.TagEvent{Tags: t})
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal room tags")
 	}
 
-	c.State.AddRoomEvents(roomID, []event.RawEvent{{
-		Type:    event.TypeTag,
-		Content: b,
-		RoomID:  roomID,
-	}})
+	c.State.AddRoomEvents(roomID, []event.RawEvent{
+		sys.MarshalUserEvent(event.TypeTag, b),
+	})
 
 	return nil
 }
@@ -1152,22 +1079,20 @@ func (c *Client) IsDirect(roomID matrix.RoomID) bool {
 		return false
 	}
 
-	r.RoomID = roomID
-
 	// Save the event we've fetched into the state.
-	c.State.AddRoomEvents(roomID, []event.RawEvent{*r})
+	c.State.AddRoomEvents(roomID, []event.RawEvent{r})
 
-	e, err := r.Parse()
+	e, err := sys.ParseAs(r, event.TypeRoomMember)
 	if err != nil {
 		return false
 	}
 
-	ev, _ := e.(event.RoomMemberEvent)
+	ev, _ := e.(*event.RoomMemberEvent)
 	return ev.IsDirect
 }
 
-func roomIsDM(dir event.DirectEvent, roomID matrix.RoomID) bool {
-	for _, ids := range dir {
+func roomIsDM(dir *event.DirectEvent, roomID matrix.RoomID) bool {
+	for _, ids := range dir.Rooms {
 		for _, id := range ids {
 			if id == roomID {
 				return true

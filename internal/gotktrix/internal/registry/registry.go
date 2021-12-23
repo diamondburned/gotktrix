@@ -30,6 +30,9 @@ func New(cap int) Registry {
 	}
 }
 
+// IsEmpty returns true if the Registry is empty.
+func (r Registry) IsEmpty() bool { return len(r.m) == 0 }
+
 // Each iterates over the map.
 func (r Registry) Each(f func(interface{}, interface{})) {
 	r.EachValue(func(v *Value, meta interface{}) { f(v.V, meta) })

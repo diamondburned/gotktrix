@@ -249,11 +249,11 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		b.F(client.SubscribeRoomEvents(roomID, roomEvents, func(ev event.Event) {
 			gtkutil.IdleCtx(ctx, func() {
 				switch ev.(type) {
-				case event.RoomNameEvent, event.RoomCanonicalAliasEvent:
+				case *event.RoomNameEvent, *event.RoomCanonicalAliasEvent:
 					r.InvalidateName(ctx)
-				case event.RoomAvatarEvent:
+				case *event.RoomAvatarEvent:
 					r.InvalidateAvatar(ctx)
-				case m.FullyReadEvent:
+				case *m.FullyReadEvent:
 					r.InvalidatePreview(ctx)
 					r.section.InvalidateSort()
 				}
@@ -399,7 +399,7 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 			return func() { r.erasePreview() }
 		}
 
-		preview := message.RenderEvent(ctx, gotktrix.WrapEventBox(first))
+		preview := message.RenderEvent(ctx, first)
 
 		return func() {
 			r.preview.label.SetMarkup(preview)
@@ -428,8 +428,8 @@ func countUnreadFmt(client *gotktrix.Client, roomID matrix.RoomID) string {
 	var unread int
 	var found bool
 
-	client.EachTimelineReverse(roomID, func(b *gotktrix.EventBox) error {
-		if b.ID == latestID {
+	client.EachTimelineReverse(roomID, func(ev event.RoomEvent) error {
+		if ev.RoomInfo().ID == latestID {
 			found = true
 			return gotktrix.EachBreak
 		}
@@ -517,9 +517,11 @@ func (r *Room) SetOrder(order float64) {
 // Order returns the current room's order number, or -1 if the room doesn't have
 // one.
 func (r *Room) Order() float64 {
-	e, err := gotktrix.FromContext(r.ctx.Take()).Offline().RoomEvent(r.ID, event.TypeTag)
+	client := gotktrix.FromContext(r.ctx.Take()).Offline()
+
+	e, err := client.RoomEvent(r.ID, event.TypeTag)
 	if err == nil {
-		t, ok := e.(event.TagEvent).Tags[r.section.Tag()]
+		t, ok := e.(*event.TagEvent).Tags[r.section.Tag()]
 		if ok && t.Order != nil {
 			return *t.Order
 		}

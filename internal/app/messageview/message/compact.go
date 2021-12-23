@@ -1,8 +1,8 @@
 package message
 
 import (
+	"github.com/chanbakjsd/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 )
@@ -31,8 +31,8 @@ var compactCSS = cssutil.Applier("message-collapsed", `
 	}
 `)
 
-func (v messageViewer) collapsedMessage() *collapsedMessage {
-	msg := v.newMessage(false)
+func (v messageViewer) collapsedMessage(ev *event.RoomMessageEvent) *collapsedMessage {
+	msg := v.newMessage(ev, false)
 	msg.timestamp.SetSizeRequest(avatarWidth, -1)
 	msg.timestamp.SetVAlign(gtk.AlignStart)
 	msg.timestamp.SetYAlign(1)
@@ -56,7 +56,7 @@ func (m *collapsedMessage) SetBlur(blur bool) {
 	m.message.setBlur(m, blur)
 }
 
-func (m *collapsedMessage) OnRelatedEvent(ev *gotktrix.EventBox) {
+func (m *collapsedMessage) OnRelatedEvent(ev event.RoomEvent) {
 	m.message.OnRelatedEvent(ev)
 
 	_, edited := m.content.EditedTimestamp()

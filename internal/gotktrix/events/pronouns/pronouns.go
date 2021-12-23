@@ -4,7 +4,6 @@ package pronouns
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -14,8 +13,8 @@ import (
 )
 
 func init() {
-	event.Register(SelfPronounsEventType, parseSelfPronounsEvent)
-	event.Register(UserPronounsEventType, parseUserPronounsEvent)
+	event.RegisterDefault(SelfPronounsEventType, parseSelfPronounsEvent)
+	event.RegisterDefault(UserPronounsEventType, parseUserPronounsEvent)
 }
 
 const (
@@ -26,53 +25,32 @@ const (
 // SelfPronounsEvent describes the xyz.diamondb.gotktrix.self_pronouns event. It
 // is an event that others
 type SelfPronounsEvent struct {
+	event.EventInfo `json:"-"`
+
 	Self   Preferred                   `json:"self"`
 	Others map[matrix.UserID]Preferred `json:"others,omitempty"`
 }
 
-func parseSelfPronounsEvent(raw event.RawEvent) (event.Event, error) {
+func parseSelfPronounsEvent(content json.RawMessage) (event.Event, error) {
 	var ev SelfPronounsEvent
-	if raw.Type != ev.Type() {
-		return nil, fmt.Errorf("unexpected event type %q for SelfPronounsEvent", raw.Type)
-	}
-
-	if err := json.Unmarshal(raw.Content, &ev); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal SelfPronounsEvent")
-	}
-
-	return ev, nil
+	err := json.Unmarshal(content, &ev)
+	return &ev, err
 }
-
-// Type implements event.Type.
-func (ev SelfPronounsEvent) Type() event.Type { return SelfPronounsEventType }
 
 // UserPronounsEvent describes the xyz.diamondb.gotktrix.user_pronouns event.
 // This event is propagated to rooms as a state event for a user.
 type UserPronounsEvent struct {
-	event.RoomEventInfo
-	UserID matrix.UserID `json:"user_id"`
+	event.StateEventInfo `json:"-"`
 
+	UserID matrix.UserID `json:"user_id"`
 	Preferred
 }
 
-func parseUserPronounsEvent(raw event.RawEvent) (event.Event, error) {
+func parseUserPronounsEvent(content json.RawMessage) (event.Event, error) {
 	var ev UserPronounsEvent
-	if raw.Type != ev.Type() {
-		return nil, fmt.Errorf("unexpected event type %q for UserPronounsEvent", raw.Type)
-	}
-
-	if err := json.Unmarshal(raw.Content, &ev); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal UserPronounsEvent")
-	}
-
-	return ev, nil
+	err := json.Unmarshal(content, &ev)
+	return &ev, err
 }
-
-// Type implements event.Type.
-func (ev UserPronounsEvent) Type() event.Type { return UserPronounsEventType }
-
-// StateKey returns the user ID.
-func (ev UserPronounsEvent) StateKey() string { return string(ev.UserID) }
 
 // Preferred lists preferred pronouns.
 type Preferred struct {
@@ -177,8 +155,12 @@ func SelfPronouns(c *gotktrix.Client) Preferred {
 		return Preferred{}
 	}
 
-	ev, _ := e.(SelfPronounsEvent)
-	return ev.Self
+	ev, _ := e.(*SelfPronounsEvent)
+	if ev != nil {
+		return ev.Self
+	}
+
+	return Preferred{}
 }
 
 // UserPronouns searches the room for the given user's preferred pronouns. If
@@ -188,13 +170,13 @@ func SelfPronouns(c *gotktrix.Client) Preferred {
 func UserPronouns(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID) Preferred {
 	if rID != "" {
 		if e, _ := c.State.RoomState(rID, UserPronounsEventType, string(uID)); e != nil {
-			return e.(UserPronounsEvent).Preferred
+			return e.(*UserPronounsEvent).Preferred
 		}
 	}
 
 	// Query the user's preference instead.
 	if e, _ := c.State.UserEvent(SelfPronounsEventType); e != nil {
-		pronouns := e.(SelfPronounsEvent)
+		pronouns := e.(*SelfPronounsEvent)
 
 		p, ok := pronouns.Others[uID]
 		if ok {

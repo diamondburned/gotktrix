@@ -20,7 +20,7 @@ const (
 // Content is a message content widget.
 type Content struct {
 	*gtk.Box
-	ev  *gotktrix.EventBox
+	ev  *event.RoomMessageEvent
 	ctx context.Context
 
 	part  contentPart
@@ -30,39 +30,29 @@ type Content struct {
 }
 
 // New parses the given room message event and renders it into a Content widget.
-func New(ctx context.Context, msgBox *gotktrix.EventBox) *Content {
-	e, err := msgBox.Parse()
-	if err != nil || e.Type() != event.TypeRoomMessage {
-		return wrapParts(ctx, msgBox, newUnknownContent(ctx, msgBox))
-	}
-
-	msg, ok := e.(event.RoomMessageEvent)
-	if !ok {
-		return wrapParts(ctx, msgBox, newUnknownContent(ctx, msgBox))
-	}
-
-	switch msg.MsgType {
+func New(ctx context.Context, ev *event.RoomMessageEvent) *Content {
+	switch ev.MessageType {
 	case event.RoomMessageNotice:
 		fallthrough
 	case event.RoomMessageText:
-		return wrapParts(ctx, msgBox, newTextContent(ctx, msgBox))
+		return wrapParts(ctx, ev, newTextContent(ctx, ev))
 	case event.RoomMessageEmote:
-		return wrapParts(ctx, msgBox, newTextContent(ctx, msgBox))
+		return wrapParts(ctx, ev, newTextContent(ctx, ev))
 	case event.RoomMessageVideo:
-		return wrapParts(ctx, msgBox, newVideoContent(ctx, msg))
+		return wrapParts(ctx, ev, newVideoContent(ctx, ev))
 	case event.RoomMessageImage:
-		return wrapParts(ctx, msgBox, newImageContent(ctx, msg))
+		return wrapParts(ctx, ev, newImageContent(ctx, ev))
 
 	// case event.RoomMessageEmote:
 	// case event.RoomMessageFile:
 	// case event.RoomMessageAudio:
 	// case event.RoomMessageLocation:
 	default:
-		return wrapParts(ctx, msgBox, newUnknownContent(ctx, msgBox))
+		return wrapParts(ctx, ev, newUnknownContent(ctx, ev))
 	}
 }
 
-func wrapParts(ctx context.Context, msgBox *gotktrix.EventBox, part contentPart) *Content {
+func wrapParts(ctx context.Context, ev *event.RoomMessageEvent, part contentPart) *Content {
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	box.SetHExpand(true)
 	box.Append(part)
@@ -72,8 +62,8 @@ func wrapParts(ctx context.Context, msgBox *gotktrix.EventBox, part contentPart)
 	box.Append(reactions)
 
 	client := gotktrix.FromContext(ctx)
-	runsub := client.SubscribeRoom(msgBox.RoomID, m.ReactionEventType, func(ev event.Event) {
-		reaction := ev.(m.ReactionEvent)
+	runsub := client.SubscribeRoom(ev.RoomInfo().RoomID, m.ReactionEventType, func(ev event.Event) {
+		reaction := ev.(*m.ReactionEvent)
 		glib.IdleAdd(func() {
 			reactions.Add(ctx, reaction)
 		})
@@ -85,7 +75,7 @@ func wrapParts(ctx context.Context, msgBox *gotktrix.EventBox, part contentPart)
 
 	return &Content{
 		Box:   box,
-		ev:    msgBox,
+		ev:    ev,
 		ctx:   ctx,
 		part:  part,
 		react: reactions,
@@ -110,25 +100,20 @@ func (c *Content) EditedTimestamp() (matrix.Timestamp, bool) {
 	return c.editedTime, c.editedTime > 0
 }
 
-func (c *Content) OnRelatedEvent(box *gotktrix.EventBox) {
+func (c *Content) OnRelatedEvent(ev event.RoomEvent) {
 	if c.isRedacted() {
 		return
 	}
 
-	ev, err := box.Parse()
-	if err != nil {
-		return
-	}
-
 	switch ev := ev.(type) {
-	case event.RoomMessageEvent:
-		if body, isEdited := MsgBody(box); isEdited {
+	case *event.RoomMessageEvent:
+		if body, isEdited := MsgBody(ev); isEdited {
 			if editor, ok := c.part.(editableContentPart); ok {
 				editor.edit(body)
-				c.editedTime = ev.OriginTime
+				c.editedTime = ev.OriginServerTime
 			}
 		}
-	case event.RoomRedactionEvent:
+	case *event.RoomRedactionEvent:
 		if ev.Redacts == c.ev.ID {
 			// Redacting this message itself.
 			c.redact(ev)
@@ -140,7 +125,7 @@ func (c *Content) OnRelatedEvent(box *gotktrix.EventBox) {
 		if c.react.Remove(c.ctx, ev) {
 			return
 		}
-	case m.ReactionEvent:
+	case *m.ReactionEvent:
 		if ev.RelatesTo.RelType == "m.annotation" {
 			c.react.Add(c.ctx, ev)
 		}
@@ -158,7 +143,7 @@ func (c *Content) isRedacted() bool {
 	return ok
 }
 
-func (c *Content) redact(red event.RoomRedactionEvent) {
+func (c *Content) redact(red *event.RoomRedactionEvent) {
 	c.Box.Remove(c.part)
 	c.react.RemoveAll()
 

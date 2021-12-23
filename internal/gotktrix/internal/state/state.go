@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/db"
 	"github.com/pkg/errors"
 )
@@ -20,7 +22,7 @@ const (
 	TimelineKeepLast = 100
 	// Version is the incremental database version number. It is incremented
 	// when a breaking change is made in the database that breaks old databases.
-	Version = 4
+	Version = 5
 )
 
 // State is a disk-based database of the Matrix state. Note that methods that
@@ -50,7 +52,7 @@ func New(path string, userID matrix.UserID) (*State, error) {
 	var version int
 
 	// Version is provided, so old database.
-	if err := topNode.Get("version", &version); err == nil && version != Version {
+	if err := topNode.GetAny("version", &version); err != nil || version != Version {
 		// Database is too outdated; wipe it.
 		if err := kv.DropPrefix(topPath); err != nil {
 			return nil, errors.Wrap(err, "failed to wipe old state")
@@ -58,7 +60,7 @@ func New(path string, userID matrix.UserID) (*State, error) {
 	}
 
 	// Write the new version.
-	if err := topNode.Set("version", Version); err != nil {
+	if err := topNode.SetAny("version", Version); err != nil {
 		return nil, errors.Wrap(err, "failed to write version")
 	}
 
@@ -78,9 +80,7 @@ func (s *State) Close() error {
 // RoomIsSet gets an arbitrary boolean assigned to each room using the given
 // key. It's mostly used for lazy fetching in gotktrix.
 func (s *State) RoomIsSet(roomID matrix.RoomID, key string) bool {
-	var v bool
-	s.top.FromPath(s.paths.rooms.Tail(string(roomID), "_roombool")).Get(key, &v)
-	return v
+	return s.top.FromPath(s.paths.rooms.Tail(string(roomID), "_roombool")).Exists(key)
 }
 
 // SetRoom sets the room's boolean key, unless if the key is already set before,
@@ -99,14 +99,14 @@ func (s *State) SetRoom(roomID matrix.RoomID, key string) (set bool) {
 	n := s.top.FromPath(s.paths.rooms.Tail(string(roomID), "_roombool"))
 	n.TxUpdate(func(n db.Node) error {
 		// Double-check the database to avoid racing other callers.
-		if err := n.Get(key, &set); err == nil {
+		if n.Exists(key) {
 			// set == true, so we exit.
 			set = false
-			return err
+			return nil
 		}
 
 		set = true
-		return n.Set(key, set)
+		return n.Set(key, nil)
 	})
 
 	return
@@ -121,19 +121,20 @@ func (s *State) ResetRoom(roomID matrix.RoomID, key string) {
 // RoomEvent queries the event with the given type. If the event type implies a
 // state event, then the empty key is tried.
 func (s *State) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, error) {
-	raw := event.RawEvent{
-		Type:   typ,
-		RoomID: roomID,
-	}
-
 	// Prevent trailing delimiter; see setRawEvent.
 	n := s.db.NodeFromPath(s.paths.rooms).Node(string(roomID), string(typ))
 
-	if err := n.Get("", &raw); err != nil {
+	e, err := getEvent(n, "", typ)
+	if err != nil {
 		return nil, err
 	}
 
-	return raw.Parse()
+	if room, ok := e.(event.RoomEvent); ok {
+		info := room.RoomInfo()
+		info.RoomID = roomID
+	}
+
+	return e, nil
 }
 
 // RoomState returns the last event set by RoomEventSet. It never returns an
@@ -143,17 +144,7 @@ func (s *State) RoomState(
 
 	n := s.db.NodeFromPath(s.paths.rooms).Node(string(roomID), string(typ))
 
-	raw := event.RawEvent{
-		Type:     typ,
-		RoomID:   roomID,
-		StateKey: key,
-	}
-
-	if err := n.Get(key, &raw); err != nil {
-		return nil, err
-	}
-
-	e, err := raw.Parse()
+	e, err := getEvent(n, key, typ)
 	if err != nil {
 		return nil, err
 	}
@@ -163,43 +154,10 @@ func (s *State) RoomState(
 		return nil, gotrix.ErrInvalidStateEvent
 	}
 
+	info := state.StateInfo()
+	info.RoomID = roomID
+
 	return state, nil
-}
-
-// RoomStates returns the last set of events set by RoomEventSet.
-func (s *State) RoomStates(
-	roomID matrix.RoomID, typ event.Type) (map[string]event.StateEvent, error) {
-
-	var states map[string]event.StateEvent
-
-	return states, s.EachRoomStateLen(roomID, typ, func(e event.Event, total int) error {
-		state, ok := e.(event.StateEvent)
-		if ok {
-			if states == nil {
-				states = make(map[string]event.StateEvent, total)
-			}
-			states[state.StateKey()] = state
-		}
-
-		return nil
-	})
-}
-
-// RoomStateList is the equivalent of RoomStates, except a slice is returned.
-func (s *State) RoomStateList(roomID matrix.RoomID, typ event.Type) ([]event.StateEvent, error) {
-	var states []event.StateEvent
-
-	return states, s.EachRoomStateLen(roomID, typ, func(e event.Event, total int) error {
-		state, ok := e.(event.StateEvent)
-		if ok {
-			if states == nil {
-				states = make([]event.StateEvent, 0, total)
-			}
-			states = append(states, state)
-		}
-
-		return nil
-	})
 }
 
 // EachRoomState calls f on every raw event in the room state. It satisfies the
@@ -210,48 +168,30 @@ func (s *State) RoomStateList(roomID matrix.RoomID, typ event.Type) ([]event.Sta
 func (s *State) EachRoomState(
 	roomID matrix.RoomID, typ event.Type, f func(string, event.StateEvent) error) error {
 
-	return s.EachRoomStateRaw(roomID, typ, func(raw *event.RawEvent, _ int) error {
-		e, err := raw.Parse()
-		if err != nil {
-			return nil
-		}
-
+	return s.EachRoomEventLen(roomID, typ, func(e event.Event, _ int) error {
 		state, ok := e.(event.StateEvent)
 		if !ok {
-			return nil
+			return fmt.Errorf("given type %q is not a state event", typ)
 		}
 
-		return f(state.StateKey(), state)
+		return f(state.StateInfo().StateKey, state)
 	})
 }
 
-// EachRoomStateLen is a variant of EachRoomState, but it works for any event,
+// EachRoomEventLen is a variant of EachRoomState, but it works for any event,
 // and a length parameter is precalculated.
-func (s *State) EachRoomStateLen(
+func (s *State) EachRoomEventLen(
 	roomID matrix.RoomID, typ event.Type, f func(ev event.Event, total int) error) error {
 
-	return s.EachRoomStateRaw(roomID, typ, func(raw *event.RawEvent, total int) error {
-		e, err := raw.Parse()
+	path := s.paths.rooms.Tail(string(roomID), string(typ))
+
+	return s.db.NodeFromPath(path).Each(func(_ string, b []byte, total int) error {
+		e, err := sys.ParseAs(b, typ)
 		if err != nil {
 			return nil
 		}
 
-		return f(e, total)
-	})
-}
-
-// EachRoomStateRaw is a variant of EachRoomState where the callback gets a raw
-// event instead of the parsed event.
-func (s *State) EachRoomStateRaw(
-	roomID matrix.RoomID, typ event.Type, f func(raw *event.RawEvent, total int) error) error {
-
-	var raw event.RawEvent
-	path := s.paths.rooms.Tail(string(roomID), string(typ))
-
-	return s.db.NodeFromPath(path).Each(&raw, func(_ string, total int) error {
-		raw.RoomID = roomID
-
-		if err := f(&raw, total); err != nil {
+		if err := f(e, total); err != nil {
 			if errors.Is(err, gotrix.ErrStopIter) {
 				return db.EachBreak
 			}
@@ -328,11 +268,12 @@ func (s *State) RoomMembersFromName(roomID matrix.RoomID, name string) []matrix.
 	if cache.names == nil {
 		cache.when = time.Now()
 
-		var m struct {
-			Name string `json:"displayname"`
-		}
+		onMember := func(raw event.Event, total int) error {
+			m, ok := raw.(*event.RoomMemberEvent)
+			if !ok {
+				return nil
+			}
 
-		onMember := func(raw *event.RawEvent, total int) error {
 			if cache.names == nil {
 				// Overallocate to avoid some reallocations down the line. This
 				// has the side effect of forcing a refetch if a room is empty,
@@ -340,24 +281,20 @@ func (s *State) RoomMembersFromName(roomID matrix.RoomID, name string) []matrix.
 				cache.names = make(map[string][]matrix.UserID, total)
 			}
 
-			if err := json.Unmarshal(raw.Content, &m); err != nil {
-				// Skip the error.
-				return nil
-			}
-
-			userID := matrix.UserID(raw.StateKey)
-
-			if m.Name == "" {
+			var name string
+			if m.DisplayName != nil {
+				name = *m.DisplayName
+			} else {
 				// Try the username instead.
-				username, _, _ := userID.Parse()
-				m.Name = username
+				username, _, _ := m.UserID.Parse()
+				name = username
 			}
 
-			cache.names[m.Name] = append(cache.names[m.Name], userID)
+			cache.names[name] = append(cache.names[name], m.UserID)
 			return nil
 		}
 
-		s.EachRoomStateRaw(roomID, event.TypeRoomMember, onMember)
+		s.EachRoomEventLen(roomID, event.TypeRoomMember, onMember)
 	}
 
 	return cache.names[name]
@@ -366,7 +303,7 @@ func (s *State) RoomMembersFromName(roomID matrix.RoomID, name string) []matrix.
 // RoomSummary returns the SyncRoomSummary if a room if it's in the state.
 func (s *State) RoomSummary(roomID matrix.RoomID) (api.SyncRoomSummary, error) {
 	var summary api.SyncRoomSummary
-	return summary, s.db.NodeFromPath(s.paths.summaries).Get(string(roomID), &summary)
+	return summary, s.db.NodeFromPath(s.paths.summaries).GetAny(string(roomID), &summary)
 }
 
 // Rooms returns the keys of all room states in the state.
@@ -374,7 +311,7 @@ func (s *State) Rooms() ([]matrix.RoomID, error) {
 	var roomIDs []matrix.RoomID
 
 	return roomIDs, s.top.FromPath(s.paths.rooms).TxView(func(n db.Node) error {
-		if err := n.EachKey(func(k string, l int) error {
+		if err := n.Each(func(k string, _ []byte, l int) error {
 			if roomIDs == nil {
 				roomIDs = make([]matrix.RoomID, 0, l)
 			}
@@ -410,67 +347,62 @@ func (s *State) Rooms() ([]matrix.RoomID, error) {
 func (s *State) RoomPreviousBatch(roomID matrix.RoomID) (prev string, err error) {
 	n := s.paths.timelineNode(s.top, roomID)
 
-	if err := n.Get("previous_batch", &prev); err != nil {
+	if err := n.Get("previous_batch", db.StringFunc(&prev)); err != nil {
 		return "", err
 	}
 
 	return prev, nil
 }
 
-// RoomTimelineRaw returns the latest raw timeline events of a room. The order
-// of the returned events are always guaranteed to be latest last.
-func (s *State) RoomTimelineRaw(roomID matrix.RoomID) ([]event.RawEvent, error) {
-	var raws []event.RawEvent
-	var raw event.RawEvent
+// RoomTimeline returns the latest raw timeline events of a room. The order of
+// the returned events are always guaranteed to be latest last.
+func (s *State) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
+	var evs []event.RoomEvent
 
 	n := s.paths.timelineEventsNode(s.top, roomID)
 
-	if err := n.Each(&raw, func(k string, l int) error {
-		if raws == nil {
-			raws = make([]event.RawEvent, 0, l)
+	if err := n.Each(func(k string, b []byte, l int) error {
+		if evs == nil {
+			evs = make([]event.RoomEvent, 0, l)
 		}
-		raws = append(raws, raw)
+		evs = append(evs, sys.ParseRoom(b, roomID))
 		return nil
 	}); err != nil {
 		log.Printf("error getting timeline for room %q: %v", roomID, err)
 		return nil, err
 	}
 
-	if raws == nil {
+	if evs == nil {
 		return nil, errors.New("empty timeline state")
 	}
 
-	return raws, nil
+	return evs, nil
 }
 
 // EachTimeline iterates through the timeline.
-func (s *State) EachTimeline(roomID matrix.RoomID, f func(*event.RawEvent) error) error {
+func (s *State) EachTimeline(roomID matrix.RoomID, f func(event.RoomEvent) error) error {
 	n := s.paths.timelineEventsNode(s.top, roomID)
-	var raw event.RawEvent
 
-	return n.Each(&raw, func(string, int) error {
-		cpy := raw // copy raw.
-		return f(&cpy)
+	return n.Each(func(_ string, b []byte, _ int) error {
+		return f(sys.ParseTimeline(b, roomID))
 	})
 }
 
 // EachTimelineReverse iterates through the timeline in reverse.
-func (s *State) EachTimelineReverse(roomID matrix.RoomID, f func(*event.RawEvent) error) error {
+func (s *State) EachTimelineReverse(roomID matrix.RoomID, f func(event.RoomEvent) error) error {
 	n := s.paths.timelineEventsNode(s.top, roomID)
-	var raw event.RawEvent
 
-	return n.EachReverse(&raw, func(string, int) error {
-		cpy := raw // copy raw.
-		return f(&cpy)
+	return n.EachReverse(func(_ string, b []byte, _ int) error {
+		return f(sys.ParseTimeline(b, roomID))
 	})
 }
 
 // LatestInTimeline returns the latest event in the given room that has the
 // given type. If the type is an empty string, then the latest event with any
 // type is returned.
-func (s *State) LatestInTimeline(roomID matrix.RoomID, t event.Type) (found *event.RawEvent, extra int) {
+func (s *State) LatestInTimeline(roomID matrix.RoomID, t event.Type) (found event.RoomEvent, extra int) {
 	if t == "" {
-		s.EachTimelineReverse(roomID, func(ev *event.RawEvent) error {
+		s.EachTimelineReverse(roomID, func(ev event.RoomEvent) error {
 			found = ev
 			return db.EachBreak
 		})
@@ -478,23 +410,16 @@ func (s *State) LatestInTimeline(roomID matrix.RoomID, t event.Type) (found *eve
 	}
 
 	n := s.paths.timelineEventsNode(s.top, roomID)
-	var rawType struct {
-		Type event.Type `json:"type"`
-	}
 
 	n.TxView(func(n db.Node) error {
-		return n.EachReverse(&rawType, func(k string, _ int) error {
-			if rawType.Type != t {
+		return n.EachReverse(func(k string, b []byte, _ int) error {
+			ev := sys.ParseTimeline(b, roomID)
+			if ev.Info().Type != t {
 				extra++
 				return nil
 			}
 
-			var raw event.RawEvent
-			if err := n.Get(k, &raw); err != nil {
-				return err
-			}
-
-			found = &raw
+			found = ev
 			return db.EachBreak
 		})
 	})
@@ -504,47 +429,45 @@ func (s *State) LatestInTimeline(roomID matrix.RoomID, t event.Type) (found *eve
 
 // UserEvent gets the user event from the given type.
 func (s *State) UserEvent(typ event.Type) (event.Event, error) {
-	var raw event.RawEvent
+	var ev event.Event
+
+	n := s.db.NodeFromPath(s.paths.user).Node(string(typ))
 
 	// See setRawEvent: an event is a bucket with an empty key (no state key).
-	if err := s.db.NodeFromPath(s.paths.user).Node(string(typ)).Get("", &raw); err != nil {
+	if err := n.Get("", eventFunc(&ev, typ)); err != nil {
 		if !errors.Is(err, db.ErrKeyNotFound) {
 			log.Printf("error getting event type %s: %v", typ, err)
 		}
 		return nil, errors.Wrap(err, "event not found in state")
 	}
 
-	e, err := raw.Parse()
-	if err != nil {
-		log.Printf("error parsing event type %s from db: %v", typ, err)
-		return nil, errors.Wrap(err, "parse error")
-	}
-
-	return e, nil
+	return ev, nil
 }
 
 // SetUserEvent updates the user event inside the state. Error checking is not
 // needed, because this function shouldn't be relied on.
 func (s *State) SetUserEvent(ev event.Event) {
-	b, err := json.Marshal(ev)
+	c, err := json.Marshal(ev)
 	if err != nil {
 		log.Println("failed to marshal UserEvent for setting from API:", err)
 		return
 	}
 
-	raw := event.RawEvent{
-		Type:    ev.Type(),
-		Content: b,
+	var raw event.RawEvent
+	if info := ev.Info(); len(info.Raw) > 0 {
+		raw = info.Raw
+	} else {
+		raw = sys.MarshalUserEvent(info.Type, c)
 	}
 
 	// Update local state.
-	setRawEvent(s.db.NodeFromPath(s.paths.user), "", &raw, false)
+	setRawEvent(s.db.NodeFromPath(s.paths.user), "", raw, false)
 }
 
 // NextBatch returns the next batch string with true if the database contains
 // the next batch event. Otherwise, an empty string with false is returned.
 func (s *State) NextBatch() (next string, ok bool) {
-	err := s.top.Get("next_batch", &next)
+	err := s.top.Get("next_batch", db.StringFunc(&next))
 	return next, err == nil
 }
 
@@ -570,9 +493,9 @@ func (s *State) AddRoomEvents(roomID matrix.RoomID, evs []event.RawEvent) {
 }
 
 // UseDirectEvent fills the state cache with information from the direct event.
-func (s *State) UseDirectEvent(ev event.DirectEvent) {
+func (s *State) UseDirectEvent(ev *event.DirectEvent) {
 	err := s.top.TxUpdate(func(n db.Node) error {
-		for _, roomIDs := range ev {
+		for _, roomIDs := range ev.Rooms {
 			for _, roomID := range roomIDs {
 				s.paths.setDirect(n, roomID, true)
 			}
@@ -587,37 +510,17 @@ func (s *State) UseDirectEvent(ev event.DirectEvent) {
 // IsDirect returns whether or not the given room is a direct messaging room. If
 // no such information exists in the state, then ok=false is returned.
 func (s *State) IsDirect(roomID matrix.RoomID) (is, ok bool) {
-	err := s.top.TxView(func(n db.Node) error {
-		// Query the m.direct event first, which is set using paths.directs.
-		if n.FromPath(s.paths.directs).Exists(string(roomID)) {
-			is = true
-			return nil
-		}
+	// Query the m.direct event first, which is set using paths.directs.
+	if s.top.FromPath(s.paths.directs).Exists(string(roomID)) {
+		return true, true
+	}
 
-		n = n.FromPath(s.paths.rooms)
-		n = n.Node(string(roomID), string(event.TypeRoomMember))
+	e, err := s.RoomState(roomID, event.TypeRoomMember, string(s.userID))
+	if err != nil {
+		return false, false
+	}
 
-		raw := event.RawEvent{
-			RoomID:   roomID,
-			StateKey: string(s.userID),
-		}
-
-		if err := n.Get(string(s.userID), &raw); err != nil {
-			return err
-		}
-
-		e, err := raw.Parse()
-		if err != nil {
-			return err
-		}
-
-		ev := e.(event.RoomMemberEvent)
-		ok = ev.IsDirect
-
-		return nil
-	})
-
-	return is, err == nil
+	return e.(*event.RoomMemberEvent).IsDirect, true
 }
 
 // AddEvent sets the room state events inside a State to be returned by State later.
@@ -628,14 +531,12 @@ func (s *State) AddEvents(sync *api.SyncResponse) error {
 		s.paths.setRaws(n, "", sync.ToDevice.Events, true)
 
 		for _, ev := range sync.AccountData.Events {
-			if ev.Type == event.TypeDirect {
-				// Cache direct events.
-				e, err := ev.Parse()
-				if err != nil {
-					continue
-				}
-
-				for _, roomIDs := range e.(event.DirectEvent) {
+			if GuessType(ev) != event.TypeDirect {
+				continue
+			}
+			// Cache direct events.
+			if direct, ok := sys.Parse(ev).(*event.DirectEvent); ok {
+				for _, roomIDs := range direct.Rooms {
 					for _, roomID := range roomIDs {
 						s.paths.setDirect(n, roomID, true)
 					}
@@ -660,10 +561,20 @@ func (s *State) AddEvents(sync *api.SyncResponse) error {
 			s.paths.deleteTimeline(n, k)
 		}
 
-		if err := n.Set("next_batch", sync.NextBatch); err != nil {
+		if err := n.Set("next_batch", []byte(sync.NextBatch)); err != nil {
 			log.Println("failed to save next_batch:", err)
 		}
 
 		return nil
 	})
+}
+
+// GuessType guesses the type of the RawEvent.
+func GuessType(raw event.RawEvent) event.Type {
+	var typ struct {
+		Type event.Type `json:"type"`
+	}
+
+	json.Unmarshal(raw, &typ)
+	return typ.Type
 }

@@ -46,7 +46,12 @@ func messageKeyRow(row *gtk.ListBoxRow) messageKey {
 }
 
 // messageKeyEvent returns the messageKey for a server event.
-func messageKeyEvent(event matrix.EventID) messageKey {
+func messageKeyEvent(event event.RoomEvent) messageKey {
+	return messageKeyEventID(event.RoomInfo().ID)
+}
+
+// messageKeyEventID returns the messageKey for a server event ID.
+func messageKeyEventID(event matrix.EventID) messageKey {
 	return messageKey(messageKeyEventPrefix + ":" + string(event))
 }
 
@@ -123,7 +128,7 @@ type Page struct {
 
 type messageRow struct {
 	row  *gtk.ListBoxRow
-	raw  *event.RawEvent
+	ev   event.RoomEvent
 	body message.Message
 }
 
@@ -221,10 +226,13 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		if !ok1 || !ok2 {
 			return 0
 		}
-		if m1.raw.OriginServerTime < m2.raw.OriginServerTime {
+
+		t1 := m1.ev.RoomInfo().OriginServerTime
+		t2 := m2.ev.RoomInfo().OriginServerTime
+		if t1 < t2 {
 			return -1
 		}
-		if m1.raw.OriginServerTime == m2.raw.OriginServerTime {
+		if t1 == t2 {
 			return 0
 		}
 		return 1 // t1 > t2
@@ -274,7 +282,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	page.Widgetter = page.main
 
 	page.ctx.OnRenew(func(context.Context) func() {
-		return parent.client.SubscribeTimeline(roomID, func(r *event.RawEvent) {
+		return parent.client.SubscribeTimeline(roomID, func(r event.RoomEvent) {
 			glib.IdleAdd(func() { page.OnRoomEvent(r) })
 		})
 	})
@@ -282,8 +290,8 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	page.ctx.OnRenew(func(context.Context) func() {
 		client := gotktrix.FromContext(ctx)
 		return client.SubscribeRoom(roomID, event.TypeTyping, func(e event.Event) {
-			ev := e.(event.TypingEvent)
-			if len(ev.UserID) == 0 {
+			ev, ok := e.(*event.TypingEvent)
+			if !ok || len(ev.UserID) == 0 {
 				page.extra.Clear()
 				return
 			}
@@ -379,7 +387,7 @@ func (p *Page) RoomTopic() string {
 
 	e, _ := client.RoomState(p.roomID, event.TypeRoomTopic, "")
 	if e != nil {
-		nameEvent := e.(event.RoomTopicEvent)
+		nameEvent := e.(*event.RoomTopicEvent)
 		return nameEvent.Topic
 	}
 
@@ -387,12 +395,12 @@ func (p *Page) RoomTopic() string {
 }
 
 // OnRoomEvent is called on every room event belonging to this room.
-func (p *Page) OnRoomEvent(raw *event.RawEvent) {
-	if raw.RoomID != p.roomID {
+func (p *Page) OnRoomEvent(ev event.RoomEvent) {
+	if ev.RoomInfo().RoomID != p.roomID {
 		return
 	}
 
-	key := p.onRoomEvent(raw)
+	key := p.onRoomEvent(ev)
 
 	r, ok := p.messages[key]
 	if ok {
@@ -411,9 +419,9 @@ func (p *Page) FocusLatestUserEventID() matrix.EventID {
 	row := p.list.LastChild().(*gtk.ListBoxRow)
 	for row != nil {
 		m, ok := p.messages[messageKey(row.Name())]
-		if ok && m.raw.Sender == userID {
+		if ok && m.ev.RoomInfo().Sender == userID {
 			m.row.GrabFocus()
-			return m.raw.ID
+			return m.ev.RoomInfo().ID
 		}
 		// This repeats until index is -1, at which the loop will break.
 		row = p.list.RowAtIndex(row.Index() - 1)
@@ -456,7 +464,7 @@ func (p *Page) MarkAsRead() {
 			return
 		}
 
-		if err := client.MarkRoomAsRead(roomID, latest.ID); err != nil {
+		if err := client.MarkRoomAsRead(roomID, latest.RoomInfo().ID); err != nil {
 			// No need to interrupt the user for this.
 			log.Println("failed to mark room as read:", err)
 		}
@@ -501,7 +509,7 @@ type MessageMark struct {
 // AddSendingMessage adds the given message into the page and returns the row.
 // The user must call BindSendingMessage afterwards to ensure that the added
 // message is merged with the synchronized one.
-func (p *Page) AddSendingMessage(raw *event.RawEvent) interface{} {
+func (p *Page) AddSendingMessage(ev event.RoomEvent) interface{} {
 	key := messageKeyLocal()
 
 	row := gtk.NewListBoxRow()
@@ -511,7 +519,7 @@ func (p *Page) AddSendingMessage(raw *event.RawEvent) interface{} {
 
 	p.setMessage(key, messageRow{
 		row: row,
-		raw: raw,
+		ev:  ev,
 	})
 
 	p.messages[key].body.SetBlur(true)
@@ -533,7 +541,7 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 	}
 	delete(p.messages, key)
 
-	eventKey := messageKeyEvent(evID)
+	eventKey := messageKeyEventID(evID)
 	// Check if the message has been synchronized before it's replied.
 	if _, ok := p.messages[eventKey]; ok {
 		// Store the index which will be the next message once we remove the
@@ -550,7 +558,8 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 	}
 
 	// Not replaced yet, so we arrived first. Place the message in.
-	msg.raw.ID = evID
+	info := msg.ev.RoomInfo()
+	info.ID = evID
 	p.messages[eventKey] = msg
 
 	msg.row.SetName(string(eventKey))
@@ -560,22 +569,22 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 	return false
 }
 
-func (p *Page) onRoomEvent(raw *event.RawEvent) (key messageKey) {
-	key = messageKeyEvent(raw.ID)
+func (p *Page) onRoomEvent(ev event.RoomEvent) (key messageKey) {
+	key = messageKeyEvent(ev)
 
-	if relatesToID := relatesTo(raw); relatesToID != "" {
-		rl, ok := p.messages[messageKeyEvent(relatesToID)]
+	if relatesToID := relatesTo(ev); relatesToID != "" {
+		rl, ok := p.messages[messageKeyEventID(relatesToID)]
 		if !ok {
 			if rel := p.mrelated[relatesToID]; rel != "" {
-				rl, ok = p.messages[messageKeyEvent(rel)]
+				rl, ok = p.messages[messageKeyEventID(rel)]
 			}
 		}
 		if ok {
 			// Register this event as a related event.
-			p.mrelated[raw.ID] = relatesToID
+			p.mrelated[ev.RoomInfo().ID] = relatesToID
 			// Trigger the message's callback.
 			log.Println("spotted related message")
-			rl.body.OnRelatedEvent(gotktrix.WrapEventBox(raw))
+			rl.body.OnRelatedEvent(ev)
 			return
 		}
 		// Treat as a new message.
@@ -584,7 +593,7 @@ func (p *Page) onRoomEvent(raw *event.RawEvent) (key messageKey) {
 	// Ensure that there isn't already a message with the same ID, which might
 	// happen if this is a message that we sent.
 	if existing, ok := p.messages[key]; ok {
-		existing.raw = raw
+		existing.ev = ev
 		log.Println("message arrived from server with existing ID")
 		p.setMessage(key, existing)
 		return
@@ -603,7 +612,7 @@ func (p *Page) onRoomEvent(raw *event.RawEvent) (key messageKey) {
 	// work.
 	p.setMessage(key, messageRow{
 		row: row,
-		raw: raw,
+		ev:  ev,
 	})
 	return
 }
@@ -649,12 +658,14 @@ func (p *Page) resetMessage(key messageKey, before messageRow) bool {
 	}
 
 	if before.body != nil {
-		log.Printf("for message by %q, found %q (ours=%q) before", msg.raw.Sender, before.body.RawEvent().Sender, before.raw.Sender)
+		log.Printf(
+			"for message by %q, found %q (ours=%q) before",
+			msg.ev.RoomInfo().Sender, before.body.Event().RoomInfo().Sender, before.ev.RoomInfo().Sender)
 	}
 
 	// Recreate the body if the raw events don't match.
-	if msg.body == nil || !eventEq(msg.raw, msg.body.RawEvent().RawEvent) {
-		msg.body = message.NewCozyMessage(p.parent.ctx, p, msg.raw, before.body)
+	if msg.body == nil || !eventEq(msg.ev, msg.body.Event()) {
+		msg.body = message.NewCozyMessage(p.parent.ctx, p, msg.ev, before.body)
 		p.messages[key] = msg
 
 		msg.row.SetChild(msg.body)
@@ -663,28 +674,31 @@ func (p *Page) resetMessage(key messageKey, before messageRow) bool {
 	return true
 }
 
-func eventEq(e1, e2 *event.RawEvent) bool {
-	return e1.OriginServerTime == e2.OriginServerTime && e1.ID == e2.ID
+func eventEq(e1, e2 event.RoomEvent) bool {
+	r1 := e1.RoomInfo()
+	r2 := e2.RoomInfo()
+	// Only compare if both of the messages have the Raw field.
+	if r1.Raw == nil || r2.Raw == nil {
+		return false
+	}
+	return r1.OriginServerTime == r2.OriginServerTime && r1.ID == r2.ID
 }
 
 // relatesTo returns the event ID that the given raw event is supposed to edit,
 // or an empty string if it does not edit anything.
-func relatesTo(raw *event.RawEvent) matrix.EventID {
-	if raw.Type == event.TypeRoomRedaction {
-		return raw.Redacts
-	}
-
-	var body struct {
-		RelatesTo struct {
+func relatesTo(ev event.RoomEvent) matrix.EventID {
+	switch ev := ev.(type) {
+	case *event.RoomRedactionEvent:
+		return ev.Redacts
+	case *event.RoomMessageEvent:
+		var relatesTo struct {
 			EventID matrix.EventID `json:"event_id"`
-		} `json:"m.relates_to"`
-	}
-
-	if err := json.Unmarshal(raw.Content, &body); err != nil {
+		}
+		json.Unmarshal(ev.RelatesTo, &relatesTo)
+		return relatesTo.EventID
+	default:
 		return ""
 	}
-
-	return body.RelatesTo.EventID
 }
 
 // rowAtIndex gets the messageRow at the given index. A zero-value is returned
@@ -713,14 +727,14 @@ func (p *Page) Load(done func()) {
 
 	fetchName := p.name == ""
 
-	load := func(events []event.RawEvent) {
+	load := func(events []event.RoomEvent) {
 		p.main.SetChild(p.box)
 		p.scroll.ScrollToBottom()
 
 		keys := make([]messageKey, len(events))
 		// Require old messages first, so cozy mode works properly.
-		for i := range events {
-			keys[i] = p.onRoomEvent(&events[i])
+		for i, ev := range events {
+			keys[i] = p.onRoomEvent(ev)
 		}
 
 		// Load the oldest messages first so it doesn't screw up scrolling as
@@ -787,8 +801,8 @@ func (p *Page) loadMore(done paginateDoneFunc) {
 			p.scroll.SetScrollLocked(true)
 			defer p.scroll.SetScrollLocked(false)
 
-			for i := range events {
-				p.onRoomEvent(&events[i])
+			for _, raw := range events {
+				p.onRoomEvent(raw)
 			}
 
 			// TODO: check for hasMore.
@@ -828,17 +842,17 @@ func (p *Page) singleMessageState(
 	field *matrix.EventID, set func(matrix.EventID), class string) {
 
 	if *field != "" {
-		r, ok := p.messages[messageKeyEvent(*field)]
+		r, ok := p.messages[messageKeyEventID(*field)]
 		if ok {
 			r.row.RemoveCSSClass(class)
 		}
 		*field = ""
 	}
 
-	mr, ok := p.messages[messageKeyEvent(eventID)]
+	mr, ok := p.messages[messageKeyEventID(eventID)]
 	if !ok {
 		if rel := p.mrelated[eventID]; rel != "" {
-			mr, ok = p.messages[messageKeyEvent(rel)]
+			mr, ok = p.messages[messageKeyEventID(rel)]
 		}
 	}
 	if !ok {
