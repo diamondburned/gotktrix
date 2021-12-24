@@ -251,6 +251,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 				switch ev.(type) {
 				case *event.RoomNameEvent, *event.RoomCanonicalAliasEvent:
 					r.InvalidateName(ctx)
+					r.section.InvalidateSort()
 				case *event.RoomAvatarEvent:
 					r.InvalidateAvatar(ctx)
 				case *m.FullyReadEvent:
@@ -400,8 +401,12 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 		}
 
 		preview := message.RenderEvent(ctx, first)
+		count := countUnreadFmt(client, r.ID)
 
 		return func() {
+			r.setUnread(count != "")
+			r.name.unread.SetText(count)
+
 			r.preview.label.SetMarkup(preview)
 			r.preview.label.SetTooltipMarkup(preview)
 			r.preview.Show()
@@ -411,10 +416,6 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 			} else {
 				r.preview.extra.SetLabel("")
 			}
-
-			count := countUnreadFmt(client, r.ID)
-			r.setUnread(count != "")
-			r.name.unread.SetText(count)
 		}
 	})
 }

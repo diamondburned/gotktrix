@@ -562,8 +562,7 @@ func (c *Client) hasSeenEvent(roomID matrix.RoomID, eventID matrix.EventID) (see
 func (c *Client) RoomLatestReadEvent(roomID matrix.RoomID) matrix.EventID {
 	e, err := c.RoomEvent(roomID, m.FullyReadEventType)
 	if err == nil {
-		fullyRead := e.(*m.FullyReadEvent)
-		return fullyRead.EventID
+		return e.(*m.FullyReadEvent).EventID
 	}
 
 	u, err := c.Whoami()

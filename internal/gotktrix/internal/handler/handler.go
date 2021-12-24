@@ -46,6 +46,9 @@ func (h eventHandlers) invoke(ev event.Event) {
 }
 
 func (h eventHandlers) addEvsRm(types []event.Type, fn interface{}, meta handlerMeta) func() {
+	if types == nil {
+		types = []event.Type{"*"}
+	}
 	if len(types) == 1 {
 		return h.addRm(types[0], fn, meta)
 	}

@@ -412,7 +412,7 @@ func (s *State) LatestInTimeline(roomID matrix.RoomID, t event.Type) (found even
 	n := s.paths.timelineEventsNode(s.top, roomID)
 
 	n.TxView(func(n db.Node) error {
-		return n.EachReverse(func(k string, b []byte, _ int) error {
+		return n.EachReverse(func(_ string, b []byte, _ int) error {
 			ev := sys.ParseTimeline(b, roomID)
 			if ev.Info().Type != t {
 				extra++
