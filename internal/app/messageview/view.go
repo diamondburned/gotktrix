@@ -106,3 +106,8 @@ func (v *View) openRoom(id matrix.RoomID, newTab bool) *Page {
 
 	return page
 }
+
+// Current returns the current page or nil if none.
+func (v *View) Current() *Page {
+	return v.current
+}

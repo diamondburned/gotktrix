@@ -81,6 +81,9 @@ func (c *textContent) LoadMore() {
 	if len(c.render.URLs) == 0 {
 		return
 	}
+	if c.embeds != nil {
+		c.Box.Remove(c.embeds)
+	}
 
 	c.embeds = gtk.NewBox(gtk.OrientationVertical, 0)
 	c.embeds.SetHAlign(gtk.AlignStart)

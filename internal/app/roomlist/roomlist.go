@@ -12,6 +12,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/section"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/pkg/errors"
 )
@@ -54,7 +55,12 @@ var listCSS = cssutil.Applier("roomlist-list", `
 
 // Controller describes the controller requirement.
 type Controller interface {
+	// OpenRoom opens the given room. The function should call back
+	// List.SetSelectedRoom.
 	OpenRoom(matrix.RoomID)
+	// ForwardTypingTo returns the widget that typing events that are uncaught
+	// in the List should be forwarded to.
+	ForwardTypingTo() gtk.Widgetter
 }
 
 // RoomTabOpener can optionally be implemented by Application.
@@ -91,7 +97,6 @@ func New(ctx context.Context, ctrl Controller) *List {
 	l.SearchBar.SetSearchMode(false)
 	l.SearchBar.SetShowCloseButton(false)
 	l.SearchBar.SetChild(searchEntry)
-	l.SearchBar.SetKeyCaptureWidget(l.scroll)
 	l.SearchBar.Connect("notify::search-mode-enabled", func() {
 		if !l.SearchBar.SearchMode() {
 			l.Search("")
@@ -100,6 +105,11 @@ func New(ctx context.Context, ctrl Controller) *List {
 
 	l.Append(l.SearchBar)
 	l.Append(l.scroll)
+
+	gtkutil.ForwardTypingFunc(l.scroll, func() gtk.Widgetter {
+		return ctrl.ForwardTypingTo()
+	})
+
 	return &l
 }
 

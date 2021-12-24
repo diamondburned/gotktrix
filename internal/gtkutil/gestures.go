@@ -36,6 +36,10 @@ func BindRightClickAt(w gtk.Widgetter, f func(x, y float64)) {
 
 // ForwardTyping forwards all typing events from w to dst.
 func ForwardTyping(w, dst gtk.Widgetter) {
+	ForwardTypingFunc(w, func() gtk.Widgetter { return dst })
+}
+
+func ForwardTypingFunc(w gtk.Widgetter, f func() gtk.Widgetter) {
 	// Activator to focus on composer when typed on.
 	typingHandler := gtk.NewEventControllerKey()
 	// Run the handler at the last phase, after all key handlers have captured
@@ -47,7 +51,12 @@ func ForwardTyping(w, dst gtk.Widgetter) {
 			return false
 		}
 
-		dst := gtk.BaseWidget(dst)
+		dstWidget := f()
+		if dstWidget == nil {
+			return false
+		}
+
+		dst := gtk.BaseWidget(dstWidget)
 		dst.GrabFocus()
 		typingHandler.Forward(dst)
 		return true

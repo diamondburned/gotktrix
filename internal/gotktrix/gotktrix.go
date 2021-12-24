@@ -682,6 +682,10 @@ func (c *Client) RoomPaginator(roomID matrix.RoomID, limit int) *RoomPaginator {
 	}
 }
 
+// TODO: this API is broken because the room list will shift messages over time.
+// Paginate should take a message ID and repaginate if it cannot seek to the
+// right position in the buffer.
+
 // Paginate paginates from the client and the server if the database is drained.
 func (p *RoomPaginator) Paginate(ctx context.Context) ([]event.RoomEvent, error) {
 	if p.onTop {
@@ -744,6 +748,8 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 	}
 
 	for p.needFill() {
+		log.Println("from lastBatch =", p.lastBatch)
+
 		// https://matrix.org/docs/spec/client_server/r0.6.1#get-matrix-client-r0-rooms-roomid-messages
 		// Fill up the last batch from start.
 		r, err := p.c.WithContext(ctx).RoomMessages(p.roomID, api.RoomMessagesQuery{
@@ -757,6 +763,7 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 
 		// If start and end matches, then we're out of messages.
 		if r.Start == r.End {
+			log.Println("no more messages")
 			p.onTop = true
 			break
 		}
@@ -764,6 +771,9 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 		// Update the last batch.
 		// End is used to request earlier events if direction is backwards.
 		p.lastBatch = r.End
+
+		log.Println("new  lastBatch =", p.lastBatch)
+		log.Println("     start =", r.Start)
 
 		// Flip the message list. Code from SliceTricks.
 		for i, j := 0, len(r.Chunk)-1; i < j; i, j = i+1, j-1 {
@@ -777,9 +787,11 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 				// Include all events from before the found one to the first
 				// event, which is the earliest event.
 				p.prepend(events[:i])
+				log.Println("seeked to last event ID")
 				break
 			}
 		}
+		log.Println("cannot seek to last event ID")
 	}
 
 	return nil

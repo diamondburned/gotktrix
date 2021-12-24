@@ -35,12 +35,6 @@ import (
 	_ "github.com/diamondburned/gotktrix/internal/gtkutil/aggressivegc"
 )
 
-/*
-TODO:
-	- code block Copy button should not expand
-	- typing in the room list should go in the message view, not room search
-*/
-
 var _ = cssutil.WriteCSS(`
 	windowhandle .adaptive-sidebar-revealer {
 		background: none;
@@ -368,4 +362,13 @@ func firstLine(lines string) string {
 
 func (m *manager) SetSelectedRoom(id matrix.RoomID) {
 	m.roomList.SetSelectedRoom(id)
+}
+
+// ForwardTypingTo returns the message view's composer if there's one. Typing
+// events on the room list that are uncaught will go into the composer.
+func (m *manager) ForwardTypingTo() gtk.Widgetter {
+	if current := m.msgView.Current(); current != nil {
+		return current.Composer.Input()
+	}
+	return nil
 }

@@ -360,8 +360,9 @@ var codeBlockCSS = cssutil.Applier("mcontent-code-block", `
 	}
 	.mcontent-code-block-actions > *:not(label) {
 		background-color: @theme_bg_color;
-		margin-top:   4px;
-		margin-right: 4px;
+		margin-top:    4px;
+		margin-right:  px;
+		margin-bottom: 4px;
 	}
 	.mcontent-code-block-language {
 		font-family: monospace;
@@ -440,10 +441,28 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	actions.Append(copy)
 	actions.Append(expand)
 
+	clickOverlay := gtk.NewBox(gtk.OrientationVertical, 0)
+	clickOverlay.Append(sw)
+	// Clicking on the codeblock will click the button for us, but only if it's
+	// collapsed.
+	click := gtk.NewGestureClick()
+	click.SetButton(gdk.BUTTON_PRIMARY)
+	click.SetExclusive(true)
+	click.Connect("pressed", func() bool {
+		// TODO: don't handle this on a touchscreen.
+		if !expand.Active() {
+			expand.Activate()
+			return true
+		}
+		return false
+	})
+	clickOverlay.AddController(click)
+
 	overlay := gtk.NewOverlay()
 	overlay.SetOverflow(gtk.OverflowHidden)
-	overlay.SetChild(sw)
+	overlay.SetChild(clickOverlay)
 	overlay.AddOverlay(actions)
+	overlay.SetMeasureOverlay(actions, true)
 	overlay.AddCSSClass("frame")
 	codeBlockCSS(overlay)
 
@@ -454,22 +473,6 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 			cover.SetVisible(visible)
 		}
 	}
-
-	// Clicking on the codeblock will click the button for us, but only if it's
-	// collapsed.
-	click := gtk.NewGestureClick()
-	click.SetPropagationPhase(gtk.PhaseBubble)
-	click.SetExclusive(true)
-	click.SetButton(gdk.BUTTON_PRIMARY)
-	click.Connect("pressed", func() bool {
-		// TODO: don't handle this on a touchscreen.
-		if !expand.Active() {
-			expand.Activate()
-			return true
-		}
-		return false
-	})
-	overlay.AddController(click)
 
 	// Manually keep track of the expanded height, since SetMaxContentHeight
 	// doesn't work (below issue).
@@ -499,7 +502,6 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 			vadj.SetValue(0)
 		}
 	}
-
 	expand.ConnectClicked(updateExpand)
 
 	// Workaround for issue https://gitlab.gnome.org/GNOME/gtk/-/issues/3515.
