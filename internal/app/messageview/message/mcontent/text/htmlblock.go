@@ -361,7 +361,7 @@ var codeBlockCSS = cssutil.Applier("mcontent-code-block", `
 	.mcontent-code-block-actions > *:not(label) {
 		background-color: @theme_bg_color;
 		margin-top:    4px;
-		margin-right:  px;
+		margin-right:  4px;
 		margin-bottom: 4px;
 	}
 	.mcontent-code-block-language {
