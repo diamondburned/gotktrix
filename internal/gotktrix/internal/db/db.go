@@ -129,7 +129,7 @@ func dropBucketPrefix(tx *bbolt.Tx, path NodePath) error {
 	}
 
 	if len(path) == 1 {
-		return tx.DeleteBucket(path[0])
+		return wrapBucketDeleteErr(tx.DeleteBucket(path[0]))
 	}
 
 	// Slice off the last bucket name.
@@ -142,15 +142,15 @@ func dropBucketPrefix(tx *bbolt.Tx, path NodePath) error {
 		return err
 	}
 
-	if err := b.DeleteBucket(path[len(path)-1]); err != nil {
-		if errors.Is(err, bbolt.ErrBucketNotFound) {
-			// No need to wipe.
-			return nil
-		}
-		return err
-	}
+	return wrapBucketDeleteErr(b.DeleteBucket(path[len(path)-1]))
+}
 
-	return nil
+func wrapBucketDeleteErr(err error) error {
+	if errors.Is(err, bbolt.ErrBucketNotFound) {
+		// No need to wipe.
+		return nil
+	}
+	return err
 }
 
 // NodeFromPath creates a new Node from path.
