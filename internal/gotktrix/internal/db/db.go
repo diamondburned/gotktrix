@@ -142,7 +142,15 @@ func dropBucketPrefix(tx *bbolt.Tx, path NodePath) error {
 		return err
 	}
 
-	return b.DeleteBucket(path[len(path)-1])
+	if err := b.DeleteBucket(path[len(path)-1]); err != nil {
+		if errors.Is(err, bbolt.ErrBucketNotFound) {
+			// No need to wipe.
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
 
 // NodeFromPath creates a new Node from path.
