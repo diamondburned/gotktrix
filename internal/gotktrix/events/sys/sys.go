@@ -20,25 +20,29 @@ func Parse(b []byte) event.Event {
 }
 
 // ParseRoom wraps around event.Parse.
-func ParseRoom(b []byte, rID matrix.RoomID) event.RoomEvent {
-	// sssh
-	return ParseTimeline(b, rID)
-}
-
-// ParseTimeline wraps around event.Parse. TODO document.
-func ParseTimeline(b []byte, rID matrix.RoomID) event.RoomEvent {
+func ParseRoom(b []byte, rID matrix.RoomID) event.Event {
 	e, err := event.Parse(b)
 	if err == nil {
 		room, ok := e.(event.RoomEvent)
 		if ok {
 			room.RoomInfo().RoomID = rID
-			return room
 		}
-		// wat.
-		err = fmt.Errorf("event %s in timeline is not RoomEvent", e.Info().Type)
+		return e
 	}
 
 	return newErroneousEvent(b, err)
+}
+
+// ParseTimeline wraps around event.Parse. TODO document.
+func ParseTimeline(b []byte, rID matrix.RoomID) event.RoomEvent {
+	e := ParseRoom(b, rID)
+
+	if roomEv, ok := e.(event.RoomEvent); ok {
+		return roomEv
+	}
+
+	// wat.
+	return newErroneousEvent(b, fmt.Errorf("event %s in timeline is not RoomEvent", e.Info().Type))
 }
 
 // ParseAs returns a nil event if the returned event is erroneous or doesn't
@@ -66,10 +70,20 @@ func ParseAll(raws []event.RawEvent) []event.Event {
 }
 
 // ParseAllRoom parses the given list of raw events into a new list of events.
-func ParseAllRoom(raws []event.RawEvent, rID matrix.RoomID) []event.RoomEvent {
-	evs := make([]event.RoomEvent, len(raws))
+func ParseAllRoom(raws []event.RawEvent, rID matrix.RoomID) []event.Event {
+	evs := make([]event.Event, len(raws))
 	for i, raw := range raws {
 		evs[i] = ParseRoom(raw, rID)
+	}
+	return evs
+}
+
+// ParseAllTimeline parses the given list of raw events into a new list of room
+// events.
+func ParseAllTimeline(raws []event.RawEvent, rID matrix.RoomID) []event.RoomEvent {
+	evs := make([]event.RoomEvent, len(raws))
+	for i, raw := range raws {
+		evs[i] = ParseTimeline(raw, rID)
 	}
 	return evs
 }

@@ -37,7 +37,7 @@ func New(ctx context.Context, ev *event.RoomMessageEvent) *Content {
 	case event.RoomMessageText:
 		return wrapParts(ctx, ev, newTextContent(ctx, ev))
 	case event.RoomMessageEmote:
-		return wrapParts(ctx, ev, newTextContent(ctx, ev))
+		return wrapParts(ctx, ev, newEmoteContent(ev))
 	case event.RoomMessageVideo:
 		return wrapParts(ctx, ev, newVideoContent(ctx, ev))
 	case event.RoomMessageImage:

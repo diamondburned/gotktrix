@@ -113,8 +113,8 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 // Section is the controller interface that Room holds as its parent section.
 type Section interface {
 	Tag() matrix.TagName
-	InvalidateSort()
 
+	Changed(*Room)
 	Remove(*Room)
 	Insert(*Room)
 
@@ -243,7 +243,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		b.F(client.SubscribeTimelineSync(roomID, func(event.RoomEvent) {
 			gtkutil.IdleCtx(ctx, func() {
 				r.InvalidatePreview(ctx)
-				r.section.InvalidateSort()
+				r.Changed()
 			})
 		}))
 		b.F(client.SubscribeRoomEvents(roomID, roomEvents, func(ev event.Event) {
@@ -251,12 +251,12 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 				switch ev.(type) {
 				case *event.RoomNameEvent, *event.RoomCanonicalAliasEvent:
 					r.InvalidateName(ctx)
-					r.section.InvalidateSort()
+					r.Changed()
 				case *event.RoomAvatarEvent:
 					r.InvalidateAvatar(ctx)
 				case *m.FullyReadEvent:
 					r.InvalidatePreview(ctx)
-					r.section.InvalidateSort()
+					r.Changed()
 				}
 			})
 		}))
@@ -274,6 +274,11 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 // Section returns the current section that the room is in.
 func (r *Room) Section() Section {
 	return r.section
+}
+
+// Changed invalidates the order of this room within the list.
+func (r *Room) Changed() {
+	r.section.Changed(r)
 }
 
 // IsIn returns true if the room is in the given section.
@@ -453,11 +458,6 @@ func countUnreadFmt(client *gotktrix.Client, roomID matrix.RoomID) string {
 }
 
 func (r *Room) setUnread(unread bool) {
-	// If the room is currently selected, then don't mark it as unread.
-	if unread && r.IsSelected() {
-		unread = false
-	}
-
 	if r.isUnread == unread {
 		return
 	}
@@ -491,7 +491,7 @@ func (r *Room) SetOrder(order float64) {
 	gtkutil.Async(ctx, func() func() {
 		f := func() {
 			r.SetSensitive(true)
-			r.section.InvalidateSort()
+			r.Changed()
 		}
 
 		client := gotktrix.FromContext(ctx)

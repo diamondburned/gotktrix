@@ -376,6 +376,12 @@ func (s *Section) Remove(room *room.Room) {
 	s.Reminify()
 }
 
+// Changed reorders the given room specifically.
+func (s *Section) Changed(room *room.Room) {
+	s.comparer.InvalidateRoomCache()
+	s.ReminifyAfter(func() { room.ListBoxRow.Changed() })
+}
+
 // InvalidateSort invalidates the section's sort. This should be called if any
 // room inside the section has been changed.
 func (s *Section) InvalidateSort() {

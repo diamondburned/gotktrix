@@ -236,8 +236,8 @@ func (r *Registry) invokeTimeline(rID matrix.RoomID, raws []event.RawEvent) {
 		raws = raws[len(raws)-state.TimelineKeepLast:]
 	}
 
-	var evs []event.RoomEvent
-	var once event.RoomEvent
+	var evs []event.Event
+	var once event.Event
 
 	rh.Each(func(f, meta interface{}) {
 		hmeta, _ := meta.(handlerMeta)
@@ -247,7 +247,7 @@ func (r *Registry) invokeTimeline(rID matrix.RoomID, raws []event.RawEvent) {
 			}
 
 			for _, ev := range evs {
-				invokeRoomList(ev, rh)
+				invokeList(ev, rh)
 			}
 
 			return

@@ -26,7 +26,7 @@ type Registry struct {
 // New creates a new M instance.
 func New(cap int) Registry {
 	return Registry{
-		m: make(map[*Value]interface{}),
+		m: make(map[*Value]interface{}, cap),
 	}
 }
 

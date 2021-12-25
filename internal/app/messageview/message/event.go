@@ -156,10 +156,10 @@ func RenderEvent(ctx context.Context, ev event.RoomEvent) string {
 	case *sys.ErroneousEvent:
 		return p.Sprintf(
 			`%s sent an unusual event: <span color="red">%v</span>.`,
-			r.sender(), ev.Err,
+			r.sender(), ev.Err, // error already has event name
 		)
 	default:
-		return p.Sprintf("%s sent a %T event.", r.sender(), ev)
+		return p.Sprintf("%s sent an unhandled %s event.", r.sender(), ev.Info().Type)
 	}
 }
 

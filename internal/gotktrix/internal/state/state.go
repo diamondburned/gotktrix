@@ -365,7 +365,7 @@ func (s *State) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 		if evs == nil {
 			evs = make([]event.RoomEvent, 0, l)
 		}
-		evs = append(evs, sys.ParseRoom(b, roomID))
+		evs = append(evs, sys.ParseTimeline(b, roomID))
 		return nil
 	}); err != nil {
 		log.Printf("error getting timeline for room %q: %v", roomID, err)

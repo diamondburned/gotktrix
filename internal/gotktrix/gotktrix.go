@@ -286,9 +286,8 @@ func (c *Client) AddHandler(function interface{}) error {
 
 // Open opens the client with the last next batch string.
 func (c *Client) Open() error {
-	// next, _ := c.State.NextBatch()
-	// log.Println("next =", next)
-	return c.Client.OpenWithNext("")
+	next, _ := c.State.NextBatch()
+	return c.Client.OpenWithNext(next)
 }
 
 // Close closes the event loop and the internal database, as well as halting all
@@ -593,6 +592,20 @@ func (c *Client) MarkRoomAsRead(roomID matrix.RoomID, eventID matrix.EventID) er
 		return nil
 	}
 
+	//// Try and set the m.fully_read event directly into the state, since for
+	//// some reason, the server doesn't always echo back the event in time.
+	////
+	//// TODO: the client can use this to set the read marker early instead of
+	//// waiting for a sync.
+	//c.State.AddRoomEvents(roomID, []event.RawEvent{
+	//	m.MarshalFullyReadEvent(m.FullyReadEvent{
+	//		FullyReadEventInfo: m.FullyReadEventInfo{
+	//			RoomID: roomID,
+	//		},
+	//		EventID: eventID,
+	//	}),
+	//})
+
 	var request struct {
 		FullyRead matrix.EventID `json:"m.fully_read"`
 		Read      matrix.EventID `json:"m.read,omitempty"`
@@ -780,7 +793,7 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 		}
 
 		// Seek until we stumble on the wanted events.
-		events := sys.ParseAllRoom(r.Chunk, p.roomID)
+		events := sys.ParseAllTimeline(r.Chunk, p.roomID)
 		for i, ev := range events {
 			if ev.RoomInfo().ID == p.lastEvID {
 				// Include all events from before the found one to the first
@@ -848,7 +861,7 @@ func (c *Client) RoomTimeline(roomID matrix.RoomID) ([]event.RoomEvent, error) {
 		return nil, errors.Wrapf(err, "failed to get messages for room %q", roomID)
 	}
 
-	return sys.ParseAllRoom(r.Chunk, roomID), nil
+	return sys.ParseAllTimeline(r.Chunk, roomID), nil
 }
 
 // LatestMessage finds the latest room message event from the given list of

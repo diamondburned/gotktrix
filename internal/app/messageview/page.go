@@ -569,22 +569,27 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 	return false
 }
 
+func (p *Page) relatedEvent(relatesTo matrix.EventID) (messageRow, bool) {
+	for relatesTo != "" {
+		r, ok := p.messages[messageKeyEventID(relatesTo)]
+		if ok {
+			return r, true
+		}
+		relatesTo = p.mrelated[relatesTo]
+	}
+	return messageRow{}, false
+}
+
 func (p *Page) onRoomEvent(ev event.RoomEvent) (key messageKey) {
 	key = messageKeyEvent(ev)
 
 	if relatesToID := relatesTo(ev); relatesToID != "" {
-		rl, ok := p.messages[messageKeyEventID(relatesToID)]
-		if !ok {
-			if rel := p.mrelated[relatesToID]; rel != "" {
-				rl, ok = p.messages[messageKeyEventID(rel)]
-			}
-		}
+		r, ok := p.relatedEvent(relatesToID)
 		if ok {
 			// Register this event as a related event.
 			p.mrelated[ev.RoomInfo().ID] = relatesToID
 			// Trigger the message's callback.
-			log.Println("spotted related message")
-			rl.body.OnRelatedEvent(ev)
+			r.body.OnRelatedEvent(ev)
 			return
 		}
 		// Treat as a new message.

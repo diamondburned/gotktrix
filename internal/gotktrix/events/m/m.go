@@ -9,26 +9,58 @@ import (
 )
 
 func init() {
-	event.RegisterDefault(FullyReadEventType, parseFullyReadEvent)
+	event.Register(FullyReadEventType, parseFullyReadEvent)
 	event.RegisterDefault(ReactionEventType, parseReactionEvent)
 }
 
 // FullyReadEventType is the event type for m.fully_read.
 const FullyReadEventType event.Type = "m.fully_read"
 
-// FullyReadEvent describes the m.fully_read event.
-type FullyReadEvent struct {
-	event.EventInfo `json:"-"`
-	// EventID is the event the user's read marker is located at in the room.
-	EventID matrix.EventID `json:"event_id"`
+// FullyReadEventInfo is the information outside the content piece of
+// FullyReadEvent.
+type FullyReadEventInfo struct {
+	event.EventInfo
 	// RoomID is the room that the event read marker belongs to.
-	RoomID matrix.RoomID `json:"-"`
+	RoomID matrix.RoomID `json:"room_id"`
 }
 
-func parseFullyReadEvent(content json.RawMessage) (event.Event, error) {
+// FullyReadEvent describes the m.fully_read event.
+type FullyReadEvent struct {
+	FullyReadEventInfo `json:"-"`
+	// EventID is the event the user's read marker is located at in the room.
+	EventID matrix.EventID `json:"event_id"`
+}
+
+func parseFullyReadEvent(whole event.RawEvent, content json.RawMessage) (event.Event, error) {
 	var ev FullyReadEvent
-	err := json.Unmarshal(content, &ev)
-	return &ev, err
+	if err := json.Unmarshal(content, &ev); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(whole, &ev.FullyReadEventInfo); err != nil {
+		return nil, err
+	}
+	return &ev, nil
+}
+
+// MarshalFullyReadEvent marshals the given fully read event.
+func MarshalFullyReadEvent(ev FullyReadEvent) event.RawEvent {
+	// Ensure type field is set.
+	ev.FullyReadEventInfo.Type = FullyReadEventType
+
+	raw := struct {
+		*FullyReadEventInfo
+		Content *FullyReadEvent `json:"content"`
+	}{
+		FullyReadEventInfo: &ev.FullyReadEventInfo,
+		Content:            &ev,
+	}
+
+	b, err := json.Marshal(raw)
+	if err != nil {
+		panic("cannot marshal m.fully_read: " + err.Error())
+	}
+
+	return b
 }
 
 // RelType is the type for the "m.relates_to".rel_type field.

@@ -126,28 +126,3 @@ func invoke(ev event.Event, f interface{}) {
 		log.Panicf("BUG: unknown handler type %T", fn)
 	}
 }
-
-func invokeRoomList(ev event.RoomEvent, list registry.Registry) {
-	list.Each(func(f, _ interface{}) {
-		invokeRoom(ev, f)
-	})
-}
-
-func invokeRoom(ev event.RoomEvent, f interface{}) {
-	switch fn := f.(type) {
-	case func(event.Event):
-		fn(ev)
-	case func(event.RoomEvent):
-		fn(ev)
-	case func(event.StateEvent):
-		sv, ok := ev.(event.StateEvent)
-		if !ok {
-			return
-		}
-		fn(sv)
-	case func():
-		fn()
-	default:
-		log.Panicf("BUG: unknown handler type %T", fn)
-	}
-}
