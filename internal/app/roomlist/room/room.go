@@ -59,7 +59,6 @@ type Room struct {
 	ctx     gtkutil.Cancellable
 	section Section
 
-	isUnread    bool
 	showPreview bool
 }
 
@@ -89,7 +88,7 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 		padding-right: 0;
 		border-left:  2px solid transparent;
 	}
-	.room-unread .room-box {
+	.room-unread-message .room-box {
 		border-left:  2px solid @theme_fg_color;
 	}
 	.room-right {
@@ -406,11 +405,33 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 		}
 
 		preview := message.RenderEvent(ctx, first)
-		count := countUnreadFmt(client, r.ID)
+		unread := countUnreadFmt(client, r.ID)
 
 		return func() {
-			r.setUnread(count != "")
-			r.name.unread.SetText(count)
+			// Only show the unread bar if we have unread messages, not unread
+			// any other events. We can do this by a comparison check: if there
+			// are less events than unread messages, then there's an unread
+			// message, otherwise if there's more, then we have none.
+			if extra < unread {
+				r.AddCSSClass("room-unread-message")
+			} else {
+				r.RemoveCSSClass("room-unread-message")
+			}
+
+			if unread == 0 {
+				r.RemoveCSSClass("room-unread-events")
+			} else {
+				r.AddCSSClass("room-unread-events")
+			}
+
+			switch {
+			case unread == 0:
+				r.name.unread.SetText("")
+			case unread <= 100:
+				r.name.unread.SetText(fmt.Sprintf("(%d)", unread))
+			default:
+				r.name.unread.SetText(fmt.Sprintf("(%d+)", unread-1))
+			}
 
 			r.preview.label.SetMarkup(preview)
 			r.preview.label.SetTooltipMarkup(preview)
@@ -425,10 +446,10 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 	})
 }
 
-func countUnreadFmt(client *gotktrix.Client, roomID matrix.RoomID) string {
+func countUnreadFmt(client *gotktrix.Client, roomID matrix.RoomID) int {
 	latestID := client.RoomLatestReadEvent(roomID)
 	if latestID == "" {
-		return ""
+		return 0
 	}
 
 	var unread int
@@ -443,39 +464,11 @@ func countUnreadFmt(client *gotktrix.Client, roomID matrix.RoomID) string {
 		return nil
 	})
 
-	if unread == 0 {
-		return ""
+	if !found {
+		unread++
 	}
 
-	var s string
-	if found {
-		s = fmt.Sprintf("(%d)", unread)
-	} else {
-		s = fmt.Sprintf("(%d+)", unread)
-	}
-
-	return s
-}
-
-func (r *Room) setUnread(unread bool) {
-	if r.isUnread == unread {
-		return
-	}
-
-	r.isUnread = unread
-
-	if unread {
-		r.AddCSSClass("room-unread")
-	} else {
-		r.RemoveCSSClass("room-unread")
-	}
-}
-
-// IsUnread returns true if the room is currently not read. If the room is not
-// yet mapped, then it'll always be false. The room will invoke InvalidateSort
-// on its parent section if this boolean changes.
-func (r *Room) IsUnread() bool {
-	return r.isUnread
+	return unread
 }
 
 // SetOrder sets the room's order within the section it is in. If the order is
