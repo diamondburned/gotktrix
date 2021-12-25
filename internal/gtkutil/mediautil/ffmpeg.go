@@ -42,6 +42,7 @@ func Thumbnail(ctx context.Context, url string, w, h int) (string, error) {
 		thumbnailURLPath(url, fmt.Sprintf("w=%d;h=%d", w, h)),
 		func(out string) error {
 			thumbnailGC.do()
+			out = out + "." + ThumbnailFormat // add this into the temp path
 			return doFFmpeg(ctx, url, out, "-frames:v", "1", "-f", "image2")
 		},
 	)
