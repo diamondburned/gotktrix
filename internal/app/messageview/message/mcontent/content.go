@@ -42,10 +42,10 @@ func New(ctx context.Context, ev *event.RoomMessageEvent) *Content {
 		return wrapParts(ctx, ev, newVideoContent(ctx, ev))
 	case event.RoomMessageImage:
 		return wrapParts(ctx, ev, newImageContent(ctx, ev))
-
-	// case event.RoomMessageEmote:
-	// case event.RoomMessageFile:
-	// case event.RoomMessageAudio:
+	case event.RoomMessageAudio:
+		fallthrough
+	case event.RoomMessageFile:
+		return wrapParts(ctx, ev, newFileContent(ctx, ev))
 	// case event.RoomMessageLocation:
 	default:
 		return wrapParts(ctx, ev, newUnknownContent(ctx, ev))
