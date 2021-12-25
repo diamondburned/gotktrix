@@ -100,7 +100,12 @@ func UserColor(uID matrix.UserID, mods ...MarkupMod) string {
 }
 
 func userColor(uID matrix.UserID, opts markupOpts) string {
-	return RGBHex(opts.hasher.Hash(string(uID)))
+	name, _, _ := uID.Parse()
+	if name == "" {
+		name = string(uID)
+	}
+
+	return RGBHex(opts.hasher.Hash(name))
 }
 
 // Markup renders the markup string for the given user inside the given room.
