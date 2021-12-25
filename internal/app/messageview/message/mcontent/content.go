@@ -5,10 +5,8 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 )
 
@@ -31,25 +29,32 @@ type Content struct {
 
 // New parses the given room message event and renders it into a Content widget.
 func New(ctx context.Context, ev *event.RoomMessageEvent) *Content {
+	var part contentPart
+
 	switch ev.MessageType {
 	case event.RoomMessageNotice:
 		fallthrough
 	case event.RoomMessageText:
-		return wrapParts(ctx, ev, newTextContent(ctx, ev))
+		part = newTextContent(ctx, ev)
 	case event.RoomMessageEmote:
-		return wrapParts(ctx, ev, newEmoteContent(ctx, ev))
+		part = newEmoteContent(ctx, ev)
 	case event.RoomMessageVideo:
-		return wrapParts(ctx, ev, newVideoContent(ctx, ev))
+		part = newVideoContent(ctx, ev)
 	case event.RoomMessageImage:
-		return wrapParts(ctx, ev, newImageContent(ctx, ev))
+		part = newImageContent(ctx, ev)
 	case event.RoomMessageAudio:
 		fallthrough
 	case event.RoomMessageFile:
-		return wrapParts(ctx, ev, newFileContent(ctx, ev))
-	// case event.RoomMessageLocation:
-	default:
-		return wrapParts(ctx, ev, newUnknownContent(ctx, ev))
+		part = newFileContent(ctx, ev)
+	case event.RoomMessageLocation:
+		part = newLocationContent(ctx, ev)
 	}
+
+	if part == nil {
+		part = newUnknownContent(ctx, ev)
+	}
+
+	return wrapParts(ctx, ev, part)
 }
 
 func wrapParts(ctx context.Context, ev *event.RoomMessageEvent, part contentPart) *Content {
@@ -57,28 +62,11 @@ func wrapParts(ctx context.Context, ev *event.RoomMessageEvent, part contentPart
 	box.SetHExpand(true)
 	box.Append(part)
 
-	reactions := newReactionBox()
-	reactions.AddCSSClass("mcontent-reactionrev")
-	box.Append(reactions)
-
-	client := gotktrix.FromContext(ctx)
-	runsub := client.SubscribeRoom(ev.RoomInfo().RoomID, m.ReactionEventType, func(ev event.Event) {
-		reaction := ev.(*m.ReactionEvent)
-		glib.IdleAdd(func() {
-			reactions.Add(ctx, reaction)
-		})
-	})
-
-	box.ConnectUnrealize(func() {
-		runsub()
-	})
-
 	return &Content{
-		Box:   box,
-		ev:    ev,
-		ctx:   ctx,
-		part:  part,
-		react: reactions,
+		Box:  box,
+		ev:   ev,
+		ctx:  ctx,
+		part: part,
 	}
 }
 
@@ -122,13 +110,22 @@ func (c *Content) OnRelatedEvent(ev event.RoomEvent) {
 		// TODO: if we have a proper graph data structure that keeps track of
 		// relational events separately instead of keeping it nested in its
 		// respective events, then we wouldn't need to do this.
-		if c.react.Remove(c.ctx, ev) {
+		if c.react == nil || c.react.Remove(c.ctx, ev) {
 			return
 		}
 	case *m.ReactionEvent:
 		if ev.RelatesTo.RelType == "m.annotation" {
+			c.ensureReactions()
 			c.react.Add(c.ctx, ev)
 		}
+	}
+}
+
+func (c *Content) ensureReactions() {
+	if c.react == nil {
+		c.react = newReactionBox()
+		c.react.AddCSSClass("mcontent-reactionrev")
+		c.Append(c.react)
 	}
 }
 
@@ -145,7 +142,9 @@ func (c *Content) isRedacted() bool {
 
 func (c *Content) redact(red *event.RoomRedactionEvent) {
 	c.Box.Remove(c.part)
-	c.react.RemoveAll()
+	if c.react != nil {
+		c.react.RemoveAll()
+	}
 
 	c.part = newRedactedContent(c.ctx, red)
 	c.Box.Prepend(c.part)

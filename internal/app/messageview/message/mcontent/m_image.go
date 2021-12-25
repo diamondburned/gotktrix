@@ -53,7 +53,7 @@ var imageCSS = cssutil.Applier("mcontent-image", `
 	}
 `)
 
-func newImageContent(ctx context.Context, msg *event.RoomMessageEvent) contentPart {
+func newImageContent(ctx context.Context, msg *event.RoomMessageEvent) *imageContent {
 	embed := newImageEmbed(msg.Body, maxWidth, maxHeight)
 	embed.AddCSSClass("mcontent-image-content")
 	embed.setOpenURL(func() {
