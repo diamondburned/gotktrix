@@ -126,8 +126,10 @@ func MsgBody(ev *event.RoomMessageEvent) (m MessageBody, edited bool) {
 	}
 
 	var body struct {
-		NewContent MessageBody `json:"m.new_content"`
-		RelatesTo  relatesTo   `json:"m.relates_to"`
+		Content struct {
+			NewContent MessageBody `json:"m.new_content"`
+			RelatesTo  relatesTo   `json:"m.relates_to"`
+		}
 	}
 
 	if err := json.Unmarshal(ev.Raw, &body); err != nil {
@@ -135,8 +137,8 @@ func MsgBody(ev *event.RoomMessageEvent) (m MessageBody, edited bool) {
 		return unedited, false
 	}
 
-	if body.RelatesTo.RelType == "m.replace" {
-		return body.NewContent, true
+	if body.Content.RelatesTo.RelType == "m.replace" {
+		return body.Content.NewContent, true
 	}
 
 	return unedited, false

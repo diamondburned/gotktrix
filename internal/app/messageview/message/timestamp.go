@@ -35,27 +35,22 @@ func newTimestamp(ctx context.Context, ts time.Time, long bool) *timestamp {
 	}
 
 	l := gtk.NewLabel(t)
-	l.SetTooltipText(ts.Format(time.StampMilli))
+	l.SetTooltipText(locale.Time(ts, true))
 	timestampCSS(l)
 
 	return &timestamp{l, ctx, ts, long}
 }
 
 func (t *timestamp) setEdited(editedTs time.Time) {
-	t.SetTooltipText(fmt.Sprintf(
-		"%s "+locale.S(t.ctx, "(edited %s)"),
-		absTime(t.time),
-		absTime(editedTs),
+	t.SetTooltipText(locale.Sprintf(t.ctx,
+		"%s (edited %s)",
+		locale.Time(t.time, true),
+		locale.Time(editedTs, true),
 	))
 	if t.long {
 		t.SetText(fmt.Sprintf(
 			"%s "+locale.S(t.ctx, "(edited)"),
 			locale.TimeAgo(t.ctx, t.time),
-			locale.TimeAgo(t.ctx, editedTs),
 		))
 	}
-}
-
-func absTime(t time.Time) string {
-	return t.Format("Jan 2 15:04:05.000000")
 }
