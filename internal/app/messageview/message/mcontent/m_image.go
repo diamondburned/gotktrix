@@ -84,7 +84,7 @@ func newImageContent(ctx context.Context, msg *event.RoomMessageEvent) contentPa
 }
 
 func (c *imageContent) LoadMore() {
-	if c.curSize != [2]int{} && c.msg.Info != nil {
+	if c.curSize != [2]int{} {
 		renderBlurhash(c.msg.AdditionalInfo, c.curSize[0], c.curSize[1], c.image.SetPixbuf)
 	}
 
@@ -151,6 +151,10 @@ func (e *imageEmbed) setSize(w, h int) {
 const maxBlurhash = 25
 
 func renderBlurhash(rawInfo json.RawMessage, w, h int, picFn func(*gdkpixbuf.Pixbuf)) {
+	if rawInfo == nil {
+		return
+	}
+
 	var info struct {
 		BlurHash string `json:"xyz.amorgan.blurhash"`
 	}

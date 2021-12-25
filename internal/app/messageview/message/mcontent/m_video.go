@@ -5,20 +5,21 @@ import (
 	"log"
 
 	"github.com/chanbakjsd/gotrix/event"
-	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
 )
 
 type videoContent struct {
 	gtk.Widgetter
-	ctx          context.Context
-	preview      *gtk.Picture
-	thumbnailURL matrix.URL
+	ctx     context.Context
+	preview *gtk.Picture
+
+	url  string
+	size [2]int
 }
 
 var videoCSS = cssutil.Applier("mcontent-video", `
@@ -46,6 +47,7 @@ func newVideoContent(ctx context.Context, msg *event.RoomMessageEvent) contentPa
 
 	preview := gtk.NewPicture()
 	preview.AddCSSClass("mcontent-video-preview")
+	preview.SetLayoutManager(gtk.NewConstraintLayout()) // magically left aligned
 	preview.SetCanShrink(true)
 	preview.SetCanFocus(false)
 	preview.SetKeepAspectRatio(true)
@@ -83,28 +85,45 @@ func newVideoContent(ctx context.Context, msg *event.RoomMessageEvent) contentPa
 	play.SetTooltipText(msg.Body)
 	play.SetChild(ov)
 
+	url, urlErr := client.MessageMediaURL(msg)
+
 	play.ConnectClicked(func() {
-		u, err := client.MessageMediaURL(msg)
-		if err != nil {
-			log.Println("video URL error:", err)
+		if urlErr != nil {
+			app.Error(ctx, urlErr)
 			return
 		}
-		app.OpenURI(ctx, u)
+		app.OpenURI(ctx, url)
 	})
 
 	return videoContent{
-		Widgetter:    play,
-		ctx:          ctx,
-		preview:      preview,
-		thumbnailURL: v.ThumbnailURL,
+		Widgetter: play,
+		ctx:       ctx,
+		preview:   preview,
+		url:       url,
+		size:      [2]int{w, h},
 	}
 }
 
 func (c videoContent) LoadMore() {
-	pw, ph := c.preview.SizeRequest()
-	client := gotktrix.FromContext(c.ctx)
-	url, _ := client.ScaledThumbnail(c.thumbnailURL, pw, ph, gtkutil.ScaleFactor())
-	imgutil.AsyncGET(c.ctx, url, c.preview.SetPaintable, imgutil.WithSizeOverrider(c.preview, pw, ph))
+	if c.url == "" {
+		return
+	}
+
+	gtkutil.Async(c.ctx, func() func() {
+		p, err := mediautil.Thumbnail(c.ctx, c.url, c.size[0], c.size[1])
+		if err != nil {
+			log.Println("ffmpeg thumbnail error:", err)
+			return nil
+		}
+
+		if p == "" {
+			return nil
+		}
+
+		return func() {
+			c.preview.SetFilename(p)
+		}
+	})
 }
 
 func (c videoContent) content() {}
