@@ -26,7 +26,7 @@ List taken from the Features section of the
 - [ ] E2EE
 - [x] Replies
 - [x] Attachment uploading
-- [ ] Attachment downloading
+- [x] Attachment downloading
 - [ ] Send stickers
 - [x] Send formatted messages markdown
 - [x] Rich Text Editor for formatted messages
