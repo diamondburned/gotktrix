@@ -740,22 +740,7 @@ func (p *Page) Load(done func()) {
 	load := func(events []event.RoomEvent) {
 		p.main.SetChild(p.box)
 		p.scroll.ScrollToBottom()
-
-		keys := make([]messageKey, len(events))
-		// Require old messages first, so cozy mode works properly.
-		for i, ev := range events {
-			keys[i] = p.onRoomEvent(ev)
-		}
-
-		// Load the oldest messages first so it doesn't screw up scrolling as
-		// hard.
-		for i := len(keys) - 1; i >= 0; i-- {
-			r, ok := p.messages[keys[i]]
-			if ok {
-				r.body.LoadMore()
-			}
-		}
-
+		p.addBulkEvents(events)
 		done()
 	}
 
@@ -811,14 +796,29 @@ func (p *Page) loadMore(done paginateDoneFunc) {
 			p.scroll.SetScrollLocked(true)
 			defer p.scroll.SetScrollLocked(false)
 
-			for _, raw := range events {
-				p.onRoomEvent(raw)
-			}
+			p.addBulkEvents(events)
 
 			// TODO: check for hasMore.
 			done(true, nil)
 		}
 	})
+}
+
+func (p *Page) addBulkEvents(events []event.RoomEvent) {
+	keys := make([]messageKey, len(events))
+	// Require old messages first, so cozy mode works properly.
+	for i, ev := range events {
+		keys[i] = p.onRoomEvent(ev)
+	}
+
+	// Load the newest messages first so it doesn't screw up scrolling as
+	// hard.
+	for i := len(keys) - 1; i >= 0; i-- {
+		r, ok := p.messages[keys[i]]
+		if ok {
+			r.body.LoadMore()
+		}
+	}
 }
 
 // Edit triggers the input composer to edit an existing message.
