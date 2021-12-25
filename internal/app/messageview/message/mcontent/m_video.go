@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
 )
 
@@ -18,8 +19,9 @@ type videoContent struct {
 	ctx     context.Context
 	preview *gtk.Picture
 
-	url  string
-	size [2]int
+	thumbURL string
+	url      string
+	size     [2]int
 }
 
 var videoCSS = cssutil.Applier("mcontent-video", `
@@ -56,11 +58,16 @@ func newVideoContent(ctx context.Context, msg *event.RoomMessageEvent) contentPa
 	w := maxWidth
 	h := maxHeight
 
+	var thumbnailURL string
+
 	v, err := msg.VideoInfo()
 	if err == nil {
 		w, h = gotktrix.MaxSize(v.Width, v.Height, w, h)
 		if v.Height > 0 && v.Width > 0 {
 			renderBlurhash(msg.AdditionalInfo, w, h, preview.SetPixbuf)
+		}
+		if v.ThumbnailURL != "" {
+			thumbnailURL, _ = client.ScaledThumbnail(v.ThumbnailURL, w, h, gtkutil.ScaleFactor())
 		}
 	}
 
@@ -99,12 +106,18 @@ func newVideoContent(ctx context.Context, msg *event.RoomMessageEvent) contentPa
 		Widgetter: play,
 		ctx:       ctx,
 		preview:   preview,
+		thumbURL:  thumbnailURL,
 		url:       url,
 		size:      [2]int{w, h},
 	}
 }
 
 func (c videoContent) LoadMore() {
+	if c.thumbURL != "" {
+		imgutil.AsyncGET(c.ctx, c.thumbURL, c.preview.SetPaintable)
+		return
+	}
+
 	if c.url == "" {
 		return
 	}
