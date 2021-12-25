@@ -324,8 +324,9 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	m.actions = gio.NewSimpleActionGroup()
 	a.Window().InsertActionGroup("app", m.actions)
 
-	m.addAction("Preferences", func() {})
-	m.addAction("About", func() { about.Show(m.ctx) })
+	m.addAction("_Preferences", func() {})
+	m.addAction("_About", func() { about.Show(m.ctx) })
+	m.addAction("_Quit", func() { a.Quit() })
 }
 
 func (m *manager) addAction(label string, f func()) {
