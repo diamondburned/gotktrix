@@ -100,12 +100,36 @@ func UserColor(uID matrix.UserID, mods ...MarkupMod) string {
 }
 
 func userColor(uID matrix.UserID, opts markupOpts) string {
+	name, _, err := uID.Parse()
+	if err != nil {
+		name = string(uID)
+	}
+
+	return RGBHex(opts.hasher.Hash(name))
+}
+
+// Name returns the raw name string with no markup.
+func Name(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...MarkupMod) string {
+	c = c.Offline()
+	opts := mkopts(mods)
+
 	name, _, _ := uID.Parse()
 	if name == "" {
 		name = string(uID)
 	}
 
-	return RGBHex(opts.hasher.Hash(name))
+	if rID != "" {
+		n, err := c.MemberName(rID, uID, !opts.minimal)
+		if err == nil && n.Name != "" {
+			name = n.Name
+		}
+	}
+
+	if opts.at && !strings.HasPrefix(name, "@") {
+		name = "@" + name
+	}
+
+	return name
 }
 
 // Markup renders the markup string for the given user inside the given room.

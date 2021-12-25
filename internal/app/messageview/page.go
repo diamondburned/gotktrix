@@ -20,6 +20,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/components/autoscroll"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
@@ -692,9 +693,13 @@ func eventEq(e1, e2 event.RoomEvent) bool {
 // relatesTo returns the event ID that the given raw event is supposed to edit,
 // or an empty string if it does not edit anything.
 func relatesTo(ev event.RoomEvent) matrix.EventID {
+	// It's best to keep this in sync with mcontent/content.go's OnRelatedEvent.
+	// We don't need to deep-inspect the JSON.
 	switch ev := ev.(type) {
 	case *event.RoomRedactionEvent:
 		return ev.Redacts
+	case *m.ReactionEvent:
+		return ev.RelatesTo.EventID
 	case *event.RoomMessageEvent:
 		var relatesTo struct {
 			EventID matrix.EventID `json:"event_id"`
