@@ -128,9 +128,10 @@ type Page struct {
 }
 
 type messageRow struct {
-	row  *gtk.ListBoxRow
-	ev   event.RoomEvent
-	body message.Message
+	row    *gtk.ListBoxRow
+	ev     event.RoomEvent
+	body   message.Message
+	custom bool
 }
 
 var _ message.MessageViewer = (*Page)(nil)
@@ -500,12 +501,9 @@ func (p *Page) clean() {
 	}
 }
 
-// MessageMark is a struct that marks a specific position of a message. It is
-// not guaranteed to be immutable while it is held, and the user should treat it
-// as an opaque structure.
-type MessageMark struct {
-	row *gtk.ListBoxRow
-}
+// Future note: an interface{} is returned here to prevent cyclical dependency.
+// It makes sense to return one here, since it forces the user to not make any
+// assumptions about the returned value, forcing to treat it as an opaque value.
 
 // AddSendingMessage adds the given message into the page and returns the row.
 // The user must call BindSendingMessage afterwards to ensure that the added
@@ -527,6 +525,46 @@ func (p *Page) AddSendingMessage(ev event.RoomEvent) interface{} {
 	return key
 }
 
+// SetSendingMessageBody sets the body of the message to the given widget. This
+// is useful for sending actions that require displaying some information to the
+// user.
+func (p *Page) AddSendingMessageCustom(ev event.RoomEvent, w gtk.Widgetter) interface{} {
+	key := messageKeyLocal()
+
+	row := gtk.NewListBoxRow()
+	row.SetName(string(key))
+	row.SetChild(w)
+	row.AddCSSClass("messageview-messagerow")
+	row.AddCSSClass("messageview-usermessage")
+	row.AddCSSClass("messageview-usermessage-custom")
+
+	p.setMessage(key, messageRow{
+		row:    row,
+		ev:     ev,
+		custom: true,
+	})
+
+	return key
+}
+
+// StopSendingMessage removes the sending message with the given mark.
+func (p *Page) StopSendingMessage(mark interface{}) bool {
+	key, ok := mark.(messageKey)
+	if !ok {
+		return false
+	}
+
+	msg, ok := p.messages[key]
+	if !ok {
+		return false
+	}
+
+	delete(p.messages, key)
+	p.list.Remove(msg.row)
+
+	return true
+}
+
 // BindSendingMessage is used after the sending message has been sent through
 // the backend, and that an event ID is returned. The page will try to match the
 // message up with an existing event.
@@ -543,6 +581,7 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 	delete(p.messages, key)
 
 	eventKey := messageKeyEventID(evID)
+
 	// Check if the message has been synchronized before it's replied.
 	if _, ok := p.messages[eventKey]; ok {
 		// Store the index which will be the next message once we remove the
@@ -561,10 +600,16 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 	// Not replaced yet, so we arrived first. Place the message in.
 	info := msg.ev.RoomInfo()
 	info.ID = evID
-	p.messages[eventKey] = msg
+
+	if msg.custom {
+		msg.custom = false
+	} else {
+		msg.body.SetBlur(false)
+	}
 
 	msg.row.SetName(string(eventKey))
-	msg.body.SetBlur(false)
+	p.messages[eventKey] = msg
+
 	log.Println("message bound from API")
 
 	return false
@@ -670,7 +715,7 @@ func (p *Page) resetMessage(key messageKey, before messageRow) bool {
 	}
 
 	// Recreate the body if the raw events don't match.
-	if msg.body == nil || !eventEq(msg.ev, msg.body.Event()) {
+	if !msg.custom && (msg.body == nil || !eventEq(msg.ev, msg.body.Event())) {
 		msg.body = message.NewCozyMessage(p.parent.ctx, p, msg.ev, before.body)
 		p.messages[key] = msg
 

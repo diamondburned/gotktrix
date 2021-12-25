@@ -6,15 +6,12 @@ import (
 	"fmt"
 	"html"
 	"log"
-	"mime"
 	"strings"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotk4/pkg/core/gioutil"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
-	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -98,43 +95,8 @@ func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input
 	enterKeyer := gtk.NewEventControllerKey()
 	tview.AddController(enterKeyer)
 
-	tview.Connect("paste-clipboard", func() {
-		display := gdk.DisplayGetDefault()
-
-		clipboard := display.Clipboard()
-		clipboard.ReadAsync(ctx, clipboard.Formats().MIMETypes(), 0, func(res gio.AsyncResulter) {
-			typ, stream, err := clipboard.ReadFinish(res)
-			if err != nil {
-				app.Error(ctx, errors.Wrap(err, "failed to read clipboard"))
-				return
-			}
-
-			baseStream := gio.BaseInputStream(stream)
-
-			mime, _, err := mime.ParseMediaType(typ)
-			if err != nil {
-				app.Error(ctx, errors.Wrapf(err, "clipboard contains invalid MIME %q", typ))
-				baseStream.Close(ctx)
-				return
-			}
-
-			// How is utf8_string a valid MIME type? GTK, what the fuck?
-			if strings.HasPrefix(mime, "text") || mime == "utf8_string" {
-				// Ignore texts.
-				baseStream.Close(ctx)
-				return
-			}
-
-			log.Println("got mime type", mime)
-
-			promptUpload(ctx, roomID, uploadingFile{
-				input:  baseStream,
-				reader: gioutil.Reader(ctx, stream),
-				mime:   mime,
-				name:   "clipboard",
-			})
-		})
-	})
+	uploader := uploader{ctx, ctrl, roomID}
+	tview.Connect("paste-clipboard", uploader.paste)
 
 	input := Input{
 		TextView: tview,
@@ -303,23 +265,25 @@ type messageEvent struct {
 	NewContent *event.RoomMessageEvent `json:"m.new_content,omitempty"`
 }
 
+func newRoomMessageEvent(client *gotktrix.Client, roomID matrix.RoomID) event.RoomMessageEvent {
+	return event.RoomMessageEvent{
+		RoomEventInfo: event.RoomEventInfo{
+			EventInfo: event.EventInfo{
+				Type: event.TypeRoomMessage,
+			},
+			RoomID:           roomID,
+			Sender:           client.UserID,
+			OriginServerTime: matrix.Timestamp(time.Now().UnixMilli()),
+		},
+	}
+}
+
 // put creates a message event from the input data. It might query the API for
 // the information that it needs.
 func (data inputData) put(client *gotktrix.Client) *messageEvent {
-	ev := messageEvent{
-		RoomMessageEvent: event.RoomMessageEvent{
-			RoomEventInfo: event.RoomEventInfo{
-				EventInfo: event.EventInfo{
-					Type: event.TypeRoomMessage,
-				},
-				RoomID:           data.roomID,
-				Sender:           client.UserID,
-				OriginServerTime: matrix.Timestamp(time.Now().UnixMilli()),
-			},
-			MessageType: event.RoomMessageText,
-			RelatesTo:   data.relatesTo(),
-		},
-	}
+	ev := messageEvent{RoomMessageEvent: newRoomMessageEvent(client, data.roomID)}
+	ev.MessageType = event.RoomMessageText
+	ev.RelatesTo = data.relatesTo()
 
 	var html strings.Builder
 	var plain strings.Builder

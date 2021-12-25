@@ -8,7 +8,8 @@ require (
 	github.com/blevesearch/bleve/v2 v2.1.0
 	github.com/chanbakjsd/gotrix v0.3.2-0.20211223112718-05e09553d624
 	github.com/diamondburned/adaptive v0.0.2-0.20211210081242-eb0212efa77c
-	github.com/diamondburned/gotk4/pkg v0.0.0-20211222083426-92dccf66e5a4
+	github.com/diamondburned/gotk4/pkg v0.0.0-20211225201118-1a4abea213f1
+	github.com/dustin/go-humanize v1.0.0
 	github.com/enescakir/emoji v1.0.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/pkg/errors v0.9.1
@@ -41,7 +42,6 @@ require (
 	github.com/danieljoos/wincred v1.1.0 // indirect
 	github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fatih/color v1.10.0 // indirect
 	github.com/godbus/dbus/v5 v5.0.3 // indirect
 	github.com/golang/protobuf v1.3.2 // indirect

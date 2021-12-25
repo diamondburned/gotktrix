@@ -55,6 +55,12 @@ func (v messageViewer) client() *gotktrix.Client {
 	return gotktrix.FromContext(v)
 }
 
+// TODO: API improvements:
+//  - have a single NewMessage that uses a global setting in the future
+//  - give NewMessage a message mark
+//  - have MessageViewer.BeforeMessage take a mark to grab the previous message,
+//    if needed
+
 // NewCozyMessage creates a new cozy or collapsed message.
 func NewCozyMessage(ctx context.Context, view MessageViewer, ev event.RoomEvent, before Message) Message {
 	viewer := messageViewer{

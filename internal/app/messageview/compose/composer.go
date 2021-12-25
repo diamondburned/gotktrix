@@ -20,7 +20,8 @@ type Composer struct {
 	input   *Input
 	send    *gtk.Button
 
-	ctx context.Context
+	upload uploader
+	ctx    context.Context
 }
 
 // Controller describes the parent component that the Composer controls.
@@ -32,6 +33,12 @@ type Controller interface {
 	// AddSendingMessage adds the given RawEvent as a sending message and
 	// returns a mark that is given to BindSendingMessage.
 	AddSendingMessage(ev event.RoomEvent) (mark interface{})
+	// AddSendingMessageCustom adds the given RawEvent as a sending message and
+	// the given widget as the widget body, returning a mark that is given to
+	// BindSendingMessage.
+	AddSendingMessageCustom(ev event.RoomEvent, w gtk.Widgetter) (mark interface{})
+	// StopSendingMessage stops sending the message with the given mark.
+	StopSendingMessage(mark interface{}) bool
 	// BindSendingMessage takes in the mark value returned by AddSendingMessage.
 	BindSendingMessage(mark interface{}, evID matrix.EventID) (replaced bool)
 }
@@ -115,10 +122,15 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 		iscroll: iscroll,
 		send:    send,
 		ctx:     ctx,
+		upload: uploader{
+			ctx:    ctx,
+			ctrl:   ctrl,
+			roomID: roomID,
+		},
 	}
 
 	gtkutil.BindActionMap(box, "composer", map[string]func(){
-		"upload-file":   func() { uploader(ctx, ctrl, roomID) },
+		"upload-file":   func() { c.upload.ask() },
 		"stop-replying": func() { ctrl.ReplyTo("") },
 		"stop-editing":  func() { ctrl.Edit("") },
 	})
