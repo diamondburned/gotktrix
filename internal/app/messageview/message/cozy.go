@@ -26,8 +26,8 @@ type cozyMessage struct {
 
 var _ = cssutil.WriteCSS(`
 	.message-cozy {
-		margin-top: 2px;
-		margin-bottom: 0;
+		padding-top:    4px;
+		padding-bottom: 2px;
 	}
 	.message-cozy > box {
 		margin-left: 10px;

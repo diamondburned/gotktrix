@@ -33,6 +33,11 @@ var messageCSS = cssutil.Applier("message-message", `
 	/* .message-collapsed */
 	/* .message-cozy */
 	/* .message-event */
+
+	.message-message {
+		margin: 0;
+		padding-right: 8px;
+	}
 `)
 
 // MessageViewer describes the parent that holds messages.
@@ -93,12 +98,6 @@ func lastIsAuthor(before Message, ev *event.RoomMessageEvent) bool {
 		return false
 	}
 }
-
-var _ = cssutil.WriteCSS(`
-	.message-message {
-		margin-right: 8px;
-	}
-`)
 
 // message is the base message type that other message types can compose upon.
 type message struct {

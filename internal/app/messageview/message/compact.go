@@ -19,8 +19,12 @@ const (
 )
 
 var compactCSS = cssutil.Applier("message-collapsed", `
+	.message-collapsed {
+		padding-top:    2px;
+		padding-bottom: 2px;
+	}
 	.message-collapsed .message-timestamp {
-		font-size:  .65em;
+		font-size:  0.65em;
 		min-height: 1.9em;
 	}
 	.message-collapsed:not(.message-collapsed-edited) .message-timestamp {
@@ -41,8 +45,8 @@ func (v messageViewer) collapsedMessage(ev *event.RoomMessageEvent) *collapsedMe
 	box.Append(msg.timestamp)
 	box.Append(msg.content)
 
-	box.AddCSSClass("message-collapsed")
 	messageCSS(box)
+	compactCSS(box)
 
 	bindParent(v, box, msg.content)
 

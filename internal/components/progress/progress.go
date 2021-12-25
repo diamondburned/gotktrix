@@ -81,5 +81,6 @@ func (b *Bar) Error(err error) {
 // Add is called, otherwise the state is invalid.
 func (b *Bar) SetLabelFunc(labelFn func(n, max int64) string) {
 	b.label = labelFn
+	b.SetText(labelFn(b.n, b.maxi))
 	b.SetShowText(labelFn != nil)
 }

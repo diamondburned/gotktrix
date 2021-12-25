@@ -33,6 +33,79 @@ import (
 	"github.com/pkg/errors"
 )
 
+// uploadingFile describes an active file reader.
+type uploadingFile struct {
+	io.ReadCloser
+	name string
+	mime string
+	size int64 // 0 if unknown, TODO
+}
+
+// newUploadingFile creates a new uploadingFile from the given gio.Filer, or nil
+// if there's an error.
+func newUploadingFile(ctx context.Context, file gio.Filer) (*uploadingFile, error) {
+	s, err := file.Read(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot read file")
+	}
+
+	var size int64
+
+	info, err := file.QueryInfo(ctx, gio.FILE_ATTRIBUTE_STANDARD_SIZE, 0)
+	if err == nil {
+		size = info.Size()
+	}
+
+	return &uploadingFile{
+		ReadCloser: gioutil.ReadCloser(
+			gioutil.Reader(ctx, s),
+			gioutil.InputCloser(ctx, s),
+		),
+		name: file.Basename(),
+		mime: mediautil.FileMIME(ctx, s),
+		size: size,
+	}, nil
+}
+
+// newUploadingInput creates a new uploadingFile from the given InputStream and
+// content type.
+func newUploadingInput(ctx context.Context, input gio.InputStreamer, typ string) (*uploadingFile, error) {
+	baseInput := gio.BaseInputStream(input)
+
+	mimeType, _, err := mime.ParseMediaType(typ)
+	if err != nil {
+		baseInput.Close(ctx)
+		return nil, errors.Wrapf(err, "clipboard contins invalid MIME type %q", typ)
+	}
+
+	// Add the file extension into the clipboard filename.
+	name := "clipboard"
+	if exts, _ := mime.ExtensionsByType(mimeType); len(exts) > 0 {
+		name += exts[0]
+	}
+
+	var size int64
+
+	// Query the size if the input is a file input. This actually never hits,
+	// but maybe one day we'll make it work.
+	if file, ok := input.(*gio.FileInputStream); ok {
+		info, err := file.QueryInfo(ctx, gio.FILE_ATTRIBUTE_STANDARD_SIZE)
+		if err == nil {
+			size = info.Size()
+		}
+	}
+
+	return &uploadingFile{
+		ReadCloser: gioutil.ReadCloser(
+			gioutil.Reader(ctx, input),
+			gioutil.InputCloser(ctx, input),
+		),
+		name: name,
+		mime: mimeType,
+		size: size,
+	}, nil
+}
+
 type uploadProgress struct {
 	*progress.Bar
 }
@@ -59,8 +132,6 @@ func newUploadProgress(name string) *uploadProgress {
 // use sets the information from uploadingFile into the uploadProgress bar. A
 // new uploadingFile is returned that wraps the file.
 func (p *uploadProgress) use(r *uploadingFile) {
-	p.SetText(r.name)
-
 	if r.size > 0 {
 		p.Bar.SetMax(r.size)
 		p.Bar.SetLabelFunc(func(n, max int64) string {
@@ -72,6 +143,8 @@ func (p *uploadProgress) use(r *uploadingFile) {
 				humanize.Bytes(uint64(max)),
 			)
 		})
+	} else {
+		p.SetText(r.name)
 	}
 
 	// Wrap the reader.
@@ -84,59 +157,6 @@ func (p *uploadProgress) use(r *uploadingFile) {
 type fileUpload struct {
 	name string
 	file func(context.Context) (*uploadingFile, error)
-}
-
-// uploadingFile describes an active file reader.
-type uploadingFile struct {
-	io.ReadCloser
-	name string
-	mime string
-	size int64 // 0 if unknown, TODO
-}
-
-// newUploadingFile creates a new uploadingFile from the given gio.Filer, or nil
-// if there's an error.
-func newUploadingFile(ctx context.Context, file gio.Filer) (*uploadingFile, error) {
-	s, err := file.Read(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot read file")
-	}
-
-	return &uploadingFile{
-		ReadCloser: gioutil.ReadCloser(
-			gioutil.Reader(ctx, s),
-			gioutil.InputCloser(ctx, s),
-		),
-		name: file.Basename(),
-		mime: mediautil.FileMIME(ctx, s),
-	}, nil
-}
-
-// newUploadingInput creates a new uploadingFile from the given InputStream and
-// content type.
-func newUploadingInput(ctx context.Context, input gio.InputStreamer, typ string) (*uploadingFile, error) {
-	baseInput := gio.BaseInputStream(input)
-
-	mimeType, _, err := mime.ParseMediaType(typ)
-	if err != nil {
-		baseInput.Close(ctx)
-		return nil, errors.Wrapf(err, "clipboard contins invalid MIME type %q", typ)
-	}
-
-	// Add the file extension into the clipboard filename.
-	name := "clipboard"
-	if exts, _ := mime.ExtensionsByType(mimeType); len(exts) > 0 {
-		name += exts[0]
-	}
-
-	return &uploadingFile{
-		ReadCloser: gioutil.ReadCloser(
-			gioutil.Reader(ctx, input),
-			gioutil.InputCloser(ctx, input),
-		),
-		name: name,
-		mime: mimeType,
-	}, nil
 }
 
 type uploader struct {
@@ -181,20 +201,19 @@ func (u *uploader) paste() {
 	display := gdk.DisplayGetDefault()
 
 	clipboard := display.Clipboard()
-	clipboard.ReadAsync(u.ctx, clipboard.Formats().MIMETypes(), 0, func(res gio.AsyncResulter) {
+	mimeTypes := clipboard.Formats().MIMETypes()
+
+	// Ignore anything text.
+	for _, mime := range mimeTypes {
+		if mimeIsText(mime) {
+			return
+		}
+	}
+
+	clipboard.ReadAsync(u.ctx, mimeTypes, 0, func(res gio.AsyncResulter) {
 		typ, stream, err := clipboard.ReadFinish(res)
 		if err != nil {
 			app.Error(u.ctx, errors.Wrap(err, "failed to read clipboard"))
-			return
-		}
-
-		log.Println("clipboard type =", typ)
-
-		baseStream := gio.BaseInputStream(stream)
-
-		// How is utf8_string a valid MIME type? GTK, what the fuck?
-		if strings.HasPrefix(typ, "text") || typ == "utf8_string" {
-			baseStream.Close(u.ctx)
 			return
 		}
 
@@ -205,6 +224,11 @@ func (u *uploader) paste() {
 			},
 		})
 	})
+}
+
+func mimeIsText(mime string) bool {
+	// How is utf8_string a valid MIME type? GTK, what the fuck?
+	return strings.HasPrefix(mime, "text") || mime == "utf8_string"
 }
 
 func (u *uploader) promptUpload(file fileUpload) {

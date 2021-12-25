@@ -26,9 +26,8 @@ type eventMessage struct {
 
 var _ = cssutil.WriteCSS(`
 	.message-event {
-		font-size:    .9em;
-		margin-right: 10px;
 		color: alpha(@theme_fg_color, 0.8);
+		font-size: 0.9em;
 	}
 `)
 

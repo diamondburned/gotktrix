@@ -142,7 +142,7 @@ var msgListCSS = cssutil.Applier("messageview-msglist", `
 		margin-bottom: .8em; /* for the extraRevealer */
 	}
 	.messageview-msglist > row {
-		border-right: 2px solid transparent;
+		padding: 0;
 		transition: linear 150ms background-color;
 		background: none;
 		background-image: none;
