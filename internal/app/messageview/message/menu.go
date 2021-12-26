@@ -16,6 +16,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/md/hl"
 	"github.com/pkg/errors"
 )
@@ -29,36 +30,34 @@ func bindParent(
 		ev:  v.event,
 	}
 
+	roomEv := v.event.RoomInfo()
+
 	actions := map[string]func(){
-		"show-source": func() {
-			showMsgSource(v.Context, v.event)
-		},
-		"reply": func() {
-			v.MessageViewer.ReplyTo(v.event.RoomInfo().ID)
-		},
-		"react": func() {
-			showReactEmoji(&reactor, parent)
-		},
-		"react-text": func() {
-			showReactEntry(&reactor, parent)
-		},
+		"show-source": func() { showMsgSource(v.Context, v.event) },
+		"reply":       func() { v.MessageViewer.ReplyTo(roomEv.ID) },
+		"react":       func() { reactor.showEmoji(parent) },
+		"react-text":  func() { reactor.showEntry(parent) },
 	}
 
-	uID, _ := v.client().Whoami()
-	canEdit := uID == v.event.RoomInfo().Sender
+	client := v.client()
 
-	if canEdit {
-		actions["edit"] = func() {
-			v.MessageViewer.Edit(v.event.RoomInfo().ID)
-		}
+	isSelf := client.UserID == roomEv.Sender
+	if isSelf {
+		actions["edit"] = func() { v.MessageViewer.Edit(roomEv.ID) }
+	}
+
+	canRedact := isSelf || client.HasPower(roomEv.RoomID, gotktrix.RedactAction)
+	if canRedact {
+		actions["delete"] = func() { redactMessage(v) }
 	}
 
 	menuItems := []gtkutil.PopoverMenuItem{
-		gtkutil.MenuItem("_Edit", "message.edit", canEdit),
-		gtkutil.MenuItem("_Reply", "message.reply"),
-		gtkutil.MenuItem("Add Rea_ction", "message.react"),
-		gtkutil.MenuItem("Add Reaction with _Text", "message.react-text"),
-		gtkutil.MenuItem("Show _Source", "message.show-source"),
+		gtkutil.MenuItem(locale.S(v, "_Edit"), "message.edit", isSelf),
+		gtkutil.MenuItem(locale.S(v, "_Delete"), "message.delete", canRedact),
+		gtkutil.MenuItem(locale.S(v, "_Reply"), "message.reply"),
+		gtkutil.MenuItem(locale.S(v, "Add Rea_ction"), "message.react"),
+		gtkutil.MenuItem(locale.S(v, "Add Reaction with _Text"), "message.react-text"),
+		gtkutil.MenuItem(locale.S(v, "Show _Source"), "message.show-source"),
 	}
 
 	gtkutil.BindActionMap(parent, "message", actions)
@@ -85,13 +84,27 @@ func bindExtraMenu(m extraMenuSetter, items []gtkutil.PopoverMenuItem) {
 	m.SetExtraMenu(gtkutil.CustomMenu(items))
 }
 
+func redactMessage(v messageViewer) {
+	client := v.client()
+	roomEv := v.event.RoomInfo()
+
+	if err := client.Redact(roomEv.RoomID, roomEv.ID, ""); err != nil {
+		app.Error(v, errors.Wrap(err, "cannot delete message"))
+	}
+}
+
 var reactCSS = cssutil.Applier("message-react", `
 	entry.message-react {
 		margin: 6px;
 	}
 `)
 
-func showReactEmoji(r *reactor, parent gtk.Widgetter) *gtk.EmojiChooser {
+type reactor struct {
+	ctx context.Context
+	ev  event.RoomEvent
+}
+
+func (r *reactor) showEmoji(parent gtk.Widgetter) *gtk.EmojiChooser {
 	picker := gtk.NewEmojiChooser()
 	picker.SetParent(parent)
 	picker.SetPosition(gtk.PosBottom)
@@ -105,7 +118,7 @@ func showReactEmoji(r *reactor, parent gtk.Widgetter) *gtk.EmojiChooser {
 	return picker
 }
 
-func showReactEntry(r *reactor, parent gtk.Widgetter) *gtk.Entry {
+func (r *reactor) showEntry(parent gtk.Widgetter) *gtk.Entry {
 	entry := gtk.NewEntry()
 	entry.SetHExpand(true)
 	entry.SetVAlign(gtk.AlignCenter)
@@ -138,11 +151,6 @@ func showReactEntry(r *reactor, parent gtk.Widgetter) *gtk.Entry {
 	entry.Connect("activate", submit)
 
 	return entry
-}
-
-type reactor struct {
-	ctx context.Context
-	ev  event.RoomEvent
 }
 
 func (r *reactor) react(text string) {

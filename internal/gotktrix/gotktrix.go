@@ -996,6 +996,78 @@ func (c *Client) Redact(roomID matrix.RoomID, ev matrix.EventID, reason string) 
 	return err
 }
 
+// PowerAction describes 1 out of the 4 actions in a PowerLevels event.
+type PowerAction uint8
+
+const (
+	_ PowerAction = iota
+	BanAction
+	InviteAction
+	KickAction
+	RedactAction
+)
+
+// HasPower checks if the current user can perform the given action inside the
+// given room.
+func (c *Client) HasPower(roomID matrix.RoomID, action PowerAction) bool {
+	e, err := c.RoomState(roomID, event.TypeRoomPowerLevels, "")
+	if err != nil {
+		// Theoretically, this means we have the power to override the room's
+		// power levels to be whatever we want, but we'll play nice and pretend
+		// that we don't have the power to do that, because that's just stupid.
+		return false
+	}
+
+	ev := e.(*event.RoomPowerLevelsEvent)
+
+	powerLevel := 50
+
+	switch action {
+	case BanAction:
+		if ev.BanRequirement != nil {
+			powerLevel = *ev.BanRequirement
+		}
+	case InviteAction:
+		if ev.InviteRequirement != nil {
+			powerLevel = *ev.InviteRequirement
+		}
+	case KickAction:
+		if ev.KickRequirement != nil {
+			powerLevel = *ev.KickRequirement
+		}
+	case RedactAction:
+		if ev.RedactRequirement != nil {
+			powerLevel = *ev.RedactRequirement
+		}
+	}
+
+	ourLevel := ev.UserDefault
+	if level, ok := ev.UserLevel[c.UserID]; ok {
+		ourLevel = level
+	}
+
+	if ourLevel >= powerLevel {
+		return true
+	}
+
+	if c.IsRoomCreator(roomID) {
+		// User made this room, so they have full power.
+		return true
+	}
+
+	return false
+}
+
+// IsRoomCreator returns true if the current user is the user who made this
+// room.
+func (c *Client) IsRoomCreator(roomID matrix.RoomID) bool {
+	e, err := c.RoomState(roomID, event.TypeRoomCreate, "")
+	if err != nil {
+		return false
+	}
+	return e.(*event.RoomCreateEvent).Creator == c.UserID
+}
+
 // MemberName describes a member name.
 type MemberName struct {
 	Name      string

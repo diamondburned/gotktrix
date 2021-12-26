@@ -31,7 +31,7 @@ List taken from the Features section of the
 - [x] Send formatted messages markdown
 - [x] Rich Text Editor for formatted messages
 - [x] Display formatted messages
-- [x] Redacting (display-only)
+- [x] Redacting
 - [x] Multiple Matrix Accounts
 - [ ] New user registration
 - [ ] VoIP (non-goal)
