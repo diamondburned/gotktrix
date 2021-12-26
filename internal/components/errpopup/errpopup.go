@@ -1,15 +1,19 @@
 package errpopup
 
 import (
+	"fmt"
+	"html"
+	"strings"
+
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
-var css = cssutil.Applier("errpopup", `
-	.errpopup label.error {
-		margin: .5em .75em;
+var dialogCSS = cssutil.Applier("errpopup", `
+	.errpopup .title,
+	.errpopup button {
+		color: @error_color;
 	}
 `)
 
@@ -25,11 +29,31 @@ func Show(parent *gtk.Window, errors []error, done func()) {
 }
 
 type dialogState struct {
-	next   *gtk.Button
+	parent *gtk.Window
+	dialog *gtk.MessageDialog
+	done   func()
+
 	errors []string
+	ix     int
 }
 
 var windows = make(map[*gtk.Window]*dialogState)
+
+func indentError(msg string) string {
+	parts := strings.Split(msg, ": ")
+
+	var builder strings.Builder
+	builder.WriteString(parts[0])
+
+	for i, part := range parts[1:] {
+		builder.WriteByte('\n')
+		builder.WriteString(strings.Repeat(" ", (i+1)*3))
+		builder.WriteString("- ")
+		builder.WriteString(html.EscapeString(part))
+	}
+
+	return builder.String()
+}
 
 func show(parent *gtk.Window, errors []error, done func()) {
 	if len(errors) == 0 {
@@ -39,76 +63,55 @@ func show(parent *gtk.Window, errors []error, done func()) {
 
 	errStrings := make([]string, len(errors))
 	for i := range errStrings {
-		errStrings[i] = markuputil.IndentError(errors[i].Error())
+		errStrings[i] = indentError(errors[i].Error())
 	}
 
 	state, ok := windows[parent]
 	if ok {
 		state.errors = append(state.errors, errStrings...)
-		state.next.SetLabel("Next")
+		// Chain this awful thing up.
+		prevDone := state.done
+		state.done = func() {
+			prevDone()
+			done()
+		}
 		return
 	}
 
-	dialog := gtk.NewDialog()
-	dialog.SetDefaultSize(400, 200)
-	dialog.SetTitle("Error")
-	dialog.SetTransientFor(parent)
-	dialog.SetModal(true)
-
-	errorStack := gtk.NewStack()
-	errorStack.SetVAlign(gtk.AlignStart)
-	errorStack.SetTransitionType(gtk.StackTransitionTypeSlideLeftRight)
-
-	scroll := gtk.NewScrolledWindow()
-	scroll.SetHExpand(true)
-	scroll.SetChild(errorStack)
-	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-
-	content := dialog.ContentArea()
-	content.SetVExpand(true)
-	content.Append(scroll)
-	css(content)
-
-	nextButton := dialog.AddButton("Next", int(gtk.ResponseOK)).(*gtk.Button)
-	dialog.SetDefaultWidget(nextButton)
+	dialog := gtk.NewMessageDialog(
+		parent,
+		gtk.DialogModal|gtk.DialogDestroyWithParent|gtk.DialogUseHeaderBar,
+		gtk.MessageError, gtk.ButtonsOK)
+	dialog.SetObjectProperty("secondary-use-markup", true)
+	dialogCSS(dialog)
 
 	state = &dialogState{
-		next:   nextButton,
+		parent: parent,
+		dialog: dialog,
+		done:   done,
 		errors: errStrings,
 	}
 
 	windows[parent] = state
 
-	var ix int
+	state.cycle()
+	dialog.Connect("response", state.cycle)
 
-	cycle := func() {
-		if ix == len(state.errors) {
-			dialog.Close()
-			done()
-
-			delete(windows, parent)
-			return
-		}
-
-		if ix == len(state.errors)-1 {
-			// Showing last one.
-			nextButton.SetLabel("OK")
-		}
-
-		// Set error.
-		label := markuputil.ErrorLabel(state.errors[ix])
-		errorStack.AddChild(label)
-		errorStack.SetVisibleChild(label)
-
-		// Scroll up.
-		vadj := scroll.VAdjustment()
-		vadj.SetValue(0)
-
-		ix++
-	}
-	// Show the first error.
-	cycle()
-
-	dialog.Connect("response", cycle)
 	dialog.Show()
+}
+
+func (s *dialogState) cycle() {
+	if s.ix == len(s.errors) {
+		s.dialog.Destroy()
+		s.done()
+		delete(windows, s.parent)
+		return
+	}
+
+	s.dialog.SetMarkup(fmt.Sprintf(
+		`Error <span size="xx-small">(%d/%d)</span>`,
+		s.ix+1, len(s.errors),
+	))
+	s.dialog.SetObjectProperty("secondary-text", s.errors[s.ix])
+	s.ix++
 }

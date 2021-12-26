@@ -45,23 +45,6 @@ func Error(msg string) string {
 	)
 }
 
-// IndentError formats a multiline error message.
-func IndentError(msg string) string {
-	parts := strings.Split(msg, ": ")
-
-	var builder strings.Builder
-	builder.WriteString(`<span color="#FF0033"><b>Error</b></span>:`)
-
-	for i, part := range parts {
-		builder.WriteByte('\n')
-		builder.WriteString(strings.Repeat(" ", (i+1)*3))
-		builder.WriteString("- ")
-		builder.WriteString(html.EscapeString(part))
-	}
-
-	return builder.String()
-}
-
 var errorAttrs = Attrs(
 	pango.NewAttrInsertHyphens(false),
 )

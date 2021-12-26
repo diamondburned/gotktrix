@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"errors"
 	"os"
 	"os/signal"
 
@@ -152,6 +153,11 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 	w.SetTitle("gotktrix")
 
 	ctx = app.WithApplication(ctx, a)
+
+	app.Error(ctx,
+		errors.New("uh oh stinky: pee pee poo poo"),
+		errors.New("lol no"),
+	)
 
 	authAssistant := auth.Show(ctx)
 	authAssistant.OnConnect(func(client *gotktrix.Client, acc *auth.Account) {
