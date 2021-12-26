@@ -230,8 +230,6 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 
 	start := iter.Offset()
 
-	color := opts.hasher.Hash(string(uID))
-
 	buf := iter.Buffer()
 	buf.Insert(iter, name)
 
@@ -241,7 +239,7 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 
 	tag := tags.Lookup("_mauthor_" + string(uID))
 	if tag == nil {
-		color := RGBHex(color)
+		color := userColor(uID, opts)
 		attrs := markuputil.TextTag{
 			"foreground": color,
 		}
