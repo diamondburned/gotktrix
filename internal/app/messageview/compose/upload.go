@@ -166,7 +166,7 @@ type uploader struct {
 }
 
 // ask creates a new file chooser asking the user to pick files to be uploaded.
-func (u *uploader) ask() {
+func (u uploader) ask() {
 	// TODO: allow selecting multiple files
 	chooser := gtk.NewFileChooserNative(
 		"Upload File",
@@ -197,7 +197,7 @@ func (u *uploader) ask() {
 
 // paste pastes the content inside the clipboard. It ignores texts, since texts
 // should be pasted into the composer instead.
-func (u *uploader) paste() {
+func (u uploader) paste() {
 	display := gdk.DisplayGetDefault()
 
 	clipboard := display.Clipboard()
@@ -231,7 +231,7 @@ func mimeIsText(mime string) bool {
 	return strings.HasPrefix(mime, "text") || mime == "utf8_string"
 }
 
-func (u *uploader) promptUpload(file fileUpload) {
+func (u uploader) promptUpload(file fileUpload) {
 	bin := adaptive.NewBin()
 	bin.SetHAlign(gtk.AlignCenter)
 	bin.SetVAlign(gtk.AlignCenter)
@@ -352,7 +352,7 @@ func (u *uploader) promptUpload(file fileUpload) {
 	d.Show()
 }
 
-func (u *uploader) upload(file fileUpload) {
+func (u uploader) upload(file fileUpload) {
 	bar := newUploadProgress(file.name)
 
 	ev := newRoomMessageEvent(gotktrix.FromContext(u.ctx), u.roomID)
@@ -375,7 +375,7 @@ func (u *uploader) upload(file fileUpload) {
 	}()
 }
 
-func (u *uploader) uploadKnown(upload *uploadingFile) {
+func (u uploader) uploadKnown(upload *uploadingFile) {
 	bar := newUploadProgress(upload.name)
 	bar.use(upload)
 
@@ -386,7 +386,7 @@ func (u *uploader) uploadKnown(upload *uploadingFile) {
 	u.finishUpload(mark, upload, bar)
 }
 
-func (u *uploader) finishUpload(mark interface{}, upload *uploadingFile, bar *uploadProgress) {
+func (u uploader) finishUpload(mark interface{}, upload *uploadingFile, bar *uploadProgress) {
 	go func() {
 		client := gotktrix.FromContext(u.ctx)
 		file := gotrix.File{

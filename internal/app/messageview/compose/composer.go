@@ -9,7 +9,6 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
@@ -20,8 +19,15 @@ type Composer struct {
 	input   *Input
 	send    *gtk.Button
 
-	upload uploader
 	ctx    context.Context
+	ctrl   Controller
+	roomID matrix.RoomID
+
+	action struct {
+		*gtk.Button
+		upload  ActionData
+		current func()
+	}
 }
 
 // Controller describes the parent component that the Composer controls.
@@ -65,7 +71,7 @@ var composerCSS = cssutil.Applier("composer", `
 		margin-right:  10px;
 		border-radius: 99px;
 	}
-	.composer-more {
+	.composer-action {
 		padding: 4px;
 		margin-top:   7px; /* why 7 */
 		margin-left:  14px;
@@ -85,79 +91,87 @@ var sendCSS = cssutil.Applier("composer-send", `
 
 // New creates a new Composer.
 func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
-	// TODO: turn this into a single action button. There's no point in having a
-	// menu that has only 1 working item.
-	more := gtk.NewButtonFromIconName("list-add-symbolic")
-	more.SetVAlign(gtk.AlignStart)
-	more.SetHasFrame(false)
-	more.SetTooltipText("More...")
-	more.AddCSSClass("composer-more")
-
-	input := NewInput(ctx, ctrl, roomID)
-	input.SetVScrollPolicy(gtk.ScrollNatural)
-
-	iscroll := gtk.NewScrolledWindow()
-	iscroll.AddCSSClass("composer-input-scroll")
-	iscroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	iscroll.SetPropagateNaturalHeight(true)
-	iscroll.SetMaxContentHeight(500)
-	iscroll.SetChild(input)
-
-	send := gtk.NewButtonFromIconName(sendIcon)
-	send.SetTooltipText("Send")
-	send.SetHasFrame(false)
-	send.Connect("clicked", func() { input.Send() })
-	sendCSS(send)
-
-	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	box.Append(more)
-	box.Append(iscroll)
-	box.Append(send)
-	box.SetFocusChild(iscroll)
-	composerCSS(box)
-
 	c := Composer{
-		Box:     box,
-		input:   input,
-		iscroll: iscroll,
-		send:    send,
-		ctx:     ctx,
-		upload: uploader{
-			ctx:    ctx,
-			ctrl:   ctrl,
-			roomID: roomID,
-		},
+		ctx:    ctx,
+		ctrl:   ctrl,
+		roomID: roomID,
 	}
 
-	gtkutil.BindActionMap(box, "composer", map[string]func(){
-		"upload-file":   func() { c.upload.ask() },
-		"stop-replying": func() { ctrl.ReplyTo("") },
-		"stop-editing":  func() { ctrl.Edit("") },
-	})
+	// TODO: turn this into a single action button. There's no point in having a
+	// menu that has only 1 working item.
+	c.action.Button = gtk.NewButton()
+	c.action.SetVAlign(gtk.AlignStart)
+	c.action.SetHasFrame(false)
+	c.action.AddCSSClass("composer-action")
 
-	more.Connect("clicked", func() {
-		items := make([]gtkutil.PopoverMenuItem, 0, 3)
-		items = append(items,
-			gtkutil.MenuItemIcon("Upload File", "composer.upload-file", "mail-attachment-symbolic"))
+	c.input = NewInput(ctx, ctrl, roomID)
+	c.input.SetVScrollPolicy(gtk.ScrollNatural)
 
-		if c.input.replyingTo != "" {
-			items = append(items,
-				gtkutil.MenuItem("Stop Replying", "composer.stop-replying"))
-		}
-		if c.input.editing != "" {
-			items = append(items,
-				gtkutil.MenuItem("Stop Editing", "composer.stop-editing"))
-		}
+	c.iscroll = gtk.NewScrolledWindow()
+	c.iscroll.AddCSSClass("composer-input-scroll")
+	c.iscroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	c.iscroll.SetPropagateNaturalHeight(true)
+	c.iscroll.SetMaxContentHeight(500)
+	c.iscroll.SetChild(c.input)
 
-		gtkutil.ShowPopoverMenuCustom(more, gtk.PosTop, items)
-	})
+	c.send = gtk.NewButtonFromIconName(sendIcon)
+	c.send.SetTooltipText("Send")
+	c.send.SetHasFrame(false)
+	c.send.Connect("clicked", func() { c.input.Send() })
+	sendCSS(c.send)
+
+	c.Box = gtk.NewBox(gtk.OrientationHorizontal, 0)
+	c.Append(c.action)
+	c.Append(c.iscroll)
+	c.Append(c.send)
+	c.SetFocusChild(c.iscroll)
+	composerCSS(c.Box)
+
+	// gtkutil.BindActionMap(box, "composer", map[string]func(){
+	// 	"upload-file":   func() { c.upload.ask() },
+	// 	"stop-replying": func() { ctrl.ReplyTo("") },
+	// 	"stop-editing":  func() { ctrl.Edit("") },
+	// })
+
+	c.action.upload = ActionData{
+		Name: "Upload File",
+		Icon: "list-add-symbolic",
+		Func: func() { c.uploader().ask() },
+	}
+
+	c.action.Connect("clicked", func() { c.action.current() })
+	c.setAction(c.action.upload)
 
 	return &c
+}
+
+func (c *Composer) uploader() uploader {
+	return uploader{
+		ctx:    c.ctx,
+		ctrl:   c.ctrl,
+		roomID: c.roomID,
+	}
 }
 
 // Input returns the composer's input.
 func (c *Composer) Input() *Input {
 	return c.input
+}
+
+// ActionData is the data that the action button in the composer bar is
+// currently doing.
+type ActionData struct {
+	Icon string
+	Name string
+	Func func()
+}
+
+// setAction sets the action of the button in the composer.
+func (c *Composer) setAction(action ActionData) {
+	c.action.SetSensitive(action.Func != nil)
+	c.action.SetIconName(action.Icon)
+	c.action.SetTooltipText(action.Name)
+	c.action.current = action.Func
 }
 
 // Edit switches the composer to edit mode and grabs an older message's body. If
@@ -174,26 +188,28 @@ func (c *Composer) Edit(eventID matrix.EventID) {
 	if c.input.editing == "" {
 		c.send.SetIconName(sendIcon)
 		c.input.SetText("")
+		c.setAction(c.action.upload)
 		return
 	}
-
-	c.send.SetIconName(editIcon)
 
 	client := gotktrix.FromContext(c.ctx).Offline()
 	revent := roomTimelineEvent(client, c.input.roomID, eventID)
 	if revent == nil {
+		c.input.editing = ""
 		return
 	}
+
+	c.setAction(ActionData{
+		Name: "Stop Editing",
+		Icon: "edit-clear-all-symbolic",
+		Func: func() { c.ctrl.Edit("") },
+	})
+
+	c.send.SetIconName(editIcon)
 
 	msg, ok := revent.(*event.RoomMessageEvent)
 	if ok {
 		c.input.SetText(msg.Body)
-		// switch msg.Format {
-		// case event.FormatHTML:
-		// 	c.input.SetText(msg.FormattedBody)
-		// default:
-		// 	c.input.SetText(msg.Body)
-		// }
 	}
 }
 
@@ -220,6 +236,12 @@ func (c *Composer) ReplyTo(eventID matrix.EventID) {
 		c.send.SetIconName(sendIcon)
 		return
 	}
+
+	c.setAction(ActionData{
+		Name: "Stop Replying",
+		Icon: "edit-clear-all-symbolic",
+		Func: func() { c.ctrl.ReplyTo("") },
+	})
 
 	c.send.SetIconName(replyIcon)
 }
