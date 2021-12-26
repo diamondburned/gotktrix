@@ -187,12 +187,13 @@ func (c *Composer) Edit(eventID matrix.EventID) {
 
 	msg, ok := revent.(*event.RoomMessageEvent)
 	if ok {
-		switch msg.Format {
-		case event.FormatHTML:
-			c.input.SetText(msg.FormattedBody)
-		default:
-			c.input.SetText(msg.Body)
-		}
+		c.input.SetText(msg.Body)
+		// switch msg.Format {
+		// case event.FormatHTML:
+		// 	c.input.SetText(msg.FormattedBody)
+		// default:
+		// 	c.input.SetText(msg.Body)
+		// }
 	}
 }
 
