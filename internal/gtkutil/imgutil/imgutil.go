@@ -13,6 +13,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/pkg/errors"
 )
 
@@ -55,10 +56,6 @@ func processOpts(optFuncs []Opts) opts {
 // This function only works with AsyncRead and AsyncGET. Using this elsewhere
 // will result in a panic.
 func WithFallbackIcon(name string) Opts {
-	if name == "" {
-		name = "dialog-error"
-	}
-
 	return func(o *opts) {
 		o.err = func(error) {
 			fn, ok := o.setFn.(func(gdk.Paintabler))
@@ -66,29 +63,38 @@ func WithFallbackIcon(name string) Opts {
 				return
 			}
 
-			theme := gtk.IconThemeGetForDisplay(gdk.DisplayGetDefault())
-			if theme == nil {
-				log.Println("imgutil: cannot get IconTheme on imgutil error")
-				return
+			w, h := 24, 24
+			if o.sizer.w != 0 {
+				w = o.sizer.w
 			}
-
-			size := 16
 			if o.sizer.h != 0 {
-				size = o.sizer.h
-			}
-			if o.sizer.w != 0 && o.sizer.w < o.sizer.h {
-				size = o.sizer.w
+				h = o.sizer.h
 			}
 
-			icon := theme.LookupIcon(name, nil, size, 1, gtk.TextDirLTR, 0)
-			if icon == nil {
-				log.Println("imgutil: fallback icon not found")
-				return
-			}
-
+			icon := IconPaintable(name, w, h)
 			fn(icon)
 		}
 	}
+}
+
+// IconPaintable gets the icon with the given name and returns the size. Nil is
+// never returned.
+func IconPaintable(name string, w, h int) gdk.Paintabler {
+	if name == "" {
+		name = "image-missing"
+	}
+
+	size := w
+	if h < w {
+		size = h
+	}
+
+	theme := gtk.IconThemeGetForDisplay(gdk.DisplayGetDefault())
+	if theme == nil {
+		panic("imgutil: cannot get IconTheme for default display")
+	}
+
+	return theme.LookupIcon(name, nil, size, gtkutil.ScaleFactor(), gtk.TextDirLTR, 0)
 }
 
 // WithErrorFn adds a callback that is called on an error.
@@ -176,7 +182,7 @@ func AsyncGET(ctx context.Context, url string, f func(gdk.Paintabler), opts ...O
 	do(ctx, &o, true, func() (func(), error) {
 		p, err := get(ctx, url, &o)
 		if err != nil {
-			return nil, errors.Wrap(err, "async GET error")
+			return nil, err
 		}
 
 		return func() { f(p) }, nil
@@ -195,7 +201,7 @@ func GET(ctx context.Context, url string, f func(gdk.Paintabler), opts ...Opts) 
 	do(ctx, &o, false, func() (func(), error) {
 		p, err := get(ctx, url, &o)
 		if err != nil {
-			return nil, errors.Wrap(err, "async GET error")
+			return nil, err
 		}
 
 		return func() { f(p) }, nil
@@ -222,7 +228,7 @@ func AsyncPixbuf(ctx context.Context, url string, f func(*gdkpixbuf.Pixbuf), opt
 	do(ctx, &o, true, func() (func(), error) {
 		p, err := getPixbuf(ctx, url, &o)
 		if err != nil {
-			return nil, errors.Wrap(err, "async GET error")
+			return nil, err
 		}
 
 		return func() { f(p) }, nil

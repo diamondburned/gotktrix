@@ -139,6 +139,7 @@ func addTextEmbed(ctx context.Context, box *gtk.Box, m *api.URLMetadata) {
 
 		if imageURL != "" {
 			img := newImageEmbed("", embedImageWidth, embedImageHeight)
+			img.canHide = true
 			img.AddCSSClass("mcontent-embed-thumbnail")
 			img.SetHAlign(gtk.AlignEnd)
 			img.useURL(ctx, imageURL)

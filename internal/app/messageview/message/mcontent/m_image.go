@@ -3,6 +3,7 @@ package mcontent
 import (
 	"context"
 	"encoding/json"
+	"html"
 	"image"
 	"log"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -51,11 +53,16 @@ var imageCSS = cssutil.Applier("mcontent-image", `
 	.mcontent-image:hover > * {
 		filter: contrast(80%) brightness(80%);
 	}
+	.mcontent-image-errorlabel {
+		color: @error_color;
+		padding: 4px;
+	}
 `)
 
 func newImageContent(ctx context.Context, msg *event.RoomMessageEvent) *imageContent {
 	embed := newImageEmbed(msg.Body, maxWidth, maxHeight)
 	embed.AddCSSClass("mcontent-image-content")
+	embed.whole = true
 	embed.setOpenURL(func() {
 		u, err := gotktrix.FromContext(ctx).MessageMediaURL(msg)
 		if err != nil {
@@ -99,12 +106,20 @@ type imageEmbed struct {
 	*gtk.Button
 	image   *gtk.Picture
 	openURL func()
+	name    string
 	curSize [2]int
 	maxSize [2]int
+	// whole, if true, will make errors show in its full information instead of
+	// being hidden behind an error icon. Use this for messages only.
+	whole bool
+	// canHide, if true, will make the image hide itself on error. Use this for
+	// anything not important, like embeds.
+	canHide bool
 }
 
 func newImageEmbed(name string, maxW, maxH int) *imageEmbed {
 	e := &imageEmbed{
+		name:    name,
 		maxSize: [2]int{maxW, maxH},
 	}
 
@@ -128,13 +143,58 @@ func newImageEmbed(name string, maxW, maxH int) *imageEmbed {
 }
 
 func (e *imageEmbed) useURL(ctx context.Context, url string) {
+	// Only load the image when we actually draw the image.
 	gtkutil.OnFirstDraw(e, func() {
-		// Only load the image when we actually draw the image.
-		imgutil.AsyncGET(ctx, url, func(p gdk.Paintabler) {
-			e.setSize(p.IntrinsicWidth(), p.IntrinsicHeight())
-			e.image.SetPaintable(p)
-		})
+		imgutil.AsyncGET(ctx, url, e.setPaintable, imgutil.WithErrorFn(e.onError))
 	})
+}
+
+func (e *imageEmbed) setPaintable(p gdk.Paintabler) {
+	e.setSize(p.IntrinsicWidth(), p.IntrinsicHeight())
+	e.image.SetPaintable(p)
+
+	// undo effects
+
+	if e.canHide {
+		e.Show()
+	}
+	if e.whole {
+		e.Button.SetChild(e.image)
+	}
+}
+
+func (e *imageEmbed) onError(err error) {
+	if e.canHide {
+		e.Hide()
+		return
+	}
+
+	if e.whole {
+		// Mild annoyance: the padding of this label actually grows the image a
+		// bit. Not sure how to fix it.
+		errLabel := gtk.NewLabel("Error fetching image: " + html.EscapeString(err.Error()))
+		errLabel.AddCSSClass("mcontent-image-errorlabel")
+		errLabel.SetEllipsize(pango.EllipsizeEnd)
+		errLabel.SetWrap(true)
+		errLabel.SetWrapMode(pango.WrapWordChar)
+		errLabel.SetLines(2)
+		e.Button.SetChild(errLabel)
+	} else {
+		size := e.curSize
+		if size == [2]int{} {
+			// No size; pick the max size.
+			size = e.maxSize
+		}
+		iconMissing := imgutil.IconPaintable("image-missing", size[0], size[1])
+		e.image.SetPaintable(iconMissing)
+	}
+
+	var tooltip string
+	if e.name != "" {
+		tooltip += html.EscapeString(e.name) + "\n"
+	}
+	tooltip += "<b>Error:</b> " + html.EscapeString(err.Error())
+	e.Button.SetTooltipMarkup(tooltip)
 }
 
 func (e *imageEmbed) setOpenURL(f func()) {
@@ -145,9 +205,11 @@ func (e *imageEmbed) setOpenURL(f func()) {
 func (e *imageEmbed) setSize(w, h int) {
 	w, h = gotktrix.MaxSize(w, h, e.maxSize[0], e.maxSize[1])
 	e.curSize = [2]int{w, h}
-	e.image.SetSizeRequest(w, h)
+	e.SetSizeRequest(w, h)
 }
 
+// maxBlurhash is the maximum width and height for a blurhash-rendered image. It
+// doesn't have to be high resolution, since it's a blob of blur anyway.
 const maxBlurhash = 25
 
 func renderBlurhash(rawInfo json.RawMessage, w, h int, picFn func(*gdkpixbuf.Pixbuf)) {
