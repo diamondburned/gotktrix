@@ -2,6 +2,8 @@
 package title
 
 import (
+	"strings"
+
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -59,8 +61,16 @@ func (s *Subtitle) SetTitle(title string) {
 
 // SetSubtitle sets the subtitle. If subtitle is empty, then it's hidden.
 func (s *Subtitle) SetSubtitle(subtitle string) {
-	s.Subtitle.SetText(subtitle)
+	s.Subtitle.SetText(firstLine(subtitle))
+	s.Subtitle.SetTooltipText(subtitle)
 	s.Subtitle.SetVisible(subtitle != "")
+}
+
+func firstLine(lines string) string {
+	if lines == "" {
+		return ""
+	}
+	return strings.SplitN(lines, "\n", 2)[0]
 }
 
 // SetXAlign sets the X align of the subtitles.

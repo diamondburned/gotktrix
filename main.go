@@ -5,7 +5,6 @@ import (
 	"embed"
 	"os"
 	"os/signal"
-	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
@@ -349,16 +348,9 @@ func (m *manager) OpenRoom(id matrix.RoomID) {
 	page.OnTitle(func(string) {
 		app.SetTitle(m.ctx, page.RoomName())
 		m.header.rtext.SetTitle(page.RoomName())
-		m.header.rtext.SetSubtitle(firstLine(page.RoomTopic()))
+		m.header.rtext.SetSubtitle(page.RoomTopic())
 	})
 	m.SetSelectedRoom(id)
-}
-
-func firstLine(lines string) string {
-	if lines == "" {
-		return ""
-	}
-	return strings.SplitN(lines, "\n", 2)[0]
 }
 
 func (m *manager) SetSelectedRoom(id matrix.RoomID) {
