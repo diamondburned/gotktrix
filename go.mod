@@ -8,7 +8,7 @@ require (
 	github.com/blevesearch/bleve/v2 v2.1.0
 	github.com/chanbakjsd/gotrix v0.3.2-0.20211223112718-05e09553d624
 	github.com/diamondburned/adaptive v0.0.2-0.20211210081242-eb0212efa77c
-	github.com/diamondburned/gotk4/pkg v0.0.0-20211226061356-794b4a9790f7
+	github.com/diamondburned/gotk4/pkg v0.0.0-20211226220938-bab1b33bc595
 	github.com/dustin/go-humanize v1.0.0
 	github.com/enescakir/emoji v1.0.0
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
