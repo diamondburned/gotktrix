@@ -1,12 +1,7 @@
-{
-	pkgs ? import ./pkgs.nix {
-		# Use the fetched Nixpkgs for GTK 4.5.0. Not a strict requirement, but
-		# some bugs are fixed in that version.
-		useFetched = true;
-	}
-}:
-
 let src = import ./src.nix;
+
+	goPkgs = import ./pkgs.nix { useFetched = true; };
+	pkgs   = import ./pkgs.nix {};
 
 	shell = import "${src.gotk4}/.nix/shell.nix" {
 		inherit pkgs;
@@ -21,6 +16,12 @@ in shell.overrideAttrs (old: {
 		graphene
 		gdk-pixbuf
 		gobjectIntrospection
+	];
+
+	nativeBuildInputs = with pkgs; [
+		pkgconfig
+		# Always use patched Go, since it's much faster.
+		goPkgs.go
 	];
 
 	# Workaround for the lack of wrapGAppsHook:
