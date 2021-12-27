@@ -57,9 +57,9 @@ func NewWindow() *Window {
 		w.setBottomed(w.vadj.Value() >= (w.upperValue - w.vadj.PageSize()))
 		if w.bottomed {
 			w.lockedPos = false
-		}
-		for box := range w.onBottomed {
-			box.f(w.bottomed)
+			for box := range w.onBottomed {
+				box.f(w.bottomed)
+			}
 		}
 	})
 
@@ -92,6 +92,7 @@ func (w *Window) ScrollToBottom() {
 func (w *Window) setBottomed(bottomed bool) {
 	w.bottomed = bottomed
 	if bottomed {
+		w.bottom()
 		w.AddTickCallback(func(gtk.Widgetter, gdk.FrameClocker) bool {
 			w.bottom()
 			// True if we're not at the bottom, i.e. the value doesn't match up.

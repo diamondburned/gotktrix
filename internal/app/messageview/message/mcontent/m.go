@@ -6,7 +6,6 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/diamondburned/adaptive"
-	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -24,20 +23,6 @@ type editableContentPart interface {
 
 type loadableContentPart interface {
 	LoadMore()
-}
-
-func onDrawOnce(w gtk.Widgetter, f func()) {
-	widget := gtk.BaseWidget(w)
-	if widget.Mapped() {
-		f()
-		return
-	}
-
-	var signal glib.SignalHandle
-	signal = widget.Connect("map", func() {
-		f()
-		widget.HandlerDisconnect(signal)
-	})
 }
 
 // ---
