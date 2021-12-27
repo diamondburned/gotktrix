@@ -215,13 +215,13 @@ var cachedRoutes = map[string]map[string]string{
 func wrapClient(c *gotrix.Client) (*Client, error) {
 	logInit()
 
-	u, err := c.Whoami()
+	userID, _, err := c.Whoami()
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid user account")
 	}
 
 	// URLEncoding is path-safe; StdEncoding is not.
-	b64Username := base64.URLEncoding.EncodeToString([]byte(u))
+	b64Username := base64.URLEncoding.EncodeToString([]byte(userID))
 
 	httpErr := httptrick.WrapRoundTripWarner(&httpcache.Transport{
 		Transport: httptrick.TransportHeaderOverride{
@@ -236,7 +236,7 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 		Transport: httpErr,
 	}
 
-	s, err := state.New(config.Path("matrix-state", b64Username), u)
+	s, err := state.New(config.Path("matrix-state", b64Username), userID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make state db")
 	}
@@ -273,7 +273,7 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 		State:    s,
 		Index:    idx,
 		httpErr:  httpErr,
-		userID:   u,
+		userID:   userID,
 	}, nil
 }
 
