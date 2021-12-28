@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/md"
 )
 
@@ -35,16 +36,22 @@ type RenderWidget struct {
 	RenderMetadata
 }
 
+var plainTextCSS = cssutil.Applier("mcontent-plain-text", `
+	.mcontent-plain-text {
+		caret-color: transparent;
+	}
+`)
+
 // RenderText renders the given plain text.
 func RenderText(ctx context.Context, text string) RenderWidget {
 	text = strings.Trim(text, "\n")
 
 	body := gtk.NewLabel("")
-	body.AddCSSClass("mcontent-plain-text")
 	body.SetSelectable(true)
 	body.SetWrap(true)
 	body.SetWrapMode(pango.WrapWordChar)
 	body.SetXAlign(0)
+	plainTextCSS(body)
 
 	var meta RenderMetadata
 
