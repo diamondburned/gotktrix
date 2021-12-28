@@ -94,7 +94,7 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 		p := gtkutil.NewPopoverMenu(bar, gtk.PosTop, bar.menuItems)
 		// p.SetOffset(0, -4) // move it up a bit
 		p.SetHasArrow(false)
-		p.SetSizeRequest(230, -1)
+		p.SetSizeRequest(bar.AllocatedWidth()-20, -1)
 		p.ConnectClosed(func() { bar.ToggleButton.SetActive(false) })
 		gtkutil.PopupFinally(p)
 	})

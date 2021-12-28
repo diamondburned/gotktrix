@@ -99,9 +99,8 @@ type Section struct {
 
 	comparer Comparer
 
-	selected    *room.Room
-	tagName     string
-	showPreview bool
+	selected *room.Room
+	tagName  string
 }
 
 var placeholderAttrs = markuputil.Attrs(
@@ -144,15 +143,14 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	box.Append(rev)
 
 	s := Section{
-		Box:         box,
-		ctx:         ctx,
-		ctrl:        ctrl,
-		minify:      minify,
-		rooms:       make(map[matrix.RoomID]*room.Room),
-		hidden:      make(map[*room.Room]struct{}),
-		listBox:     list,
-		tagName:     name,
-		showPreview: true, // TODO config module
+		Box:     box,
+		ctx:     ctx,
+		ctrl:    ctrl,
+		minify:  minify,
+		rooms:   make(map[matrix.RoomID]*room.Room),
+		hidden:  make(map[*room.Room]struct{}),
+		listBox: list,
+		tagName: name,
 	}
 
 	gtkutil.BindActionMap(btn, "roomsection", map[string]func(){
@@ -161,11 +159,16 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	})
 
 	gtkutil.BindRightClick(btn, func() {
-		gtkutil.ShowPopoverMenuCustom(btn, gtk.PosBottom, []gtkutil.PopoverMenuItem{
-			gtkutil.MenuWidget("roomsection.change-sort", s.sortByBox()),
-			gtkutil.MenuSeparator(locale.S(ctx, "Appearance")),
-			gtkutil.MenuWidget("roomsection.show-preview", s.showPreviewBox()),
-		})
+		box := gtk.NewBox(gtk.OrientationVertical, 0)
+		box.Append(s.sortByBox())
+
+		popover := gtk.NewPopover()
+		popover.AddCSSClass("section-popover")
+		popover.SetSizeRequest(gtkutil.PopoverWidth, -1)
+		popover.SetPosition(gtk.PosBottom)
+		popover.SetParent(btn)
+		popover.SetChild(box)
+		gtkutil.PopupFinally(popover)
 	})
 
 	minify.SetFunc(func() (hidden int, shouldMinify bool) {
@@ -240,21 +243,6 @@ func (s *Section) Tag() matrix.TagName {
 	return s.comparer.Tag
 }
 
-func (s *Section) showPreviewBox() gtk.Widgetter {
-	printer := locale.FromContext(s.ctx)
-
-	check := gtk.NewCheckButtonWithLabel(printer.Sprint("Show Message Preview"))
-	check.Connect("toggled", func() {
-		s.showPreview = check.Active()
-		// Update all rooms individually. No magic here.
-		for _, room := range s.rooms {
-			room.SetShowMessagePreview(s.showPreview)
-		}
-	})
-
-	return check
-}
-
 func (s *Section) sortByBox() gtk.Widgetter {
 	header := gtk.NewLabel(locale.S(s.ctx, "Sort by"))
 	header.SetXAlign(0)
@@ -304,7 +292,7 @@ func (s *Section) MoveRoomToTag(src matrix.RoomID, tag matrix.TagName) bool {
 
 // SetSortMode sets the sorting mode for each room.
 func (s *Section) SetSortMode(mode SortMode) {
-	s.comparer = *NewComparer(gotktrix.FromContext(s.ctx).Offline(), mode, s.comparer.Tag)
+	s.comparer.Mode = mode
 	s.InvalidateSort()
 }
 
@@ -350,7 +338,6 @@ func (s *Section) Insert(room *room.Room) {
 		delete(s.rooms, room.ID)
 	}
 
-	room.SetShowMessagePreview(s.showPreview)
 	room.ListBoxRow.SetName(string(room.ID))
 	s.listBox.Insert(room.ListBoxRow, -1)
 

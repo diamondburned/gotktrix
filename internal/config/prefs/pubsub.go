@@ -4,14 +4,10 @@ import (
 	"sync"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type funcBox struct{ f func() }
-
-// Subscriber describes the Subscribe method of Pubsub.
-type Subscriber interface {
-	Subscribe(f func()) (rm func())
-}
 
 // Pubsub provides a simple publish-subscribe API. This instance is safe to use
 // concurrently.
@@ -27,6 +23,9 @@ func NewPubsub() *Pubsub {
 	}
 }
 
+// Pubsubber returns itself.
+func (p *Pubsub) Pubsubber() *Pubsub { return p }
+
 // Publish publishes changes to all subscribe routines.
 func (p *Pubsub) Publish() {
 	glib.IdleAddPriority(glib.PriorityHighIdle, func() {
@@ -39,18 +38,41 @@ func (p *Pubsub) Publish() {
 	})
 }
 
-// Subscribe subscribes the given callback to changes. If rm is called, then the
-// subscription is removed. The given callback will be called once in the
-// receiving goroutine to signal a change. It is guaranteed for the callback to
-// only be consistently called on that goroutine.
-func (p *Pubsub) Subscribe(f func()) (rm func()) {
+// SubscribeWidget subscribes the given widget and callback to changes. If rm is
+// called, then the subscription is removed. The given callback will be called
+// once in the receiving goroutine to signal a change. It is guaranteed for the
+// callback to only be consistently called on that goroutine.
+func (p *Pubsub) SubscribeWidget(widget gtk.Widgetter, f func()) {
+	var unsub func()
+	w := gtk.BaseWidget(widget)
+
+	w.ConnectMap(func() {
+		unsub = p.subscribe(f, true)
+	})
+	if w.Mapped() {
+		unsub = p.subscribe(f, true)
+	}
+
+	w.ConnectUnmap(func() {
+		if unsub != nil {
+			unsub()
+			unsub = nil
+		}
+	})
+}
+
+func (p *Pubsub) subscribe(f func(), mainThread bool) (rm func()) {
 	b := &funcBox{f}
 
 	p.mu.Lock()
 	p.funcs[b] = struct{}{}
 	p.mu.Unlock()
 
-	glib.IdleAddPriority(glib.PriorityHighIdle, f)
+	if mainThread {
+		f()
+	} else {
+		glib.IdleAddPriority(glib.PriorityHighIdle, f)
+	}
 
 	return func() {
 		p.mu.Lock()
@@ -65,15 +87,4 @@ func (p *Pubsub) Subscribe(f func()) (rm func()) {
 func (p *Pubsub) SubscribeInit(f func()) {
 	b := &funcBox{f}
 	p.funcs[b] = struct{}{}
-}
-
-// Connect binds f to the lifetime of the given object.
-func Connect(sub Subscriber, obj glib.Objector, f func()) {
-	var unsub func()
-	obj.Connect("map", func() {
-		unsub = sub.Subscribe(f)
-	})
-	obj.Connect("unmap", func() {
-		unsub()
-	})
 }

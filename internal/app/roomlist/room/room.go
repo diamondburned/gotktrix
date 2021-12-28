@@ -58,8 +58,6 @@ type Room struct {
 
 	ctx     gtkutil.Cancellable
 	section Section
-
-	showPreview bool
 }
 
 var rowCSS = cssutil.Applier("room-row", `
@@ -135,8 +133,14 @@ var roomEvents = []event.Type{
 
 var showMessagePreview = prefs.NewBool(true, prefs.PropMeta{
 	Name:        "Message Preview",
-	Section:     "Appearance",
+	Section:     "Rooms",
 	Description: "Show part of the latest message for each room.",
+})
+
+var showEventNum = prefs.NewBool(true, prefs.PropMeta{
+	Name:        "Count Events",
+	Section:     "Rooms",
+	Description: "Show the number of events leading up to a message in a room.",
 })
 
 // AddTo adds an empty room with the given ID to the given section Rooms created
@@ -267,6 +271,9 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	drag := gtkutil.NewDragSourceWithContent(r, gdk.ActionMove, string(roomID))
 	r.AddController(drag)
 
+	showEventNum.SubscribeWidget(r, func() { r.InvalidatePreview(r.ctx.Take()) })
+	showMessagePreview.SubscribeWidget(r, func() { r.InvalidatePreview(r.ctx.Take()) })
+
 	return &r
 }
 
@@ -370,13 +377,6 @@ func (r *Room) setLabel(text string) {
 	r.avatar.SetTooltipText(text)
 }
 
-// SetShowMessagePreview sets whether or not the room should show the message
-// preview.
-func (r *Room) SetShowMessagePreview(show bool) {
-	r.showPreview = show
-	r.InvalidatePreview(r.ctx.Take())
-}
-
 func (r *Room) erasePreview() {
 	r.preview.label.SetLabel("")
 	r.preview.extra.SetLabel("")
@@ -385,7 +385,7 @@ func (r *Room) erasePreview() {
 
 // InvalidatePreview invalidate the room's preview. It only queries the state.
 func (r *Room) InvalidatePreview(ctx context.Context) {
-	if !r.showPreview {
+	if !showMessagePreview.Value() {
 		r.erasePreview()
 		return
 	}
@@ -437,6 +437,7 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 			r.preview.label.SetTooltipMarkup(preview)
 			r.preview.Show()
 
+			r.preview.extra.SetVisible(showEventNum.Value())
 			if extra > 0 {
 				r.preview.extra.SetLabel(fmt.Sprintf("+%d events", extra))
 			} else {

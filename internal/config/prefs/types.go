@@ -2,10 +2,17 @@ package prefs
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"sync"
 	"sync/atomic"
+
+	"golang.org/x/text/message"
 )
+
+// ErrInvalidAnyType is returned by a preference property if it has the wrong
+// type.
+var ErrInvalidAnyType = errors.New("incorrect value type")
 
 // Bool is a preference property of type boolean.
 type Bool struct {
@@ -16,7 +23,7 @@ type Bool struct {
 
 // NewBool creates a new boolean with the given default value and properties.
 func NewBool(v bool, prop PropMeta) *Bool {
-	prop.validate()
+	validateMeta(prop)
 
 	b := &Bool{
 		Pubsub:   *NewPubsub(),
@@ -80,14 +87,26 @@ type Int struct {
 
 // IntMeta wraps PropMeta for Int.
 type IntMeta struct {
-	PropMeta
-	Min int
-	Max int
+	Name        message.Reference
+	Section     message.Reference
+	Description message.Reference
+	Min         int
+	Max         int
+	Slider      bool
+}
+
+// Meta returns the PropMeta for IntMeta. It implements Prop.
+func (m IntMeta) Meta() PropMeta {
+	return PropMeta{
+		Name:        m.Name,
+		Section:     m.Section,
+		Description: m.Description,
+	}
 }
 
 // NewInt creates a new int(32) with the given default value and properties.
 func NewInt(v int, meta IntMeta) *Int {
-	meta.validate()
+	validateMeta(meta.Meta())
 
 	b := &Int{
 		Pubsub:  *NewPubsub(),
@@ -122,6 +141,25 @@ func (i *Int) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// StringMeta is the metadata of a string.
+type StringMeta struct {
+	Name        message.Reference
+	Section     message.Reference
+	Description message.Reference
+	Placeholder message.Reference
+	Validate    func(string) error
+	Multiline   bool
+}
+
+// Meta returns the PropMeta for StringMeta. It implements Prop.
+func (m StringMeta) Meta() PropMeta {
+	return PropMeta{
+		Name:        m.Name,
+		Section:     m.Section,
+		Description: m.Description,
+	}
+}
+
 // String is a preference property of type string.
 type String struct {
 	Pubsub
@@ -130,15 +168,10 @@ type String struct {
 	mut sync.Mutex
 }
 
-// StringMeta is the metadata of a string.
-type StringMeta struct {
-	PropMeta
-	Placeholder string
-	Validate    func(string) error
-}
-
 // NewString creates a new String instance.
 func NewString(def string, prop StringMeta) *String {
+	validateMeta(prop.Meta())
+
 	l := &String{
 		Pubsub:     *NewPubsub(),
 		StringMeta: prop,

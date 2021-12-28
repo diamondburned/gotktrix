@@ -23,10 +23,13 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/selfbar"
 	"github.com/diamondburned/gotktrix/internal/components/title"
 	"github.com/diamondburned/gotktrix/internal/config"
+	"github.com/diamondburned/gotktrix/internal/config/prefs"
+	"github.com/diamondburned/gotktrix/internal/config/prefs/prefui"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/pkg/errors"
 	"golang.org/x/text/message"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
@@ -146,6 +149,21 @@ func main() {
 func activate(ctx context.Context, gtkapp *gtk.Application) {
 	adaptive.Init()
 
+	// Load saved preferences.
+	gtkutil.Async(ctx, func() func() {
+		data, err := prefs.ReadSavedData()
+		if err != nil {
+			app.Error(ctx, errors.Wrap(err, "cannot read saved preferences"))
+			return nil
+		}
+
+		return func() {
+			if err := prefs.LoadData(data); err != nil {
+				app.Error(ctx, errors.Wrap(err, "cannot load saved preferences"))
+			}
+		}
+	})
+
 	a := app.Wrap(gtkapp)
 	w := a.Window()
 	w.SetDefaultSize(700, 600)
@@ -199,10 +217,15 @@ type manager struct {
 	menuItems [][2]string // id->label
 }
 
-const (
-	foldThreshold = 650
-	foldWidth     = 250
-)
+const minMessagesWidth = 400
+
+var foldWidth = prefs.NewInt(275, prefs.IntMeta{
+	Name:        "Sidebar Width",
+	Section:     "Rooms",
+	Description: "The width of the room list sidebar.",
+	Min:         240,  // something refuses to go lower
+	Max:         1000, // bruh
+})
 
 func (m *manager) ready(rooms []matrix.RoomID) {
 	a := app.FromContext(m.ctx)
@@ -237,10 +260,6 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 
 	m.fold = adaptive.NewFold(gtk.PosLeft)
 	m.fold.SetWidthFunc(m.width)
-	// GTK's awful image scaling requires us to do this. It might be a good idea
-	// to implement a better image view that doesn't resize as greedily.
-	m.fold.SetFoldThreshold(foldThreshold)
-	m.fold.SetFoldWidth(foldWidth)
 	m.fold.SetSideChild(leftBox)
 	m.fold.SetChild(m.msgView)
 
@@ -273,7 +292,7 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	burger.ConnectClicked(func() {
 		p := gtkutil.NewPopoverMenu(m.header.left, gtk.PosBottom, m.menuItems)
 		p.SetHasArrow(false)
-		p.SetSizeRequest(230, -1)
+		p.SetSizeRequest(m.header.left.AllocatedWidth()-20, -1)
 		p.ConnectClosed(func() { burger.SetActive(false) })
 		gtkutil.PopupFinally(p)
 	})
@@ -306,10 +325,17 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	m.header.fold = adaptive.NewFold(gtk.PosLeft)
 	m.header.fold.SetHExpand(true)
 	m.header.fold.SetWidthFunc(m.width)
-	m.header.fold.SetFoldThreshold(foldThreshold)
-	m.header.fold.SetFoldWidth(foldWidth)
 	m.header.fold.SetSideChild(m.header.left)
 	m.header.fold.SetChild(m.header.right)
+
+	foldWidth.SubscribeWidget(m.window, func() {
+		width := foldWidth.Value()
+		thres := width + minMessagesWidth
+		m.fold.SetFoldThreshold(thres)
+		m.fold.SetFoldWidth(width)
+		m.header.fold.SetFoldThreshold(thres)
+		m.header.fold.SetFoldWidth(width)
+	})
 
 	unfold.ConnectFold(m.fold)
 	unfold.ConnectFold(m.header.fold)
@@ -321,7 +347,7 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	m.actions = gio.NewSimpleActionGroup()
 	a.Window().InsertActionGroup("app", m.actions)
 
-	m.addAction("_Preferences", func() {})
+	m.addAction("_Preferences", func() { prefui.ShowDialog(m.ctx) })
 	m.addAction("_About", func() { about.Show(m.ctx) })
 	m.addAction("_Quit", func() { a.Quit() })
 }

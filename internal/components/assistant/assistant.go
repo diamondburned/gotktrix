@@ -120,6 +120,7 @@ func Use(window *gtk.Window, steps []*Step) *Assistant {
 
 	a := &Assistant{
 		Window:    window,
+		bar:       bar,
 		content:   content,
 		bread:     bread,
 		hscroll:   hscroll,
@@ -428,12 +429,20 @@ func (a *Assistant) updateBreadcrumb() {
 
 // updateCancelButton updates the cancel/back button.
 func (a *Assistant) updateCancelButton() {
+	a.cancel.SetSensitive(true)
+
 	if a.CanBack() {
 		a.cancel.SetLabel("Back")
+		a.cancel.Show()
+		return
+	}
+
+	if a.bar.ShowTitleButtons() {
+		// redundant close button
+		a.cancel.Hide()
 	} else {
 		a.cancel.SetLabel("Close")
 	}
-	a.cancel.SetSensitive(true)
 }
 
 // MustNotDone panics. It's useful if the user doesn't want Done to be activated

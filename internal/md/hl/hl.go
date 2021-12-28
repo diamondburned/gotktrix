@@ -3,6 +3,7 @@ package hl
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -22,27 +23,14 @@ import (
 	"github.com/pkg/errors"
 )
 
-// tagMap is a map from chroma token types to text tag attributes.
-type tagMap map[chroma.TokenType]markuputil.TextTag
-
-var (
-	lexerMu    sync.Mutex
-	lexerCache sync.Map
-)
-
-var (
-	globalMu sync.RWMutex
-	global   tagMap
-)
-
 var stylePath = config.Path("styles")
 
 var Style = prefs.NewString("", prefs.StringMeta{
-	PropMeta: prefs.PropMeta{
-		Name:        "Highlight Style",
-		Section:     "Appearance",
-		Description: "For reference, see https://xyproto.github.io/splash/docs/all.html.",
-	},
+	Name:    "Code Highlight Style",
+	Section: "Text",
+	Description: "For reference, see the " +
+		`<a href="https://xyproto.github.io/splash/docs/all.html">Chroma Style Gallery</a>.`,
+	Placeholder: "Leave blank for default",
 	Validate: func(style string) error {
 		_, err := findStyle(style)
 		return err
@@ -56,17 +44,77 @@ func init() {
 	go updateGlobal()
 }
 
+// Styles used if the user hasn't set a style in the config.
+const (
+	DefaultDarkStyle  = "monokai"
+	DefaultLightStyle = "solarized-light"
+)
+
+// tagMap is a map from chroma token types to text tag attributes.
+type tagMap map[chroma.TokenType]markuputil.TextTag
+
+var defaultStyles struct {
+	darkMap   tagMap
+	lightMap  tagMap
+	darkOnce  sync.Once
+	lightOnce sync.Once
+}
+
+func defaultTagMap(darkThemed bool) tagMap {
+	if darkThemed {
+		return darkThemeTagMap()
+	} else {
+		return lightThemeTagMap()
+	}
+}
+
+func darkThemeTagMap() tagMap {
+	defaultStyles.darkOnce.Do(func() {
+		s, err := findStyle(DefaultDarkStyle)
+		if err != nil {
+			log.Println("hl: built-in dark style", DefaultDarkStyle, "not found")
+			s = styles.Fallback
+		}
+		defaultStyles.darkMap = convertStyle(s)
+	})
+	return defaultStyles.darkMap
+}
+
+func lightThemeTagMap() tagMap {
+	defaultStyles.lightOnce.Do(func() {
+		s, err := findStyle(DefaultLightStyle)
+		if err != nil {
+			log.Println("hl: built-in dark style", DefaultLightStyle, "not found")
+			s = styles.Fallback
+		}
+		defaultStyles.lightMap = convertStyle(s)
+	})
+	return defaultStyles.lightMap
+}
+
+var (
+	lexerMu    sync.Mutex
+	lexerCache sync.Map
+)
+
+var globalTag struct {
+	sync.RWMutex
+	tags tagMap
+}
+
 func updateGlobal() {
 	s, err := findStyle(Style.Value())
 	if err != nil {
 		log.Panicln("hl: failed to parse default style:", err)
 	}
 
-	if s != styles.Fallback {
-		globalMu.Lock()
-		global = convertStyle(s)
-		globalMu.Unlock()
+	globalTag.Lock()
+	if s == styles.Fallback {
+		globalTag.tags = nil
+	} else {
+		globalTag.tags = convertStyle(s)
 	}
+	globalTag.Unlock()
 }
 
 func findStyle(theme string) (*chroma.Style, error) {
@@ -81,6 +129,9 @@ func findStyle(theme string) (*chroma.Style, error) {
 
 	d, err := os.ReadFile(filepath.Join(stylePath, theme+".json"))
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("unknown style %s", theme)
+		}
 		return nil, err
 	}
 
@@ -141,46 +192,6 @@ func styleEntryToTag(e chroma.StyleEntry) markuputil.TextTag {
 	}
 
 	return attrs
-}
-
-// Styles used if the user hasn't set a style in the config.
-const (
-	DefaultDarkStyle  = "monokai"
-	DefaultLightStyle = "solarized-light"
-)
-
-var (
-	darkStyleMap  tagMap
-	darkStyleOnce sync.Once
-
-	lightStyleMap  tagMap
-	lightStyleOnce sync.Once
-)
-
-func defaultStyle(dark bool) tagMap {
-	if dark {
-		darkStyleOnce.Do(func() {
-			s, err := findStyle(DefaultDarkStyle)
-			if err != nil {
-				log.Println("hl: built-in dark style", DefaultDarkStyle, "not found")
-				s = styles.Fallback
-			}
-			darkStyleMap = convertStyle(s)
-		})
-
-		return darkStyleMap
-	} else {
-		lightStyleOnce.Do(func() {
-			s, err := findStyle(DefaultLightStyle)
-			if err != nil {
-				log.Println("hl: built-in dark style", DefaultLightStyle, "not found")
-				s = styles.Fallback
-			}
-			lightStyleMap = convertStyle(s)
-		})
-
-		return lightStyleMap
-	}
 }
 
 // ChangeStyle changes the global highlighter style. It is a helper function for
@@ -275,14 +286,14 @@ func newFormatter(
 	ctx context.Context,
 	buf *gtk.TextBuffer, start, end *gtk.TextIter, lang string) formatter {
 
-	globalMu.RLock()
-	tokenTags := global
-	globalMu.RUnlock()
+	globalTag.RLock()
+	tokenTags := globalTag.tags
+	globalTag.RUnlock()
 
 	if tokenTags == nil {
 		window := app.FromContext(ctx).Window()
 		isDark := markuputil.IsDarkTheme(&window.Widget)
-		tokenTags = defaultStyle(isDark)
+		tokenTags = defaultTagMap(isDark)
 	}
 
 	return formatter{

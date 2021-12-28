@@ -11,6 +11,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/diamondburned/gotktrix/internal/md/hl"
@@ -386,10 +387,26 @@ var codeBlockCSS = cssutil.Applier("mcontent-code-block", `
 	}
 `)
 
-const (
-	codeLowerHeight = 200
-	codeUpperHeight = 600 // TODO: derive this from screen height
-)
+var codeLowerHeight = prefs.NewInt(200, prefs.IntMeta{
+	Name:    "Collapsed Codeblock Height",
+	Section: "Text",
+	Description: "The height of a collapsed codeblock." +
+		" Long snippets of code will appear cropped.",
+	Min: 50,
+	Max: 5000,
+})
+
+var codeUpperHeight = prefs.NewInt(400, prefs.IntMeta{
+	Name:    "Expanded Codeblock Height",
+	Section: "Text",
+	Description: "The height of an expanded codeblock." +
+		" Codeblocks are either shorter than this or as tall." +
+		" Ignored if this is lower than the collapsed height.",
+	Min: 50,
+	Max: 5000,
+})
+
+func init() { prefs.Order(codeLowerHeight, codeUpperHeight) }
 
 func newCodeBlock(s *currentBlockState) *codeBlock {
 	text := newTextBlock(s)
@@ -484,7 +501,7 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 
 	vadj := text.VAdjustment()
 
-	updateExpand := func() {
+	toggleExpand := func() {
 		if expand.Active() {
 			overlay.AddCSSClass("mcontent-code-block-expanded")
 			expand.SetIconName("view-restore-symbolic")
@@ -505,21 +522,26 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 			vadj.SetValue(0)
 		}
 	}
-	expand.ConnectClicked(updateExpand)
+	expand.ConnectClicked(toggleExpand)
 
 	// Workaround for issue https://gitlab.gnome.org/GNOME/gtk/-/issues/3515.
 	vadj.Connect("notify::upper", func() {
-		upper := int(vadj.Upper())
+		upperHeight := codeUpperHeight.Value()
+		lowerHeight := codeLowerHeight.Value()
+		if upperHeight < lowerHeight {
+			upperHeight = lowerHeight
+		}
 
+		upper := int(vadj.Upper())
 		maxHeight = upper
 		minHeight = upper
 
-		if maxHeight > codeUpperHeight {
-			maxHeight = codeUpperHeight
+		if maxHeight > upperHeight {
+			maxHeight = upperHeight
 		}
 
-		if minHeight > codeLowerHeight {
-			minHeight = codeLowerHeight
+		if minHeight > lowerHeight {
+			minHeight = lowerHeight
 			overlay.AddCSSClass("mcontent-code-block-voverflow")
 
 			if cover == nil {
@@ -535,7 +557,7 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 		}
 
 		// Quite expensive when it's put here, but it's safer.
-		updateExpand()
+		toggleExpand()
 	})
 
 	return &codeBlock{

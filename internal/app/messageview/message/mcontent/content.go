@@ -2,18 +2,41 @@ package mcontent
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 )
 
-const (
+var (
 	maxWidth  = 250
 	maxHeight = 300
 )
+
+var maxEmbedSize = prefs.NewString("250x300", prefs.StringMeta{
+	Name:        "Maximum Image/Video Size",
+	Section:     "Text",
+	Description: "The maximum dimensions of image and video messages.",
+	Validate: func(str string) error {
+		var w, h int
+		_, err := fmt.Sscanf(str, "%dx%d", &w, &h)
+		if err != nil || w < 1 || h < 1 {
+			return errors.New("input does not match format")
+		}
+		return nil
+	},
+})
+
+func init() {
+	maxEmbedSize.SubscribeInit(func() {
+		fmt.Sscanf(maxEmbedSize.Value(), "%dx%d", &maxWidth, &maxHeight)
+	})
+}
 
 // Content is a message content widget.
 type Content struct {

@@ -14,6 +14,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/pkg/errors"
 )
 
@@ -88,7 +89,7 @@ func New(ctx context.Context, ctrl Controller) *List {
 
 	searchEntry := gtk.NewSearchEntry()
 	searchEntry.SetHExpand(true)
-	searchEntry.SetObjectProperty("placeholder-text", "Search Rooms")
+	searchEntry.SetObjectProperty("placeholder-text", locale.S(ctx, "Search Rooms..."))
 	searchEntry.ConnectSearchChanged(func() { l.Search(searchEntry.Text()) })
 
 	l.SearchBar = gtk.NewSearchBar()
