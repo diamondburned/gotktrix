@@ -330,18 +330,14 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		})
 	})
 
-	page.scroll.OnBottomed(func(bottomed bool) {
-		if bottomed {
-			// Mark the latest message as read everytime the user scrolls down
-			// to the bottom.
-			page.MarkAsRead()
-		}
-	})
+	// Mark the latest message as read everytime the user scrolls down to the
+	// bottom.
+	page.scroll.OnBottomed(page.MarkAsRead)
 
 	page.ctx.OnRenew(func(ctx context.Context) func() {
 		w := app.Window(ctx)
 		h := w.Connect("notify::is-active", func() {
-			if w.IsActive() && page.scroll.IsBottomed() {
+			if page.scroll.IsBottomed() && w.IsActive() {
 				// Mark the page as read if the window is focused and our scroll
 				// is at the bottom.
 				page.MarkAsRead()

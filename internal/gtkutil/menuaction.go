@@ -30,6 +30,8 @@ func ActionID(name string) string {
 			return unicode.ToLower(r)
 		case unicode.IsLower(r):
 			return r
+		case r == '_':
+			return -1
 		default:
 			return '-'
 		}
@@ -111,11 +113,35 @@ func BindPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) {
 // list.
 func ShowPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) *gtk.PopoverMenu {
 	p := NewPopoverMenu(w, pos, pairs)
-	p.Popup()
+	PopupFinally(p)
 	return p
 }
 
-// NewPopoverMenu creats a new Popover menu.
+// Popupper describes the Popover's Popup interface.
+type Popupper interface {
+	gtk.Widgetter
+	Popup()
+	Unparent()
+	ConnectHide(func()) glib.SignalHandle
+}
+
+var (
+	_ Popupper = (*gtk.Popover)(nil)
+	_ Popupper = (*gtk.PopoverMenu)(nil)
+)
+
+// PopupFinally pops up the Popover and schedules it to destroy itself when it's
+// closed.
+func PopupFinally(p Popupper) {
+	var sig glib.SignalHandle
+	sig = p.ConnectHide(func() {
+		glib.TimeoutSecondsAdd(2, p.Unparent)
+		p.HandlerDisconnect(sig)
+	})
+	p.Popup()
+}
+
+// NewPopoverMenu creates a new Popover menu.
 func NewPopoverMenu(w gtk.Widgetter, pos gtk.PositionType, pairs [][2]string) *gtk.PopoverMenu {
 	popover := gtk.NewPopoverMenuFromModel(MenuPair(pairs))
 	popover.SetMnemonicsVisible(true)
@@ -206,7 +232,7 @@ func BindPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, pairs []Popove
 
 		at := gdk.NewRectangle(int(x), int(y), 0, 0)
 		popover.SetPointingTo(&at)
-		popover.Popup()
+		PopupFinally(popover)
 	})
 }
 
@@ -280,7 +306,7 @@ func ShowPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, items []Popove
 		return false
 	}
 
-	popover.Popup()
+	PopupFinally(popover)
 	return true
 }
 

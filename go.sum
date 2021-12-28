@@ -52,6 +52,8 @@ github.com/chanbakjsd/gotrix v0.3.2-0.20211225094828-828f5ddeefe9 h1:X0Vg3JXdATH
 github.com/chanbakjsd/gotrix v0.3.2-0.20211225094828-828f5ddeefe9/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/chanbakjsd/gotrix v0.3.2-0.20211227061759-ae8713176456 h1:W+zd+ohprCuXtJuAOsyjJU9DZDWOwdfwtYIFRuGDnFI=
 github.com/chanbakjsd/gotrix v0.3.2-0.20211227061759-ae8713176456/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
+github.com/chanbakjsd/gotrix v0.3.2-0.20211227114303-60dee3994317 h1:aCvwEyE8s35Jm0aG2VLgMgIARY8lJ/XIf7ApfFUe3/Q=
+github.com/chanbakjsd/gotrix v0.3.2-0.20211227114303-60dee3994317/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-etcd v2.0.0+incompatible/go.mod h1:Jez6KQU2B/sWsbdaef3ED8NzMklzPG4d5KIOhIy30Tk=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=

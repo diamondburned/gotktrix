@@ -53,10 +53,10 @@ func bindParent(
 
 	menuItems := []gtkutil.PopoverMenuItem{
 		gtkutil.MenuItem(locale.S(v, "_Edit"), "message.edit", isSelf),
-		gtkutil.MenuItem(locale.S(v, "_Delete"), "message.delete", canRedact),
 		gtkutil.MenuItem(locale.S(v, "_Reply"), "message.reply"),
 		gtkutil.MenuItem(locale.S(v, "Add Rea_ction"), "message.react"),
 		gtkutil.MenuItem(locale.S(v, "Add Reaction with _Text"), "message.react-text"),
+		gtkutil.MenuItem(locale.S(v, "_Delete"), "message.delete", canRedact),
 		gtkutil.MenuItem(locale.S(v, "Show _Source"), "message.show-source"),
 	}
 
@@ -85,6 +85,7 @@ func bindExtraMenu(m extraMenuSetter, items []gtkutil.PopoverMenuItem) {
 }
 
 func redactMessage(v messageViewer) {
+	// TODO: confirmation menu
 	client := v.client()
 	roomEv := v.event.RoomInfo()
 
@@ -114,7 +115,7 @@ func (r *reactor) showEmoji(parent gtk.Widgetter) *gtk.EmojiChooser {
 		picker.Popdown()
 	})
 	reactCSS(&picker.Widget)
-	picker.Popup()
+	gtkutil.PopupFinally(picker)
 	return picker
 }
 

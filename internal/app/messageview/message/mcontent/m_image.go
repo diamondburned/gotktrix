@@ -152,6 +152,7 @@ func (e *imageEmbed) useURL(ctx context.Context, url string) {
 func (e *imageEmbed) setPaintable(p gdk.Paintabler) {
 	e.setSize(p.IntrinsicWidth(), p.IntrinsicHeight())
 	e.image.SetPaintable(p)
+	e.image.QueueResize()
 
 	// undo effects
 

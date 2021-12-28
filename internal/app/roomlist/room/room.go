@@ -227,7 +227,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		})
 		p.SetAutohide(true)
 		p.SetCascadePopdown(true)
-		p.Popup()
+		gtkutil.PopupFinally(p)
 	})
 
 	client := gotktrix.FromContext(r.ctx.Take()).Offline()

@@ -96,7 +96,7 @@ func New(ctx context.Context, ctrl Controller) *Bar {
 		p.SetHasArrow(false)
 		p.SetSizeRequest(230, -1)
 		p.ConnectClosed(func() { bar.ToggleButton.SetActive(false) })
-		p.Popup()
+		gtkutil.PopupFinally(p)
 	})
 
 	return bar

@@ -272,12 +272,10 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	burger.SetVAlign(gtk.AlignCenter)
 	burger.ConnectClicked(func() {
 		p := gtkutil.NewPopoverMenu(m.header.left, gtk.PosBottom, m.menuItems)
-		// p.SetOffset(0, -4)
-		// TODO: fix up the arrow to point to the button
 		p.SetHasArrow(false)
 		p.SetSizeRequest(230, -1)
 		p.ConnectClosed(func() { burger.SetActive(false) })
-		p.Popup()
+		gtkutil.PopupFinally(p)
 	})
 
 	m.header.left = gtk.NewBox(gtk.OrientationHorizontal, 0)

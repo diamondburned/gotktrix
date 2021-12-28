@@ -427,7 +427,10 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 		clipboard.SetText(text)
 
 		popover.Popup()
-		glib.TimeoutSecondsAdd(3, func() { popover.Popdown() })
+		glib.TimeoutSecondsAdd(3, func() {
+			popover.Popdown()
+			popover.Unparent()
+		})
 	})
 
 	expand := gtk.NewToggleButton()

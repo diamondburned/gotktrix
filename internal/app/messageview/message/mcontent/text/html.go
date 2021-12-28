@@ -130,6 +130,9 @@ func renderHTML(ctx context.Context, roomID matrix.RoomID, htmlBody string) (Ren
 			continue
 		}
 
+		// Prevent some bugs where the TextView isn't sized properly.
+		text.QueueResize()
+
 		urls := autolink(text.buf)
 		if len(urls) == 0 {
 			continue

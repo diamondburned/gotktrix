@@ -151,6 +151,7 @@ func addTextEmbed(ctx context.Context, box *gtk.Box, m *api.URLMetadata) {
 		}
 
 		box.Append(outer)
+		box.QueueResize()
 	})
 }
 
@@ -172,5 +173,6 @@ func addImageEmbed(ctx context.Context, box *gtk.Box, m *api.URLMetadata) {
 			app.OpenURI(ctx, m.URL)
 		})
 		box.Append(embed)
+		box.QueueResize()
 	})
 }
