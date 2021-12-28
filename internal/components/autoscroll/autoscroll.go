@@ -3,6 +3,7 @@ package autoscroll
 import (
 	"math"
 
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -33,9 +34,8 @@ func (s scrollState) is(this scrollState) bool { return s == this }
 // Window describes an automatically scrolled window.
 type Window struct {
 	*gtk.ScrolledWindow
-	view  *gtk.Viewport
-	vadj  *gtk.Adjustment
-	clock *gdk.FrameClock
+	view *gtk.Viewport
+	vadj *gtk.Adjustment
 
 	onBottomed func()
 
@@ -57,27 +57,7 @@ func NewWindow() *Window {
 	w.view.SetVScrollPolicy(gtk.ScrollNatural)
 	w.ScrolledWindow.SetChild(w.view)
 
-	// TODO: handle unmapping
-	w.ScrolledWindow.ConnectMap(func() {
-		w.bind()
-	})
-
-	return &w
-}
-
-func (w *Window) bind() {
-	w.clock = gdk.BaseFrameClock(w.ScrolledWindow.FrameClock())
-	// Layout gets called after the Adjustment's size-allocate, so we can set
-	// the scroll here. We can't in the notify callbacks, because that'll mess
-	// up the function.
-	w.clock.ConnectLayout(func() {
-		// If the upper value changed, then update the current value
-		// accordingly.
-		if !math.IsNaN(w.targetScroll) {
-			w.vadj.SetValue(w.targetScroll)
-			w.targetScroll = math.NaN()
-		}
-	})
+	w.bindFrameClock()
 
 	w.vadj.ConnectAfter("notify::upper", func() {
 		lastUpper := w.upperValue
@@ -109,6 +89,35 @@ func (w *Window) bind() {
 			w.emitBottomed()
 		} else {
 			w.state = 0
+		}
+	})
+
+	return &w
+}
+
+func (w *Window) bindFrameClock() {
+	var clock *gdk.FrameClock
+	var signal glib.SignalHandle
+
+	w.ConnectMap(func() {
+		clock = gdk.BaseFrameClock(w.FrameClock())
+		// Layout gets called after the Adjustment's size-allocate, so we can
+		// set the scroll here. We can't in the notify callbacks, because
+		// that'll mess up the function.
+		signal = clock.ConnectLayout(func() {
+			// If the upper value changed, then update the current value
+			// accordingly.
+			if !math.IsNaN(w.targetScroll) {
+				w.vadj.SetValue(w.targetScroll)
+				w.targetScroll = math.NaN()
+			}
+		})
+	})
+
+	w.ConnectUnmap(func() {
+		if clock != nil {
+			clock.HandlerDisconnect(signal)
+			clock = nil
 		}
 	})
 }
