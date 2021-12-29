@@ -283,7 +283,6 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				// add it back.
 				uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
 				mauthor.Text(gotktrix.FromContext(s.ctx), text.iter, s.room, uID,
-					mauthor.WithWidgetColor(text),
 					mauthor.WithMention(),
 					mauthor.WithMinimal(),
 					mauthor.WithShade(),

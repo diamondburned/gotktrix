@@ -4,10 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 )
 
 var _ = cssutil.WriteCSS(`
@@ -20,7 +22,7 @@ var _ = cssutil.WriteCSS(`
 func NewDragSourceWithContent(w gtk.Widgetter, a gdk.DragAction, v interface{}) *gtk.DragSource {
 	drag := gtk.NewDragSource()
 	drag.SetActions(a)
-	drag.SetContent(gdk.NewContentProviderForValue(glib.NewValue(v)))
+	drag.SetContent(gdk.NewContentProviderForValue(coreglib.NewValue(v)))
 
 	widget := gtk.BaseWidget(w)
 
@@ -49,12 +51,12 @@ type DragDroppable interface {
 // BindDragDrop binds the current widget as a simultaneous drag source and drop
 // target.
 func BindDragDrop(w gtk.Widgetter, a gdk.DragAction, dst interface{}, f func(gtk.PositionType)) {
-	gval := glib.NewValue(dst)
+	gval := coreglib.NewValue(dst)
 
 	drag := NewDragSourceWithContent(w, a, gval)
 
 	drop := gtk.NewDropTarget(gval.Type(), a)
-	drop.Connect("drop", func(drop *gtk.DropTarget, src *glib.Value, x, y float64) {
+	drop.Connect("drop", func(drop *gtk.DropTarget, src *coreglib.Value, x, y float64) {
 		log.Println("dropped at", y, "from", dst, "to", src.GoValue())
 	})
 
@@ -64,7 +66,7 @@ func BindDragDrop(w gtk.Widgetter, a gdk.DragAction, dst interface{}, f func(gtk
 */
 
 // NewListDropTarget creates a new DropTarget that highlights the row.
-func NewListDropTarget(l *gtk.ListBox, typ glib.Type, actions gdk.DragAction) *gtk.DropTarget {
+func NewListDropTarget(l *gtk.ListBox, typ coreglib.Type, actions gdk.DragAction) *gtk.DropTarget {
 	drop := gtk.NewDropTarget(typ, actions)
 	drop.Connect("motion", func(drop *gtk.DropTarget, x, y float64) gdk.DragAction {
 		if row := l.RowAtY(int(y)); row != nil {
@@ -121,11 +123,11 @@ func OnFirstDraw(w gtk.Widgetter, f func()) {
 
 // SignalToggler is a small helper to allow binding the same signal to different
 // objects while unbinding the previous one.
-func SignalToggler(signal string, f interface{}) func(obj glib.Objector) {
-	var lastObj glib.Objector
-	var lastSig glib.SignalHandle
+func SignalToggler(signal string, f interface{}) func(obj coreglib.Objector) {
+	var lastObj coreglib.Objector
+	var lastSig coreglib.SignalHandle
 
-	return func(obj glib.Objector) {
+	return func(obj coreglib.Objector) {
 		if lastObj != nil && lastSig != 0 {
 			lastObj.HandlerDisconnect(lastSig)
 		}
@@ -140,6 +142,34 @@ func SignalToggler(signal string, f interface{}) func(obj glib.Objector) {
 		lastSig = obj.Connect(signal, f)
 	}
 }
+
+var mainThread = glib.MainContextDefault()
+
+// InvokeMain invokes f in the main loop. It is useful in global helper
+// functions where it's unclear where the caller will invoke it from, but it
+// should be used carefully, since it's easy to be abused.
+func InvokeMain(f func()) {
+	if mainThread.IsOwner() {
+		// fast path
+		f()
+		return
+	}
+
+	// I'm going to abuse the shit out of this.
+	done := make(chan struct{}, 1)
+	mainThread.InvokeFull(int(coreglib.PriorityHigh), func() bool {
+		f()
+		done <- struct{}{}
+		return false
+	})
+	<-done
+}
+
+// InMain returns true if the current execution thread is the main thread. It is
+// useful for guarding thread-unsafe init functions.
+// func InMain() bool {
+// 	return mainThread.IsOwner()
+// }
 
 // Async runs asyncFn in a goroutine and runs the returned callback in the main
 // thread. If ctx is cancelled during, the returned callback will not be called.
@@ -162,7 +192,7 @@ func Async(ctx context.Context, asyncFn func() func()) {
 		default:
 		}
 
-		glib.IdleAdd(func() {
+		coreglib.IdleAdd(func() {
 			select {
 			case <-ctx.Done():
 			default:
@@ -195,11 +225,13 @@ func ScaleFactor() int {
 
 func initScale() {
 	initScaleOnce.Do(func() {
-		dmanager := gdk.DisplayManagerGet()
-		dmanager.Connect("display-opened", func(dmanager *gdk.DisplayManager) {
+		InvokeMain(func() {
+			dmanager := gdk.DisplayManagerGet()
+			dmanager.Connect("display-opened", func(dmanager *gdk.DisplayManager) {
+				updateScale(dmanager)
+			})
 			updateScale(dmanager)
 		})
-		updateScale(dmanager)
 	})
 }
 

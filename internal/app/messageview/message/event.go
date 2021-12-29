@@ -14,6 +14,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 )
@@ -69,15 +70,20 @@ func (m *eventMessage) LoadMore() {}
 type eventRenderer struct {
 	ctx    context.Context
 	client *gotktrix.Client
-	window *gtk.Window
 	roomEv *event.RoomEventInfo
 }
 
 func (r eventRenderer) author(uID matrix.UserID) string {
-	return mauthor.Markup(r.client, r.roomEv.RoomID, uID,
-		mauthor.WithWidgetColor(r.window),
+	opts := []mauthor.MarkupMod{
 		mauthor.WithMinimal(),
-	)
+		nil,
+	}
+
+	gtkutil.InvokeMain(func() {
+		opts[1] = mauthor.WithWidgetColor(app.Window(r.ctx))
+	})
+
+	return mauthor.Markup(r.client, r.roomEv.RoomID, uID, opts...)
 }
 
 func (r eventRenderer) sender() string {
@@ -89,7 +95,6 @@ func RenderEvent(ctx context.Context, ev event.RoomEvent) string {
 	r := eventRenderer{
 		ctx:    ctx,
 		client: gotktrix.FromContext(ctx).Offline(),
-		window: app.FromContext(ctx).Window(),
 		roomEv: ev.RoomInfo(),
 	}
 

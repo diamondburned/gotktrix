@@ -51,6 +51,10 @@ func ShowDialog(ctx context.Context) {
 }
 
 var _ = cssutil.WriteCSS(`
+	.prefui-section-box:not(:first-child) {
+		border-top: 1px solid @borders;
+	}
+
 	.prefui-heading {
 		margin: 16px;
 		margin-bottom: 10px;
@@ -59,10 +63,6 @@ var _ = cssutil.WriteCSS(`
 		font-size: 0.95em;
 
 		color: mix(@theme_fg_color, @theme_bg_color, 0.15);
-	}
-
-	.prefui-heading:not(:first-child) {
-		border-top: 1px solid @borders;
 	}
 
 	.prefui-section {
@@ -107,16 +107,6 @@ func newDialog(ctx context.Context) *Dialog {
 	d := Dialog{ctx: ctx}
 	d.box = gtk.NewBox(gtk.OrientationVertical, 0)
 
-	searchEntry := gtk.NewSearchEntry()
-	searchEntry.SetObjectProperty("placeholder-text", locale.S(ctx, "Search Preferences..."))
-	searchEntry.ConnectSearchChanged(func() { d.Search(searchEntry.Text()) })
-
-	d.search = gtk.NewSearchBar()
-	d.search.SetShowCloseButton(true)
-	d.search.SetChild(searchEntry)
-	d.search.ConnectEntry(&searchEntry.Editable)
-	d.box.Append(d.search)
-
 	sections := prefs.ListProperties(ctx)
 	d.sections = make([]*section, len(sections))
 	for i, section := range sections {
@@ -126,7 +116,29 @@ func newDialog(ctx context.Context) *Dialog {
 
 	scroll := gtk.NewScrolledWindow()
 	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	scroll.SetVExpand(true)
 	scroll.SetChild(d.box)
+
+	searchEntry := gtk.NewSearchEntry()
+	searchEntry.SetObjectProperty("placeholder-text", locale.S(ctx, "Search Preferences..."))
+	searchEntry.ConnectSearchChanged(func() { d.Search(searchEntry.Text()) })
+
+	d.search = gtk.NewSearchBar()
+	d.search.SetChild(searchEntry)
+	d.search.ConnectEntry(&searchEntry.Editable)
+
+	searchButton := gtk.NewToggleButton()
+	searchButton.SetIconName("system-search-symbolic")
+	searchButton.ConnectClicked(func() {
+		d.search.SetSearchMode(searchButton.Active())
+	})
+	d.search.Connect("notify::search-mode-enabled", func() {
+		searchButton.SetActive(d.search.SearchMode())
+	})
+
+	outerBox := gtk.NewBox(gtk.OrientationVertical, 0)
+	outerBox.Append(d.search)
+	outerBox.Append(scroll)
 
 	d.Dialog = gtk.NewDialogWithFlags(
 		locale.S(ctx, "Preferences"), app.Window(ctx),
@@ -135,16 +147,17 @@ func newDialog(ctx context.Context) *Dialog {
 	d.Dialog.AddCSSClass("prefui-dialog")
 	d.Dialog.SetModal(false)
 	d.Dialog.SetDefaultSize(400, 500)
-	d.Dialog.SetChild(scroll)
+	d.Dialog.SetChild(outerBox)
 
 	// Set this to the whole dialog instead of just the child.
-	// d.search.SetKeyCaptureWidget(d.Dialog)
+	d.search.SetKeyCaptureWidget(d.Dialog)
 
 	d.loading = gtk.NewSpinner()
 	d.loading.SetSizeRequest(24, 24)
 	d.loading.Hide()
 
 	d.header = d.Dialog.HeaderBar()
+	d.header.PackEnd(searchButton)
 	d.header.PackEnd(d.loading)
 
 	return &d
@@ -176,11 +189,11 @@ func (d *Dialog) saveRecursive() {
 
 	snapshot := prefs.TakeSnapshot()
 
-	// Computers are just way too fast. Ensure that the loading circle visibly
-	// pops up before it closes.
-	delay := time.After(100 * time.Millisecond)
-
 	gtkutil.Async(context.Background(), func() func() {
+		// Computers are just way too fast. Ensure that the loading circle
+		// visibly pops up before it closes.
+		delay := time.After(100 * time.Millisecond)
+
 		if err := snapshot.Save(); err != nil {
 			app.Error(d.ctx, err)
 		}
@@ -231,6 +244,7 @@ func newSection(d *Dialog, sect prefs.ListedSection) *section {
 	s.name.SetXAlign(0)
 
 	s.Box = gtk.NewBox(gtk.OrientationVertical, 0)
+	s.Box.AddCSSClass("prefui-section-box")
 	s.Box.Append(s.name)
 	s.Box.Append(s.list)
 

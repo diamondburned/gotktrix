@@ -17,6 +17,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 )
 
 // Attrs is a way to declaratively create a pango.AttrList.
@@ -71,50 +72,44 @@ var knownLinkTags struct {
 	displays map[string]TextTagsMap
 }
 
-// m := TextTagsMap{
-// 	"a": {
-// 		"foreground":     "#238cf5" + alpha,
-// 		"insert-hyphens": false,
-// 	},
-// 	"a:hover": {
-// 		"foreground": "#238cf5",
-// 	},
-// 	"a:visited": {
-// 		"foreground": "#d38dff",
-// 	},
-// }
-
 // cachedLinkTags is cached for the duration of a single event loop.
 var cachedLinkTags TextTagsMap
 
 // LinkTags gets the text tags with colors for a, a:hover and a:visited. The
 // output of the function is cached for a short while, so the user doesn't have
-// to store it.
+// to store it. It is concurrently safe to call this function.
 func LinkTags() TextTagsMap {
-	if cachedLinkTags != nil {
-		return cachedLinkTags
-	}
+	var tags TextTagsMap
 
-	linkButton := gtk.NewLinkButton("")
-	s := linkButton.StyleContext()
+	gtkutil.InvokeMain(func() {
+		if cachedLinkTags != nil {
+			tags = cachedLinkTags
+			return
+		}
 
-	m := make(TextTagsMap, 3)
-	m.SetTagAttr("a", "insert-hyphens", false)
+		linkButton := gtk.NewLinkButton("")
+		s := linkButton.StyleContext()
 
-	s.SetState(gtk.StateFlagLink)
-	link := s.Color()
-	// 85% opacity unhovered; 100% opacity hovered.
-	m.SetTagAttr("a", "foreground", rgbHex(link)+"CC")
-	m.SetTagAttr("a:hover", "foreground", rgbHex(link)+"FF")
+		m := make(TextTagsMap, 3)
+		m.SetTagAttr("a", "insert-hyphens", false)
 
-	s.SetState(gtk.StateFlagVisited)
-	m.SetTagAttr("a:visited", "foreground", rgbHex(s.Color()))
+		s.SetState(gtk.StateFlagLink)
+		link := s.Color()
+		// 85% opacity unhovered; 100% opacity hovered.
+		m.SetTagAttr("a", "foreground", rgbHex(link)+"CC")
+		m.SetTagAttr("a:hover", "foreground", rgbHex(link)+"FF")
 
-	// Trick to cache this function shortly.
-	cachedLinkTags = m
-	glib.IdleAddPriority(glib.PriorityLow, func() { cachedLinkTags = nil })
+		s.SetState(gtk.StateFlagVisited)
+		m.SetTagAttr("a:visited", "foreground", rgbHex(s.Color()))
 
-	return m
+		tags = m
+
+		// Trick to cache this function shortly.
+		cachedLinkTags = m
+		glib.IdleAddPriority(glib.PriorityLow, func() { cachedLinkTags = nil })
+	})
+
+	return tags
 }
 
 func rgbHex(rgba *gdk.RGBA) string {
@@ -300,20 +295,23 @@ func rgbIsDark(r, g, b float64) bool {
 }
 
 // IsDarkTheme returns true if the given widget is inside an application with a
-// dark theme. A dark theme implies the background color is dark.
+// dark theme. A dark theme implies the background color is dark. The function
+// can be called concurrently, but it shouldn't ever be.
 func IsDarkTheme(w gtk.Widgetter) bool {
-	styles := gtk.BaseWidget(w).StyleContext()
-
 	var darkBg bool // default light theme
 
-	bgcolor, ok := styles.LookupColor("theme_bg_color")
-	if ok {
-		darkBg = rgbIsDark(
-			float64(bgcolor.Red()),
-			float64(bgcolor.Green()),
-			float64(bgcolor.Blue()),
-		)
-	}
+	gtkutil.InvokeMain(func() {
+		styles := gtk.BaseWidget(w).StyleContext()
+
+		bgcolor, ok := styles.LookupColor("theme_bg_color")
+		if ok {
+			darkBg = rgbIsDark(
+				float64(bgcolor.Red()),
+				float64(bgcolor.Green()),
+				float64(bgcolor.Blue()),
+			)
+		}
+	})
 
 	return darkBg
 }

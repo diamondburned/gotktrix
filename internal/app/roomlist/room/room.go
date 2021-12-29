@@ -408,6 +408,7 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 		unread := countUnreadFmt(client, r.ID)
 
 		return func() {
+
 			// Only show the unread bar if we have unread messages, not unread
 			// any other events. We can do this by a comparison check: if there
 			// are less events than unread messages, then there's an unread

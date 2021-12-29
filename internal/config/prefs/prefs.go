@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
+	"github.com/pkg/errors"
 	"golang.org/x/text/message"
 )
 
@@ -138,18 +140,36 @@ func (s Snapshot) JSON() []byte {
 	return b
 }
 
-var filePath = config.Path("prefs.json")
+var prefsPath = config.Path("prefs.json")
 
-// Save saves the snapshot to file.
+// Save atomically saves the snapshot to file.
 func (s Snapshot) Save() error {
-	return os.WriteFile(filePath, s.JSON(), os.ModePerm)
+	tmp, err := os.CreateTemp(filepath.Dir(prefsPath), ".tmp.*")
+	if err != nil {
+		return errors.Wrap(err, "cannot mktemp")
+	}
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+
+	if _, err := tmp.Write(s.JSON()); err != nil {
+		return errors.Wrap(err, "cannot write to temp file")
+	}
+	if err := tmp.Close(); err != nil {
+		return errors.Wrap(err, "temp file error")
+	}
+
+	if err := os.Rename(tmp.Name(), prefsPath); err != nil {
+		return errors.Wrap(err, "cannot swap new prefs file")
+	}
+
+	return nil
 }
 
 // ReadSavedData reads the saved preferences from a predetermined location.
 // Users should give the returned byte slice to LoadData. A nil byte slice is a
 // valid value.
 func ReadSavedData() ([]byte, error) {
-	b, err := os.ReadFile(filePath)
+	b, err := os.ReadFile(prefsPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil

@@ -1,10 +1,8 @@
 package prefs
 
 import (
-	"sync"
-
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 )
 
 type funcBox struct{ f func() }
@@ -13,7 +11,6 @@ type funcBox struct{ f func() }
 // concurrently.
 type Pubsub struct {
 	funcs map[*funcBox]struct{}
-	mu    sync.Mutex
 }
 
 // NewPubsub creates a new Pubsub instance.
@@ -28,10 +25,7 @@ func (p *Pubsub) Pubsubber() *Pubsub { return p }
 
 // Publish publishes changes to all subscribe routines.
 func (p *Pubsub) Publish() {
-	glib.IdleAddPriority(glib.PriorityHighIdle, func() {
-		p.mu.Lock()
-		defer p.mu.Unlock()
-
+	gtkutil.InvokeMain(func() {
 		for f := range p.funcs {
 			f.f()
 		}
@@ -47,10 +41,10 @@ func (p *Pubsub) SubscribeWidget(widget gtk.Widgetter, f func()) {
 	w := gtk.BaseWidget(widget)
 
 	w.ConnectMap(func() {
-		unsub = p.subscribe(f, true)
+		unsub = p.Subscribe(f)
 	})
 	if w.Mapped() {
-		unsub = p.subscribe(f, true)
+		unsub = p.Subscribe(f)
 	}
 
 	w.ConnectUnmap(func() {
@@ -61,23 +55,20 @@ func (p *Pubsub) SubscribeWidget(widget gtk.Widgetter, f func()) {
 	})
 }
 
-func (p *Pubsub) subscribe(f func(), mainThread bool) (rm func()) {
+// Subscribe adds f into the pubsub's subscription queue. f will always be
+// invoked in the main thread.
+func (p *Pubsub) Subscribe(f func()) (rm func()) {
 	b := &funcBox{f}
 
-	p.mu.Lock()
-	p.funcs[b] = struct{}{}
-	p.mu.Unlock()
-
-	if mainThread {
+	gtkutil.InvokeMain(func() {
+		p.funcs[b] = struct{}{}
 		f()
-	} else {
-		glib.IdleAddPriority(glib.PriorityHighIdle, f)
-	}
+	})
 
 	return func() {
-		p.mu.Lock()
-		delete(p.funcs, b)
-		p.mu.Unlock()
+		gtkutil.InvokeMain(func() {
+			delete(p.funcs, b)
+		})
 	}
 }
 

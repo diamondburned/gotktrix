@@ -46,12 +46,6 @@ github.com/blevesearch/zapx/v14 v14.2.2 h1:lRZCBvQIByW8F+mCoY4uA6Uen2DCj7K+wCh5n
 github.com/blevesearch/zapx/v14 v14.2.2/go.mod h1:zb01unR63/DfV2nvyAvgj64K8AKtj7WP6w23jtuHntQ=
 github.com/blevesearch/zapx/v15 v15.2.2 h1:5+oWWAQTV3M0UNor05qrZujzxIXVuwtYU3ppZ7Y1aNI=
 github.com/blevesearch/zapx/v15 v15.2.2/go.mod h1:I4QVJ432LKkZyNK1kZkh3OweKa+NSblZzIF0YSSExak=
-github.com/chanbakjsd/gotrix v0.3.2-0.20211223112718-05e09553d624 h1:KuhADrwQEzO93XclM0DWi5WDfYsGEUz+2WqFXQcBzeQ=
-github.com/chanbakjsd/gotrix v0.3.2-0.20211223112718-05e09553d624/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
-github.com/chanbakjsd/gotrix v0.3.2-0.20211225094828-828f5ddeefe9 h1:X0Vg3JXdATH5IbU0NGNHKHLSHobWeXM+HcZf1YJX+ow=
-github.com/chanbakjsd/gotrix v0.3.2-0.20211225094828-828f5ddeefe9/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
-github.com/chanbakjsd/gotrix v0.3.2-0.20211227061759-ae8713176456 h1:W+zd+ohprCuXtJuAOsyjJU9DZDWOwdfwtYIFRuGDnFI=
-github.com/chanbakjsd/gotrix v0.3.2-0.20211227061759-ae8713176456/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/chanbakjsd/gotrix v0.3.2-0.20211227114303-60dee3994317 h1:aCvwEyE8s35Jm0aG2VLgMgIARY8lJ/XIf7ApfFUe3/Q=
 github.com/chanbakjsd/gotrix v0.3.2-0.20211227114303-60dee3994317/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
@@ -70,8 +64,8 @@ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/diamondburned/adaptive v0.0.2-0.20211210081242-eb0212efa77c h1:VHhCqu33BCSQFucDjIbckOOg1yq2v1SWxtjulxQY8dI=
 github.com/diamondburned/adaptive v0.0.2-0.20211210081242-eb0212efa77c/go.mod h1:03zN7sBfi9WiZYnXsFtE6jkcQmyvX9Xay0QwUOZKnV8=
 github.com/diamondburned/gotk4/pkg v0.0.0-20211121095826-148e5d6f3165/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotk4/pkg v0.0.0-20211226220938-bab1b33bc595 h1:Z0oybquJ9Q0Sx2/UIPzZBAewXXtcs5QxcGEPtE4E/LY=
-github.com/diamondburned/gotk4/pkg v0.0.0-20211226220938-bab1b33bc595/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20211229000402-97100df5ca16 h1:NZCQ6MuX84D6Viwuc3gGb8AhKktRUfROzP56zHDX/IM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20211229000402-97100df5ca16/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
 github.com/dlclark/regexp2 v1.4.0 h1:F1rxgk7p4uKjwIQxBs9oAXe5CqrXlCduYEJvrF4u93E=
 github.com/dlclark/regexp2 v1.4.0/go.mod h1:2pZnwuY/m+8K6iRw6wQdMtk+rH5tNGR1i55kozfMjCc=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
