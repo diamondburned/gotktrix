@@ -584,6 +584,28 @@ func (c *Client) RoomLatestReadEvent(roomID matrix.RoomID) matrix.EventID {
 	return ""
 }
 
+// RoomCountUnread counts the number of unread events in a room. More is true if
+// the user has never seen any of the messages in the room. The user should
+// display that info as "${n}+" with the trailing plus.
+func (c *Client) RoomCountUnread(roomID matrix.RoomID) (n int, more bool) {
+	// empty ID is fine
+	latestID := c.RoomLatestReadEvent(roomID)
+
+	var unread int
+	var found bool
+
+	c.EachTimelineReverse(roomID, func(ev event.RoomEvent) error {
+		if ev.RoomInfo().ID == latestID {
+			found = true
+			return EachBreak
+		}
+		unread++
+		return nil
+	})
+
+	return unread, !found
+}
+
 // MarkRoomAsRead sends to the server that the current user has seen up to the
 // given event in the given room.
 func (c *Client) MarkRoomAsRead(roomID matrix.RoomID, eventID matrix.EventID) error {
@@ -591,20 +613,6 @@ func (c *Client) MarkRoomAsRead(roomID matrix.RoomID, eventID matrix.EventID) er
 		// Room is already seen; don't waste an API call.
 		return nil
 	}
-
-	//// Try and set the m.fully_read event directly into the state, since for
-	//// some reason, the server doesn't always echo back the event in time.
-	////
-	//// TODO: the client can use this to set the read marker early instead of
-	//// waiting for a sync.
-	//c.State.AddRoomEvents(roomID, []event.RawEvent{
-	//	m.MarshalFullyReadEvent(m.FullyReadEvent{
-	//		FullyReadEventInfo: m.FullyReadEventInfo{
-	//			RoomID: roomID,
-	//		},
-	//		EventID: eventID,
-	//	}),
-	//})
 
 	var request struct {
 		FullyRead matrix.EventID `json:"m.fully_read"`

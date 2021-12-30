@@ -102,7 +102,10 @@ type Page struct {
 	main *adaptive.LoadablePage
 	box  *gtk.Box
 
-	extra *extraRevealer
+	// moreMsgBar is the bar on top that pops up when there are new unread
+	// messages in the current room.
+	moreMsgBar  *moreMessageBar
+	markReadBtn *gtk.Button
 
 	scroll *autoscroll.Window
 	list   *gtk.ListBox
@@ -112,6 +115,9 @@ type Page struct {
 	// pieces of events in separate places.
 	messages map[messageKey]messageRow
 	mrelated map[matrix.EventID]matrix.EventID // keep track of reactions
+
+	// extra is the bottom popup for typing indicators and etc.
+	extra *extraRevealer
 
 	name    string
 	onTitle func(title string)
@@ -182,19 +188,20 @@ var rhsCSS = cssutil.Applier("messageview-rhs", `
 // isn't as slow.
 const maxFetch = 35
 
+var messageviewEvents = []event.Type{
+	event.TypeTyping,
+	m.FullyReadEventType,
+}
+
 // NewPage creates a new page.
 func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	name, _ := parent.client.Offline().RoomName(roomID)
 
-	msgList := gtk.NewListBox()
-
-	page := Page{
-		list:     msgList,
+	p := Page{
 		messages: make(map[messageKey]messageRow),
 		mrelated: make(map[matrix.EventID]matrix.EventID),
 
 		onTitle: func(string) {},
-		ctx:     gtkutil.WithVisibility(ctx, msgList),
 		name:    name,
 
 		parent: parent,
@@ -202,8 +209,11 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 		roomID: roomID,
 	}
 
-	page.list.SetSelectionMode(gtk.SelectionNone)
-	msgListCSS(page.list)
+	p.list = gtk.NewListBox()
+	p.list.SetSelectionMode(gtk.SelectionNone)
+	msgListCSS(p.list)
+
+	p.ctx = gtkutil.WithVisibility(ctx, p.list)
 
 	// This sorting is a HUGE issue. It's a really, really big issue, actually.
 	// Right now, we're checking whether or not a message should be collapsed by
@@ -222,9 +232,9 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	// incorrect. We might want to use GListModel for this.
 
 	// Sort messages according to the timestamp.
-	msgList.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
-		m1, ok1 := page.messages[messageKeyRow(r1)]
-		m2, ok2 := page.messages[messageKeyRow(r2)]
+	p.list.SetSortFunc(func(r1, r2 *gtk.ListBoxRow) int {
+		m1, ok1 := p.messages[messageKeyRow(r1)]
+		m2, ok2 := p.messages[messageKeyRow(r2)]
 		if !ok1 || !ok2 {
 			return 0
 		}
@@ -241,118 +251,90 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	})
 
 	innerBox := gtk.NewBox(gtk.OrientationVertical, 0)
-	innerBox.Append(newLoadMore(page.loadMore))
-	innerBox.Append(page.list)
-	innerBox.SetFocusChild(page.list)
+	innerBox.Append(newLoadMore(p.loadMore))
+	innerBox.Append(p.list)
+	innerBox.SetFocusChild(p.list)
 
 	vp := gtk.NewViewport(nil, nil)
 	vp.SetVScrollPolicy(gtk.ScrollNatural)
 	vp.SetScrollToFocus(true)
 	vp.SetChild(innerBox)
 
-	page.scroll = autoscroll.NewWindow()
-	page.scroll.SetPropagateNaturalWidth(true)
-	page.scroll.SetPropagateNaturalHeight(true)
-	page.scroll.SetVExpand(true)
-	page.scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	page.scroll.SetChild(vp)
+	p.scroll = autoscroll.NewWindow()
+	p.scroll.SetPropagateNaturalWidth(true)
+	p.scroll.SetPropagateNaturalHeight(true)
+	p.scroll.SetVExpand(true)
+	p.scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	p.scroll.SetChild(vp)
 
 	// Bind the scrolled window for automatic scrolling.
-	page.list.SetAdjustment(page.scroll.VAdjustment())
+	p.list.SetAdjustment(p.scroll.VAdjustment())
 
-	page.Composer = compose.New(ctx, &page, roomID)
+	p.Composer = compose.New(ctx, &p, roomID)
 
-	page.extra = newExtraRevealer()
-	page.extra.SetVAlign(gtk.AlignEnd)
+	p.extra = newExtraRevealer()
+	p.extra.SetVAlign(gtk.AlignEnd)
+
+	p.moreMsgBar = newMoreMessageBar(ctx, p.roomID)
+	p.moreMsgBar.SetVAlign(gtk.AlignStart)
+
+	p.markReadBtn = p.moreMsgBar.AddButton(locale.S(ctx, "Mark as read"))
+	p.markReadBtn.ConnectClicked(func() { p.MarkAsRead() })
 
 	overlay := gtk.NewOverlay()
 	overlay.SetVExpand(true)
-	overlay.SetChild(page.scroll)
-	overlay.AddOverlay(page.extra)
+	overlay.SetChild(p.scroll)
+	overlay.AddOverlay(p.extra)
+	overlay.AddOverlay(p.moreMsgBar)
 
-	page.box = gtk.NewBox(gtk.OrientationVertical, 0)
-	page.box.Append(overlay)
-	page.box.Append(page.Composer)
-	page.box.SetFocusChild(page.Composer)
-	page.box.AddCSSClass("messageview-box")
+	p.box = gtk.NewBox(gtk.OrientationVertical, 0)
+	p.box.Append(overlay)
+	p.box.Append(p.Composer)
+	p.box.SetFocusChild(p.Composer)
+	p.box.AddCSSClass("messageview-box")
 
-	page.main = adaptive.NewLoadablePage()
-	page.main.SetChild(page.box)
-	rhsCSS(page.main)
+	p.main = adaptive.NewLoadablePage()
+	p.main.SetChild(p.box)
+	rhsCSS(p.main)
 
 	// main widget
-	page.Widgetter = page.main
+	p.Widgetter = p.main
 
-	page.ctx.OnRenew(func(context.Context) func() {
+	p.ctx.OnRenew(func(context.Context) func() {
 		return parent.client.SubscribeTimeline(roomID, func(r event.RoomEvent) {
-			glib.IdleAdd(func() { page.OnRoomEvent(r) })
+			glib.IdleAdd(func() { p.OnRoomEvent(r) })
 		})
 	})
 
-	page.ctx.OnRenew(func(context.Context) func() {
+	p.ctx.OnRenew(func(context.Context) func() {
 		client := gotktrix.FromContext(ctx)
-		return client.SubscribeRoom(roomID, event.TypeTyping, func(e event.Event) {
-			ev, ok := e.(*event.TypingEvent)
-			if !ok || len(ev.UserID) == 0 {
-				page.extra.Clear()
-				return
-			}
-
-			// 3 UserIDs max.
-			if len(ev.UserID) > 3 {
-				ev.UserID = ev.UserID[:3]
-			}
-
-			names := make([]string, len(ev.UserID))
-			for i, id := range ev.UserID {
-				author := mauthor.Markup(client, roomID, id, mauthor.WithMinimal())
-				names[i] = "<b>" + author + "</b>"
-			}
-
-			var msg string
-			p := locale.FromContext(ctx)
-
-			switch len(names) {
-			case 0:
-				glib.IdleAdd(func() { page.extra.SetMarkup("") })
-				return
-			case 1:
-				msg = p.Sprintf("%s is typing...", names[0])
-			case 2:
-				msg = p.Sprintf("%s and %s are typing...", names[0], names[1])
-			case 3:
-				msg = p.Sprintf("%s, %s and %s are typing...", names[0], names[1], names[2])
-			default:
-				msg = p.Sprintf("Several people are typing...")
-			}
-
-			glib.IdleAdd(func() { page.extra.SetMarkup(msg) })
+		return client.SubscribeRoomEvents(roomID, messageviewEvents, func(e event.Event) {
+			glib.IdleAdd(func() {
+				switch e := e.(type) {
+				case *event.TypingEvent:
+					p.onTypingEvent(e)
+				case *m.FullyReadEvent:
+					p.moreMsgBar.Invalidate()
+				}
+			})
 		})
 	})
 
 	// Mark the latest message as read everytime the user scrolls down to the
 	// bottom.
-	page.scroll.OnBottomed(page.MarkAsRead)
+	p.scroll.OnBottomed(p.OnScrollBottomed)
 
-	page.ctx.OnRenew(func(ctx context.Context) func() {
+	p.ctx.OnRenew(func(ctx context.Context) func() {
 		w := app.Window(ctx)
-		h := w.Connect("notify::is-active", func() {
-			if page.scroll.IsBottomed() && w.IsActive() {
-				// Mark the page as read if the window is focused and our scroll
-				// is at the bottom.
-				page.MarkAsRead()
-			}
-		})
-		return func() {
-			w.HandlerDisconnect(h)
-		}
+		h := w.Connect("notify::is-active", p.OnScrollBottomed)
+		return func() { w.HandlerDisconnect(h) }
 	})
 
 	// Focus and forward all typing events from the message list to the input
 	// composer.
-	gtkutil.ForwardTyping(page.list, page.Composer.Input())
+	gtkutil.ForwardTyping(p.list, p.Composer.Input())
 
-	return &page
+	return &p
 }
 
 // IsActive returns true if this page is the one the user is viewing.
@@ -392,21 +374,39 @@ func (p *Page) RoomTopic() string {
 	return ""
 }
 
-// OnRoomEvent is called on every room event belonging to this room.
-func (p *Page) OnRoomEvent(ev event.RoomEvent) {
-	if ev.RoomInfo().RoomID != p.roomID {
+func (p *Page) onTypingEvent(ev *event.TypingEvent) {
+	if len(ev.UserID) == 0 {
+		p.extra.Clear()
 		return
 	}
 
-	key := p.onRoomEvent(ev)
-
-	r, ok := p.messages[key]
-	if ok {
-		r.body.LoadMore()
+	// 3 UserIDs max.
+	if len(ev.UserID) > 3 {
+		ev.UserID = ev.UserID[:3]
 	}
 
-	p.clean()
-	p.MarkAsRead()
+	client := gotktrix.FromContext(p.ctx.Take())
+
+	names := make([]string, len(ev.UserID))
+	for i, id := range ev.UserID {
+		author := mauthor.Markup(client, p.roomID, id, mauthor.WithMinimal())
+		names[i] = "<b>" + author + "</b>"
+	}
+
+	sprintf := locale.FromContext(p.ctx.Take()).Sprintf
+
+	switch len(names) {
+	case 0:
+		p.extra.SetMarkup("")
+	case 1:
+		p.extra.SetMarkup(sprintf("%s is typing...", names[0]))
+	case 2:
+		p.extra.SetMarkup(sprintf("%s and %s are typing...", names[0], names[1]))
+	case 3:
+		p.extra.SetMarkup(sprintf("%s, %s and %s are typing...", names[0], names[1], names[2]))
+	default:
+		p.extra.SetMarkup(sprintf("Several people are typing..."))
+	}
 }
 
 // FocusLatestUserEventID returns the latest valid event ID of the current user
@@ -437,12 +437,18 @@ func (p *Page) lastRow() *gtk.ListBoxRow {
 	return nil
 }
 
-// MarkAsRead marks the room as read.
-func (p *Page) MarkAsRead() {
-	if !p.IsActive() || !p.scroll.IsBottomed() || !app.Window(p.ctx.Take()).IsActive() {
+// OnScrollBottomed marks the room as read if the page is focused, the window
+// the page is in are focused, and the user is currently scrolled to the bottom.
+func (p *Page) OnScrollBottomed() {
+	if !p.IsActive() || !p.scroll.IsBottomed() || !app.IsActive(p.ctx.Take()) {
 		return
 	}
 
+	p.MarkAsRead()
+}
+
+// MarkAsRead marks the room as read.
+func (p *Page) MarkAsRead() {
 	lastRow := p.lastRow()
 	if lastRow == nil {
 		return
@@ -454,19 +460,30 @@ func (p *Page) MarkAsRead() {
 	client := gotktrix.FromContext(p.ctx.Take())
 	roomID := p.roomID
 
-	go func() {
+	p.markReadBtn.SetSensitive(false)
+	done := func(hide bool) {
+		if hide {
+			p.moreMsgBar.Hide()
+			p.markReadBtn.SetSensitive(true)
+		}
+	}
+
+	gtkutil.Async(p.ctx.Take(), func() func() {
 		// Pull the events from the room directly from the state. We do this
 		// because the room sometimes coalesce events together.
 		latest, _ := client.State.LatestInTimeline(roomID, "")
 		if latest == nil {
-			return
+			return func() { done(true) }
 		}
 
 		if err := client.MarkRoomAsRead(roomID, latest.RoomInfo().ID); err != nil {
 			// No need to interrupt the user for this.
 			log.Println("failed to mark room as read:", err)
+			return func() { done(false) }
 		}
-	}()
+
+		return func() { done(true) }
+	})
 }
 
 func (p *Page) clean() {
@@ -622,6 +639,23 @@ func (p *Page) relatedEvent(relatesTo matrix.EventID) (messageRow, bool) {
 	return messageRow{}, false
 }
 
+// OnRoomEvent is called on every room timeline event belonging to this room.
+func (p *Page) OnRoomEvent(ev event.RoomEvent) {
+	if ev.RoomInfo().RoomID != p.roomID {
+		return
+	}
+
+	key := p.onRoomEvent(ev)
+
+	r, ok := p.messages[key]
+	if ok {
+		r.body.LoadMore()
+	}
+
+	p.clean()
+	p.OnScrollBottomed()
+}
+
 func (p *Page) onRoomEvent(ev event.RoomEvent) (key messageKey) {
 	key = messageKeyEvent(ev)
 
@@ -661,6 +695,11 @@ func (p *Page) onRoomEvent(ev event.RoomEvent) (key messageKey) {
 		row: row,
 		ev:  ev,
 	})
+
+	// Show the message bar if we haven't received an existing message. We put
+	// this here so it doesn't get triggered if an existing message is found,
+	// which usually happens if the new message is the user's.
+	p.moreMsgBar.Invalidate()
 	return
 }
 

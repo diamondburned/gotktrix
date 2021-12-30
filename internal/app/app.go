@@ -71,6 +71,12 @@ func Window(ctx context.Context) *gtk.Window {
 	return FromContext(ctx).Window()
 }
 
+// IsActive returns true if any of the windows belonging to gotktrix is active.
+func IsActive(ctx context.Context) bool {
+	// TODO: account for transient non-modal dialogs
+	return Window(ctx).IsActive()
+}
+
 // FromContext pulls the application from the given context. If the given
 // context isn't derived from Application, then nil is returned.
 func FromContext(ctx context.Context) *Application {

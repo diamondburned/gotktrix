@@ -19,6 +19,7 @@ type paginateDoneFunc func(hasMore bool, err error)
 var loadMoreCSS = cssutil.Applier("messageview-loadmore", `
 	.messageview-loadmore {
 		margin: 4px;
+		margin-top: 50px;
 	}
 `)
 

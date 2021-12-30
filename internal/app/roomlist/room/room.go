@@ -405,7 +405,7 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 		}
 
 		preview := message.RenderEvent(ctx, first)
-		unread := countUnreadFmt(client, r.ID)
+		unread, more := client.RoomCountUnread(r.ID)
 
 		return func() {
 
@@ -428,10 +428,10 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 			switch {
 			case unread == 0:
 				r.name.unread.SetText("")
-			case unread <= 100:
-				r.name.unread.SetText(fmt.Sprintf("(%d)", unread))
-			default:
+			case more:
 				r.name.unread.SetText(fmt.Sprintf("(%d+)", unread-1))
+			default:
+				r.name.unread.SetText(fmt.Sprintf("(%d)", unread))
 			}
 
 			r.preview.label.SetMarkup(preview)
@@ -446,31 +446,6 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 			}
 		}
 	})
-}
-
-func countUnreadFmt(client *gotktrix.Client, roomID matrix.RoomID) int {
-	latestID := client.RoomLatestReadEvent(roomID)
-	if latestID == "" {
-		return 0
-	}
-
-	var unread int
-	var found bool
-
-	client.EachTimelineReverse(roomID, func(ev event.RoomEvent) error {
-		if ev.RoomInfo().ID == latestID {
-			found = true
-			return gotktrix.EachBreak
-		}
-		unread++
-		return nil
-	})
-
-	if !found {
-		unread++
-	}
-
-	return unread
 }
 
 // SetOrder sets the room's order within the section it is in. If the order is

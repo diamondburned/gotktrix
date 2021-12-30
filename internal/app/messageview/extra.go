@@ -39,6 +39,7 @@ func newExtraRevealer() *extraRevealer {
 
 	r := gtk.NewRevealer()
 	r.SetChild(b)
+	r.SetCanTarget(false)
 	r.SetRevealChild(false)
 	r.SetTransitionType(gtk.RevealerTransitionTypeCrossfade)
 	r.SetTransitionDuration(150)

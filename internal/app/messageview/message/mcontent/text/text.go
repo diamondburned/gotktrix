@@ -67,6 +67,8 @@ func RenderText(ctx context.Context, text string) RenderWidget {
 		}
 	}
 
+	body.QueueResize()
+
 	return RenderWidget{
 		RenderWidgetter: body,
 		RenderMetadata:  meta,
