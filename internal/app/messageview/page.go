@@ -424,10 +424,14 @@ func (p *Page) latestUserMessage() (messageRow, bool) {
 
 	row := p.list.LastChild().(*gtk.ListBoxRow)
 	for row != nil {
-		m, ok := p.messages[messageKey(row.Name())]
-		if ok && m.ev.RoomInfo().Sender == userID {
-			return m, true
+		key := messageKey(row.Name())
+		if key.IsEvent() {
+			m, ok := p.messages[key]
+			if ok && m.ev.RoomInfo().Sender == userID {
+				return m, true
+			}
 		}
+
 		// This repeats until index is -1, at which the loop will break.
 		row = p.list.RowAtIndex(row.Index() - 1)
 	}
@@ -947,7 +951,7 @@ func (p *Page) ReplyTo(eventID matrix.EventID) {
 
 func (p *Page) singleMessageState(
 	eventID matrix.EventID,
-	field *matrix.EventID, set func(matrix.EventID), class string) {
+	field *matrix.EventID, set func(matrix.EventID) bool, class string) {
 
 	if *field != "" {
 		r, ok := p.messages[messageKeyEventID(*field)]
@@ -957,19 +961,16 @@ func (p *Page) singleMessageState(
 		*field = ""
 	}
 
-	mr, ok := p.messages[messageKeyEventID(eventID)]
-	if !ok {
-		if rel := p.mrelated[eventID]; rel != "" {
-			mr, ok = p.messages[messageKeyEventID(rel)]
-		}
-	}
+	mr, ok := p.relatedEvent(eventID)
 	if !ok {
 		set("")
 		return
 	}
 
-	set(eventID)
-	mr.row.AddCSSClass(class)
+	if !set(eventID) {
+		return
+	}
 
+	mr.row.AddCSSClass(class)
 	*field = eventID
 }

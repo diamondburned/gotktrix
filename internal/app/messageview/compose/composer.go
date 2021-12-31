@@ -181,7 +181,7 @@ func (c *Composer) setAction(action ActionData) {
 //
 // TODO(diamond): allow editing older messages.
 // TODO(diamond): lossless Markdown editing (no mentions are lost).
-func (c *Composer) Edit(eventID matrix.EventID) {
+func (c *Composer) Edit(eventID matrix.EventID) bool {
 	c.input.editing = eventID
 	c.input.replyingTo = ""
 
@@ -189,14 +189,20 @@ func (c *Composer) Edit(eventID matrix.EventID) {
 		c.send.SetIconName(sendIcon)
 		c.input.SetText("")
 		c.setAction(c.action.upload)
-		return
+		return false
 	}
 
 	client := gotktrix.FromContext(c.ctx).Offline()
 	revent := roomTimelineEvent(client, c.input.roomID, eventID)
 	if revent == nil {
 		c.input.editing = ""
-		return
+		return false
+	}
+
+	msg, ok := revent.(*event.RoomMessageEvent)
+	if !ok {
+		c.input.editing = ""
+		return false
 	}
 
 	c.setAction(ActionData{
@@ -206,11 +212,9 @@ func (c *Composer) Edit(eventID matrix.EventID) {
 	})
 
 	c.send.SetIconName(editIcon)
+	c.input.SetText(msg.Body)
 
-	msg, ok := revent.(*event.RoomMessageEvent)
-	if ok {
-		c.input.SetText(msg.Body)
-	}
+	return true
 }
 
 func roomTimelineEvent(
@@ -228,13 +232,13 @@ func roomTimelineEvent(
 // ReplyTo sets the event ID that the to-be-sent message is supposed to be
 // replying to. It replaces the previously-set event ID. The event ID is cleared
 // when the message is sent. An empty string clears the replying state.
-func (c *Composer) ReplyTo(eventID matrix.EventID) {
+func (c *Composer) ReplyTo(eventID matrix.EventID) bool {
 	c.input.editing = ""
 	c.input.replyingTo = eventID
 
 	if c.input.replyingTo == "" {
 		c.send.SetIconName(sendIcon)
-		return
+		return false
 	}
 
 	c.setAction(ActionData{
@@ -244,4 +248,5 @@ func (c *Composer) ReplyTo(eventID matrix.EventID) {
 	})
 
 	c.send.SetIconName(replyIcon)
+	return true
 }
