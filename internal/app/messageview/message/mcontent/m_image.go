@@ -218,6 +218,11 @@ func renderBlurhash(rawInfo json.RawMessage, w, h int, picFn func(*gdkpixbuf.Pix
 		return
 	}
 
+	w, h = gotktrix.MaxSize(w, h, maxBlurhash, maxBlurhash)
+	if w == 0 || h == 0 {
+		return
+	}
+
 	var info struct {
 		BlurHash string `json:"xyz.amorgan.blurhash"`
 	}
@@ -226,7 +231,6 @@ func renderBlurhash(rawInfo json.RawMessage, w, h int, picFn func(*gdkpixbuf.Pix
 		return
 	}
 
-	w, h = gotktrix.MaxSize(w, h, maxBlurhash, maxBlurhash)
 	nrgba := image.NewNRGBA(image.Rect(0, 0, w, h))
 
 	if err := blurhash.DecodeDraw(nrgba, info.BlurHash, 1); err != nil {

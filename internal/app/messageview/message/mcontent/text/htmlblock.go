@@ -495,7 +495,7 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	})
 
 	expand := gtk.NewToggleButton()
-	expand.SetTooltipText("Toggle reveal code")
+	expand.SetTooltipText("Toggle Reveal Code")
 
 	actions := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	actions.AddCSSClass("mcontent-code-block-actions")
