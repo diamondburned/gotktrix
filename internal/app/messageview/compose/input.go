@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"container/list"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -27,8 +28,9 @@ import (
 // Input is the input component of the message composer.
 type Input struct {
 	*gtk.TextView
-	buffer *gtk.TextBuffer
-	ac     *autocomplete.Autocompleter
+	buffer  *gtk.TextBuffer
+	acomp   *autocomplete.Autocompleter
+	anchors list.List // T = anchorPiece
 
 	ctx    context.Context
 	ctrl   Controller
@@ -40,6 +42,11 @@ type Input struct {
 type inputState struct {
 	editing    matrix.EventID
 	replyingTo matrix.EventID
+}
+
+type anchorPiece struct {
+	anchor *gtk.TextChildAnchor
+	str    string
 }
 
 var inputCSS = cssutil.Applier("composer-input", `
@@ -58,64 +65,114 @@ var inputCSS = cssutil.Applier("composer-input", `
 func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input {
 	go requestAllMembers(ctx, roomID)
 
-	tview := gtk.NewTextView()
-	tview.SetWrapMode(gtk.WrapWordChar)
-	tview.SetAcceptsTab(true)
-	tview.SetHExpand(true)
-	tview.SetInputHints(0 |
+	i := Input{
+		ctx:    ctx,
+		ctrl:   ctrl,
+		roomID: roomID,
+	}
+
+	i.TextView = gtk.NewTextView()
+	i.TextView.SetWrapMode(gtk.WrapWordChar)
+	i.TextView.SetAcceptsTab(true)
+	i.TextView.SetHExpand(true)
+	i.TextView.SetInputHints(0 |
 		gtk.InputHintEmoji |
 		gtk.InputHintSpellcheck |
 		gtk.InputHintWordCompletion |
 		gtk.InputHintUppercaseSentences,
 	)
+	md.SetTabSize(i.TextView)
+	inputCSS(i)
 
-	md.SetTabSize(tview)
-	inputCSS(tview)
-
-	astate := newAutocompleteState(ctx, tview)
-
-	ac := autocomplete.New(ctx, tview, astate.finish)
-	ac.SetTimeout(time.Second)
-	ac.Use(
+	i.acomp = autocomplete.New(ctx, i.TextView, i.onAutocompleted)
+	i.acomp.SetTimeout(time.Second)
+	i.acomp.Use(
 		autocomplete.NewRoomMemberSearcher(ctx, roomID), // @
 		autocomplete.NewEmojiSearcher(ctx, roomID),      // :
 	)
 
-	// Ugh. We have to be EXTREMELY careful with this context, because if it's
-	// misused, it will put the input buffer into a very inconsistent state.
-	// It must be invalidated every time to buffer changes, because we don't
-	// want to risk
+	i.buffer = i.TextView.Buffer()
 
-	buffer := tview.Buffer()
-	buffer.Connect("changed", func(buffer *gtk.TextBuffer) {
+	i.buffer.Connect("changed", func(buffer *gtk.TextBuffer) {
 		md.WYSIWYG(ctx, buffer)
-		ac.Autocomplete()
+		i.acomp.Autocomplete()
+	})
+
+	i.buffer.ConnectDeleteRange(func(start, end *gtk.TextIter) {
+		startOffset := start.Offset()
+		endOffset := end.Offset()
+
+		for elem := i.anchors.Front(); elem != nil; elem = elem.Next() {
+			anchor := elem.Value.(anchorPiece)
+			anIter := i.buffer.IterAtChildAnchor(anchor.anchor)
+			offset := anIter.Offset()
+
+			if startOffset <= offset && offset <= endOffset {
+				// Deleting the anchor, so remove it off.
+				i.anchors.Remove(elem)
+			}
+		}
 	})
 
 	enterKeyer := gtk.NewEventControllerKey()
-	tview.AddController(enterKeyer)
+	enterKeyer.ConnectKeyPressed(i.onKey)
+	i.AddController(enterKeyer)
 
 	uploader := uploader{ctx, ctrl, roomID}
-	tview.Connect("paste-clipboard", uploader.paste)
+	i.ConnectPasteClipboard(uploader.paste)
 
-	input := Input{
-		TextView: tview,
-		buffer:   buffer,
-		ac:       ac,
-		ctx:      ctx,
-		ctrl:     ctrl,
-		roomID:   roomID,
-	}
-
-	enterKeyer.Connect("key-pressed", input.onKey)
-
-	return &input
+	return &i
 }
 
-func (i *Input) onKey(_ *gtk.EventControllerKey, val, code uint, state gdk.ModifierType) bool {
+func (i *Input) onAutocompleted(row autocomplete.SelectedData) bool {
+	i.buffer.BeginUserAction()
+	defer i.buffer.EndUserAction()
+
+	// Delete the inserted text, which will equalize the two boundi. The
+	// caller will use bounds[1], so we use that to revalidate it.
+	i.buffer.Delete(row.Bounds[0], row.Bounds[1])
+
+	switch data := row.Data.(type) {
+	case autocomplete.RoomMemberData:
+		chip := mauthor.NewChip(i.ctx, data.Room, data.ID)
+		anchor := chip.InsertText(i.TextView, row.Bounds[1])
+
+		// Register the anchor.
+		i.anchors.PushBack(anchorPiece{
+			anchor: anchor,
+			str: fmt.Sprintf(
+				`<a href="https://matrix.to/#/%s">%s</a>`,
+				html.EscapeString(string(data.ID)), html.EscapeString(chip.Name()),
+			),
+		})
+
+	case autocomplete.EmojiData:
+		if data.Unicode != "" {
+			// Unicode emoji means we can just insert it in plain text.
+			i.buffer.Insert(row.Bounds[1], data.Unicode)
+		} else {
+			mut := md.BeginImmutable(row.Bounds[1])
+			defer mut()
+
+			// Queue inserting the pixbuf.
+			client := gotktrix.FromContext(i.ctx).Offline()
+			url, _ := client.SquareThumbnail(data.Custom.URL, inlineEmojiSize, gtkutil.ScaleFactor())
+			md.AsyncInsertImage(i.ctx, row.Bounds[1], url, inlineEmojiSize, inlineEmojiSize)
+			// Insert the HTML.
+			md.InsertInvisible(row.Bounds[1], customEmojiHTML(data))
+		}
+	default:
+		log.Println("unknown data type %T", data)
+		return false
+	}
+
+	return true
+}
+
+func (i *Input) onKey(val, _ uint, state gdk.ModifierType) bool {
 	switch val {
 	case gdk.KEY_Return:
-		if i.ac.Select() {
+		if i.acomp.Select() {
 			return true
 		}
 
@@ -127,8 +184,10 @@ func (i *Input) onKey(_ *gtk.EventControllerKey, val, code uint, state gdk.Modif
 		// a new string (twice) on each keypress.
 		head := i.buffer.StartIter()
 		tail := i.buffer.IterAtOffset(i.buffer.ObjectProperty("cursor-position").(int))
-		uinput := i.buffer.Text(head, tail, false)
+		uinput := i.Text(head, tail)
 
+		// Check if the number of triple backticks is odd. If it is, then we're
+		// in one.
 		withinCodeblock := strings.Count(uinput, "```")%2 != 0
 
 		// Enter (without holding Shift) sends the message.
@@ -136,11 +195,11 @@ func (i *Input) onKey(_ *gtk.EventControllerKey, val, code uint, state gdk.Modif
 			return i.Send()
 		}
 	case gdk.KEY_Tab:
-		return i.ac.Select()
+		return i.acomp.Select()
 	case gdk.KEY_Escape:
-		return i.ac.Clear()
+		return i.acomp.Clear()
 	case gdk.KEY_Up:
-		if i.ac.MoveUp() {
+		if i.acomp.MoveUp() {
 			return true
 		}
 		if i.buffer.CharCount() == 0 {
@@ -152,7 +211,7 @@ func (i *Input) onKey(_ *gtk.EventControllerKey, val, code uint, state gdk.Modif
 			}
 		}
 	case gdk.KEY_Down:
-		return i.ac.MoveDown()
+		return i.acomp.MoveDown()
 	}
 
 	return false
@@ -165,6 +224,52 @@ func (i *Input) SetText(text string) {
 
 	i.buffer.Delete(start, end)
 	i.buffer.Insert(start, text)
+}
+
+// HTML returns the Input's content as HTML.
+func (i *Input) HTML(start, end *gtk.TextIter) string {
+	if i.anchors.Len() == 0 {
+		return i.buffer.Text(start, end, true)
+	}
+
+	buf := strings.Builder{}
+	buf.Grow(end.Offset())
+
+	// Construct a fast lookup map from offsets to strings.
+	anchors := make(map[int]string, i.anchors.Len())
+
+	for elem := i.anchors.Front(); elem != nil; elem = elem.Next() {
+		anchor := elem.Value.(anchorPiece)
+		anIter := i.buffer.IterAtChildAnchor(anchor.anchor)
+		anchors[anIter.Offset()] = anchor.str
+	}
+
+	// Borrow the start iterator to iterate over the whole text buffer.
+	for ok := true; ok; ok = start.ForwardChar() {
+		r := rune(start.Char())
+		if r != '\uFFFC' {
+			// Rune is not a Unicode unknown character, so skip the anchor
+			// check.
+			buf.WriteRune(r)
+			continue
+		}
+
+		// Check the anchor on this position.
+		s, ok := anchors[start.Offset()]
+		if ok {
+			buf.WriteString(s)
+		} else {
+			// Preserve the rune if this isn't our anchor.
+			buf.WriteRune(r)
+		}
+	}
+
+	return buf.String()
+}
+
+// Text return sthe Input's content as plain text.
+func (i *Input) Text(start, end *gtk.TextIter) string {
+	return i.buffer.Text(start, end, false)
 }
 
 // Send sends the message inside the input off.
@@ -205,9 +310,7 @@ func (i *Input) Send() bool {
 		}
 	}()
 
-	head := i.buffer.StartIter()
-	tail := i.buffer.EndIter()
-	i.buffer.Delete(head, tail)
+	i.buffer.Delete(i.buffer.Bounds())
 
 	// Ask the parent to reset the state.
 	i.ctrl.ReplyTo("")
@@ -231,7 +334,7 @@ func (i *Input) put() (inputData, bool) {
 	// all.
 
 	// Get the buffer WITH the invisible HTML segments.
-	inputHTML := i.buffer.Text(head, tail, true)
+	inputHTML := i.HTML(head, tail)
 	// Clean off trailing spaces.
 	inputHTML = strings.TrimSpace(inputHTML)
 
@@ -241,7 +344,7 @@ func (i *Input) put() (inputData, bool) {
 
 	// Get the buffer without any invisible segments, since those segments
 	// contain HTML.
-	plain := i.buffer.Text(head, tail, false)
+	plain := i.Text(head, tail)
 	// Clean off trailing spaces.
 	plain = strings.TrimSpace(plain)
 
@@ -388,123 +491,6 @@ func customEmojiHTML(emoji autocomplete.EmojiData) string {
 		html.EscapeString(string(emoji.Name)),
 		html.EscapeString(string(emoji.Custom.URL)),
 	)
-}
-
-type autocompleteState struct {
-	text   *gtk.TextView
-	buffer *gtk.TextBuffer
-	ctx    context.Context
-	pairs  [][2]*gtk.TextMark
-}
-
-func iterEq(it1, it2 *gtk.TextIter) bool {
-	return it1.Offset() == it2.Offset()
-}
-
-func newAutocompleteState(ctx context.Context, text *gtk.TextView) *autocompleteState {
-	s := autocompleteState{
-		text:   text,
-		buffer: text.Buffer(),
-		ctx:    ctx,
-	}
-
-	// 	s.buffer.Connect("delete-range", func(start, end *gtk.TextIter) {
-	// 		// Range over the whole deleting region.
-	// 		for iter, ok := start.Copy(), true; ok; ok = iter.ForwardChar() {
-	// 			// Search for all marks within the deleted region.
-	// 			for _, mark := range start.Marks() {
-	// 				i := s.findMark(&mark)
-	// 				if i == -1 {
-	// 					continue
-	// 				}
-	// 				// Found a pair that's within the delete range. Delete both
-	// 				// marks.
-	// 				i1 := s.buffer.IterAtMark(s.pairs[i][0])
-	// 				i2 := s.buffer.IterAtMark(s.pairs[i][1])
-	// 				s.buffer.Delete(i1, i2)
-	// 				s.pairs = append(s.pairs[:i], s.pairs[i+1:]...)
-	// 			}
-	// 		}
-	// 	})
-
-	return &s
-}
-
-func (s *autocompleteState) findMark(mark *gtk.TextMark) int {
-	for i, pair := range s.pairs {
-		if glib.ObjectEq(mark, pair[0]) || glib.ObjectEq(mark, pair[1]) {
-			return i
-		}
-	}
-	return -1
-}
-
-func (s *autocompleteState) finish(row autocomplete.SelectedData) bool {
-	s.buffer.BeginUserAction()
-	defer s.buffer.EndUserAction()
-
-	// Delete the inserted text, which will equalize the two bounds. The
-	// caller will use bounds[1], so we use that to revalidate it.
-	s.buffer.Delete(row.Bounds[0], row.Bounds[1])
-
-	// TODO: use TextMarks instead, maybe?
-	// start := s.buffer.CreateMark("", row.Bounds[0], true)
-	// start.SetVisible(true)
-	// defer func() {
-	// 	// Save the end mark.
-	// 	end := s.buffer.CreateMark("", row.Bounds[1], true)
-	// 	end.SetVisible(true)
-	// 	log.Println("start =", s.buffer.IterAtMark(start).Offset())
-	// 	log.Println("end   =", s.buffer.IterAtMark(end).Offset())
-	// 	// Save the pair into the registry to be captured by the handler.
-	// 	s.pairs = append(s.pairs, [2]*gtk.TextMark{start, end})
-	// }()
-
-	// If this works as intended, then it's truly awesome. What this should do
-	// is that it'll prevent the user from deleting the inner segment, but the
-	// user can still delete the surrounding marks, which will wipe the segment
-	// using the signal handler.
-	//
-	// It doesn't.
-
-	switch data := row.Data.(type) {
-	case autocomplete.RoomMemberData:
-		client := gotktrix.FromContext(s.ctx).Offline()
-
-		mut := md.BeginImmutable(row.Bounds[1])
-		defer mut()
-
-		md.InsertInvisible(row.Bounds[1], fmt.Sprintf(
-			`<a href="https://matrix.to/#/%s">`,
-			html.EscapeString(string(data.ID)),
-		))
-		mauthor.Text(
-			client, row.Bounds[1], data.Room, data.ID,
-			mauthor.WithMention(),
-			mauthor.WithWidgetColor(s.text),
-		)
-		md.InsertInvisible(row.Bounds[1], "</a>")
-
-	case autocomplete.EmojiData:
-		if data.Unicode != "" {
-			// Unicode emoji means we can just insert it in plain text.
-			s.buffer.Insert(row.Bounds[1], data.Unicode)
-		} else {
-			mut := md.BeginImmutable(row.Bounds[1])
-			defer mut()
-
-			// Queue inserting the pixbuf.
-			client := gotktrix.FromContext(s.ctx).Offline()
-			url, _ := client.SquareThumbnail(data.Custom.URL, inlineEmojiSize, gtkutil.ScaleFactor())
-			md.AsyncInsertImage(s.ctx, row.Bounds[1], url, inlineEmojiSize, inlineEmojiSize)
-			// Insert the HTML.
-			md.InsertInvisible(row.Bounds[1], customEmojiHTML(data))
-		}
-	default:
-		log.Panicf("unknown data type %T", data)
-	}
-
-	return true
 }
 
 // requestAllMembers asynchronously fills up the local state with the given

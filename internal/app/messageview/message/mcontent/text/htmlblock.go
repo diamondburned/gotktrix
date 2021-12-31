@@ -58,7 +58,7 @@ func (s *currentBlockState) text() *textBlock {
 	case *codeBlock:
 		return block.text
 	case *quoteBlock:
-		return &block.textBlock
+		return block.text
 	default:
 		// Everything else is not text.
 		return s.paragraph()
@@ -72,7 +72,7 @@ func (s *currentBlockState) richText() *textBlock {
 	case *textBlock:
 		return block
 	case *quoteBlock:
-		return &block.textBlock
+		return block.text
 	default:
 		// Everything else is not text.
 		return s.paragraph()
@@ -146,9 +146,13 @@ type textBlock struct {
 	buf  *gtk.TextBuffer
 	iter *gtk.TextIter
 
-	table     *gtk.TextTagTable
-	context   context.Context
-	hyperlink bool
+	table   *gtk.TextTagTable
+	context context.Context
+
+	state struct {
+		hyperlink bool
+		hasChips  bool
+	}
 }
 
 func newTextBlock(state *currentBlockState) *textBlock {
@@ -157,6 +161,7 @@ func newTextBlock(state *currentBlockState) *textBlock {
 		table:   state.table,
 		buf:     gtk.NewTextBuffer(state.table),
 	}
+	text.buf.SetEnableUndo(false)
 	text.iter = text.buf.StartIter()
 	text.TextView = newTextView(state.context, text.buf)
 	text.AddCSSClass("mcontent-text-block")
@@ -168,6 +173,13 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 	textview.mcontent-text text {
 		background-color: transparent;
 	}
+	/*
+     * Workaround for GTK padding an extra line at the bottom of the TextView if
+	 * even one user chip is inserted for some weird reason.
+     */
+	textview.mcontent-text-haschips {
+		margin-bottom: -1.2em;
+	}
 `)
 
 func newTextView(ctx context.Context, buf *gtk.TextBuffer) *gtk.TextView {
@@ -176,7 +188,6 @@ func newTextView(ctx context.Context, buf *gtk.TextBuffer) *gtk.TextView {
 	tview.SetEditable(false)
 	tview.SetCursorVisible(false)
 	tview.SetHExpand(true)
-	tview.SetVExpand(true)
 	tview.SetWrapMode(gtk.WrapWordChar)
 
 	textContentCSS(tview)
@@ -187,15 +198,28 @@ func newTextView(ctx context.Context, buf *gtk.TextBuffer) *gtk.TextView {
 
 // hasLink connects the needed handlers into the textBlock to handle hyperlinks.
 func (b *textBlock) hasLink() {
-	if b.hyperlink {
-		return
+	if b.flip(&b.state.hyperlink) {
+		BindLinkHandler(b.TextView, func(url string) {
+			app.OpenURI(b.context, url)
+		})
+	}
+}
+
+func (b *textBlock) hasChips() {
+	if b.flip(&b.state.hasChips) {
+		// Use this for a workaround.
+		b.TextView.AddCSSClass("mcontent-text-haschips")
+	}
+}
+
+// flip flips the bool to true and returns true; false is returned otherwise.
+func (b *textBlock) flip(value *bool) bool {
+	if *value {
+		return false
 	}
 
-	b.hyperlink = true
-
-	BindLinkHandler(b.TextView, func(url string) {
-		app.OpenURI(b.context, url)
-	})
+	*value = true
+	return true
 }
 
 // nTrailingNewLine counts the number of trailing new lines up to 2.
@@ -312,16 +336,15 @@ func (b *textBlock) insertInvisible(str string) {
 }
 
 type quoteBlock struct {
-	textBlock
+	*gtk.Box
+	text *textBlock
 }
 
 var quoteBlockCSS = cssutil.Applier("mcontent-quote-block", `
-	.mcontent-quote-block {
+	.mcontent-quote-block separator {
+		background:   none;
 		border-left:  3px solid alpha(@theme_fg_color, 0.5);
-		padding-left: 6px;
-	}
-	.mcontent-quote-block:not(:first-child) {
-		margin-top: 3px;
+		padding-left: 5px;
 	}
 	.mcontent-quote-block:not(:last-child) {
 		margin-bottom: 3px;
@@ -329,9 +352,20 @@ var quoteBlockCSS = cssutil.Applier("mcontent-quote-block", `
 `)
 
 func newQuoteBlock(s *currentBlockState) *quoteBlock {
-	quote := &quoteBlock{textBlock: *newTextBlock(s)}
+	text := newTextBlock(s)
+	text.SetHExpand(true)
+
+	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	box.SetOverflow(gtk.OverflowHidden)
+	box.Append(gtk.NewSeparator(gtk.OrientationVertical))
+	box.Append(text)
+
+	quote := quoteBlock{
+		Box:  box,
+		text: text,
+	}
 	quote.AddCSSClass("mcontent-quote-block")
-	return quote
+	return &quote
 }
 
 type codeBlock struct {
@@ -426,8 +460,18 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	language.SetXAlign(0)
 	language.SetVAlign(gtk.AlignCenter)
 
-	copy := gtk.NewButton()
-	copy.SetIconName("edit-copy-symbolic")
+	wrap := gtk.NewToggleButton()
+	wrap.SetIconName("format-justify-left-symbolic")
+	wrap.SetTooltipText("Toggle Word Wrapping")
+	wrap.ConnectClicked(func() {
+		if wrap.Active() {
+			text.SetWrapMode(gtk.WrapWordChar)
+		} else {
+			text.SetWrapMode(gtk.WrapNone)
+		}
+	})
+
+	copy := gtk.NewButtonFromIconName("edit-copy-symbolic")
 	copy.SetTooltipText("Copy All")
 	copy.ConnectClicked(func() {
 		popover := gtk.NewPopover()
@@ -458,6 +502,7 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	actions.SetHAlign(gtk.AlignFill)
 	actions.SetVAlign(gtk.AlignStart)
 	actions.Append(language)
+	actions.Append(wrap)
 	actions.Append(copy)
 	actions.Append(expand)
 
@@ -579,15 +624,15 @@ func min(i, j int) int {
 func (b *codeBlock) withHighlight(lang string, f func(*textBlock)) {
 	b.lang.SetText(lang)
 
-	if lang == "" {
-		f(b.text)
-		return
-	}
-
 	start := b.text.iter.Offset()
 	f(b.text)
 
 	startIter := b.text.buf.IterAtOffset(start)
+
+	// Don't add any hyphens.
+	noHyphens := md.TextTags.FromTable(b.text.table, "_nohyphens")
+	b.text.buf.ApplyTag(noHyphens, startIter, b.text.iter)
+
 	hl.Highlight(b.context, startIter, b.text.iter, lang)
 }
 

@@ -137,6 +137,7 @@ var TextTags = markuputil.TextTagsMap{
 	"_immutable": {"editable": false},
 	"_emoji":     {"scale": EmojiScale},
 	"_image":     {"rise": -5 * pango.SCALE},
+	"_nohyphens": {"insert-hyphens": false},
 }
 
 func htag(scale float64) markuputil.TextTag {

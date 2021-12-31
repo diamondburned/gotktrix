@@ -68,7 +68,7 @@ func (b htmlBox) SetExtraMenu(model gio.MenuModeller) {
 		case *textBlock:
 			block.SetExtraMenu(model)
 		case *quoteBlock:
-			block.SetExtraMenu(model)
+			block.text.SetExtraMenu(model)
 		case *codeBlock:
 			block.text.SetExtraMenu(model)
 		}
@@ -125,7 +125,7 @@ func renderHTML(ctx context.Context, roomID matrix.RoomID, htmlBody string) (Ren
 		case *textBlock:
 			text = block
 		case *quoteBlock:
-			text = &block.textBlock
+			text = block.text
 		default:
 			continue
 		}
@@ -268,29 +268,27 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				// TODO: check that the inner text says "in reply to", but
 				// that's probably a bad idea.
 				s.replyURL = href
+
+			} else if strings.HasPrefix(href, mentionURLPrefix) {
+				// Format the user ID; the trimming will trim the at symbol so
+				// add it back.
+				uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
+
+				text.hasChips()
+				chip := mauthor.NewChip(s.ctx, s.room, uID)
+				chip.InsertText(text.TextView, text.iter)
+
+				md.InsertInvisible(text.iter, string(uID))
+				return traverseSkipChildren
 			}
 
 			// -1 means don't link
 			start := -1
 			color := false
 
-			switch {
-			// See if this is a user mention. If yes, then write our own texts.
-			case strings.HasPrefix(href, mentionURLPrefix):
-				// Make the mention a link as well.
-				start = text.iter.Offset()
-				// Format the user ID; the trimming will trim the at symbol so
-				// add it back.
-				uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
-				mauthor.Text(gotktrix.FromContext(s.ctx), text.iter, s.room, uID,
-					mauthor.WithMention(),
-					mauthor.WithMinimal(),
-					mauthor.WithShade(),
-				)
-
 			// Only bother with adding a link tag if we know that the URL
 			// has a safe scheme.
-			case urlIsSafe(href):
+			if urlIsSafe(href) {
 				start = text.iter.Offset()
 				color = true
 				s.traverseChildren(n)
@@ -488,7 +486,7 @@ func (s *renderState) endLine(n *html.Node, amount int) {
 	case *textBlock:
 		block.endLine(n, amount)
 	case *quoteBlock:
-		block.endLine(n, amount)
+		block.text.endLine(n, amount)
 	case *codeBlock:
 		block.text.endLine(n, amount)
 	default:
