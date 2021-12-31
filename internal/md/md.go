@@ -2,14 +2,10 @@
 package md
 
 import (
-	"context"
-
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 
 	"github.com/yuin/goldmark"
@@ -136,7 +132,7 @@ var TextTags = markuputil.TextTagsMap{
 	"_invisible": {"editable": false, "invisible": true},
 	"_immutable": {"editable": false},
 	"_emoji":     {"scale": EmojiScale},
-	"_image":     {"rise": -5 * pango.SCALE},
+	"_image":     {"rise": -2 * pango.SCALE},
 	"_nohyphens": {"insert-hyphens": false},
 }
 
@@ -216,40 +212,47 @@ func insertInvisible(buf *gtk.TextBuffer, pos *gtk.TextIter, txt string) {
 	buf.ApplyTag(tag, startIter, pos)
 }
 
-// AsyncInsertImage asynchronously inserts an image paintable. It does so in a
-// way that the text position of the text buffer is not scrambled.
-//
-// Note that the caller should be careful when using this function: only modify
-// the text buffer once the given context is cancelled. If that isn't done, then
-// the function might incorrectly insert an image when it's not needed anymore.
-// This is only a concern if the text buffer is mutable, however.
-func AsyncInsertImage(
-	ctx context.Context, iter *gtk.TextIter, url string, w, h int, opts ...imgutil.Opts) {
-
-	buf := iter.Buffer()
-	mark := buf.CreateMark("", iter, true)
-
-	setImg := func(p gdk.Paintabler) {
-		if p != nil && !mark.Deleted() {
-			// Insert the pixbuf at the location if mark is not deleted.
-			miter := buf.IterAtMark(mark)
-			start := miter.Offset()
-
-			buf.InsertPaintable(miter, p)
-			buf.ApplyTag(TextTags.FromBuffer(buf, "_image"), buf.IterAtOffset(start), miter)
-
-			buf.DeleteMark(mark)
-		}
+var inlineImageCSS = cssutil.Applier("md-inlineimage", `
+	.md-inlineimage {
+		margin-bottom: -0.35em;
 	}
+`)
 
-	if w > 0 && h > 0 {
-		opts = append(opts,
-			imgutil.WithRescale(w, h),
-			imgutil.WithFallbackIcon("dialog-error"),
-		)
-	}
+// inlineImageHeightOffset is kept in sync with the -0.35em subtraction above,
+// because GTK behaves weirdly with how the height is done. It only matters for
+// small inline images, though.
+const inlineImageHeightOffset = -4
 
-	imgutil.AsyncGET(ctx, url, setImg, opts...)
+// InlineImage is an inline image.
+type InlineImage struct {
+	*gtk.Image
+}
+
+// SetSizeRequest sets the minimum size of the inline image.
+func (i *InlineImage) SetSizeRequest(w, h int) {
+	h += inlineImageHeightOffset
+	i.Image.SetSizeRequest(w, h)
+}
+
+// InsertImageWidget asynchronously inserts a new image widget. It does so in a
+// way that the text position of the text buffer is not scrambled. Images
+// created using this function will have the ".md-inlineimage" class.
+func InsertImageWidget(view *gtk.TextView, anchor *gtk.TextChildAnchor) *InlineImage {
+	buf := view.Buffer()
+
+	image := gtk.NewImageFromIconName("image-x-generic-symbolic")
+	inlineImageCSS(image)
+
+	iter := buf.IterAtChildAnchor(anchor)
+	startOffset := iter.Offset()
+
+	view.AddChildAtAnchor(image, anchor)
+
+	tag := TextTags.FromBuffer(buf, "_image")
+	start := buf.IterAtOffset(startOffset)
+	buf.ApplyTag(tag, start, iter)
+
+	return &InlineImage{image}
 }
 
 // https://stackoverflow.com/a/36258684/5041327

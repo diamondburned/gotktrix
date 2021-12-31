@@ -21,6 +21,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/pkg/errors"
 )
@@ -151,18 +152,25 @@ func (i *Input) onAutocompleted(row autocomplete.SelectedData) bool {
 			// Unicode emoji means we can just insert it in plain text.
 			i.buffer.Insert(row.Bounds[1], data.Unicode)
 		} else {
-			mut := md.BeginImmutable(row.Bounds[1])
-			defer mut()
+			anchor := i.buffer.CreateChildAnchor(row.Bounds[1])
 
-			// Queue inserting the pixbuf.
+			image := md.InsertImageWidget(i.TextView, anchor)
+			image.AddCSSClass("compose-inline-emoji")
+			image.SetSizeRequest(inlineEmojiSize, inlineEmojiSize)
+			image.SetName(data.Name)
+
 			client := gotktrix.FromContext(i.ctx).Offline()
 			url, _ := client.SquareThumbnail(data.Custom.URL, inlineEmojiSize, gtkutil.ScaleFactor())
-			md.AsyncInsertImage(i.ctx, row.Bounds[1], url, inlineEmojiSize, inlineEmojiSize)
-			// Insert the HTML.
-			md.InsertInvisible(row.Bounds[1], customEmojiHTML(data))
+			imgutil.AsyncGET(i.ctx, url, image.SetFromPaintable)
+
+			// Register the anchor.
+			i.anchors.PushBack(anchorPiece{
+				anchor: anchor,
+				str:    customEmojiHTML(data),
+			})
 		}
 	default:
-		log.Println("unknown data type %T", data)
+		log.Printf("unknown data type %T", data)
 		return false
 	}
 

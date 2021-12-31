@@ -151,7 +151,7 @@ type textBlock struct {
 
 	state struct {
 		hyperlink bool
-		hasChips  bool
+		hasWidget bool
 	}
 }
 
@@ -175,9 +175,9 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 	}
 	/*
      * Workaround for GTK padding an extra line at the bottom of the TextView if
-	 * even one user chip is inserted for some weird reason.
+	 * even one widget is inserted for some weird reason.
      */
-	textview.mcontent-text-haschips {
+	textview.mcontent-text-haswidget {
 		margin-bottom: -1.2em;
 	}
 `)
@@ -205,10 +205,10 @@ func (b *textBlock) hasLink() {
 	}
 }
 
-func (b *textBlock) hasChips() {
-	if b.flip(&b.state.hasChips) {
+func (b *textBlock) hasWidget() {
+	if b.flip(&b.state.hasWidget) {
 		// Use this for a workaround.
-		b.TextView.AddCSSClass("mcontent-text-haschips")
+		b.TextView.AddCSSClass("mcontent-text-haswidget")
 	}
 }
 

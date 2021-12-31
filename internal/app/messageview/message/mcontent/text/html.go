@@ -13,6 +13,8 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
+	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"golang.org/x/net/html"
@@ -274,7 +276,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				// add it back.
 				uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
 
-				text.hasChips()
+				text.hasWidget()
 				chip := mauthor.NewChip(s.ctx, s.room, uID)
 				chip.InsertText(text.TextView, text.iter)
 
@@ -352,22 +354,24 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				return traverseOK
 			}
 
-			// TODO: figure out a way to insert a nice text representation of an
-			// emoji that's invisible, so it's clipboard-and-TTS friendly. This
-			// way doesn't work.
-			// s.insertInvisible(nodeAttr(n, "title"))
+			var w, h int
+			var url string
+
+			client := gotktrix.FromContext(s.ctx).Offline()
 
 			// TODO: consider if it's a better idea to only allow emoticons to
 			// be inlined. As far as I know, nothing except emojis are really
 			// good for being inlined, but that might not cover everything.
-			var w, h int
-			if nodeHasAttr(n, "data-mx-emoticon") {
+			isEmoji := nodeHasAttr(n, "data-mx-emoticon")
+			if isEmoji {
 				// If this image is a custom emoji, then we can make it big.
 				if s.large {
 					w, h = largeEmojiSize, largeEmojiSize
 				} else {
 					w, h = smallEmojiSize, smallEmojiSize
 				}
+				url, _ = client.SquareThumbnail(src, w, gtkutil.ScaleFactor())
+
 			} else {
 				w, h = gotktrix.MaxSize(
 					parseIntOr(nodeAttr(n, "width"), maxWidth),
@@ -375,12 +379,31 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 					maxWidth,
 					maxHeight,
 				)
+				url, _ = client.ScaledThumbnail(src, w, h, gtkutil.ScaleFactor())
 			}
 
-			thumbnail, _ := gotktrix.FromContext(s.ctx).Offline().ScaledThumbnail(src, w, h, 1)
-
 			text := s.block.richText()
-			md.AsyncInsertImage(s.ctx, text.iter, thumbnail, w, h)
+			text.hasWidget()
+
+			image := md.InsertImageWidget(text.TextView, text.buf.CreateChildAnchor(text.iter))
+			image.AddCSSClass("mcontent-inline-image")
+			image.SetSizeRequest(w, h)
+
+			imgutil.AsyncGET(s.ctx, url, image.SetFromPaintable)
+
+			alt := nodeAttr(n, "alt")
+			if alt != "" {
+				image.SetTooltipText(alt)
+			}
+
+			// Insert copy-paste friendly name if this is an emoji.
+			// Otherwise, just insert the URL.
+			if alt != "" && isEmoji {
+				md.InsertInvisible(text.iter, alt)
+			} else if url != "" {
+				md.InsertInvisible(text.iter, url)
+			}
+
 			return traverseOK
 
 		case "mx-reply":

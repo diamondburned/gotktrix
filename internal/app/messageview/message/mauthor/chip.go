@@ -96,9 +96,6 @@ func (c *Chip) InsertText(text *gtk.TextView, iter *gtk.TextIter) *gtk.TextChild
 		tag = gtk.NewTextTag(chipTagName)
 		tag.SetObjectProperty("rise", -2*pango.SCALE)
 		tag.SetObjectProperty("rise-set", true)
-		tag.SetObjectProperty("line-height", 0.5*pango.SCALE)
-		tag.SetObjectProperty("line-height-set", true)
-
 		tags.Add(tag)
 	}
 
