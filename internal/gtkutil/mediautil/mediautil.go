@@ -78,7 +78,7 @@ func isFile(path string) bool {
 }
 
 // doTmp gives f a premade tmp file and moves it back atomically.
-func doTmp(dst string, fn func(path string) error) (string, error) {
+func doTmp(dst, pattern string, fn func(path string) error) (string, error) {
 	if isFile(dst) {
 		return dst, nil
 	}
@@ -89,7 +89,7 @@ func doTmp(dst string, fn func(path string) error) (string, error) {
 		return "", errors.Wrap(err, "cannot mkdir -p")
 	}
 
-	f, err := os.CreateTemp(dir, ".tmp.*")
+	f, err := os.CreateTemp(dir, ".tmp."+pattern)
 	if err != nil {
 		return "", errors.Wrap(err, "cannot mktemp")
 	}

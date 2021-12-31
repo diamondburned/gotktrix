@@ -16,8 +16,8 @@ import (
 
 var thumbnailDir = config.CacheDir("thumbnail")
 
-// ThumbnailFormat is the output format for the thumbnail.
-const ThumbnailFormat = "jpeg"
+// thumbnailTmpPattern has the output format for the thumbnail.
+const thumbnailTmpPattern = "*.jpeg"
 
 var hasFFmpeg bool
 
@@ -40,9 +40,9 @@ func Thumbnail(ctx context.Context, url string, w, h int) (string, error) {
 
 	return doTmp(
 		thumbnailURLPath(url, fmt.Sprintf("w=%d;h=%d", w, h)),
+		thumbnailTmpPattern,
 		func(out string) error {
 			thumbnailGC.do()
-			out = out + "." + ThumbnailFormat // add this into the temp path
 			return doFFmpeg(ctx, url, out, "-frames:v", "1", "-f", "image2")
 		},
 	)
@@ -50,7 +50,7 @@ func Thumbnail(ctx context.Context, url string, w, h int) (string, error) {
 
 func thumbnailURLPath(url, fragment string) string {
 	b := sha1.Sum([]byte(url + "#" + fragment))
-	f := base64.StdEncoding.EncodeToString(b[:])
+	f := base64.URLEncoding.EncodeToString(b[:])
 	return filepath.Join(thumbnailDir, f)
 }
 
