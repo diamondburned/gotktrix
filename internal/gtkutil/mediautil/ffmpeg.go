@@ -8,10 +8,12 @@ import (
 	"log"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/semaphore"
 )
 
 var thumbnailDir = config.CacheDir("thumbnail")
@@ -54,9 +56,19 @@ func thumbnailURLPath(url, fragment string) string {
 	return filepath.Join(thumbnailDir, f)
 }
 
+var ffmpegSema = semaphore.NewWeighted(int64(runtime.GOMAXPROCS(-1)))
+
 func doFFmpeg(ctx context.Context, src, dst string, opts ...string) error {
+	if err := ffmpegSema.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer ffmpegSema.Release(1)
+
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
 	args := make([]string, 0, len(opts)+10)
-	args = append(args, "-y", "-loglevel", "error", "-i", src)
+	args = append(args, "-y", "-loglevel", "warning", "-i", src)
 	args = append(args, opts...)
 	args = append(args, dst)
 

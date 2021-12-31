@@ -43,7 +43,7 @@ var chipCSS = cssutil.Applier("mauthor-chip", `
 		border-radius: 9999px 9999px;
 		margin-bottom: -0.3em;
 	}
-	.mauthor-chip label {
+	.mauthor-chip-colored {
 		background-color: transparent; /* override custom CSS */
 	}
 `)
@@ -57,6 +57,7 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 	}
 
 	c.name = gtk.NewLabel("")
+	c.name.AddCSSClass("mauthor-chip-colored")
 
 	c.avatar = adaptive.NewAvatar(20)
 	c.avatar.ConnectLabel(c.name)
@@ -68,7 +69,7 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 	chipCSS(c)
 
 	css := customChipCSS(UserColor(user))
-	addCustomCSS(css, c.name, c.avatar, c.Box)
+	addCustomCSS(css, c.name, c.Box)
 
 	c.Invalidate()
 
@@ -166,10 +167,14 @@ func (c *Chip) setName(label string) {
 
 // customChipCSSf is the CSS fmt string that's specific to each user. The 0.8 is
 // taken from the 0x33 alpha: 0x33/0xFF = 0.2.
-const customChipCSSf = `* {
-	background-color: mix(%[1]s, @theme_bg_color, 0.8);
-	color: %[1]s;
-}`
+const customChipCSSf = `
+	box {
+		background-color: mix(%[1]s, @theme_bg_color, 0.8);
+	}
+	label {
+		color: %[1]s;
+	}
+`
 
 func customChipCSS(hex string) gtk.StyleProviderer {
 	// There doesn't seem to be a better way than this...

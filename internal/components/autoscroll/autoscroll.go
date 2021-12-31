@@ -95,6 +95,11 @@ func NewWindow() *Window {
 	return &w
 }
 
+// Viewport returns the ScrolledWindow's Viewport.
+func (w *Window) Viewport() *gtk.Viewport {
+	return w.view
+}
+
 func (w *Window) bindFrameClock() {
 	var clock *gdk.FrameClock
 	var signal glib.SignalHandle

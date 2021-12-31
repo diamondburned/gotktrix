@@ -50,6 +50,10 @@ var _ = cssutil.WriteCSS(`
 		border-right: 1px solid @borders;
 	}
 
+	.adaptive-avatar label {
+		background-color: mix(@theme_fg_color, @theme_bg_color, 0.75);
+	}
+
 	.left-header, .right-header .subtitle-title {
 		font-weight: 600;
 	}

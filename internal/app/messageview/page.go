@@ -255,17 +255,15 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	innerBox.Append(p.list)
 	innerBox.SetFocusChild(p.list)
 
-	vp := gtk.NewViewport(nil, nil)
-	vp.SetVScrollPolicy(gtk.ScrollNatural)
-	vp.SetScrollToFocus(true)
-	vp.SetChild(innerBox)
-
 	p.scroll = autoscroll.NewWindow()
 	p.scroll.SetPropagateNaturalWidth(true)
 	p.scroll.SetPropagateNaturalHeight(true)
 	p.scroll.SetVExpand(true)
 	p.scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	p.scroll.SetChild(vp)
+	p.scroll.SetChild(innerBox)
+
+	vp := p.scroll.Viewport()
+	vp.SetScrollToFocus(true)
 
 	// Bind the scrolled window for automatic scrolling.
 	p.list.SetAdjustment(p.scroll.VAdjustment())
@@ -412,20 +410,29 @@ func (p *Page) onTypingEvent(ev *event.TypingEvent) {
 // FocusLatestUserEventID returns the latest valid event ID of the current user
 // in the room or an empty string if none. It implements compose.Controller.
 func (p *Page) FocusLatestUserEventID() matrix.EventID {
+	row, ok := p.latestUserMessage()
+	if !ok {
+		return ""
+	}
+
+	row.row.GrabFocus()
+	return row.ev.RoomInfo().ID
+}
+
+func (p *Page) latestUserMessage() (messageRow, bool) {
 	userID := gotktrix.FromContext(p.ctx.Take()).UserID
 
 	row := p.list.LastChild().(*gtk.ListBoxRow)
 	for row != nil {
 		m, ok := p.messages[messageKey(row.Name())]
 		if ok && m.ev.RoomInfo().Sender == userID {
-			m.row.GrabFocus()
-			return m.ev.RoomInfo().ID
+			return m, true
 		}
 		// This repeats until index is -1, at which the loop will break.
 		row = p.list.RowAtIndex(row.Index() - 1)
 	}
 
-	return ""
+	return messageRow{}, false
 }
 
 // lastRow returns the list's last row.
@@ -440,8 +447,19 @@ func (p *Page) lastRow() *gtk.ListBoxRow {
 // OnScrollBottomed marks the room as read if the page is focused, the window
 // the page is in are focused, and the user is currently scrolled to the bottom.
 func (p *Page) OnScrollBottomed() {
-	if !p.IsActive() || !p.scroll.IsBottomed() || !app.IsActive(p.ctx.Take()) {
+	row, ok := p.messages[messageKeyRow(p.lastRow())]
+	if !ok {
 		return
+	}
+
+	userID := gotktrix.FromContext(p.ctx.Take()).UserID
+
+	// Permit marking as read if the latest sent message is our message, since
+	// clearly we've read that message. Otherwise, do checks as normal.
+	if userID != row.ev.RoomInfo().Sender {
+		if !p.IsActive() || !p.scroll.IsBottomed() || !app.IsActive(p.ctx.Take()) {
+			return
+		}
 	}
 
 	p.MarkAsRead()
