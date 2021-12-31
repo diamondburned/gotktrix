@@ -19,201 +19,103 @@
             "fuzzy": true
         },
         {
-            "id": "{Names0} is typing...",
-            "message": "{Names0} is typing...",
-            "translation": "{Names0} is typing...",
+            "id": "{Num} new messages.",
+            "message": "{Num} new messages.",
+            "translation": "{Num} new messages.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Names0",
+                    "id": "Num",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "names[0]"
+                    "expr": "num"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Names0} and {Names1} are typing...",
-            "message": "{Names0} and {Names1} are typing...",
-            "translation": "{Names0} and {Names1} are typing...",
+            "id": "{Sender} created this room.",
+            "message": "{Sender} created this room.",
+            "translation": "{Sender} created this room.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Names0",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "names[0]"
-                },
-                {
-                    "id": "Names1",
-                    "string": "%[2]s",
-                    "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 2,
-                    "expr": "names[1]"
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Names0}, {Names1} and {Names2} are typing...",
-            "message": "{Names0}, {Names1} and {Names2} are typing...",
-            "translation": "{Names0}, {Names1} and {Names2} are typing...",
+            "id": "{Sender} changed the room's permissions.",
+            "message": "{Sender} changed the room's permissions.",
+            "translation": "{Sender} changed the room's permissions.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Names0",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "names[0]"
-                },
-                {
-                    "id": "Names1",
-                    "string": "%[2]s",
-                    "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 2,
-                    "expr": "names[1]"
-                },
-                {
-                    "id": "Names2",
-                    "string": "%[3]s",
-                    "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 3,
-                    "expr": "names[2]"
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "Several people are typing...",
-            "message": "Several people are typing...",
-            "translation": "Several people are typing...",
-            "translatorComment": "Copied from source.",
-            "fuzzy": true
-        },
-        {
-            "id": "{Author} sent an unusual event {Type}: \u003cspan color=\"red\"\u003e{Err}\u003c/span\u003e.",
-            "message": "{Author} sent an unusual event {Type}: \u003cspan color=\"red\"\u003e{Err}\u003c/span\u003e.",
-            "translation": "{Author} sent an unusual event {Type}: \u003cspan color=\"red\"\u003e{Err}\u003c/span\u003e.",
+            "id": "{Sender} made the room public.",
+            "message": "{Sender} made the room public.",
+            "translation": "{Sender} made the room public.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
-                },
-                {
-                    "id": "Type",
-                    "string": "%[2]s",
-                    "type": "github.com/chanbakjsd/gotrix/event.Type",
-                    "underlyingType": "string",
-                    "argNum": 2,
-                    "expr": "raw.Type"
-                },
-                {
-                    "id": "Err",
-                    "string": "%[3]v",
-                    "type": "error",
-                    "underlyingType": "interface{Error() string}",
-                    "argNum": 3,
-                    "expr": "err"
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} created this room.",
-            "message": "{Author} created this room.",
-            "translation": "{Author} created this room.",
+            "id": "{Sender} made the room invite-only.",
+            "message": "{Sender} made the room invite-only.",
+            "translation": "{Sender} made the room invite-only.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} changed the room's permissions.",
-            "message": "{Author} changed the room's permissions.",
-            "translation": "{Author} changed the room's permissions.",
+            "id": "{Sender} changed the join rule to {JoinRule}.",
+            "message": "{Sender} changed the join rule to {JoinRule}.",
+            "translation": "{Sender} changed the join rule to {JoinRule}.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
-                }
-            ],
-            "fuzzy": true
-        },
-        {
-            "id": "{Author} made the room public.",
-            "message": "{Author} made the room public.",
-            "translation": "{Author} made the room public.",
-            "translatorComment": "Copied from source.",
-            "placeholders": [
-                {
-                    "id": "Author",
-                    "string": "%[1]s",
-                    "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "author"
-                }
-            ],
-            "fuzzy": true
-        },
-        {
-            "id": "{Author} made the room invite-only.",
-            "message": "{Author} made the room invite-only.",
-            "translation": "{Author} made the room invite-only.",
-            "translatorComment": "Copied from source.",
-            "placeholders": [
-                {
-                    "id": "Author",
-                    "string": "%[1]s",
-                    "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "author"
-                }
-            ],
-            "fuzzy": true
-        },
-        {
-            "id": "{Author} changed the join rule to {JoinRule}.",
-            "message": "{Author} changed the join rule to {JoinRule}.",
-            "translation": "{Author} changed the join rule to {JoinRule}.",
-            "translatorComment": "Copied from source.",
-            "placeholders": [
-                {
-                    "id": "Author",
-                    "string": "%[1]s",
-                    "type": "string",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 },
                 {
                     "id": "JoinRule",
@@ -227,86 +129,86 @@
             "fuzzy": true
         },
         {
-            "id": "{Author} made the room's history visible to all invited members.",
-            "message": "{Author} made the room's history visible to all invited members.",
-            "translation": "{Author} made the room's history visible to all invited members.",
+            "id": "{Sender} made the room's history visible to all invited members.",
+            "message": "{Sender} made the room's history visible to all invited members.",
+            "translation": "{Sender} made the room's history visible to all invited members.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} made the room's history visible to all current members.",
-            "message": "{Author} made the room's history visible to all current members.",
-            "translation": "{Author} made the room's history visible to all current members.",
+            "id": "{Sender} made the room's history visible to all current members.",
+            "message": "{Sender} made the room's history visible to all current members.",
+            "translation": "{Sender} made the room's history visible to all current members.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} made the room's history visible to all past members.",
-            "message": "{Author} made the room's history visible to all past members.",
-            "translation": "{Author} made the room's history visible to all past members.",
+            "id": "{Sender} made the room's history visible to all past members.",
+            "message": "{Sender} made the room's history visible to all past members.",
+            "translation": "{Sender} made the room's history visible to all past members.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} made the room's history world-readable.",
-            "message": "{Author} made the room's history world-readable.",
-            "translation": "{Author} made the room's history world-readable.",
+            "id": "{Sender} made the room's history world-readable.",
+            "message": "{Sender} made the room's history world-readable.",
+            "translation": "{Sender} made the room's history world-readable.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} changed the room history visibility to {Visibility}.",
-            "message": "{Author} changed the room history visibility to {Visibility}.",
-            "translation": "{Author} changed the room history visibility to {Visibility}.",
+            "id": "{Sender} changed the room history visibility to {Visibility}.",
+            "message": "{Sender} changed the room history visibility to {Visibility}.",
+            "translation": "{Sender} changed the room history visibility to {Visibility}.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 },
                 {
                     "id": "Visibility",
@@ -320,52 +222,52 @@
             "fuzzy": true
         },
         {
-            "id": "{Author} allowed guests to join the room.",
-            "message": "{Author} allowed guests to join the room.",
-            "translation": "{Author} allowed guests to join the room.",
+            "id": "{Sender} allowed guests to join the room.",
+            "message": "{Sender} allowed guests to join the room.",
+            "translation": "{Sender} allowed guests to join the room.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} denied guests from joining the room.",
-            "message": "{Author} denied guests from joining the room.",
-            "translation": "{Author} denied guests from joining the room.",
+            "id": "{Sender} denied guests from joining the room.",
+            "message": "{Sender} denied guests from joining the room.",
+            "translation": "{Sender} denied guests from joining the room.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} changed the room's guess access rule to {GuestAccess}.",
-            "message": "{Author} changed the room's guess access rule to {GuestAccess}.",
-            "translation": "{Author} changed the room's guess access rule to {GuestAccess}.",
+            "id": "{Sender} changed the room's guess access rule to {GuestAccess}.",
+            "message": "{Sender} changed the room's guess access rule to {GuestAccess}.",
+            "translation": "{Sender} changed the room's guess access rule to {GuestAccess}.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 },
                 {
                     "id": "GuestAccess",
@@ -379,18 +281,18 @@
             "fuzzy": true
         },
         {
-            "id": "{Author} changed the room's name to \u003ci\u003e{Name}\u003c/i\u003e.",
-            "message": "{Author} changed the room's name to \u003ci\u003e{Name}\u003c/i\u003e.",
-            "translation": "{Author} changed the room's name to \u003ci\u003e{Name}\u003c/i\u003e.",
+            "id": "{Sender} changed the room's name to \u003ci\u003e{Name}\u003c/i\u003e.",
+            "message": "{Sender} changed the room's name to \u003ci\u003e{Name}\u003c/i\u003e.",
+            "translation": "{Sender} changed the room's name to \u003ci\u003e{Name}\u003c/i\u003e.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 },
                 {
                     "id": "Name",
@@ -404,18 +306,18 @@
             "fuzzy": true
         },
         {
-            "id": "{Author} changed the room's topic to \u003ci\u003e{Topic}\u003c/i\u003e.",
-            "message": "{Author} changed the room's topic to \u003ci\u003e{Topic}\u003c/i\u003e.",
-            "translation": "{Author} changed the room's topic to \u003ci\u003e{Topic}\u003c/i\u003e.",
+            "id": "{Sender} changed the room's topic to \u003ci\u003e{Topic}\u003c/i\u003e.",
+            "message": "{Sender} changed the room's topic to \u003ci\u003e{Topic}\u003c/i\u003e.",
+            "translation": "{Sender} changed the room's topic to \u003ci\u003e{Topic}\u003c/i\u003e.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 },
                 {
                     "id": "Topic",
@@ -429,264 +331,281 @@
             "fuzzy": true
         },
         {
-            "id": "{Author} sent a {Event} event.",
-            "message": "{Author} sent a {Event} event.",
-            "translation": "{Author} sent a {Event} event.",
+            "id": "{Sender} sent an unusual event: \u003cspan color=\"red\"\u003e{Err}\u003c/span\u003e.",
+            "message": "{Sender} sent an unusual event: \u003cspan color=\"red\"\u003e{Err}\u003c/span\u003e.",
+            "translation": "{Sender} sent an unusual event: \u003cspan color=\"red\"\u003e{Err}\u003c/span\u003e.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 },
                 {
-                    "id": "Event",
-                    "string": "%[2]T",
-                    "type": "github.com/chanbakjsd/gotrix/event.Event",
-                    "underlyingType": "interface{Type() github.com/chanbakjsd/gotrix/event.Type}",
+                    "id": "Err",
+                    "string": "%[2]v",
+                    "type": "error",
+                    "underlyingType": "interface{Error() string}",
                     "argNum": 2,
-                    "expr": "ev"
+                    "expr": "ev.Err",
+                    "comment": "error already has event name"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} joined.",
-            "message": "{Author} joined.",
-            "translation": "{Author} joined.",
+            "id": "{Sender} sent an unhandled {Type} event.",
+            "message": "{Sender} sent an unhandled {Type} event.",
+            "translation": "{Sender} sent an unhandled {Type} event.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
+                },
+                {
+                    "id": "Type",
+                    "string": "%[2]s",
+                    "type": "github.com/chanbakjsd/gotrix/event.Type",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "ev.Info().Type"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} rejected the invite.",
-            "message": "{Author} rejected the invite.",
-            "translation": "{Author} rejected the invite.",
+            "id": "{UserID} joined.",
+            "message": "{UserID} joined.",
+            "translation": "{UserID} joined.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} had their invitation revoked.",
-            "message": "{Author} had their invitation revoked.",
-            "translation": "{Author} had their invitation revoked.",
+            "id": "{UserID} rejected the invite.",
+            "message": "{UserID} rejected the invite.",
+            "translation": "{UserID} rejected the invite.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} changed their avatar.",
-            "message": "{Author} changed their avatar.",
-            "translation": "{Author} changed their avatar.",
+            "id": "{UserID} had their invitation revoked.",
+            "message": "{UserID} had their invitation revoked.",
+            "translation": "{UserID} had their invitation revoked.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} changed their name.",
-            "message": "{Author} changed their name.",
-            "translation": "{Author} changed their name.",
+            "id": "{UserID} changed their avatar.",
+            "message": "{UserID} changed their avatar.",
+            "translation": "{UserID} changed their avatar.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} updated their information.",
-            "message": "{Author} updated their information.",
-            "translation": "{Author} updated their information.",
+            "id": "{UserID} changed their name.",
+            "message": "{UserID} changed their name.",
+            "translation": "{UserID} changed their name.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} left the room.",
-            "message": "{Author} left the room.",
-            "translation": "{Author} left the room.",
+            "id": "{UserID} updated their information.",
+            "message": "{UserID} updated their information.",
+            "translation": "{UserID} updated their information.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} was kicked.",
-            "message": "{Author} was kicked.",
-            "translation": "{Author} was kicked.",
+            "id": "{UserID} left.",
+            "message": "{UserID} left.",
+            "translation": "{UserID} left.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} was kicked and banned.",
-            "message": "{Author} was kicked and banned.",
-            "translation": "{Author} was kicked and banned.",
+            "id": "{UserID} was kicked.",
+            "message": "{UserID} was kicked.",
+            "translation": "{UserID} was kicked.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} was unbanned.",
-            "message": "{Author} was unbanned.",
-            "translation": "{Author} was unbanned.",
+            "id": "{UserID} was kicked and banned.",
+            "message": "{UserID} was kicked and banned.",
+            "translation": "{UserID} was kicked and banned.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} was invited.",
-            "message": "{Author} was invited.",
-            "translation": "{Author} was invited.",
+            "id": "{UserID} was unbanned.",
+            "message": "{UserID} was unbanned.",
+            "translation": "{UserID} was unbanned.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} left.",
-            "message": "{Author} left.",
-            "translation": "{Author} left.",
+            "id": "{UserID} was invited.",
+            "message": "{UserID} was invited.",
+            "translation": "{UserID} was invited.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} was banned.",
-            "message": "{Author} was banned.",
-            "translation": "{Author} was banned.",
+            "id": "{UserID} was banned by {Sender}.",
+            "message": "{UserID} was banned by {Sender}.",
+            "translation": "{UserID} was banned by {Sender}.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "UserID",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.author(ev.UserID)"
+                },
+                {
+                    "id": "Sender",
+                    "string": "%[2]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "r.sender()"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "{Author} performed member action {NewState}.",
-            "message": "{Author} performed member action {NewState}.",
-            "translation": "{Author} performed member action {NewState}.",
+            "id": "{Sender} performed member action {NewState}.",
+            "message": "{Sender} performed member action {NewState}.",
+            "translation": "{Sender} performed member action {NewState}.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Author",
+                    "id": "Sender",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "author"
+                    "expr": "r.sender()"
                 },
                 {
                     "id": "NewState",
@@ -695,6 +614,31 @@
                     "underlyingType": "string",
                     "argNum": 2,
                     "expr": "ev.NewState"
+                }
+            ],
+            "fuzzy": true
+        },
+        {
+            "id": "{Time_true} (edited {TimeeditedTs_true})",
+            "message": "{Time_true} (edited {TimeeditedTs_true})",
+            "translation": "{Time_true} (edited {TimeeditedTs_true})",
+            "translatorComment": "Copied from source.",
+            "placeholders": [
+                {
+                    "id": "Time_true",
+                    "string": "%[1]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 1,
+                    "expr": "locale.Time(t.time, true)"
+                },
+                {
+                    "id": "TimeeditedTs_true",
+                    "string": "%[2]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "locale.Time(editedTs, true)"
                 }
             ],
             "fuzzy": true
@@ -717,52 +661,51 @@
             "fuzzy": true
         },
         {
-            "id": "Unknown message type {MsgType}.",
-            "message": "Unknown message type {MsgType}.",
-            "translation": "Unknown message type {MsgType}.",
+            "id": "Unknown message type {MessageType}.",
+            "message": "Unknown message type {MessageType}.",
+            "translation": "Unknown message type {MessageType}.",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "MsgType",
+                    "id": "MessageType",
                     "string": "%[1]q",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "string(emsg.MsgType)"
+                    "expr": "string(ev.MessageType)"
                 }
             ],
             "fuzzy": true
         },
         {
-            "id": "Unknown event type {Type}.",
-            "message": "Unknown event type {Type}.",
-            "translation": "Unknown event type {Type}.",
+            "id": "{Body} (\u003ca href=\"{EscapeStringgoogleMapsURLlat_long}\"\u003eGoogle Maps\u003c/a\u003e or \u003ca href=\"{EscapeStringopenStreetMapURLlat_long}\"\u003eOpenStreetMap\u003c/a\u003e)",
+            "message": "{Body} (\u003ca href=\"{EscapeStringgoogleMapsURLlat_long}\"\u003eGoogle Maps\u003c/a\u003e or \u003ca href=\"{EscapeStringopenStreetMapURLlat_long}\"\u003eOpenStreetMap\u003c/a\u003e)",
+            "translation": "{Body} (\u003ca href=\"{EscapeStringgoogleMapsURLlat_long}\"\u003eGoogle Maps\u003c/a\u003e or \u003ca href=\"{EscapeStringopenStreetMapURLlat_long}\"\u003eOpenStreetMap\u003c/a\u003e)",
             "translatorComment": "Copied from source.",
             "placeholders": [
                 {
-                    "id": "Type",
-                    "string": "%[1]q",
-                    "type": "github.com/chanbakjsd/gotrix/event.Type",
-                    "underlyingType": "string",
-                    "argNum": 1,
-                    "expr": "msgBox.Type"
-                }
-            ],
-            "fuzzy": true
-        },
-        {
-            "id": "\u003cspan color=\"red\"\u003eContent error:\u003c/span\u003e {EscapeStringdesc}",
-            "message": "\u003cspan color=\"red\"\u003eContent error:\u003c/span\u003e {EscapeStringdesc}",
-            "translation": "\u003cspan color=\"red\"\u003eContent error:\u003c/span\u003e {EscapeStringdesc}",
-            "translatorComment": "Copied from source.",
-            "placeholders": [
-                {
-                    "id": "EscapeStringdesc",
+                    "id": "Body",
                     "string": "%[1]s",
                     "type": "string",
                     "underlyingType": "string",
                     "argNum": 1,
-                    "expr": "html.EscapeString(desc)"
+                    "expr": "html.EscapeString(msg.Body)"
+                },
+                {
+                    "id": "EscapeStringgoogleMapsURLlat_long",
+                    "string": "%[2]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 2,
+                    "expr": "html.EscapeString(googleMapsURL(lat, long))"
+                },
+                {
+                    "id": "EscapeStringopenStreetMapURLlat_long",
+                    "string": "%[3]s",
+                    "type": "string",
+                    "underlyingType": "string",
+                    "argNum": 3,
+                    "expr": "html.EscapeString(openStreetMapURL(lat, long))"
                 }
             ],
             "fuzzy": true
