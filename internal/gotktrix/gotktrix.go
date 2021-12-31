@@ -994,6 +994,11 @@ func (c *Client) EachTimelineReverse(roomID matrix.RoomID, f func(event.RoomEven
 
 // SendRoomEvent is a convenient function around RoomEventSend.
 func (c *Client) SendRoomEvent(roomID matrix.RoomID, ev event.Event) error {
+	if ev.Info().Type == "" {
+		// bug
+		panic("SendRoomEvent: missing event type")
+	}
+
 	_, err := c.Client.RoomEventSend(roomID, ev.Info().Type, ev)
 	return err
 }

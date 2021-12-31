@@ -14,6 +14,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/md"
@@ -59,52 +60,57 @@ var reactionsCSS = cssutil.Applier("mcontent-reactions", `
 `)
 
 func newReactionBox() *reactionBox {
-	rev := gtk.NewRevealer()
-	rev.SetRevealChild(false)
-	rev.SetTransitionType(gtk.RevealerTransitionTypeSlideDown)
+	r := reactionBox{}
 
-	return &reactionBox{
-		Revealer: rev,
-	}
+	r.reactions = make(map[string]*reaction, 1)
+	r.events = make(map[matrix.EventID]string, 1)
+
+	r.flowBox = gtk.NewFlowBox()
+	r.flowBox.SetRowSpacing(4)
+	r.flowBox.SetColumnSpacing(4)
+	r.flowBox.SetMaxChildrenPerLine(100)
+	r.flowBox.SetSelectionMode(gtk.SelectionNone)
+	r.flowBox.SetSortFunc(func(child1, child2 *gtk.FlowBoxChild) int {
+		key1 := child1.Name()
+		key2 := child2.Name()
+
+		r1, ok1 := r.reactions[key1]
+		r2, ok2 := r.reactions[key2]
+		if !ok1 || !ok2 {
+			return 0
+		}
+
+		if len(r1.people) != len(r2.people) {
+			return intcmp(len(r1.people), len(r2.people))
+		}
+
+		return sortutil.CmpFold(key1, key2)
+	})
+	reactionsCSS(r.flowBox)
+
+	r.Revealer = gtk.NewRevealer()
+	r.Revealer.SetTransitionType(gtk.RevealerTransitionTypeSlideDown)
+	r.Revealer.SetChild(r.flowBox)
+
+	// Show this up later.
+	glib.IdleAdd(func() { r.Revealer.SetRevealChild(true) })
+
+	return &r
 }
 
 func (r *reactionBox) Add(ctx context.Context, ev *m.ReactionEvent) {
-	if r.flowBox == nil {
-		r.reactions = make(map[string]*reaction, 1)
-		r.events = make(map[matrix.EventID]string, 1)
+	// Prevent registering the same event twice.
+	_, registered := r.events[ev.ID]
+	if registered {
+		return
+	}
 
-		f := gtk.NewFlowBox()
-		f.SetRowSpacing(4)
-		f.SetColumnSpacing(4)
-		f.SetMaxChildrenPerLine(100)
-		f.SetSelectionMode(gtk.SelectionNone)
-		f.SetSortFunc(func(child1, child2 *gtk.FlowBoxChild) int {
-			key1 := child1.Name()
-			key2 := child2.Name()
+	// Register this for Remove.
+	r.events[ev.ID] = ev.RelatesTo.Key
 
-			r1, ok1 := r.reactions[key1]
-			r2, ok2 := r.reactions[key2]
-			if !ok1 || !ok2 {
-				return 0
-			}
-
-			if len(r1.people) != len(r2.people) {
-				return intcmp(len(r1.people), len(r2.people))
-			}
-
-			return sortutil.CmpFold(key1, key2)
-		})
-		reactionsCSS(f)
-
-		r.SetChild(f)
-		r.SetRevealChild(true)
-		r.flowBox = f
-	} else {
-		r, ok := r.reactions[ev.RelatesTo.Key]
-		if ok {
-			r.update(ctx, ev.Sender, ev.ID)
-			return
-		}
+	if reaction, ok := r.reactions[ev.RelatesTo.Key]; ok {
+		reaction.update(ctx, ev.Sender, ev.ID)
+		return
 	}
 
 	reaction := newReaction(ctx, ev)
@@ -115,12 +121,12 @@ func (r *reactionBox) Add(ctx context.Context, ev *m.ReactionEvent) {
 
 // Remove returns true if the given redaction event corresponds to a reaction.
 func (r *reactionBox) Remove(ctx context.Context, red *event.RoomRedactionEvent) bool {
-	key, ok := r.events[red.ID]
+	key, ok := r.events[red.Redacts]
 	if !ok {
 		return false
 	}
 
-	delete(r.events, red.ID)
+	delete(r.events, red.Redacts)
 
 	reaction, ok := r.reactions[key]
 	if !ok {
@@ -214,29 +220,41 @@ func newReaction(ctx context.Context, ev *m.ReactionEvent) *reaction {
 }
 
 func (r *reaction) react(ctx context.Context, ev *m.ReactionEvent) {
+	// Mark insensitive. update() will change it back once an update arrives
+	// from the server.
+	r.SetSensitive(false)
 	client := gotktrix.FromContext(ctx)
 
-	if r.selfEv != "" {
-		evID := r.selfEv
-		go func() {
-			if err := client.Redact(ev.RoomID, evID, ""); err != nil {
-				app.Error(ctx, errors.Wrap(err, "failed to unreact"))
-				glib.IdleAdd(func() { r.btn.SetActive(true) })
-				return
-			}
-		}()
-	} else {
-		go func() {
-			client := gotktrix.FromContext(ctx)
-			if err := client.SendRoomEvent(ev.RoomID, ev); err != nil {
+	evID := r.selfEv
+	gtkutil.Async(ctx, func() func() {
+		var err error
+
+		unreact := evID != ""
+		if unreact {
+			err = client.Redact(ev.RoomID, evID, "")
+		} else {
+			err = client.SendRoomEvent(ev.RoomID, ev)
+		}
+
+		if err != nil {
+			return func() {
 				app.Error(ctx, errors.Wrap(err, "failed to react"))
+				if unreact {
+					// Failed to unreact, so change it back to active (reacted).
+					r.btn.SetActive(true)
+				}
 			}
-		}()
-	}
+		}
+
+		return nil
+	})
 }
 
 func (r *reaction) update(
 	ctx context.Context, sender matrix.UserID, addID matrix.EventID) {
+
+	// Event arrived from server. Ensure the button is not disabled.
+	r.SetSensitive(true)
 
 	client := gotktrix.FromContext(ctx).Offline()
 

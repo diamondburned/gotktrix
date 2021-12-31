@@ -5,8 +5,8 @@ import (
 	"html"
 	"strings"
 
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
@@ -25,7 +25,7 @@ func Fatal(parent *gtk.Window, errors ...error) {
 
 // Show shows a popup with the given errors.
 func Show(parent *gtk.Window, errors []error, done func()) {
-	glib.IdleAdd(func() { show(parent, errors, done) })
+	gtkutil.InvokeMain(func() { show(parent, errors, done) })
 }
 
 type dialogState struct {

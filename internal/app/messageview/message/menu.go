@@ -159,6 +159,9 @@ func (r *reactor) react(text string) {
 
 	ev := m.ReactionEvent{
 		RoomEventInfo: event.RoomEventInfo{
+			EventInfo: event.EventInfo{
+				Type: m.ReactionEventType,
+			},
 			RoomID: roomEv.RoomID,
 		},
 		RelatesTo: m.ReactionRelatesTo{
@@ -170,7 +173,7 @@ func (r *reactor) react(text string) {
 
 	go func() {
 		client := gotktrix.FromContext(r.ctx)
-		if err := client.SendRoomEvent(ev.RoomID, r.ev); err != nil {
+		if err := client.SendRoomEvent(ev.RoomID, &ev); err != nil {
 			app.Error(r.ctx, errors.Wrap(err, "failed to react"))
 		}
 	}()
