@@ -68,8 +68,10 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 	c.Box.Append(c.name)
 	chipCSS(c)
 
-	css := customChipCSS(UserColor(user))
-	addCustomCSS(css, c.name, c.Box)
+	gtkutil.OnFirstMap(c, func() {
+		color := UserColor(user, WithWidgetColor(c))
+		addCustomCSS(customChipCSS(color), c.name, c.Box)
+	})
 
 	c.Invalidate()
 

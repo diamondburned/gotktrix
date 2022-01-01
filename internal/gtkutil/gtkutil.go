@@ -108,6 +108,22 @@ func RowAtY(list *gtk.ListBox, y float64) (*gtk.ListBoxRow, gtk.PositionType) {
 	return row, gtk.PosBottom
 }
 
+// OnFirstMap attaches f to be called on the first time the widget is mapped on
+// the screen.
+func OnFirstMap(w gtk.Widgetter, f func()) {
+	widget := gtk.BaseWidget(w)
+	if widget.Mapped() {
+		f()
+		return
+	}
+
+	var handle glib.SignalHandle
+	handle = widget.ConnectMap(func() {
+		f()
+		widget.HandlerDisconnect(handle)
+	})
+}
+
 // OnFirstDraw attaches f to be called on the first time the widget is drawn on
 // the screen.
 func OnFirstDraw(w gtk.Widgetter, f func()) {
