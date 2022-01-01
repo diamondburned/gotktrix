@@ -39,6 +39,7 @@ type RenderWidget struct {
 var plainTextCSS = cssutil.Applier("mcontent-plain-text", `
 	.mcontent-plain-text {
 		caret-color: transparent;
+		color: @theme_fg_color;
 	}
 `)
 

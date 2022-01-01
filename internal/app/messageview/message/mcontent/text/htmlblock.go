@@ -172,6 +172,7 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 	textview.mcontent-text,
 	textview.mcontent-text text {
 		background-color: transparent;
+		color: @theme_fg_color;
 	}
 	/*
      * Workaround for GTK padding an extra line at the bottom of the TextView if
