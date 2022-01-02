@@ -194,6 +194,9 @@ func newTextView(ctx context.Context, buf *gtk.TextBuffer) *gtk.TextView {
 	textContentCSS(tview)
 	md.SetTabSize(tview)
 
+	// Workaround in case the TextView is invisible.
+	glib.IdleAdd(tview.QueueAllocate)
+
 	return tview
 }
 
@@ -342,8 +345,7 @@ type quoteBlock struct {
 }
 
 var quoteBlockCSS = cssutil.Applier("mcontent-quote-block", `
-	.mcontent-quote-block separator {
-		background:   none;
+	.mcontent-quote-block {
 		border-left:  3px solid alpha(@theme_fg_color, 0.5);
 		padding-left: 5px;
 	}
@@ -354,11 +356,9 @@ var quoteBlockCSS = cssutil.Applier("mcontent-quote-block", `
 
 func newQuoteBlock(s *currentBlockState) *quoteBlock {
 	text := newTextBlock(s)
-	text.SetHExpand(true)
 
-	box := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	box.SetOverflow(gtk.OverflowHidden)
-	box.Append(gtk.NewSeparator(gtk.OrientationVertical))
 	box.Append(text)
 
 	quote := quoteBlock{
