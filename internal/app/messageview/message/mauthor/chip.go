@@ -59,7 +59,7 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 	c.name = gtk.NewLabel("")
 	c.name.AddCSSClass("mauthor-chip-colored")
 
-	c.avatar = adaptive.NewAvatar(20)
+	c.avatar = adaptive.NewAvatar(0)
 	c.avatar.ConnectLabel(c.name)
 
 	c.Box = gtk.NewBox(gtk.OrientationHorizontal, 0)
@@ -69,6 +69,12 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 	chipCSS(c)
 
 	gtkutil.OnFirstMap(c, func() {
+		// Update the avatar size using the Label's height for consistency. From
+		// my experiments, the Label's height is 21, so 21 or 22 would've
+		// sufficed, but we're doing this just to make sure the chip is only as
+		// tall as it needs to be.
+		c.avatar.SetSizeRequest(c.name.AllocatedHeight())
+		// Update the color using CSS.
 		color := UserColor(user, WithWidgetColor(c))
 		addCustomCSS(customChipCSS(color), c.name, c.Box)
 	})
@@ -138,7 +144,7 @@ func (c *Chip) setAvatar(client *gotktrix.Client, mxc *matrix.URL) {
 		return
 	}
 
-	avatarURL, _ := client.SquareThumbnail(*mxc, 22, gtkutil.ScaleFactor())
+	avatarURL, _ := client.SquareThumbnail(*mxc, 24, gtkutil.ScaleFactor())
 	imgutil.AsyncGET(
 		c.ctx, avatarURL, c.avatar.SetFromPaintable,
 		imgutil.WithErrorFn(func(err error) {
