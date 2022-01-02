@@ -212,12 +212,6 @@ func insertInvisible(buf *gtk.TextBuffer, pos *gtk.TextIter, txt string) {
 	buf.ApplyTag(tag, startIter, pos)
 }
 
-var inlineImageCSS = cssutil.Applier("md-inlineimage", `
-	.md-inlineimage {
-		margin-bottom: -0.35em;
-	}
-`)
-
 // inlineImageHeightOffset is kept in sync with the -0.35em subtraction above,
 // because GTK behaves weirdly with how the height is done. It only matters for
 // small inline images, though.
@@ -234,6 +228,17 @@ func (i *InlineImage) SetSizeRequest(w, h int) {
 	i.Image.SetSizeRequest(w, h)
 }
 
+var inlineImageCSS = cssutil.Applier("md-inlineimage", `
+	.md-inlineimage {
+		margin-bottom: -0.35em;
+	}
+	/* This margin should actually be dependent on the size of the image, but
+	 * we're hard-coding a high value for now. */
+	.md-hasimage {
+		margin-bottom: -3em;
+	}
+`)
+
 // InsertImageWidget asynchronously inserts a new image widget. It does so in a
 // way that the text position of the text buffer is not scrambled. Images
 // created using this function will have the ".md-inlineimage" class.
@@ -247,6 +252,7 @@ func InsertImageWidget(view *gtk.TextView, anchor *gtk.TextChildAnchor) *InlineI
 	startOffset := iter.Offset()
 
 	view.AddChildAtAnchor(image, anchor)
+	view.AddCSSClass("md-hasimage")
 
 	tag := TextTags.FromBuffer(buf, "_image")
 	start := buf.IterAtOffset(startOffset)

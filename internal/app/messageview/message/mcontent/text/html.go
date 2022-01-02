@@ -276,7 +276,6 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				// add it back.
 				uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
 
-				text.hasWidget()
 				chip := mauthor.NewChip(s.ctx, s.room, uID)
 				chip.InsertText(text.TextView, text.iter)
 
@@ -383,7 +382,6 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			}
 
 			text := s.block.richText()
-			text.hasWidget()
 
 			image := md.InsertImageWidget(text.TextView, text.buf.CreateChildAnchor(text.iter))
 			image.AddCSSClass("mcontent-inline-image")

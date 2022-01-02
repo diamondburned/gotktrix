@@ -41,10 +41,17 @@ type Chip struct {
 var chipCSS = cssutil.Applier("mauthor-chip", `
 	.mauthor-chip {
 		border-radius: 9999px 9999px;
-		margin-bottom: -0.3em;
+		margin-bottom: -0.45em;
 	}
 	.mauthor-chip-colored {
 		background-color: transparent; /* override custom CSS */
+	}
+	/*
+     * Workaround for GTK padding an extra line at the bottom of the TextView if
+	 * even one widget is inserted for some weird reason.
+     */
+	.mauthor-haschip {
+		margin-bottom: -1.2em;
 	}
 `)
 
@@ -58,6 +65,7 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 
 	c.name = gtk.NewLabel("")
 	c.name.AddCSSClass("mauthor-chip-colored")
+	c.name.SetXAlign(0.4) // account for the right round corner
 
 	c.avatar = adaptive.NewAvatar(0)
 	c.avatar.ConnectLabel(c.name)
@@ -68,12 +76,15 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 	c.Box.Append(c.name)
 	chipCSS(c)
 
-	gtkutil.OnFirstMap(c, func() {
+	gtkutil.OnFirstDraw(c.name, func() {
 		// Update the avatar size using the Label's height for consistency. From
 		// my experiments, the Label's height is 21, so 21 or 22 would've
 		// sufficed, but we're doing this just to make sure the chip is only as
 		// tall as it needs to be.
 		c.avatar.SetSizeRequest(c.name.AllocatedHeight())
+	})
+
+	gtkutil.OnFirstMap(c, func() {
 		// Update the color using CSS.
 		color := UserColor(user, WithWidgetColor(c))
 		addCustomCSS(customChipCSS(color), c.name, c.Box)
@@ -91,24 +102,10 @@ const chipTagName = "__mauthor_chip"
 func (c *Chip) InsertText(text *gtk.TextView, iter *gtk.TextIter) *gtk.TextChildAnchor {
 	buffer := text.Buffer()
 
-	startOffset := iter.Offset()
-
 	anchor := buffer.CreateChildAnchor(iter)
 	text.AddChildAtAnchor(c, anchor)
 
-	start := buffer.IterAtOffset(startOffset)
-
-	tags := buffer.TagTable()
-
-	tag := tags.Lookup(chipTagName)
-	if tag == nil {
-		tag = gtk.NewTextTag(chipTagName)
-		tag.SetObjectProperty("rise", -2*pango.SCALE)
-		tag.SetObjectProperty("rise-set", true)
-		tags.Add(tag)
-	}
-
-	buffer.ApplyTag(tag, start, iter)
+	text.AddCSSClass("mauthor-haschip")
 	text.QueueResize()
 
 	return anchor

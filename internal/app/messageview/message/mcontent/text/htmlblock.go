@@ -151,7 +151,6 @@ type textBlock struct {
 
 	state struct {
 		hyperlink bool
-		hasWidget bool
 	}
 }
 
@@ -173,13 +172,6 @@ var textContentCSS = cssutil.Applier("mcontent-text", `
 	textview.mcontent-text text {
 		background-color: transparent;
 		color: @theme_fg_color;
-	}
-	/*
-     * Workaround for GTK padding an extra line at the bottom of the TextView if
-	 * even one widget is inserted for some weird reason.
-     */
-	textview.mcontent-text-haswidget {
-		margin-bottom: -1.2em;
 	}
 `)
 
@@ -206,13 +198,6 @@ func (b *textBlock) hasLink() {
 		BindLinkHandler(b.TextView, func(url string) {
 			app.OpenURI(b.context, url)
 		})
-	}
-}
-
-func (b *textBlock) hasWidget() {
-	if b.flip(&b.state.hasWidget) {
-		// Use this for a workaround.
-		b.TextView.AddCSSClass("mcontent-text-haswidget")
 	}
 }
 
