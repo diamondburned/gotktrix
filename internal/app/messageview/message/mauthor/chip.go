@@ -41,10 +41,11 @@ type Chip struct {
 var chipCSS = cssutil.Applier("mauthor-chip", `
 	.mauthor-chip {
 		border-radius: 9999px 9999px;
-		margin-bottom: -0.45em;
+		margin-bottom: -0.4em;
 	}
 	.mauthor-chip-colored {
 		background-color: transparent; /* override custom CSS */
+		margin: -1px 0;
 	}
 	/*
      * Workaround for GTK padding an extra line at the bottom of the TextView if
@@ -76,12 +77,17 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 	c.Box.Append(c.name)
 	chipCSS(c)
 
-	gtkutil.OnFirstDraw(c.name, func() {
+	gtkutil.OnFirstDrawUntil(c.name, func() bool {
 		// Update the avatar size using the Label's height for consistency. From
 		// my experiments, the Label's height is 21, so 21 or 22 would've
 		// sufficed, but we're doing this just to make sure the chip is only as
 		// tall as it needs to be.
-		c.avatar.SetSizeRequest(c.name.AllocatedHeight())
+		h := c.name.AllocatedHeight()
+		if h == 0 {
+			return true
+		}
+		c.avatar.SetSizeRequest(h)
+		return false
 	})
 
 	gtkutil.OnFirstMap(c, func() {

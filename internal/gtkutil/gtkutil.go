@@ -137,6 +137,15 @@ func OnFirstDraw(w gtk.Widgetter, f func()) {
 	})
 }
 
+// OnFirstDrawUntil attaches f to be called on the first time the widget is
+// drawn on the screen. f is called again until it returns false.
+func OnFirstDrawUntil(w gtk.Widgetter, f func() bool) {
+	widget := gtk.BaseWidget(w)
+	widget.AddTickCallback(func(_ gtk.Widgetter, clocker gdk.FrameClocker) bool {
+		return gdk.BaseFrameClock(clocker).FPS() == 0 || f()
+	})
+}
+
 // SignalToggler is a small helper to allow binding the same signal to different
 // objects while unbinding the previous one.
 func SignalToggler(signal string, f interface{}) func(obj coreglib.Objector) {
