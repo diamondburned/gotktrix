@@ -2,7 +2,6 @@ package messageview
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -106,12 +105,12 @@ func (m *moreMessageBar) Invalidate() {
 		return
 	}
 
-	num := strconv.Itoa(new)
+	msg := locale.Plural(m.ctx, "%d new message.", "%d new messages.", new)
 	if more {
-		num += "+"
+		msg = "+" + msg
 	}
 
-	m.label.SetText(locale.Sprintf(m.ctx, "%s new messages.", num))
+	m.label.SetText(msg)
 	// TODO: mentions
 	m.setState(unreadMessages)
 }

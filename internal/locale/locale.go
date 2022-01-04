@@ -73,6 +73,16 @@ func Sprintf(ctx context.Context, k message.Reference, a ...interface{}) string 
 	return FromContext(ctx).Sprintf(k, a...)
 }
 
+// Plural formats the string in plural form.
+func Plural(ctx context.Context, one, many message.Reference, n int) string {
+	// I don't know how x/text/plural works.
+	p := FromContext(ctx)
+	if n == 1 {
+		return p.Sprintf(one, n)
+	}
+	return p.Sprintf(many, n)
+}
+
 // Printer is a message printer.
 type Printer = message.Printer
 
