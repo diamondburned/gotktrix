@@ -54,7 +54,7 @@ type HSVHasher struct {
 }
 
 const (
-	nHue = 32 // hue count
+	nHue = 31 // hue count; 31 so I get to keep my pink color
 	nSat = 10
 	nVal = 10
 )
@@ -64,27 +64,17 @@ func (h HSVHasher) Hash(name string) color.RGBA {
 	hasher := h.H()
 	hasher.Write([]byte(name))
 
-	// Hash will be within [0, 1].
-	hash := float64(hasher.Sum32()) / math.MaxUint32
+	hash := hasher.Sum32()
 
-	hue := hashClamp(hash, 0, 360, nHue)
-	sat := hashClamp(hash, h.S[0], h.S[1], nSat)
-	val := hashClamp(hash, h.V[0], h.V[1], nVal)
+	// Calculate the range within [0, 360] in integer.
+	hue := float64((hash % (nHue + 1)) * (360 / nHue))
+
+	// Calculate the range within [0, 1] using modulo and division, then scale
+	// it up/down to the intended range using multiplication and addition.
+	sat := h.S[0] + (float64(hash%(nSat+1)) / nSat * (h.S[1] - h.S[0]))
+	val := h.V[0] + (float64(hash%(nVal+1)) / nVal * (h.V[1] - h.V[0]))
 
 	return hsvrgb(hue, sat, val)
-}
-
-// hashClamp converts the given u32 hash to a number within [min, max],
-// optionally rounded if round is not 0. Hash must be within [0, 1].
-func hashClamp(hash, min, max, round float64) float64 {
-	if round > 0 {
-		hash = math.Round(hash*round) / round
-	}
-
-	r := max - min
-	n := min + (hash * r)
-
-	return n
 }
 
 // hsvrgb is taken from lucasb-eyer/go-colorful, licensed under the MIT license.
