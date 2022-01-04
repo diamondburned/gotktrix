@@ -46,6 +46,7 @@ Additionally, the client implements:
 - Custom and Unicode Emojis
 - Autocompletion
 - Mobile support (partial)
+- Partial [Spaces](https://github.com/matrix-org/matrix-doc/blob/old_master/proposals/1772-groups-as-rooms.md) support
 
 ## Building
 
