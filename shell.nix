@@ -1,1 +1,1 @@
-{}: import ./.nix/shell.nix
+.nix/shell.nix

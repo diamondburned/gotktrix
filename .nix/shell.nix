@@ -1,7 +1,12 @@
+{
+	gotext ? false,
+}:
+
 let src = import ./src.nix;
 
 	goPkgs = import ./pkgs.nix { useFetched = true; };
 	pkgs   = import ./pkgs.nix {};
+	lib    = pkgs.lib;
 
 	shell = import "${src.gotk4}/.nix/shell.nix" {
 		inherit pkgs;
@@ -22,6 +27,9 @@ in shell.overrideAttrs (old: {
 		pkgconfig
 		# Always use patched Go, since it's much faster.
 		goPkgs.go
+
+	] ++ lib.optional gotext [
+		pkgs.gotools
 	];
 
 	# Workaround for the lack of wrapGAppsHook:

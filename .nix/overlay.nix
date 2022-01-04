@@ -16,6 +16,7 @@ self: super: {
 	buildGoModule = super.buildGoModule.override {
 		inherit (self) go;
 	};
+	gotools = super.gotools; # TODO
 
 	# CAUTION, for when I return: uncommenting these will trigger rebuilding a lot of Rust
 	# dependencies, which will take forever! Don't do it!
