@@ -90,6 +90,8 @@ func revealIconName(rev bool) string {
 	return "go-next-symbolic"
 }
 
+const cannotMinify = -1
+
 type minifyButton struct {
 	iconButton
 	ctx   context.Context
@@ -132,7 +134,7 @@ func (b *minifyButton) Invalidate() {
 	minified := b.IsMinified()
 	nHidden := b.nFunc()
 
-	if nHidden == 0 {
+	if nHidden == cannotMinify {
 		b.Hide()
 		return
 	}

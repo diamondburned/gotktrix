@@ -180,6 +180,10 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	})
 
 	minify.SetFunc(func() int {
+		if s.filtered || len(s.rooms) <= nMinified {
+			// hide the minify button
+			return cannotMinify
+		}
 		return s.NHidden()
 	})
 	minify.ConnectClicked(func() {
@@ -431,11 +435,6 @@ func (s *Section) ReminifyAfter(after func()) {
 
 // NHidden returns the number of hidden rooms.
 func (s *Section) NHidden() int {
-	// Don't show the minify button if we're searching or we don't need to
-	// minify.
-	if s.filtered || !s.minify.IsMinified() || len(s.rooms) <= nMinified {
-		return 0
-	}
 	return len(s.hidden)
 }
 
