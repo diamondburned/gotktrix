@@ -23,6 +23,8 @@ func NewCallbackAction(name string) *CallbackAction {
 }
 
 // ActionID transforms name into a viable action ID.
+//
+// Deprecated: using this harms localization.
 func ActionID(name string) string {
 	return strings.Map(func(r rune) rune {
 		switch {
@@ -70,13 +72,25 @@ func ActionGroup(data ...gio.Actioner) *gio.SimpleActionGroup {
 
 // BindActionMap binds the given map of actions (of key prefixed appropriately)
 // to the given widget.
-func BindActionMap(w gtk.Widgetter, prefix string, m map[string]func()) {
-	group := gio.NewSimpleActionGroup()
-	for k, v := range m {
-		group.AddAction(ActionFunc(k, v))
-	}
+func BindActionMap(w gtk.Widgetter, m map[string]func()) {
+	actions := make(map[string]*gio.SimpleActionGroup)
 
-	gtk.BaseWidget(w).InsertActionGroup(prefix, group)
+	for k, v := range m {
+		parts := strings.SplitN(k, ".", 2)
+		if len(parts) != 2 {
+			log.Panicf("invalid action key %q", k)
+		}
+
+		group, ok := actions[parts[0]]
+		if !ok {
+			group = gio.NewSimpleActionGroup()
+			gtk.BaseWidget(w).InsertActionGroup(parts[0], group)
+
+			actions[parts[0]] = group
+		}
+
+		group.AddAction(ActionFunc(parts[1], v))
+	}
 }
 
 func NewCustomMenuItem(label, id string) *gio.MenuItem {
@@ -225,7 +239,7 @@ func Submenu(label string, sub []PopoverMenuItem) PopoverMenuItem {
 // can be more than just an action string. The key must be a string.
 func BindPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, pairs []PopoverMenuItem) {
 	BindRightClickAt(w, func(x, y float64) {
-		popover := PopoverMenuCustom(w, pos, pairs)
+		popover := NewPopoverMenuCustom(w, pos, pairs)
 		if popover == nil {
 			return
 		}
@@ -301,7 +315,7 @@ func addMenuItems(menu *gio.Menu, items []PopoverMenuItem, widgets map[string]gt
 // the time. If any of the menus cannot be added in, then false is returned, and
 // the popover isn't shown.
 func ShowPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, items []PopoverMenuItem) bool {
-	popover := PopoverMenuCustom(w, pos, items)
+	popover := NewPopoverMenuCustom(w, pos, items)
 	if popover == nil {
 		return false
 	}
@@ -310,8 +324,8 @@ func ShowPopoverMenuCustom(w gtk.Widgetter, pos gtk.PositionType, items []Popove
 	return true
 }
 
-// PopoverMenuCustom creates a new Popover containing the given items.
-func PopoverMenuCustom(
+// NewPopoverMenuCustom creates a new Popover containing the given items.
+func NewPopoverMenuCustom(
 	w gtk.Widgetter, pos gtk.PositionType, items []PopoverMenuItem) *gtk.PopoverMenu {
 
 	menu := gio.NewMenu()
@@ -324,7 +338,10 @@ func PopoverMenuCustom(
 	popover.SetCascadePopdown(false)
 	popover.SetSizeRequest(PopoverWidth, -1)
 	popover.SetPosition(pos)
-	popover.SetParent(w)
+
+	if w != nil {
+		popover.SetParent(w)
+	}
 
 	for action, widget := range widgets {
 		if !popover.AddChild(widget, action) {

@@ -68,8 +68,11 @@ type Controller interface {
 	OpenRoom(matrix.RoomID)
 	OpenRoomInTab(matrix.RoomID)
 
-	// Searching returns the string being searched.
-	Searching() string
+	// RoomIsVisible returns true if the given room should be visible.
+	RoomIsVisible(matrix.RoomID) bool
+	// IsSearching returns true if the user is searching for any room. This will
+	// cause the section to not collapse.
+	IsSearching() bool
 
 	// VAdjustment returns the vertical scroll adjustment of the parent
 	// controller. If not in list, return nil.
@@ -101,6 +104,14 @@ type Section struct {
 
 	selected *room.Room
 	tagName  string
+
+	// filtered is true if we're currently filtering out any rooms, either
+	// because we're searching or we're displaying a space. This causes the
+	// minifier to not work, because we don't keep track of filtered rooms.
+	//
+	// Ideally, we should just use a set and keep track of filtered rooms, which
+	// will guarantee that this works.
+	filtered bool
 }
 
 var placeholderAttrs = markuputil.Attrs(
@@ -109,13 +120,9 @@ var placeholderAttrs = markuputil.Attrs(
 
 // New creates a new deactivated section.
 func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
-	placeholder := gtk.NewLabel(locale.S(ctx, "Empty"))
-	placeholder.SetAttributes(placeholderAttrs)
-
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionSingle)
 	list.SetActivateOnSingleClick(true)
-	list.SetPlaceholder(placeholder)
 
 	if vadj := ctrl.VAdjustment(); vadj != nil {
 		list.SetAdjustment(vadj)
@@ -141,6 +148,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	box.Append(btn)
 	box.Append(rev)
+	box.SetVisible(false)
 
 	s := Section{
 		Box:     box,
@@ -153,9 +161,9 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 		tagName: name,
 	}
 
-	gtkutil.BindActionMap(btn, "roomsection", map[string]func(){
-		"change-sort":  nil,
-		"show-preview": nil,
+	gtkutil.BindActionMap(btn, map[string]func(){
+		"roomsection.change-sort":  nil,
+		"roomsection.show-preview": nil,
 	})
 
 	gtkutil.BindRightClick(btn, func() {
@@ -171,13 +179,8 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 		gtkutil.PopupFinally(popover)
 	})
 
-	minify.SetFunc(func() (hidden int, shouldMinify bool) {
-		// Don't show the minify button if we're searching or we don't need to
-		// minify.
-		if len(s.rooms) <= nMinified || ctrl.Searching() != "" {
-			return 0, false
-		}
-		return s.NHidden(), true
+	minify.SetFunc(func() int {
+		return s.NHidden()
 	})
 	minify.ConnectClicked(func() {
 		if minify.IsMinified() {
@@ -199,18 +202,13 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	})
 
 	s.listBox.SetFilterFunc(func(row *gtk.ListBoxRow) bool {
-		searching := ctrl.Searching()
-		if searching == "" {
-			return true
+		visible := ctrl.RoomIsVisible(matrix.RoomID(row.Name()))
+		if !visible {
+			s.filtered = true
 		}
-
-		rm, ok := s.rooms[matrix.RoomID(row.Name())]
-		if !ok {
-			return false
-		}
-
-		// TODO: run ToLower on searching only once.
-		return sortutil.ContainsFold(rm.Name, searching)
+		// Set this so we can count it later.
+		row.SetVisible(visible)
+		return visible
 	})
 
 	// default drag-and-drop mode.
@@ -348,6 +346,8 @@ func (s *Section) Insert(room *room.Room) {
 		s.Minimize()
 		s.minify.Invalidate()
 	}
+
+	s.invalidateVisibility()
 }
 
 // Remove removes the given room from the list.
@@ -361,12 +361,15 @@ func (s *Section) Remove(room *room.Room) {
 	delete(s.hidden, rm)
 	delete(s.rooms, room.ID)
 	s.Reminify()
+
+	s.invalidateVisibility()
 }
 
 // Changed reorders the given room specifically.
 func (s *Section) Changed(room *room.Room) {
 	s.comparer.InvalidateRoomCache()
 	s.ReminifyAfter(func() { room.ListBoxRow.Changed() })
+	s.invalidateVisibility()
 }
 
 // InvalidateSort invalidates the section's sort. This should be called if any
@@ -376,9 +379,22 @@ func (s *Section) InvalidateSort() {
 	s.ReminifyAfter(func() { s.listBox.InvalidateSort() })
 }
 
-// InvalidateFilter invalidates the filtler.
+// InvalidateFilter invalidates the filter.
 func (s *Section) InvalidateFilter() {
+	s.filtered = false
 	s.ReminifyAfter(func() { s.listBox.InvalidateFilter() })
+	s.invalidateVisibility()
+}
+
+func (s *Section) invalidateVisibility() {
+	for _, room := range s.rooms {
+		if room.Visible() {
+			s.SetVisible(true)
+			return
+		}
+	}
+	// No visible room, so hide it.
+	s.SetVisible(false)
 }
 
 // Reminify restores the minified state.
@@ -395,6 +411,7 @@ func (s *Section) ReminifyAfter(after func()) {
 			after()
 		}
 		s.minify.Invalidate()
+		s.invalidateVisibility()
 		return
 	}
 
@@ -404,15 +421,19 @@ func (s *Section) ReminifyAfter(after func()) {
 		after()
 	}
 
-	if s.ctrl.Searching() == "" {
+	if !s.filtered {
 		s.Minimize()
 	}
+
 	s.minify.Invalidate()
+	s.invalidateVisibility()
 }
 
 // NHidden returns the number of hidden rooms.
 func (s *Section) NHidden() int {
-	if !s.minify.IsMinified() {
+	// Don't show the minify button if we're searching or we don't need to
+	// minify.
+	if s.filtered || !s.minify.IsMinified() || len(s.rooms) <= nMinified {
 		return 0
 	}
 	return len(s.hidden)
@@ -434,18 +455,32 @@ func (s *Section) Minimize() {
 			continue
 		}
 
-		room, ok := s.rooms[matrix.RoomID(row.Name())]
-		if !ok {
-			log.Panicln("room ID", row.Name(), "missing in registry")
+		// If the room isn't visible, then it's probably filtered away. Don't
+		// add the room into the hidden map, since it'll mess up NHidden.
+		if !row.Visible() {
+			continue
 		}
 
+		room := s.roomRow(row)
+
 		if _, ok := s.hidden[room]; !ok {
-			s.listBox.Remove(row)
+			row.SetVisible(false)
 			s.hidden[room] = struct{}{}
 		}
 	}
 
 	s.minify.Invalidate()
+}
+
+func (s *Section) roomRow(row *gtk.ListBoxRow) *room.Room {
+	name := row.Name()
+
+	room, ok := s.rooms[matrix.RoomID(name)]
+	if !ok {
+		log.Panicln("room ID", name, "missing in registry")
+	}
+
+	return room
 }
 
 // Expand makes the section display all rooms inside it.
@@ -457,7 +492,7 @@ func (s *Section) Expand() {
 
 func (s *Section) expand() {
 	for r := range s.hidden {
-		s.listBox.Append(r.ListBoxRow)
+		r.SetVisible(true)
 		delete(s.hidden, r)
 	}
 }

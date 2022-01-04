@@ -1,6 +1,7 @@
 package cssutil
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -29,6 +30,21 @@ func Applier(class, css string) func(gtk.Widgetter) {
 	}
 }
 
+// Applyf is a convenient function that wraps Sprintf and Apply.
+func Applyf(widget gtk.Widgetter, f string, v ...interface{}) {
+	Apply(widget, fmt.Sprintf(f, v...))
+}
+
+// Apply applies the given CSS into the given widget's style context.
+func Apply(widget gtk.Widgetter, css string) {
+	prov := gtk.NewCSSProvider()
+	prov.LoadFromData(css)
+
+	w := gtk.BaseWidget(widget)
+	s := w.StyleContext()
+	s.AddProvider(prov, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+}
+
 // WriteCSS adds the given string to the global CSS. It's primarily meant to be
 // used during global variable initialization.
 func WriteCSS(css string) struct{} {
@@ -48,42 +64,37 @@ func AddClass(w gtk.Widgetter, classes ...string) {
 	}
 }
 
-var (
-	userCSS  string
-	userOnce sync.Once
-)
+var applyOnce sync.Once
 
 // ApplyGlobalCSS applies the current global CSS to the default display.
 func ApplyGlobalCSS() {
-	userOnce.Do(func() {
+	applyOnce.Do(func() {
+		globalCSS := globalCSS.String()
+
+		prov := gtk.NewCSSProvider()
+		prov.Connect("parsing-error", func(sec *gtk.CSSSection, err error) {
+			loc := sec.StartLocation()
+
+			lines := strings.Split(globalCSS, "\n")
+			log.Printf("CSS error (%v) at line: %q", err, lines[loc.Lines()])
+		})
+
+		prov.LoadFromData(globalCSS)
+
+		display := gdk.DisplayGetDefault()
+		gtk.StyleContextAddProviderForDisplay(display, prov, 600) // app
+
 		f, err := os.ReadFile(config.Path("user.css"))
 		if err != nil {
 			log.Println("failed to read user.css:", err)
 			return
 		}
 
-		userCSS = string(f)
+		if userCSS := string(f); userCSS != "" {
+			prov := gtk.NewCSSProvider()
+			prov.LoadFromData(userCSS)
+
+			gtk.StyleContextAddProviderForDisplay(display, prov, 800) // user
+		}
 	})
-
-	css := globalCSS.String()
-
-	prov := gtk.NewCSSProvider()
-	prov.Connect("parsing-error", func(sec *gtk.CSSSection, err error) {
-		loc := sec.StartLocation()
-
-		lines := strings.Split(css, "\n")
-		log.Printf("CSS error (%v) at line: %q", err, lines[loc.Lines()])
-	})
-
-	prov.LoadFromData(css)
-
-	display := gdk.DisplayGetDefault()
-	gtk.StyleContextAddProviderForDisplay(display, prov, 600) // app
-
-	if userCSS != "" {
-		prov := gtk.NewCSSProvider()
-		prov.LoadFromData(userCSS)
-
-		gtk.StyleContextAddProviderForDisplay(display, prov, 800) // user
-	}
 }

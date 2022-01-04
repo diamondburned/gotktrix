@@ -7,8 +7,6 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/adaptive"
-	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -16,12 +14,12 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/components/dialogs"
+	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
 	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/pkg/errors"
@@ -34,10 +32,11 @@ const AvatarSize = 32
 
 // Room is a single room row.
 type Room struct {
+	*State
 	*gtk.ListBoxRow
 	box *gtk.Box
 
-	avatar *adaptive.Avatar
+	avatar *onlineimage.Avatar
 	right  *gtk.Box
 
 	name struct {
@@ -51,10 +50,6 @@ type Room struct {
 		label *gtk.Label
 		extra *gtk.Label
 	}
-
-	ID        matrix.RoomID
-	Name      string
-	AvatarURL matrix.URL
 
 	ctx     gtkutil.Cancellable
 	section Section
@@ -147,11 +142,7 @@ var showEventNum = prefs.NewBool(true, prefs.PropMeta{
 // using this constructor will automatically update itself as soon as it's added
 // into a parent, so the caller does not have to trigger the Invalidate methods.
 func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
-	r := Room{
-		section: section,
-		ID:      roomID,
-		Name:    string(roomID),
-	}
+	r := Room{section: section}
 
 	r.name.label = gtk.NewLabel(string(roomID))
 	r.name.label.SetSingleLineMode(true)
@@ -189,7 +180,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	r.right.Append(r.name)
 	r.right.Append(r.preview)
 
-	r.avatar = adaptive.NewAvatar(AvatarSize)
+	r.avatar = onlineimage.NewAvatar(ctx, AvatarSize)
 	r.avatar.ConnectLabel(r.name.label)
 	avatarCSS(r.avatar)
 
@@ -205,20 +196,32 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 
 	r.ctx = gtkutil.WithVisibility(ctx, r)
 
+	r.State = NewState(ctx, roomID, StateChangeFuncs{
+		Name: func(ctx context.Context, s State) {
+			r.name.label.SetLabel(s.Name)
+			r.name.label.SetTooltipText(s.Name)
+			r.avatar.SetName(s.Name)
+			r.avatar.SetTooltipText(s.Name)
+		},
+		Avatar: func(ctx context.Context, s State) {
+			r.avatar.SetFromMXC(s.Avatar)
+		},
+	})
+
 	section.Insert(&r)
 
-	gtkutil.BindActionMap(r, "room", map[string]func(){
-		"open":            func() { section.OpenRoom(roomID) },
-		"open-in-tab":     func() { section.OpenRoomInTab(roomID) },
-		"prompt-reorder":  func() { r.promptReorder() },
-		"move-to-section": nil,
-		"add-emojis":      func() { emojiview.ForRoom(r.ctx.Take(), r.ID) },
+	gtkutil.BindActionMap(r, map[string]func(){
+		"room.open":            func() { section.OpenRoom(roomID) },
+		"room.open-in-tab":     func() { section.OpenRoomInTab(roomID) },
+		"room.prompt-reorder":  func() { r.promptReorder() },
+		"room.move-to-section": nil,
+		"room.add-emojis":      func() { emojiview.ForRoom(r.ctx.Take(), r.ID) },
 	})
 
 	gtkutil.BindRightClick(r, func() {
 		s := locale.SFunc(ctx)
 
-		p := gtkutil.PopoverMenuCustom(r, gtk.PosBottom, []gtkutil.PopoverMenuItem{
+		p := gtkutil.NewPopoverMenuCustom(r, gtk.PosBottom, []gtkutil.PopoverMenuItem{
 			gtkutil.MenuItem(s("Open"), "room.open"),
 			gtkutil.MenuItem(s("Open in New Tab"), "room.open-in-tab"),
 			gtkutil.MenuSeparator(s("Section")),
@@ -243,28 +246,22 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		r.InvalidatePreview(ctx)
 
 		b := gtkutil.FuncBatcher()
-		b.F(client.SubscribeTimelineSync(roomID, func(event.RoomEvent) {
-			gtkutil.IdleCtx(ctx, func() {
-				r.InvalidatePreview(ctx)
-				r.Changed()
-			})
-		}))
-		b.F(client.SubscribeRoomEvents(roomID, roomEvents, func(ev event.Event) {
-			gtkutil.IdleCtx(ctx, func() {
-				switch ev.(type) {
-				case *event.RoomNameEvent, *event.RoomCanonicalAliasEvent:
-					r.InvalidateName(ctx)
-					r.Changed()
-				case *event.RoomAvatarEvent:
-					r.InvalidateAvatar(ctx)
-				case *m.FullyReadEvent:
+
+		return b.Done(
+			r.State.Subscribe(),
+			client.SubscribeTimelineSync(roomID, func(event.RoomEvent) {
+				gtkutil.IdleCtx(ctx, func() {
 					r.InvalidatePreview(ctx)
 					r.Changed()
-				}
-			})
-		}))
-
-		return b.Done()
+				})
+			}),
+			client.SubscribeRoom(roomID, m.FullyReadEventType, func(ev event.Event) {
+				gtkutil.IdleCtx(ctx, func() {
+					r.InvalidatePreview(ctx)
+					r.Changed()
+				})
+			}),
+		)
 	})
 
 	// Initialize drag-and-drop.
@@ -310,71 +307,6 @@ func (r *Room) SetActive(active bool) {
 	} else {
 		r.RemoveCSSClass("room-active")
 	}
-}
-
-// InvalidateName invalidates the room's name and refetches them from the state
-// or API.
-func (r *Room) InvalidateName(ctx context.Context) {
-	client := gotktrix.FromContext(ctx)
-
-	n, err := client.Offline().RoomName(r.ID)
-	if err == nil && n != "Empty Room" {
-		r.setLabel(n)
-		return
-	}
-
-	// Goroutines are cheap as hell!
-	go func() {
-		n, err := client.RoomName(r.ID)
-		if err == nil {
-			glib.IdleAdd(func() { r.setLabel(n) })
-		}
-	}()
-}
-
-// InvalidateAvatar invalidates the room's avatar.
-func (r *Room) InvalidateAvatar(ctx context.Context) {
-	client := gotktrix.FromContext(ctx)
-
-	mxc, err := client.Offline().RoomAvatar(r.ID)
-	if err == nil {
-		r.setAvatarURL(mxc)
-		if mxc != nil {
-			url, _ := client.SquareThumbnail(*mxc, AvatarSize, gtkutil.ScaleFactor())
-			imgutil.AsyncGET(ctx, url, r.avatar.SetFromPaintable)
-		}
-	}
-
-	go func() {
-		mxc, _ := client.RoomAvatar(r.ID)
-		glib.IdleAdd(func() { r.setAvatarURL(mxc) })
-
-		if mxc != nil {
-			url, _ := client.SquareThumbnail(*mxc, AvatarSize, gtkutil.ScaleFactor())
-			imgutil.GET(ctx, url, r.avatar.SetFromPaintable)
-		}
-	}()
-}
-
-func (r *Room) setAvatarURL(mxc *matrix.URL) {
-	if mxc == nil {
-		r.AvatarURL = matrix.URL("")
-		r.avatar.SetFromPaintable(nil)
-		return
-	}
-	if r.AvatarURL == *mxc {
-		return
-	}
-	r.AvatarURL = *mxc
-}
-
-// setLabel sets the room name.
-func (r *Room) setLabel(text string) {
-	r.Name = text
-	r.name.label.SetLabel(text)
-	r.name.label.SetTooltipText(text)
-	r.avatar.SetName(text)
-	r.avatar.SetTooltipText(text)
 }
 
 func (r *Room) erasePreview() {

@@ -186,6 +186,7 @@ type Client struct {
 	Index *indexer.Indexer
 
 	httpErr *httptrick.RoundTripWarner
+	ctx     context.Context
 	userID  matrix.UserID
 }
 
@@ -333,6 +334,7 @@ func (c *Client) OnSyncError(f func(err error)) func() {
 // WithContext replaces the client's internal context with the given one.
 func (c *Client) WithContext(ctx context.Context) *Client {
 	cpy := *c
+	cpy.ctx = ctx
 	cpy.Client = cpy.Client.WithContext(ctx)
 	return &cpy
 }
@@ -471,7 +473,13 @@ func (c *Client) MessageMediaURL(msg *event.RoomMessageEvent) (string, error) {
 // RoomEvent queries the event with the given type. If the event type implies a
 // state event, then the empty key is tried.
 func (c *Client) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, error) {
-	return c.State.RoomEvent(roomID, typ)
+	ev, _ := c.State.RoomEvent(roomID, typ)
+	if ev != nil {
+		return ev, nil
+	}
+
+	// wack
+	return c.RoomState(roomID, typ, "")
 }
 
 // RoomState queries the internal State for the given RoomEvent. If the State
@@ -506,6 +514,79 @@ func (c *Client) RoomState(
 	c.State.AddRoomEvents(roomID, []event.RawEvent{raw})
 
 	return stateEvent, nil
+}
+
+// EachRoomState calls f on every raw event in the room state. It satisfies the
+// EachRoomState method requirement inside gotrix.State, but most callers should
+// not use this method, since there is no length information.
+//
+// Deprecated: Use EachRoomStateLen.
+func (c *Client) EachRoomState(
+	roomID matrix.RoomID, typ event.Type, f func(string, event.StateEvent) error) error {
+
+	return c.EachRoomStateLen(roomID, typ, func(e event.StateEvent, _ int) error {
+		return f(e.StateInfo().StateKey, e)
+	})
+}
+
+// EachRoomStateLen is a variant of EachRoomState, but a length parameter is
+// precalculated.
+func (c *Client) EachRoomStateLen(
+	roomID matrix.RoomID, typ event.Type, f func(ev event.StateEvent, total int) error) error {
+
+	if err := c.State.EachRoomStateLen(roomID, typ, f); err == nil {
+		return err
+	}
+
+	events, err := c.Client.RoomStates(roomID)
+	if err != nil {
+		return err
+	}
+
+	c.State.AddRoomEvents(roomID, events)
+
+	return c.State.EachRoomStateLen(roomID, typ, f)
+}
+
+func (c *Client) RoomName(roomID matrix.RoomID) (string, error) {
+	s, err := c.Client.RoomName(roomID)
+	if err != nil {
+		return s, err
+	}
+
+	if s == string(roomID) && c.ctx.Err() != nil {
+		return s, c.ctx.Err()
+	}
+
+	return s, nil
+}
+
+// RoomType returns the room's type. An empty string signifies a regular room.
+func (c *Client) RoomType(roomID matrix.RoomID) string {
+	ev, _ := c.RoomEvent(roomID, event.TypeRoomCreate)
+	if ev == nil {
+		return ""
+	}
+
+	if ev.Info().Raw == nil {
+		// No original JSON, so we can't get the Type field.
+		return ""
+	}
+
+	var roomTypeEvent struct {
+		Content struct {
+			Type string
+		}
+	}
+
+	json.Unmarshal(ev.Info().Raw, &roomTypeEvent)
+
+	return roomTypeEvent.Content.Type
+}
+
+// RoomIsSpace returns true if the room with the given ID is a space-room.
+func (c *Client) RoomIsSpace(roomID matrix.RoomID) bool {
+	return c.RoomType(roomID) == "m.space"
 }
 
 // RoomIsUnread returns true if the room with the given ID has not been read by
@@ -937,7 +1018,7 @@ func (c *Client) Rooms() ([]matrix.RoomID, error) {
 func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, error) {
 	var events []event.RoomMemberEvent
 
-	onEach := func(e event.Event, total int) error {
+	onEach := func(e event.StateEvent, total int) error {
 		ev, ok := e.(*event.RoomMemberEvent)
 		if !ok {
 			return nil
@@ -951,7 +1032,7 @@ func (c *Client) RoomMembers(roomID matrix.RoomID) ([]event.RoomMemberEvent, err
 		return nil
 	}
 
-	if err := c.State.EachRoomEventLen(roomID, event.TypeRoomMember, onEach); err == nil {
+	if err := c.State.EachRoomStateLen(roomID, event.TypeRoomMember, onEach); err == nil {
 		if events != nil {
 			return events, nil
 		}

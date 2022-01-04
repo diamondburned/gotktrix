@@ -119,7 +119,7 @@ func fetch(ctx context.Context, url string) (io.ReadCloser, error) {
 
 	r, err := Client.Do(req)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to GET %q", url)
+		return nil, err
 	}
 
 	if r.StatusCode < 200 || r.StatusCode > 299 {

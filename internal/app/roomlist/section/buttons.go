@@ -93,7 +93,7 @@ func revealIconName(rev bool) string {
 type minifyButton struct {
 	iconButton
 	ctx   context.Context
-	nFunc func() (int, bool)
+	nFunc func() int
 }
 
 func newMinifyButton(ctx context.Context, minify bool) *minifyButton {
@@ -104,7 +104,7 @@ func newMinifyButton(ctx context.Context, minify bool) *minifyButton {
 	return &minifyButton{
 		*button,
 		ctx,
-		func() (int, bool) { return 0, true },
+		func() int { return 0 },
 	}
 }
 
@@ -124,15 +124,15 @@ func (b *minifyButton) SetMinified(minified bool) {
 	b.Invalidate()
 }
 
-func (b *minifyButton) SetFunc(f func() (nHidden int, minify bool)) {
+func (b *minifyButton) SetFunc(f func() (nHidden int)) {
 	b.nFunc = f
 }
 
 func (b *minifyButton) Invalidate() {
 	minified := b.IsMinified()
-	nHidden, shouldMinify := b.nFunc()
+	nHidden := b.nFunc()
 
-	if !shouldMinify {
+	if nHidden == 0 {
 		b.Hide()
 		return
 	}

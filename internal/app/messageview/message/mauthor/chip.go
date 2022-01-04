@@ -51,7 +51,7 @@ var chipCSS = cssutil.Applier("mauthor-chip", `
 	 * even one widget is inserted for some weird reason.
      */
 	.mauthor-haschip {
-		margin-bottom: -1.2em;
+		margin-bottom: -1em;
 	}
 `)
 

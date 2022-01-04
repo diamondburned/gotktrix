@@ -1,4 +1,4 @@
-package roomlist
+package space
 
 import (
 	"context"
@@ -15,44 +15,30 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotktrix/internal/sortutil"
 	"github.com/pkg/errors"
 )
 
-// List describes a room list widget.
+// List describes a room list showing rooms within a space (or no space, i.e.
+// the global space).
 type List struct {
 	*gtk.Box
+
 	ctx  context.Context
 	ctrl Controller
 
 	SearchBar *gtk.SearchBar
 	search    string
 
-	scroll   *gtk.ScrolledWindow
-	outer    *adaptive.Bin
-	inner    *gtk.Box // contains sections
+	scroll *gtk.ScrolledWindow
+	outer  *adaptive.Bin
+	inner  *gtk.Box // contains sections
+
+	space    spaceState
 	sections []*section.Section
-
-	rooms   map[matrix.RoomID]*room.Room
-	current matrix.RoomID
+	rooms    map[matrix.RoomID]*room.Room
+	current  matrix.RoomID
 }
-
-var listCSS = cssutil.Applier("roomlist-list", `
-	.roomlist-list {
-		background: @theme_base_color;
-	}
-	.roomlist-section {
-		margin-bottom: 8px;
-	}
-	.roomlist-section list {
-		background: inherit;
-	}
-	.roomlist-reorderactions {
-		color: @theme_selected_bg_color;
-	}
-	.roomlist-reorderactions button {
-		margin-left: 6px;
-	}
-`)
 
 // Controller describes the controller requirement.
 type Controller interface {
@@ -68,6 +54,24 @@ type Controller interface {
 type RoomTabOpener interface {
 	OpenRoomInTab(matrix.RoomID)
 }
+
+var listCSS = cssutil.Applier("space-list", `
+	.space-list {
+		background: @theme_base_color;
+	}
+	.space-section {
+		margin-bottom: 8px;
+	}
+	.space-section list {
+		background: inherit;
+	}
+	.space-reorderactions {
+		color: @theme_selected_bg_color;
+	}
+	.space-reorderactions button {
+		margin-left: 6px;
+	}
+`)
 
 // New creates a new room list widget.
 func New(ctx context.Context, ctrl Controller) *List {
@@ -93,7 +97,7 @@ func New(ctx context.Context, ctrl Controller) *List {
 	searchEntry.ConnectSearchChanged(func() { l.Search(searchEntry.Text()) })
 
 	l.SearchBar = gtk.NewSearchBar()
-	l.SearchBar.AddCSSClass("roomlist-search")
+	l.SearchBar.AddCSSClass("space-search")
 	l.SearchBar.ConnectEntry(&searchEntry.Editable)
 	l.SearchBar.SetSearchMode(false)
 	l.SearchBar.SetShowCloseButton(false)
@@ -114,42 +118,88 @@ func New(ctx context.Context, ctrl Controller) *List {
 	return &l
 }
 
+// SpaceID returns the ID of the currently displayed space. If it's empty, then
+// the list will show all rooms, i.e. no filtering is done.
+func (l *List) SpaceID() matrix.RoomID {
+	return l.space.id
+}
+
+// SetSpaceID sets the space room ID of the list. This causes the list to filter
+// out all rooms, only leaving behind rooms that belong to the given space.
+// Sections that don't have any rooms after filtering will be hidden.
+func (l *List) SetSpaceID(spaceID matrix.RoomID) {
+	l.space.id = spaceID
+	l.space.update(l.ctx, func() func() {
+		l.SetSensitive(false)
+		return func() {
+			l.SetSensitive(true)
+			l.InvalidateFilter()
+		}
+	})
+
+	l.InvalidateFilter()
+}
+
 // VAdjustment returns the list's ScrolledWindow's vertical adjustment for
 // scrolling.
 func (l *List) VAdjustment() *gtk.Adjustment {
 	return l.scroll.VAdjustment()
 }
 
-// Searching returns the string being searched.
-func (l *List) Searching() string { return l.search }
+// RoomIsVisible returns true if the room with the given ID should be visible.
+func (l *List) RoomIsVisible(roomID matrix.RoomID) bool {
+	if l.search == "" && l.space.id == "" {
+		return true
+	}
+
+	room, ok := l.rooms[roomID]
+	if !ok {
+		return false
+	}
+
+	if l.search != "" {
+		if !sortutil.ContainsFold(room.Name, l.search) {
+			return false
+		}
+	}
+
+	if l.space.id != "" {
+		if !l.space.has(roomID) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// IsSearching returns true if the user is searching for rooms.
+func (l *List) IsSearching() bool { return l.search != "" }
 
 // Search searches for a room of the given name.
 func (l *List) Search(str string) {
 	l.search = str
+	l.InvalidateFilter()
+}
+
+// InvalidateFilter invalidates all sections' filters.
+func (l *List) InvalidateFilter() {
 	for _, s := range l.sections {
 		s.InvalidateFilter()
 	}
 }
 
-// AddRooms adds the rooms with the given IDs.
-func (l *List) AddRooms(roomIDs []matrix.RoomID) {
-	// Prefetch everything offline first.
-	client := gotktrix.FromContext(l.ctx).Offline()
-
-	for _, roomID := range roomIDs {
-		// Ignore duplicate rooms.
-		_, ok := l.rooms[roomID]
-		if ok {
-			continue
-		}
-
-		tagName := section.RoomTag(client, roomID)
-		section := l.getOrCreateSection(tagName)
-
-		l.rooms[roomID] = room.AddTo(l.ctx, section, roomID)
+// AddRoom adds the room into the given list.
+func (l *List) AddRoom(roomID matrix.RoomID) {
+	_, ok := l.rooms[roomID]
+	if ok {
+		return
 	}
 
-	l.refreshSections()
+	client := gotktrix.FromContext(l.ctx).Offline()
+	tagName := section.RoomTag(client, roomID)
+	section := l.getOrCreateSection(tagName)
+
+	l.rooms[roomID] = room.AddTo(l.ctx, section, roomID)
 }
 
 func (l *List) getOrCreateSection(tag matrix.TagName) *section.Section {
@@ -160,15 +210,15 @@ func (l *List) getOrCreateSection(tag matrix.TagName) *section.Section {
 	}
 
 	sect := section.New(l.ctx, l, tag)
-	sect.AddCSSClass("roomlist-section")
+	sect.AddCSSClass("space-section")
 	l.sections = append(l.sections, sect)
 
 	return sect
 }
 
-// refreshSections throws away the session box and recreates a new one from the
-// internal list. It will sort the internal sections list.
-func (l *List) refreshSections() {
+// InvalidateSections throws away the session box and recreates a new one from
+// the internal list. It will sort the internal sections list.
+func (l *List) InvalidateSections() {
 	// Ensure that all old sections are removed from the old box.
 	for _, s := range l.sections {
 		s.Unparent()
@@ -232,7 +282,7 @@ func (l *List) MoveRoomToTag(src matrix.RoomID, tag matrix.TagName) bool {
 		l.rooms[src].SetOrder(oldOrder)
 	}
 
-	l.refreshSections()
+	l.InvalidateSections()
 	return true
 }
 

@@ -31,15 +31,24 @@ type opts struct {
 	}
 }
 
-func (o *opts) error(err error) {
+func (o *opts) error(err error, writeLog bool) {
 	if o.err != nil {
-		o.err(err)
+		gtkutil.InvokeMain(func() { o.err(err) })
+	} else if writeLog {
+		log.Println("imgutil:", err)
 	}
 }
 
 // Opts is a type that can optionally modify the default internal options for
 // each call.
 type Opts func(*opts)
+
+// OptsError triggers the error handler inside opts if there's one. This is
+// useful for asynchronous imgutil function wrappers to signal an error.
+func OptsError(opts []Opts, err error) {
+	o := processOpts(opts)
+	o.error(err, true)
+}
 
 func processOpts(optFuncs []Opts) opts {
 	var o opts
@@ -271,11 +280,7 @@ func do(ctx context.Context, o *opts, async bool, do func() (func(), error)) {
 func doImpl(ctx context.Context, o *opts, do func() (func(), error)) {
 	f, err := do()
 	if err != nil {
-		if o.err != nil {
-			glib.IdleAdd(func() { o.err(err) })
-		} else {
-			log.Println("imgutil GET:", err)
-		}
+		o.error(err, true)
 		return
 	}
 
@@ -283,7 +288,7 @@ func doImpl(ctx context.Context, o *opts, do func() (func(), error)) {
 		select {
 		case <-ctx.Done():
 			// don't call f if cancelledd
-			o.error(ctx.Err())
+			o.error(ctx.Err(), false)
 		default:
 			f()
 		}

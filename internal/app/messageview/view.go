@@ -23,6 +23,8 @@ type View struct {
 	current *Page
 }
 
+// This is used for tabs, but we're not implementing tabs for now.
+
 type Controller interface {
 	SetSelectedRoom(id matrix.RoomID)
 }

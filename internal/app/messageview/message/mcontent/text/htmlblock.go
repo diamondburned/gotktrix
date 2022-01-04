@@ -337,6 +337,9 @@ var quoteBlockCSS = cssutil.Applier("mcontent-quote-block", `
 	.mcontent-quote-block:not(:last-child) {
 		margin-bottom: 3px;
 	}
+	.mcontent-quote-block > textview.mauthor-haschip {
+		margin-bottom: -1em;
+	}
 `)
 
 func newQuoteBlock(s *currentBlockState) *quoteBlock {

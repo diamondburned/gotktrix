@@ -5,6 +5,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/config/prefs"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 
@@ -230,12 +231,7 @@ func (i *InlineImage) SetSizeRequest(w, h int) {
 
 var inlineImageCSS = cssutil.Applier("md-inlineimage", `
 	.md-inlineimage {
-		margin-bottom: -0.35em;
-	}
-	/* This margin should actually be dependent on the size of the image, but
-	 * we're hard-coding a high value for now. */
-	.md-hasimage {
-		margin-bottom: -3em;
+		margin-bottom: -0.45em;
 	}
 `)
 
@@ -243,22 +239,40 @@ var inlineImageCSS = cssutil.Applier("md-inlineimage", `
 // way that the text position of the text buffer is not scrambled. Images
 // created using this function will have the ".md-inlineimage" class.
 func InsertImageWidget(view *gtk.TextView, anchor *gtk.TextChildAnchor) *InlineImage {
-	buf := view.Buffer()
+	// buf := view.Buffer()
 
 	image := gtk.NewImageFromIconName("image-x-generic-symbolic")
 	inlineImageCSS(image)
 
-	iter := buf.IterAtChildAnchor(anchor)
-	startOffset := iter.Offset()
+	// iter := buf.IterAtChildAnchor(anchor)
+	// startOffset := iter.Offset()
+
+	fixTextHeight(view, image)
 
 	view.AddChildAtAnchor(image, anchor)
 	view.AddCSSClass("md-hasimage")
 
-	tag := TextTags.FromBuffer(buf, "_image")
-	start := buf.IterAtOffset(startOffset)
-	buf.ApplyTag(tag, start, iter)
+	// tag := TextTags.FromBuffer(buf, "_image")
+	// start := buf.IterAtOffset(startOffset)
+	// buf.ApplyTag(tag, start, iter)
 
 	return &InlineImage{image}
+}
+
+func fixTextHeight(view *gtk.TextView, image *gtk.Image) {
+	for _, class := range view.CSSClasses() {
+		if class == "md-hasimage" {
+			return
+		}
+	}
+
+	gtkutil.OnFirstMap(image, func() {
+		// Workaround to account for GTK's weird height allocating when a widget
+		// is added. We're removing most of the excess empty padding with this.
+		h := image.AllocatedHeight() * 95 / 100
+
+		cssutil.Applyf(view, `* { margin-bottom: -%dpx; }`, h)
+	})
 }
 
 // https://stackoverflow.com/a/36258684/5041327

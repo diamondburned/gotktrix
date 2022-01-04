@@ -1,26 +1,19 @@
 package message
 
 import (
-	"context"
-	"log"
-
 	"github.com/chanbakjsd/gotrix/event"
-	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
+	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 )
 
 type cozyMessage struct {
 	*gtk.Box
 	*message
-	avatar *adaptive.Avatar
+	avatar *onlineimage.Avatar
 	sender *gtk.Label
 }
 
@@ -53,7 +46,7 @@ func (v messageViewer) cozyMessage(ev *event.RoomMessageEvent) *cozyMessage {
 		mauthor.WithWidgetColor(msg.sender),
 	))
 
-	msg.avatar = adaptive.NewAvatar(avatarSize)
+	msg.avatar = onlineimage.NewAvatar(v, avatarSize)
 	msg.avatar.ConnectLabel(msg.sender)
 	msg.avatar.SetVAlign(gtk.AlignStart)
 	msg.avatar.SetMarginTop(2)
@@ -61,7 +54,7 @@ func (v messageViewer) cozyMessage(ev *event.RoomMessageEvent) *cozyMessage {
 
 	mxc, _ := client.MemberAvatar(ev.RoomID, ev.Sender)
 	if mxc != nil {
-		setAvatar(v, msg.avatar, client, *mxc)
+		msg.avatar.SetFromMXC(*mxc)
 	}
 
 	authorTsBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
@@ -102,18 +95,7 @@ func (m *cozyMessage) asyncFetch() {
 
 		mxc, _ := m.parent.client().MemberAvatar(roomEv.RoomID, roomEv.Sender)
 		if mxc != nil {
-			setAvatar(m.parent, m.avatar, m.parent.client(), *mxc)
+			glib.IdleAdd(func() { m.avatar.SetFromMXC(*mxc) })
 		}
 	}()
-}
-
-// setAvatar is safe to be called concurrently.
-func setAvatar(ctx context.Context, a *adaptive.Avatar, client *gotktrix.Client, mxc matrix.URL) {
-	avatarURL, _ := client.SquareThumbnail(mxc, avatarSize, gtkutil.ScaleFactor())
-	imgutil.AsyncGET(
-		ctx, avatarURL, a.SetFromPaintable,
-		imgutil.WithErrorFn(func(err error) {
-			log.Print("error getting avatar ", mxc, ": ", err)
-		}),
-	)
 }

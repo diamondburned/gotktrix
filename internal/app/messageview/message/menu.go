@@ -33,22 +33,22 @@ func bindParent(
 	roomEv := v.event.RoomInfo()
 
 	actions := map[string]func(){
-		"show-source": func() { showMsgSource(v.Context, v.event) },
-		"reply":       func() { v.MessageViewer.ReplyTo(roomEv.ID) },
-		"react":       func() { reactor.showEmoji(parent) },
-		"react-text":  func() { reactor.showEntry(parent) },
+		"message.show-source": func() { showMsgSource(v.Context, v.event) },
+		"message.reply":       func() { v.MessageViewer.ReplyTo(roomEv.ID) },
+		"message.react":       func() { reactor.showEmoji(parent) },
+		"message.react-text":  func() { reactor.showEntry(parent) },
 	}
 
 	client := v.client()
 
 	isSelf := client.UserID == roomEv.Sender
 	if isSelf {
-		actions["edit"] = func() { v.MessageViewer.Edit(roomEv.ID) }
+		actions["message.edit"] = func() { v.MessageViewer.Edit(roomEv.ID) }
 	}
 
 	canRedact := isSelf || client.HasPower(roomEv.RoomID, gotktrix.RedactAction)
 	if canRedact {
-		actions["delete"] = func() { redactMessage(v) }
+		actions["message.delete"] = func() { redactMessage(v) }
 	}
 
 	menuItems := []gtkutil.PopoverMenuItem{
@@ -60,7 +60,7 @@ func bindParent(
 		gtkutil.MenuItem(locale.S(v, "Show _Source"), "message.show-source"),
 	}
 
-	gtkutil.BindActionMap(parent, "message", actions)
+	gtkutil.BindActionMap(parent, actions)
 	gtkutil.BindPopoverMenuCustom(parent, gtk.PosBottom, menuItems)
 
 	extraItems := gtkutil.CustomMenu(menuItems)

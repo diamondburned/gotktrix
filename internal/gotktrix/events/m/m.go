@@ -10,6 +10,7 @@ import (
 
 func init() {
 	event.Register(FullyReadEventType, parseFullyReadEvent)
+	event.RegisterDefault(SpaceChildEventType, parseSpaceChildEvent)
 	event.RegisterDefault(ReactionEventType, parseReactionEvent)
 }
 
@@ -92,4 +93,53 @@ func parseReactionEvent(content json.RawMessage) (event.Event, error) {
 	var ev ReactionEvent
 	err := json.Unmarshal(content, &ev)
 	return &ev, err
+}
+
+// SpaceChildEventType is the event type for m.space.child.
+const SpaceChildEventType = "m.space.child"
+
+// SpaceChildEvent is an event emitted by space rooms to advertise children
+// rooms.
+type SpaceChildEvent struct {
+	event.StateEventInfo `json:"-"`
+	// Via contains a list of space rooms that the child belongs to.
+	Via       []string `json:"via"`
+	Order     string   `json:"order,omitempty"`
+	Canonical bool     `json:"canonical,omtempty"`
+	Suggested bool     `json:"suggested,omitempty"`
+}
+
+func parseSpaceChildEvent(content json.RawMessage) (event.Event, error) {
+	var ev SpaceChildEvent
+	err := json.Unmarshal(content, &ev)
+	return &ev, err
+}
+
+// ChildRoomID returns the room ID that this space child event describes.
+func (ev *SpaceChildEvent) ChildRoomID() matrix.RoomID {
+	return matrix.RoomID(ev.StateEventInfo.StateKey)
+}
+
+// SpaceParentEventType is the event type for m.space.parent.
+const SpaceParentEventType = "m.space.parent"
+
+// SpaceParentEvent is an event emitted by children rooms to advertise spaces.
+type SpaceParentEvent struct {
+	event.StateEventInfo `json:"-"`
+	// Via contains a list of space rooms that the child belongs to.
+	Via       []string `json:"via"`
+	Order     string   `json:"order,omitempty"`
+	Canonical bool     `json:"canonical,omtempty"`
+	Suggested bool     `json:"suggested,omitempty"`
+}
+
+func parseSpaceParentEvent(content json.RawMessage) (event.Event, error) {
+	var ev SpaceParentEvent
+	err := json.Unmarshal(content, &ev)
+	return &ev, err
+}
+
+// SpaceRoomID returns the room ID that this space child event describes.
+func (ev *SpaceParentEvent) SpaceRoomID() matrix.RoomID {
+	return matrix.RoomID(ev.StateEventInfo.StateKey)
 }

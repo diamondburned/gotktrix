@@ -21,7 +21,7 @@ func Parse(b []byte) event.Event {
 
 // ParseRoom wraps around event.Parse.
 func ParseRoom(b []byte, rID matrix.RoomID) event.Event {
-	e, err := event.Parse(b)
+	e, err := event.Parse(append([]byte(nil), b...))
 	if err == nil {
 		room, ok := e.(event.RoomEvent)
 		if ok {

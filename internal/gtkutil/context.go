@@ -35,7 +35,9 @@ func FuncBatcher() FuncBatch {
 func (b *FuncBatch) F(f func()) { b.funcs = append(b.funcs, f) }
 
 // Done returns a function that executes the batch when invoked.
-func (b *FuncBatch) Done() func() {
+func (b *FuncBatch) Done(f ...func()) func() {
+	b.funcs = append(b.funcs, f...)
+
 	return func() {
 		for _, f := range b.funcs {
 			f()
@@ -53,6 +55,11 @@ type Cancellable interface {
 	// callback returns a non-nil function, then that function is called once
 	// the context is cancelled.
 	OnRenew(func(context.Context) (undo func())) (remove func())
+}
+
+// IsCancelled returns true if the cancellable is cancelled.
+func IsCancelled(cancellable Cancellable) bool {
+	return cancellable.Take().Err() != nil
 }
 
 // Canceller extends Cancellable to allow the user to control the context.

@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"embed"
+	"log"
+	"net/http"
 	"os"
 	"os/signal"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
-	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -20,7 +21,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
-	"github.com/diamondburned/gotktrix/internal/app/roomlist/selfbar"
+	"github.com/diamondburned/gotktrix/internal/app/userbutton"
 	"github.com/diamondburned/gotktrix/internal/components/title"
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/config/prefs"
@@ -42,8 +43,25 @@ var _ = cssutil.WriteCSS(`
 		background: none;
 	}
 
-	windowhandle, .selfbar-bar, .composer {
+	windowhandle,
+	.composer,
+	.roomlist-spaces-revealer > * {
 		min-height: 46px;
+	}
+
+	.roomlist-spaces-revealer > * {
+		border: none;
+		border-top: 1px solid @borders;
+	}
+
+	/* Use a border-bottom for this instead of border-top so the typing overlay
+	 * can work properly. */
+	.messageview-rhs .messageview-box > overlay {
+		border-bottom: 1px solid @borders;
+	}
+
+	.roomlist-spaces-revealer {
+		box-shadow: 0 0 8px 0px rgba(0, 0, 0, 0.35);
 	}
 
 	.adaptive-sidebar-revealer > * {
@@ -54,16 +72,18 @@ var _ = cssutil.WriteCSS(`
 		background-color: mix(@theme_fg_color, @theme_bg_color, 0.75);
 	}
 
-	.left-header, .right-header .subtitle-title {
+	.left-header,
+	.right-header .subtitle-title {
 		font-weight: 600;
 	}
 
-	.left-header, .right-header {
+	.left-header,
+	.right-header {
 		padding-right: 6px;
 	}
 
 	.left-header {
-		padding-left: 8px;
+		padding-left: 6px;
 		border-top-right-radius: 0;
 	}
 
@@ -86,25 +106,15 @@ var _ = cssutil.WriteCSS(`
 		margin-right: 12px;
 	}
 
-	.left-header button, .right-header button {
+	.left-header  button:not(.userbutton-toggle),
+	.right-header button {
 		min-width:  32px; /* keep these in sync wcith room.AvatarSize */
 		min-height: 32px;
 		padding: 0;
 	}
 
-	.app-menu {
-		margin-right:  6px;
-	}
-
-	.selfbar-bar {
-		border: none;
-		border-top: 1px solid @borders;
-	}
-
-	/* Use a border-bottom for this instead of border-top so the typing overlay
-	 * can work properly. */
-	.messageview-rhs .messageview-box > overlay {
-		border-bottom: 1px solid @borders;
+	.left-header > .app-username {
+		margin: 0 4px;
 	}
 
 	/* Fix a quirk to do with the Default theme. */
@@ -180,22 +190,22 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 		a.SetLoading()
 		ctx := gotktrix.WithClient(ctx, client)
 
-		gtkutil.Async(ctx, func() func() {
-			popup := syncbox.Open(ctx, acc)
-			popup.QueueSetLabel(locale.Sprint(ctx, "Getting rooms..."))
+		client.OnHTTPError(func(_ *http.Request, err error) {
+			logHTTPError(err)
+		})
 
-			rooms, err := client.Rooms()
-			if err != nil {
-				app.Fatal(ctx, err)
-				return nil
-			}
-
-			return func() {
-				m := manager{ctx: ctx}
-				m.ready(rooms)
-			}
+		syncbox.OpenThen(ctx, acc, func() {
+			m := manager{ctx: ctx}
+			m.ready()
 		})
 	})
+}
+
+func logHTTPError(err error) {
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	log.Println("Matrix HTTP error:", err)
 }
 
 type manager struct {
@@ -214,11 +224,8 @@ type manager struct {
 		rtext *title.Subtitle
 	}
 
-	roomList *roomlist.List
+	roomList *roomlist.Browser
 	msgView  *messageview.View
-
-	actions   *gio.SimpleActionGroup
-	menuItems [][2]string // id->label
 }
 
 const minMessagesWidth = 400
@@ -231,7 +238,7 @@ var foldWidth = prefs.NewInt(275, prefs.IntMeta{
 	Max:         1000, // bruh
 })
 
-func (m *manager) ready(rooms []matrix.RoomID) {
+func (m *manager) ready() {
 	a := app.FromContext(m.ctx)
 	a.SetTitle("")
 
@@ -239,20 +246,8 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 
 	m.roomList = roomlist.New(m.ctx, m)
 	m.roomList.SetVExpand(true)
-	m.roomList.AddRooms(rooms)
-
-	self := selfbar.New(m.ctx, m)
-	self.SetVExpand(false)
-	self.Invalidate()
-	self.AddButton(locale.Sprint(m.ctx, "User Emojis"), func() {
-		emojiview.ForUser(m.ctx)
-	})
-
-	leftBox := gtk.NewBox(gtk.OrientationVertical, 0)
-	leftBox.AddCSSClass("left-sidebar")
-	leftBox.SetOverflow(gtk.OverflowHidden) // need this for box-shadow
-	leftBox.Append(m.roomList)
-	leftBox.Append(self)
+	m.roomList.SetOverflow(gtk.OverflowHidden) // for shadow
+	m.roomList.InvalidateRooms()
 
 	welcome := adaptive.NewStatusPage()
 	welcome.SetIconName("go-previous-symbolic")
@@ -264,12 +259,17 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 
 	m.fold = adaptive.NewFold(gtk.PosLeft)
 	m.fold.SetWidthFunc(m.width)
-	m.fold.SetSideChild(leftBox)
+	m.fold.SetSideChild(m.roomList)
 	m.fold.SetChild(m.msgView)
 
 	a.Window().SetChild(m.fold)
 
-	m.header.ltext = gtk.NewLabel("gotktrix")
+	userID := gotktrix.FromContext(m.ctx).UserID
+	username, _, _ := userID.Parse()
+
+	m.header.ltext = gtk.NewLabel(username)
+	m.header.ltext.AddCSSClass("app-username")
+	m.header.ltext.SetTooltipText(string(userID))
 	m.header.ltext.SetEllipsize(pango.EllipsizeEnd)
 	m.header.ltext.SetHExpand(true)
 	m.header.ltext.SetXAlign(0)
@@ -279,33 +279,42 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	roomSearch.SetTooltipText(locale.S(m.ctx, "Search Room"))
 	roomSearch.AddCSSClass("room-search-button")
 	roomSearch.SetVAlign(gtk.AlignCenter)
+
+	// Keep the button updated when the user activates search without it.
+	roomSearchBar := m.roomList.SearchBar()
+	roomSearchBar.Connect("notify::search-mode-enabled", func() {
+		roomSearch.SetActive(roomSearchBar.SearchMode())
+	})
 	// Reveal or close the search bar when the button is toggled.
 	roomSearch.ConnectClicked(func() {
-		m.roomList.SearchBar.SetSearchMode(roomSearch.Active())
-	})
-	// Keep the button updated when the user activates search without it.
-	m.roomList.SearchBar.Connect("notify::search-mode-enabled", func() {
-		roomSearch.SetActive(m.roomList.SearchBar.SearchMode())
+		roomSearchBar.SetSearchMode(roomSearch.Active())
 	})
 
-	burger := gtk.NewToggleButton()
-	burger.AddCSSClass("app-menu")
-	burger.SetIconName("open-menu")
-	burger.SetTooltipText(locale.S(m.ctx, "Menu"))
-	burger.SetVAlign(gtk.AlignCenter)
-	burger.ConnectClicked(func() {
-		p := gtkutil.NewPopoverMenu(m.header.left, gtk.PosBottom, m.menuItems)
-		p.SetHasArrow(false)
-		p.SetSizeRequest(m.header.left.AllocatedWidth()-20, -1)
-		p.ConnectClosed(func() { burger.SetActive(false) })
-		gtkutil.PopupFinally(p)
+	user := userbutton.NewToggle(m.ctx)
+	user.SetTooltipText(locale.S(m.ctx, "Menu"))
+	user.SetVAlign(gtk.AlignCenter)
+	user.SetPopoverFunc(func(popover *gtk.PopoverMenu) {
+		popover.SetParent(m.header.left)
+		popover.SetPosition(gtk.PosBottom)
+		popover.SetHasArrow(false)
+		popover.SetSizeRequest(m.header.left.AllocatedWidth()-20, -1)
+	})
+	user.SetMenuFunc(func() []gtkutil.PopoverMenuItem {
+		return []gtkutil.PopoverMenuItem{
+			gtkutil.MenuSeparator(locale.S(m.ctx, "Me")),
+			gtkutil.MenuItem(locale.S(m.ctx, "Custom _Emojis"), "win.user-emojis"),
+			gtkutil.MenuSeparator(""),
+			gtkutil.MenuItem(locale.S(m.ctx, "_Preferences"), "app.preferences"),
+			gtkutil.MenuItem(locale.S(m.ctx, "_About"), "app.about"),
+			gtkutil.MenuItem(locale.S(m.ctx, "_Quit"), "app.quit"),
+		}
 	})
 
 	m.header.left = gtk.NewBox(gtk.OrientationHorizontal, 0)
 	m.header.left.AddCSSClass("left-header")
 	m.header.left.AddCSSClass("titlebar")
 	m.header.left.Append(gtk.NewWindowControls(gtk.PackStart))
-	m.header.left.Append(burger)
+	m.header.left.Append(user)
 	m.header.left.Append(m.header.ltext)
 	m.header.left.Append(roomSearch)
 
@@ -348,19 +357,12 @@ func (m *manager) ready(rooms []matrix.RoomID) {
 	m.header.WindowHandle = a.NewWindowHandle()
 	m.header.SetChild(m.header.fold)
 
-	m.actions = gio.NewSimpleActionGroup()
-	a.Window().InsertActionGroup("app", m.actions)
-
-	m.addAction("_Preferences", func() { prefui.ShowDialog(m.ctx) })
-	m.addAction("_About", func() { about.Show(m.ctx) })
-	m.addAction("_Quit", func() { a.Quit() })
-}
-
-func (m *manager) addAction(label string, f func()) {
-	// TODO: make abstraction for selfbar as well
-	id := gtkutil.ActionID(label)
-	m.actions.AddAction(gtkutil.ActionFunc(id, f))
-	m.menuItems = append(m.menuItems, [2]string{label, "app." + id})
+	gtkutil.BindActionMap(a.Window(), map[string]func(){
+		"app.preferences": func() { prefui.ShowDialog(m.ctx) },
+		"app.about":       func() { about.Show(m.ctx) },
+		"app.quit":        func() { a.Quit() },
+		"win.user-emojis": func() { emojiview.ForUser(m.ctx) },
+	})
 }
 
 func (m *manager) width() int {
@@ -381,6 +383,8 @@ func (m *manager) OpenRoom(id matrix.RoomID) {
 	m.SetSelectedRoom(id)
 }
 
+// SetSelectedRoom sets the given room ID as the selected room row. It does not
+// activate the room. It exists solely as a callback for tabs.
 func (m *manager) SetSelectedRoom(id matrix.RoomID) {
 	m.roomList.SetSelectedRoom(id)
 }

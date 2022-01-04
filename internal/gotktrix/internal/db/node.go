@@ -444,15 +444,11 @@ func eachBucket(c *bbolt.Cursor, rev bool, fn func(k, v []byte) error) error {
 
 	if rev {
 		for k, v := c.Last(); k != nil && err == nil; k, v = c.Prev() {
-			if v != nil {
-				err = fn(k, v)
-			}
+			err = fn(k, v)
 		}
 	} else {
 		for k, v := c.First(); k != nil && err == nil; k, v = c.Next() {
-			if v != nil {
-				err = fn(k, v)
-			}
+			err = fn(k, v)
 		}
 	}
 

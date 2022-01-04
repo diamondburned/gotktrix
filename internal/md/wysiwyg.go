@@ -1,6 +1,7 @@
 package md
 
 import (
+	"bytes"
 	"context"
 	"strconv"
 	"strings"
@@ -207,8 +208,8 @@ func (w *wysiwyg) markTextTagsFunc(n ast.Node, tags []*gtk.TextTag, f func(h, t 
 			return ast.WalkContinue, nil
 		}
 
-		w.head.SetOffset(text.Segment.Start)
-		w.tail.SetOffset(text.Segment.Stop)
+		w.setIter(w.head, text.Segment.Start)
+		w.setIter(w.tail, text.Segment.Stop)
 
 		if !w.boundIsInvisible() {
 			if f != nil {
@@ -222,4 +223,20 @@ func (w *wysiwyg) markTextTagsFunc(n ast.Node, tags []*gtk.TextTag, f func(h, t 
 
 		return ast.WalkContinue, nil
 	})
+}
+
+// setIter reimplements text/url.go's autolink.
+func (w *wysiwyg) setIter(iter *gtk.TextIter, byteOffset int) {
+	part := w.src[:byteOffset]
+	lines := bytes.Count(part, []byte("\n"))
+
+	lineAt := 0
+	if lines > 0 {
+		lineAt = bytes.LastIndexByte(part, '\n') + 1
+	}
+
+	lineAt = len(part) - lineAt
+
+	iter.SetLine(lines)
+	iter.SetLineIndex(lineAt)
 }

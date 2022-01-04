@@ -159,6 +159,18 @@ func SignalToggler(signal string, f interface{}) func(obj coreglib.Objector) {
 	}
 }
 
+// BindSubscribe calls f when w gets mapped.
+func BindSubscribe(widget gtk.Widgetter, f func() (unsub func())) {
+	w := gtk.BaseWidget(widget)
+	var unsub func()
+	w.ConnectMap(func() {
+		unsub = f()
+	})
+	w.ConnectUnmap(func() {
+		unsub()
+	})
+}
+
 var mainThread = glib.MainContextDefault()
 
 // InvokeMain invokes f in the main loop. It is useful in global helper

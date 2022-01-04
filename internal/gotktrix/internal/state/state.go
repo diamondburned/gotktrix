@@ -2,7 +2,6 @@ package state
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -168,30 +167,35 @@ func (s *State) RoomState(
 func (s *State) EachRoomState(
 	roomID matrix.RoomID, typ event.Type, f func(string, event.StateEvent) error) error {
 
-	return s.EachRoomEventLen(roomID, typ, func(e event.Event, _ int) error {
-		state, ok := e.(event.StateEvent)
-		if !ok {
-			return fmt.Errorf("given type %q is not a state event", typ)
-		}
-
-		return f(state.StateInfo().StateKey, state)
+	return s.EachRoomStateLen(roomID, typ, func(e event.StateEvent, _ int) error {
+		return f(e.StateInfo().StateKey, e)
 	})
 }
 
-// EachRoomEventLen is a variant of EachRoomState, but it works for any event,
-// and a length parameter is precalculated.
-func (s *State) EachRoomEventLen(
-	roomID matrix.RoomID, typ event.Type, f func(ev event.Event, total int) error) error {
+// EachRoomStateLen is a variant of EachRoomState, but a length parameter is
+// precalculated.
+func (s *State) EachRoomStateLen(
+	roomID matrix.RoomID, typ event.Type, f func(ev event.StateEvent, total int) error) error {
 
 	path := s.paths.rooms.Tail(string(roomID), string(typ))
+	node := s.db.NodeFromPath(path)
 
-	return s.db.NodeFromPath(path).Each(func(_ string, b []byte, total int) error {
+	if !node.Exists("") {
+		return db.ErrKeyNotFound
+	}
+
+	return node.Each(func(_ string, b []byte, total int) error {
 		e, err := sys.ParseAs(b, typ)
 		if err != nil {
 			return nil
 		}
 
-		if err := f(e, total); err != nil {
+		state, ok := e.(event.StateEvent)
+		if !ok {
+			return gotrix.ErrInvalidStateEvent
+		}
+
+		if err := f(state, total); err != nil {
 			if errors.Is(err, gotrix.ErrStopIter) {
 				return db.EachBreak
 			}
@@ -268,7 +272,7 @@ func (s *State) RoomMembersFromName(roomID matrix.RoomID, name string) []matrix.
 	if cache.names == nil {
 		cache.when = time.Now()
 
-		onMember := func(raw event.Event, total int) error {
+		onMember := func(raw event.StateEvent, total int) error {
 			m, ok := raw.(*event.RoomMemberEvent)
 			if !ok {
 				return nil
@@ -294,7 +298,7 @@ func (s *State) RoomMembersFromName(roomID matrix.RoomID, name string) []matrix.
 			return nil
 		}
 
-		s.EachRoomEventLen(roomID, event.TypeRoomMember, onMember)
+		s.EachRoomStateLen(roomID, event.TypeRoomMember, onMember)
 	}
 
 	return cache.names[name]
@@ -310,7 +314,7 @@ func (s *State) RoomSummary(roomID matrix.RoomID) (api.SyncRoomSummary, error) {
 func (s *State) Rooms() ([]matrix.RoomID, error) {
 	var roomIDs []matrix.RoomID
 
-	return roomIDs, s.top.FromPath(s.paths.rooms).TxView(func(n db.Node) error {
+	err := s.top.FromPath(s.paths.rooms).TxView(func(n db.Node) error {
 		if err := n.Each(func(k string, _ []byte, l int) error {
 			if roomIDs == nil {
 				roomIDs = make([]matrix.RoomID, 0, l)
@@ -329,9 +333,13 @@ func (s *State) Rooms() ([]matrix.RoomID, error) {
 		filtered := roomIDs[:0]
 
 		for _, id := range roomIDs {
-			// TODO: bring this out of the loop, so it can reuse the backing
-			// array. Not very important.
-			if !n.Node(string(id), string(event.TypeRoomMember)).Exists(string(s.userID)) {
+			rnode := n.Node(string(id))
+			// Rooms must have these conditions to be valid.
+			valid := true &&
+				s.paths.timelineNode(n, id).Exists("previous_batch") &&
+				rnode.Node(string(event.TypeRoomCreate)).Exists("") &&
+				rnode.Node(string(event.TypeRoomMember)).Exists(string(s.userID))
+			if !valid {
 				continue
 			}
 
@@ -341,6 +349,8 @@ func (s *State) Rooms() ([]matrix.RoomID, error) {
 		roomIDs = filtered
 		return nil
 	})
+
+	return roomIDs, err
 }
 
 // RoomPreviousBatch gets the previous batch string for the given room.

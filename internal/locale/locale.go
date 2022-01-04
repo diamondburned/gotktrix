@@ -76,7 +76,7 @@ func Sprintf(ctx context.Context, k message.Reference, a ...interface{}) string 
 // Printer is a message printer.
 type Printer = message.Printer
 
-// Printer returns the printer inside the context or nil.
+// FromContext returns the printer inside the context or nil.
 func FromContext(ctx context.Context) *Printer {
 	p, ok := ctx.Value(printerKey).(*Printer)
 	if ok {
