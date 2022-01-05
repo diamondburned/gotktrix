@@ -6,15 +6,14 @@ import (
 	"math"
 
 	"github.com/chanbakjsd/gotrix/api"
-	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
+	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
@@ -42,9 +41,9 @@ var serverAttrs = markuputil.Attrs(
 )
 
 func newAccountGrid(ctx context.Context, account *auth.Account) gtk.Widgetter {
-	avatar := adaptive.NewAvatar(avatarSize)
+	avatar := onlineimage.NewAvatar(ctx, avatarSize)
 	avatar.SetInitials(account.Username)
-	imgutil.AsyncGET(ctx, account.AvatarURL, avatar.SetFromPaintable)
+	avatar.SetFromURL(account.AvatarURL)
 
 	name := gtk.NewLabel(account.Username)
 	name.SetXAlign(0)

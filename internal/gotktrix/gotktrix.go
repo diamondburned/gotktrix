@@ -356,7 +356,7 @@ var errEmptyURL = errors.New("empty Matrix URL")
 // Thumbnail is a helper function around MediaThumbnailURL. It works similarly
 // to SquareThumbnail, except the dimensions are unchanged.
 func (c *Client) Thumbnail(mURL matrix.URL, w, h, scale int) (string, error) {
-	if mURL == "" {
+	if mURL == "" || w == 0 || h == 0 || scale == 0 {
 		return "", errEmptyURL
 	}
 

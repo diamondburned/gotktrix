@@ -7,14 +7,13 @@ import (
 	"sync"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
+	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/secret"
 	"github.com/pkg/errors"
@@ -63,11 +62,10 @@ var avatarCSS = cssutil.Applier("auth-avatar", `
 `)
 
 func newAccountEntry(account *Account) *gtk.ListBoxRow {
-	avatar := adaptive.NewAvatar(avatarSize)
+	avatar := onlineimage.NewAvatar(context.Background(), avatarSize)
 	avatar.SetInitials(account.Username)
+	avatar.SetFromURL(account.AvatarURL)
 	avatarCSS(avatar)
-
-	imgutil.AsyncGET(context.Background(), account.AvatarURL, avatar.SetFromPaintable)
 
 	name := gtk.NewLabel(account.Username)
 	name.SetXAlign(0)

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -240,7 +241,7 @@ func Async(ctx context.Context, asyncFn func() func()) {
 }
 
 var (
-	scaleFactor      int = -1
+	scaleFactor      int
 	scaleFactorMutex sync.RWMutex
 	initScaleOnce    sync.Once
 )
@@ -253,47 +254,68 @@ func ScaleFactor() int {
 	scaleFactorMutex.RLock()
 	defer scaleFactorMutex.RUnlock()
 
-	if scaleFactor == -1 {
+	if scaleFactor == 0 {
 		panic("uninitialized scaleFactor")
 	}
 
 	return scaleFactor
 }
 
+// SetScaleFactor sets the global maximum scale factor. This function is useful
+// of GDK fails to update the scale factor in time.
+func SetScaleFactor(maxScale int) {
+	scaleFactorMutex.Lock()
+	defer scaleFactorMutex.Unlock()
+
+	if scaleFactor < maxScale {
+		scaleFactor = maxScale
+	}
+}
+
 func initScale() {
 	initScaleOnce.Do(func() {
 		InvokeMain(func() {
 			dmanager := gdk.DisplayManagerGet()
-			dmanager.Connect("display-opened", func(dmanager *gdk.DisplayManager) {
-				updateScale(dmanager)
+			dmanager.Connect("display-opened", func(display *gdk.Display) {
+				bindDisplay(display.Monitors())
 			})
-			updateScale(dmanager)
+			for _, display := range dmanager.ListDisplays() {
+				bindDisplay(display.Monitors())
+			}
 		})
 	})
 }
 
-func updateScale(dmanager *gdk.DisplayManager) {
-	maxScale := 1
+func bindDisplay(monitors gio.ListModeller) {
+	monitors.Connect("items-changed", func() { updateScale(monitors) })
+	updateScale(monitors)
+}
 
-	for _, display := range dmanager.ListDisplays() {
-		if display.IsClosed() {
-			continue
+func updateScale(monitors gio.ListModeller) {
+	maxScale := 0
+
+	eachMonitor(monitors, func(monitor *gdk.Monitor) {
+		if scale := monitor.ScaleFactor(); maxScale < scale {
+			maxScale = scale
 		}
-
-		monitors := display.Monitors()
-		for i, len := uint(0), monitors.NItems(); i < len; i++ {
-			monitor := monitors.Item(i).Cast().(*gdk.Monitor)
-
-			if scale := monitor.ScaleFactor(); maxScale < scale {
-				maxScale = scale
-			}
-		}
-	}
+	})
 
 	scaleFactorMutex.Lock()
 	defer scaleFactorMutex.Unlock()
 
 	if scaleFactor < maxScale {
 		scaleFactor = maxScale
+	}
+}
+
+func eachMonitor(list gio.ListModeller, f func(*gdk.Monitor)) {
+	var i uint
+	obj := list.Item(0)
+
+	for obj != nil {
+		f(obj.Cast().(*gdk.Monitor))
+
+		i++
+		obj = list.Item(i)
 	}
 }

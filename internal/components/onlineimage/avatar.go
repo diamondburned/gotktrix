@@ -6,7 +6,7 @@ import (
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
@@ -15,31 +15,29 @@ import (
 // Avatar describes an online avatar.
 type Avatar struct {
 	*adaptive.Avatar
-	ctx gtkutil.Cancellable
-	url string
-	ok  bool
+	scaler pixbufScaler
+	ctx    gtkutil.Cancellable
+	url    string
+	ok     bool
 }
+
+var _ imageParent = (*Avatar)(nil)
 
 // NewAvatar creates a new avatar.
 func NewAvatar(ctx context.Context, size int) *Avatar {
 	a := Avatar{Avatar: adaptive.NewAvatar(size)}
 	a.AddCSSClass("onlineimage")
 
-	a.ctx = gtkutil.WithVisibility(ctx, a)
+	a.scaler.init(&a)
+
+	a.ctx = gtkutil.WithVisibility(ctx, &a)
 	a.ctx.OnRenew(func(ctx context.Context) func() {
+		a.scaler.Invalidate()
 		a.fetch(ctx)
 		return nil
 	})
 
 	return &a
-}
-
-// SetFromURL sets the Avatar's URL. URLs are automatically converted if the
-// scheme is "mxc".
-func (a *Avatar) SetFromURL(url string) {
-	a.ok = false
-	a.url = url
-	a.fetch(a.ctx.Take())
 }
 
 // SetFromMXC sets the Avatar's URL using an MXC URL. It's a convenient function
@@ -48,8 +46,18 @@ func (a *Avatar) SetFromMXC(mxc matrix.URL) {
 	a.SetFromURL(string(mxc))
 }
 
-// Refetch forces the Avatar to refetch the same URL.
-func (a *Avatar) Refetch() {
+// SetFromURL sets the Avatar's URL. URLs are automatically converted if the
+// scheme is "mxc".
+func (a *Avatar) SetFromURL(url string) {
+	if a.url == url {
+		return
+	}
+
+	a.url = url
+	a.refetch()
+}
+
+func (a *Avatar) refetch() {
 	a.ok = false
 	a.fetch(a.ctx.Take())
 }
@@ -61,18 +69,20 @@ func (a *Avatar) fetch(ctx context.Context) {
 
 	url := a.url
 	if url == "" {
-		a.SetFromPaintable(nil)
+		a.scaler.SetFromPixbuf(nil)
 		return
 	}
+
 	if urlScheme(url) == "mxc" {
-		size := a.SizeRequest()
-		client := gotktrix.FromContext(ctx)
-		url, _ = client.SquareThumbnail(matrix.URL(url), size, gtkutil.ScaleFactor())
+		w, h := a.scaler.ParentSize()
+		// Use the maximum scale factor; the scaler will downscale this properly
+		// for us.
+		url, _ = gotktrix.FromContext(ctx).Thumbnail(matrix.URL(url), w, h, gtkutil.ScaleFactor())
 	}
 
-	imgutil.AsyncGET(ctx, url, func(p gdk.Paintabler) {
+	imgutil.AsyncPixbuf(ctx, url, func(p *gdkpixbuf.Pixbuf) {
 		a.ok = true
-		a.Avatar.SetFromPaintable(p)
+		a.scaler.SetFromPixbuf(p)
 	})
 }
 

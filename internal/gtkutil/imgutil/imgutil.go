@@ -354,3 +354,9 @@ func pixbufLoaderReadFrom(l *gdkpixbuf.PixbufLoader, r io.Reader) error {
 
 	return nil
 }
+
+// MaxSize returns the maximum size that can fit within the given max width and
+// height. Aspect ratio is preserved.
+func MaxSize(w int, h int, maxW int, maxH int) (int, int) {
+	return gotktrix.MaxSize(w, h, maxW, maxH)
+}
