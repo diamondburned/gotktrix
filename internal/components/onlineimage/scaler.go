@@ -6,12 +6,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 )
 
-type imageParent interface {
-	gtk.Widgetter
-	SetFromPixbuf(p *gdkpixbuf.Pixbuf)
-	refetch()
-}
-
 // maxScale is the maximum supported scale that we can supply a properly scaled
 // pixbuf for.
 const maxScale = 3
@@ -20,7 +14,7 @@ const maxScale = 3
 type pixbufScales [maxScale]*gdkpixbuf.Pixbuf
 
 type pixbufScaler struct {
-	parent imageParent
+	parent *baseImage
 	// parentSz keeps track of the parent widget's sizes in case it has been
 	// changed, which would force us to invalidate all scaled pixbufs.
 	parentSz [2]int
@@ -52,7 +46,7 @@ func (p *pixbufScaler) ParentSize() (w, h int) {
 	return p.parentSz[0], p.parentSz[1]
 }
 
-func (p *pixbufScaler) init(parent imageParent) {
+func (p *pixbufScaler) init(parent *baseImage) {
 	base := gtk.BaseWidget(parent)
 	w, h := base.SizeRequest()
 
@@ -70,7 +64,7 @@ func (p *pixbufScaler) init(parent imageParent) {
 // widget's Refetch method.
 func (p *pixbufScaler) invalidate(newPixbuf bool) {
 	if p.src == nil {
-		p.parent.SetFromPixbuf(nil)
+		p.parent.setFromPixbuf(nil)
 		return
 	}
 
@@ -99,7 +93,7 @@ func (p *pixbufScaler) invalidate(newPixbuf bool) {
 	if !p.maxed && (dstW > srcW || dstH > srcH) {
 		if newPixbuf {
 			p.maxed = true
-			p.parent.SetFromPixbuf(p.src)
+			p.parent.setFromPixbuf(p.src)
 		} else {
 			p.parent.refetch()
 		}
@@ -110,7 +104,7 @@ func (p *pixbufScaler) invalidate(newPixbuf bool) {
 		// We don't have these scales, so just use the source. User gets jagged
 		// image, but on a 3x HiDPI display, it doesn't matter, unless the user
 		// has both 3x and 1x displays.
-		p.parent.SetFromPixbuf(p.src)
+		p.parent.setFromPixbuf(p.src)
 		return
 	}
 
@@ -122,5 +116,5 @@ func (p *pixbufScaler) invalidate(newPixbuf bool) {
 		p.scales[scale-1] = pixbuf
 	}
 
-	p.parent.SetFromPixbuf(pixbuf)
+	p.parent.setFromPixbuf(pixbuf)
 }
