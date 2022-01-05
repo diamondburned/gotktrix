@@ -32,7 +32,10 @@ type Window struct {
 }
 
 func NewWindow() *Window {
-	w := Window{}
+	w := Window{
+		upperValue:   math.NaN(),
+		targetScroll: math.NaN(),
+	}
 
 	w.ScrolledWindow = gtk.NewScrolledWindow()
 	w.ScrolledWindow.SetPropagateNaturalHeight(true)
@@ -124,6 +127,13 @@ func (w *Window) VAdjustment() *gtk.Adjustment {
 // scroll window shouldn't move away.
 func (w *Window) SetScrollLocked(scrollLocked bool) {
 	w.state = locked
+}
+
+// Unbottom clears the bottomed state.
+func (w *Window) Unbottom() {
+	if w.state.is(bottomed) {
+		w.state = 0
+	}
 }
 
 // IsBottomed returns true if the scrolled window is currently bottomed out.

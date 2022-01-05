@@ -272,21 +272,38 @@ func SetScaleFactor(maxScale int) {
 	}
 }
 
+var boundDisplays = make(map[string]struct{}, 2)
+
 func initScale() {
 	initScaleOnce.Do(func() {
 		InvokeMain(func() {
 			dmanager := gdk.DisplayManagerGet()
-			dmanager.Connect("display-opened", func(display *gdk.Display) {
-				bindDisplay(display.Monitors())
+			dmanager.Connect("display-opened", func() {
+				bindDisplayManager(dmanager)
 			})
-			for _, display := range dmanager.ListDisplays() {
-				bindDisplay(display.Monitors())
-			}
+			bindDisplayManager(dmanager)
 		})
 	})
 }
 
-func bindDisplay(monitors gio.ListModeller) {
+func bindDisplayManager(dmanager *gdk.DisplayManager) {
+	for _, display := range dmanager.ListDisplays() {
+		bindDisplay(&display)
+	}
+}
+
+func bindDisplay(display *gdk.Display) {
+	dname := display.Name()
+
+	_, ok := boundDisplays[dname]
+	if ok {
+		return
+	}
+
+	boundDisplays[dname] = struct{}{}
+	display.ConnectClosed(func(bool) { delete(boundDisplays, dname) })
+
+	monitors := display.Monitors()
 	monitors.Connect("items-changed", func() { updateScale(monitors) })
 	updateScale(monitors)
 }

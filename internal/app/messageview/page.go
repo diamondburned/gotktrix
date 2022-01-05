@@ -154,9 +154,15 @@ var msgListCSS = cssutil.Applier("messageview-msglist", `
 		background-image: none;
 		background-color: transparent;
 	}
+	.messageview-msglist > row:focus,
 	.messageview-msglist > row:hover {
-		background-color: alpha(@theme_fg_color, 0.1);
 		transition: none;
+	}
+	.messageview-msglist > row:focus {
+		background-color: alpha(@theme_fg_color, 0.125);
+	}
+	.messageview-msglist > row:hover {
+		background-color: alpha(@theme_fg_color, 0.075);
 	}
 	.messageview-msglist > row.messageview-editing,
 	.messageview-msglist > row.messageview-replyingto {
@@ -186,7 +192,7 @@ var rhsCSS = cssutil.Applier("messageview-rhs", `
 
 // maxFetch is the number of events to initially display. Keep it low so loading
 // isn't as slow.
-const maxFetch = 35
+const maxFetch = 40
 
 var messageviewEvents = []event.Type{
 	event.TypeTyping,
@@ -884,10 +890,16 @@ func (p *Page) loadMore(done paginateDoneFunc) {
 		}
 
 		return func() {
-			p.scroll.SetScrollLocked(true)
-			defer p.scroll.SetScrollLocked(false)
+			keys := p.addBulkEvents(events)
 
-			p.addBulkEvents(events)
+			// Scroll to the middle message.
+			for i := len(keys) - 1; i >= 0; i-- {
+				r, ok := p.messages[keys[i]]
+				if ok {
+					glib.IdleAdd(func() { r.row.GrabFocus() })
+					break
+				}
+			}
 
 			// TODO: check for hasMore.
 			done(true, nil)
@@ -895,12 +907,14 @@ func (p *Page) loadMore(done paginateDoneFunc) {
 	})
 }
 
-func (p *Page) addBulkEvents(events []event.RoomEvent) {
+func (p *Page) addBulkEvents(events []event.RoomEvent) []messageKey {
 	keys := make([]messageKey, len(events))
 	// Require old messages first, so cozy mode works properly.
 	for i, ev := range events {
 		keys[i] = p.onRoomEvent(ev)
 	}
+
+	p.list.GrabFocus()
 
 	// Load the newest messages first so it doesn't screw up scrolling as
 	// hard.
@@ -910,6 +924,8 @@ func (p *Page) addBulkEvents(events []event.RoomEvent) {
 			r.body.LoadMore()
 		}
 	}
+
+	return keys
 }
 
 // Edit triggers the input composer to edit an existing message.
