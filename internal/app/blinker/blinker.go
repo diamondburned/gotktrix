@@ -49,7 +49,6 @@ type blinker struct {
 	gtk.Image
 	prev  glib.SourceHandle
 	state blinkerState
-	image bool
 }
 
 var blinkerCSS = cssutil.Applier("blinker", `

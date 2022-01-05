@@ -79,10 +79,6 @@ var (
 	_ extraMenuSetter = (*gtk.TextView)(nil)
 )
 
-func bindExtraMenu(m extraMenuSetter, items []gtkutil.PopoverMenuItem) {
-	m.SetExtraMenu(gtkutil.CustomMenu(items))
-}
-
 func redactMessage(v messageViewer) {
 	// TODO: confirmation menu
 	client := v.client()

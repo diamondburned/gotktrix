@@ -213,7 +213,6 @@ type manager struct {
 
 	window *gtk.Window
 	fold   *adaptive.Fold
-	unfold *adaptive.FoldRevealButton
 
 	header struct {
 		*gtk.WindowHandle

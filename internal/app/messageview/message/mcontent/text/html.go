@@ -165,7 +165,6 @@ type renderState struct {
 
 	list  int
 	reply bool
-	pre   bool
 	large bool
 }
 
@@ -549,6 +548,7 @@ func nodeNextSibling(n *html.Node) *html.Node {
 	return nil
 }
 
+/*
 // nodePrevSibling returns the node's next sibling in the whole tree, not just
 // in the current level. Nil is returned if the node is the last one in the
 // tree.
@@ -574,6 +574,7 @@ func nodePrevSibling(n *html.Node) *html.Node {
 
 	return nil
 }
+*/
 
 func nodeAttr(n *html.Node, keys ...string) string {
 	for _, attr := range n.Attr {
@@ -595,6 +596,7 @@ func nodeHasAttr(n *html.Node, key string) bool {
 	return false
 }
 
+/*
 func nodePrependText(n *html.Node, text string) {
 	node := &html.Node{
 		Type: html.TextNode,
@@ -602,6 +604,7 @@ func nodePrependText(n *html.Node, text string) {
 	}
 	n.InsertBefore(node, n.FirstChild)
 }
+*/
 
 func nodeText(n *html.Node) string {
 	if n != nil && n.Type == html.TextNode {

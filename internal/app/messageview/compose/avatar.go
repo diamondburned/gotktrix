@@ -50,10 +50,6 @@ var avatarCSS = cssutil.Applier("composer-avatar", `
 	}
 `)
 
-var avatarRelevantEvents = []event.Type{
-	event.TypeRoomMember, // check state key
-}
-
 // NewAvatar creates a new avatar.
 func NewAvatar(ctx context.Context, roomID matrix.RoomID) *Avatar {
 	client := gotktrix.FromContext(ctx).Offline()

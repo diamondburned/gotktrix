@@ -31,6 +31,7 @@ type Bar struct {
 func NewBar() *Bar {
 	b := Bar{}
 	b.ProgressBar = gtk.NewProgressBar()
+	barCSS(b)
 	return &b
 }
 

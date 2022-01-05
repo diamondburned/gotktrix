@@ -68,10 +68,6 @@ func RGBHex(c color.RGBA) string {
 	return fmt.Sprintf("#%02X%02X%02X", c.R, c.G, c.B)
 }
 
-var knownLinkTags struct {
-	displays map[string]TextTagsMap
-}
-
 // cachedLinkTags is cached for the duration of a single event loop.
 var cachedLinkTags TextTagsMap
 

@@ -27,8 +27,6 @@ var emojiCSS = cssutil.Applier("emojiview-emoji", `
 	}
 `)
 
-const inputIllegalChars = "Name contains illegal character(s)."
-
 func newEmptyEmoji(name emojis.EmojiName) emoji {
 	img := gtk.NewImage()
 	img.SetSizeRequest(EmojiSize, EmojiSize)

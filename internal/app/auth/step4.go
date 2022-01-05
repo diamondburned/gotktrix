@@ -222,8 +222,6 @@ type rememberMeBox struct {
 	*gtk.Box
 	keyring bool
 	encrypt bool
-
-	password string // only if encrypted == false
 }
 
 var rememberMeCSS = cssutil.Applier("auth-remember-me", `

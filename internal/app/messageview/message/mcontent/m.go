@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/event"
-	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -90,16 +89,3 @@ func newUnknownContent(ctx context.Context, ev *event.RoomMessageEvent) unknownC
 }
 
 func (c unknownContent) content() {}
-
-// ---
-
-type erroneousContent struct {
-	*adaptive.ErrorLabel
-}
-
-func newErroneousContent(ctx context.Context, desc string, w, h int) erroneousContent {
-	err := adaptive.NewErrorLabelFull(locale.S(ctx, "Content error."), desc)
-	return erroneousContent{err}
-}
-
-func (c erroneousContent) content() {}

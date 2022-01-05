@@ -101,8 +101,6 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 	return &c
 }
 
-const chipTagName = "__mauthor_chip"
-
 // InsertText inserts the chip into the given TextView at the given TextIter.
 // The inserted anchor is returned.
 func (c *Chip) InsertText(text *gtk.TextView, iter *gtk.TextIter) *gtk.TextChildAnchor {

@@ -334,15 +334,16 @@ const defaultBufsz = 1 << 17 // 128KB
 
 var bufPool = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, defaultBufsz)
+		b := make([]byte, defaultBufsz)
+		return &b
 	},
 }
 
 func pixbufLoaderReadFrom(l *gdkpixbuf.PixbufLoader, r io.Reader) error {
-	buf := bufPool.Get().([]byte)
+	buf := bufPool.Get().(*[]byte)
 	defer bufPool.Put(buf)
 
-	_, err := io.CopyBuffer(gioutil.PixbufLoaderWriter(l), r, buf)
+	_, err := io.CopyBuffer(gioutil.PixbufLoaderWriter(l), r, *buf)
 	if err != nil {
 		l.Close()
 		return err

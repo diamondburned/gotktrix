@@ -130,7 +130,6 @@ func newImageEmbed(name string, maxW, maxH int) *imageEmbed {
 	e.image.SetKeepAspectRatio(true)
 
 	e.Button = gtk.NewButton()
-	e.Button.AddCSSClass("mcontent-image")
 	e.Button.SetOverflow(gtk.OverflowHidden)
 	e.Button.SetHAlign(gtk.AlignStart)
 	e.Button.SetHasFrame(false)
@@ -138,6 +137,7 @@ func newImageEmbed(name string, maxW, maxH int) *imageEmbed {
 	e.Button.SetTooltipText(name)
 	e.Button.SetSensitive(false)
 	e.Button.Connect("clicked", func() { e.openURL() })
+	imageCSS(e.Button)
 
 	return e
 }

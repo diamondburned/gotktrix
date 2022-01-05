@@ -85,12 +85,12 @@ func newVideoContent(ctx context.Context, msg *event.RoomMessageEvent) contentPa
 	ov.SetChild(preview)
 
 	play := gtk.NewButtonFromIconName("media-playback-start-symbolic")
-	play.AddCSSClass("mcontent-video")
 	play.SetHAlign(gtk.AlignStart)
 	play.SetOverflow(gtk.OverflowHidden)
 	play.SetHasFrame(false)
 	play.SetTooltipText(msg.Body)
 	play.SetChild(ov)
+	videoCSS(play)
 
 	url, urlErr := client.MessageMediaURL(msg)
 

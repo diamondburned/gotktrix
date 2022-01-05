@@ -6,7 +6,6 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 )
 
@@ -49,15 +48,6 @@ func New(ctx context.Context, ctrl Controller) *View {
 		ctx:    ctx,
 		ctrl:   ctrl,
 		client: gotktrix.FromContext(ctx),
-	}
-}
-
-func updateWindowTitle(ctx context.Context, notebook *gtk.Notebook, page gtk.Widgetter) {
-	if page != nil {
-		label := notebook.TabLabel(page).(*gtk.Label)
-		app.SetTitle(ctx, label.Text())
-	} else {
-		app.SetTitle(ctx, "")
 	}
 }
 

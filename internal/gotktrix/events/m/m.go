@@ -11,6 +11,7 @@ import (
 func init() {
 	event.Register(FullyReadEventType, parseFullyReadEvent)
 	event.RegisterDefault(SpaceChildEventType, parseSpaceChildEvent)
+	event.RegisterDefault(SpaceParentEventType, parseSpaceParentEvent)
 	event.RegisterDefault(ReactionEventType, parseReactionEvent)
 }
 
@@ -105,7 +106,6 @@ type SpaceChildEvent struct {
 	// Via contains a list of space rooms that the child belongs to.
 	Via       []string `json:"via"`
 	Order     string   `json:"order,omitempty"`
-	Canonical bool     `json:"canonical,omtempty"`
 	Suggested bool     `json:"suggested,omitempty"`
 }
 
@@ -128,9 +128,7 @@ type SpaceParentEvent struct {
 	event.StateEventInfo `json:"-"`
 	// Via contains a list of space rooms that the child belongs to.
 	Via       []string `json:"via"`
-	Order     string   `json:"order,omitempty"`
-	Canonical bool     `json:"canonical,omtempty"`
-	Suggested bool     `json:"suggested,omitempty"`
+	Canonical bool     `json:"canonical,omitempty"`
 }
 
 func parseSpaceParentEvent(content json.RawMessage) (event.Event, error) {

@@ -3,7 +3,6 @@ package roomlist
 import (
 	"context"
 
-	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -77,7 +76,6 @@ type SpaceButton struct {
 	}
 
 	state *room.State
-	ctx   context.Context
 }
 
 var _ spaceButton = (*SpaceButton)(nil)
@@ -90,12 +88,6 @@ var spaceButtonCSS = cssutil.Applier("roomlist-space", `
 		padding-left: 6px;
 	}
 `)
-
-var roomEvents = []event.Type{
-	event.TypeRoomName,
-	event.TypeRoomCanonicalAlias,
-	event.TypeRoomAvatar,
-}
 
 // NewSpaceButton creates a new space button.
 func NewSpaceButton(ctx context.Context, spaceID matrix.RoomID) *SpaceButton {

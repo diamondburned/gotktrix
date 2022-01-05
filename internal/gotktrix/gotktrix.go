@@ -190,9 +190,6 @@ type Client struct {
 	userID  matrix.UserID
 }
 
-type clientState struct {
-}
-
 // New wraps around gotrix.NewWithClient.
 func New(hcl httputil.Client, serverName string, uID matrix.UserID, token string) (*Client, error) {
 	c, err := gotrix.NewWithClient(hcl, serverName)

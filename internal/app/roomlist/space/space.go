@@ -37,7 +37,6 @@ type List struct {
 	space    spaceState
 	sections []*section.Section
 	rooms    map[matrix.RoomID]*room.Room
-	current  matrix.RoomID
 }
 
 // Controller describes the controller requirement.

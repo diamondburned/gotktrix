@@ -33,7 +33,6 @@ type fileContent struct {
 
 	info *fileInfo
 	brev *gtk.Revealer
-	bar  *progress.Bar
 
 	url  string
 	name string
@@ -99,11 +98,11 @@ func newFileContent(ctx context.Context, msg *event.RoomMessageEvent) contentPar
 	c.brev.SetRevealChild(false)
 
 	c.Box = gtk.NewBox(gtk.OrientationVertical, 0)
-	c.AddCSSClass("mcontent-file")
 	c.AddCSSClass("frame")
 	c.SetHAlign(gtk.AlignStart)
 	c.Append(c.info)
 	c.Append(c.brev)
+	fileCSS(c.Box)
 
 	return &c
 }

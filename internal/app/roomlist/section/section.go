@@ -114,10 +114,6 @@ type Section struct {
 	filtered bool
 }
 
-var placeholderAttrs = markuputil.Attrs(
-	markuputil.NewAttrOpacity(0.75),
-)
-
 // New creates a new deactivated section.
 func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	list := gtk.NewListBox()

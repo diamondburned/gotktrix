@@ -21,10 +21,6 @@ import (
 // currentBlock describes blocks of widgets that behave similarly to HTML block
 // elements. It does not have any concept of nesting, however, and nested HTML
 // blocks are flattened out, which will also erase its stylings.
-type currentBlock interface {
-	gtk.Widgetter
-	block()
-}
 
 type currentBlockState struct {
 	context context.Context
@@ -138,8 +134,8 @@ func (s *currentBlockState) separator() *separatorBlock {
 }
 
 // TODO: turn quoteBlock into a Box, and implement descend+ascend for it.
-func (s *currentBlockState) descend() {}
-func (s *currentBlockState) ascend()  {}
+// func (s *currentBlockState) descend() {}
+// func (s *currentBlockState) ascend()  {}
 
 type textBlock struct {
 	*gtk.TextView
@@ -238,19 +234,6 @@ func (b *textBlock) isNewLine() bool {
 	return char == '\n'
 }
 
-func (b *textBlock) p(n *html.Node, f func()) {
-	b.startLine(n, 1)
-	f()
-	b.endLine(n, 1)
-}
-
-func (b *textBlock) startLine(n *html.Node, amount int) {
-	amount -= b.nTrailingNewLine()
-	if nodePrevSibling(n) != nil && amount > 0 {
-		b.buf.Insert(b.iter, strings.Repeat("\n", amount))
-	}
-}
-
 func (b *textBlock) endLine(n *html.Node, amount int) {
 	amount -= b.nTrailingNewLine()
 	if nodeNextSibling(n) != nil && amount > 0 {
@@ -316,11 +299,6 @@ func (b *textBlock) insertNewLines(n int) {
 	b.buf.Insert(b.iter, strings.Repeat("\n", n))
 }
 
-// insertInvisible inserts the given invisible.
-func (b *textBlock) insertInvisible(str string) {
-	b.tagNameBounded("_invisible", func() { b.buf.Insert(b.iter, str) })
-}
-
 type quoteBlock struct {
 	*gtk.Box
 	text *textBlock
@@ -350,7 +328,7 @@ func newQuoteBlock(s *currentBlockState) *quoteBlock {
 		Box:  box,
 		text: text,
 	}
-	quote.AddCSSClass("mcontent-quote-block")
+	quoteBlockCSS(quote)
 	return &quote
 }
 
@@ -604,13 +582,6 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	}
 }
 
-func min(i, j int) int {
-	if i < j {
-		return i
-	}
-	return j
-}
-
 func (b *codeBlock) withHighlight(lang string, f func(*textBlock)) {
 	b.lang.SetText(lang)
 
@@ -635,8 +606,3 @@ func newSeparatorBlock() *separatorBlock {
 	sep.AddCSSClass("mcontent-separator-block")
 	return &separatorBlock{sep}
 }
-
-func (b *textBlock) block()      {}
-func (b *codeBlock) block()      {}
-func (b *quoteBlock) block()     {}
-func (b *separatorBlock) block() {}

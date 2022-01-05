@@ -8,10 +8,6 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-type bottomedFunc struct {
-	f func()
-}
-
 type scrollState uint8
 
 const (
@@ -21,15 +17,6 @@ const (
 )
 
 func (s scrollState) is(this scrollState) bool { return s == this }
-
-// // cas sets value new if s is still value old and returns true, otherwise false.
-// func (s *scrollState) cas(old, new scrollState) bool {
-// 	if *s == old {
-// 		*s = new
-// 		return true
-// 	}
-// 	return false
-// }
 
 // Window describes an automatically scrolled window.
 type Window struct {

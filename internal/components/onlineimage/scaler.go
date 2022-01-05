@@ -47,12 +47,12 @@ func (p *pixbufScaler) ParentSize() (w, h int) {
 }
 
 func (p *pixbufScaler) init(parent *baseImage) {
-	base := gtk.BaseWidget(parent)
-	w, h := base.SizeRequest()
+	w, h := parent.size()
 
 	p.parent = parent
 	p.parentSz = [2]int{w, h}
 
+	base := gtk.BaseWidget(parent)
 	base.Connect("notify::scale-factor", func() {
 		gtkutil.SetScaleFactor(gtk.BaseWidget(p.parent).ScaleFactor())
 		p.Invalidate()
@@ -76,7 +76,7 @@ func (p *pixbufScaler) invalidate(newPixbuf bool) {
 		return
 	}
 
-	dstW, dstH := parent.SizeRequest()
+	dstW, dstH := p.parent.size()
 	if p.parentSz != [2]int{dstW, dstH} {
 		// Size changed, so invalidate all known pixbufs.
 		p.scales = pixbufScales{}

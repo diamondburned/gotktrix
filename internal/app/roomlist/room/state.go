@@ -27,12 +27,6 @@ type StateChangeFuncs struct {
 	Avatar func(context.Context, State)
 }
 
-var stateEvents = []event.Type{
-	event.TypeRoomName,
-	event.TypeRoomCanonicalAlias,
-	event.TypeRoomAvatar,
-}
-
 // NewState creates a new state.
 func NewState(ctx context.Context, id matrix.RoomID, funcs StateChangeFuncs) *State {
 	return &State{
