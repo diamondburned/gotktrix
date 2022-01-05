@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/diamondburned/adaptive"
@@ -214,8 +213,6 @@ func showMsgSource(ctx context.Context, event event.RoomEvent) {
 	d.SetTransientFor(app.Window(ctx))
 	d.SetModal(true)
 	d.SetDefaultSize(400, 300)
-
-	log.Printf("src = %q", raw)
 
 	buf := gtk.NewTextBuffer(nil)
 	buf.SetText(string(raw))

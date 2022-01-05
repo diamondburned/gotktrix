@@ -186,9 +186,6 @@ func newTextView(ctx context.Context, buf *gtk.TextBuffer) *gtk.TextView {
 	textContentCSS(tview)
 	md.SetTabSize(tview)
 
-	// Workaround in case the TextView is invisible.
-	glib.IdleAdd(tview.QueueAllocate)
-
 	return tview
 }
 
@@ -435,10 +432,12 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	text := newTextBlock(s)
 	text.AddCSSClass("mcontent-code-block-text")
 	text.SetWrapMode(gtk.WrapNone)
+	text.SetVScrollPolicy(gtk.ScrollMinimum)
 	text.SetBottomMargin(18)
 
 	sw := gtk.NewScrolledWindow()
 	sw.SetPolicy(gtk.PolicyAutomatic, gtk.PolicyAutomatic)
+	sw.SetPropagateNaturalHeight(true)
 	sw.SetChild(text)
 
 	language := gtk.NewLabel("")
@@ -452,13 +451,6 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	wrap := gtk.NewToggleButton()
 	wrap.SetIconName("format-justify-left-symbolic")
 	wrap.SetTooltipText("Toggle Word Wrapping")
-	wrap.ConnectClicked(func() {
-		if wrap.Active() {
-			text.SetWrapMode(gtk.WrapWordChar)
-		} else {
-			text.SetWrapMode(gtk.WrapNone)
-		}
-	})
 
 	copy := gtk.NewButtonFromIconName("edit-copy-symbolic")
 	copy.SetTooltipText("Copy All")
@@ -592,6 +584,15 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 
 		// Quite expensive when it's put here, but it's safer.
 		toggleExpand()
+	})
+
+	wrap.ConnectClicked(func() {
+		if wrap.Active() {
+			text.SetWrapMode(gtk.WrapWordChar)
+		} else {
+			// TODO: this doesn't shrink back, which is weird.
+			text.SetWrapMode(gtk.WrapNone)
+		}
 	})
 
 	return &codeBlock{

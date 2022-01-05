@@ -172,11 +172,13 @@ type renderState struct {
 func (s *renderState) renderNode(n *html.Node) traverseStatus {
 	switch n.Type {
 	case html.TextNode:
-		text := s.block.text()
 		trimmed := trimNewLines(n.Data)
 
 		// Make up the left-hand-side new lines.
-		text.insertNewLines(trimmed.left - text.nTrailingNewLine())
+		if trimmed.left > 0 {
+			text := s.block.text()
+			text.insertNewLines(trimmed.left - text.nTrailingNewLine())
+		}
 
 		if trimmed.text == "" {
 			// Ignore this segment entirely and don't write the right-trailing
@@ -185,10 +187,11 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		}
 
 		// Insert the trimmed string.
+		text := s.block.text()
 		text.buf.Insert(text.iter, trimmed.text)
 
-		if nextNode := nodeNextSibling(n); nextNode != nil {
-			// Only make up new lines if we still have nodes.
+		if nextNode := nodeNextSibling(n); nextNode != nil && !strIsSpaces(nextNode.Data) {
+			// Only make up new lines if we still have valid texts.
 			text.insertNewLines(trimmed.right)
 		}
 
@@ -513,6 +516,11 @@ func (s *renderState) endLine(n *html.Node, amount int) {
 	default:
 		s.block.finalizeBlock()
 	}
+}
+
+// strIsSpaces retruns true if str is only whitespaces.
+func strIsSpaces(str string) bool {
+	return strings.TrimSpace(str) == ""
 }
 
 // nodeNextSibling returns the node's next sibling in the whole tree, not just

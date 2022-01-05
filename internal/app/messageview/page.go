@@ -618,16 +618,14 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 	eventKey := messageKeyEventID(evID)
 
 	// Check if the message has been synchronized before it's replied.
-	if _, ok := p.messages[eventKey]; ok {
-		// Store the index which will be the next message once we remove the
-		// current one.
-		ix := msg.row.Index()
-		log.Println("message bound after arrival from server, deleting")
+	if old, ok := p.messages[eventKey]; ok {
 		// Yes, so replace our sending message.
 		p.list.Remove(msg.row)
-		// Reset the message that fills the gap. This isn't very important, so
-		// we ignore the returned boolean.
-		p.resetMessageIx(ix)
+		// The synchronized message is going to be compacted when it saw that
+		// our fake message is already there, so we have to invalidate it after
+		// removing the fake one.
+		old.body = nil
+		p.setMessage(eventKey, old)
 		// Just use the synced message.
 		return true
 	}
@@ -644,8 +642,6 @@ func (p *Page) BindSendingMessage(mark interface{}, evID matrix.EventID) (replac
 
 	msg.row.SetName(string(eventKey))
 	p.messages[eventKey] = msg
-
-	log.Println("message bound from API")
 
 	return false
 }
@@ -697,7 +693,6 @@ func (p *Page) onRoomEvent(ev event.RoomEvent) (key messageKey) {
 	// happen if this is a message that we sent.
 	if existing, ok := p.messages[key]; ok {
 		existing.ev = ev
-		log.Println("message arrived from server with existing ID")
 		p.setMessage(key, existing)
 		return
 	}
@@ -763,12 +758,6 @@ func (p *Page) resetMessage(key messageKey, before messageRow) bool {
 	msg, ok := p.messages[key]
 	if !ok {
 		return false
-	}
-
-	if before.body != nil {
-		log.Printf(
-			"for message by %q, found %q (ours=%q) before",
-			msg.ev.RoomInfo().Sender, before.body.Event().RoomInfo().Sender, before.ev.RoomInfo().Sender)
 	}
 
 	// Recreate the body if the raw events don't match.
