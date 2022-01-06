@@ -176,6 +176,7 @@ func newTextView(ctx context.Context, buf *gtk.TextBuffer) *gtk.TextView {
 	tview.AddCSSClass("mcontent-text")
 	tview.SetEditable(false)
 	tview.SetCursorVisible(false)
+	tview.SetVExpand(true)
 	tview.SetHExpand(true)
 	tview.SetWrapMode(gtk.WrapWordChar)
 
