@@ -6,20 +6,22 @@ import (
 	"html"
 	"strings"
 
+	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/pronouns"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
 type markupOpts struct {
-	textTag   markuputil.TextTag
-	hasher    ColorHasher
-	at        bool
-	shade     bool
-	minimal   bool
-	multiline bool
+	textTag markuputil.TextTag
+	hasher  ColorHasher
+	name    string
+	at      bool
+	shade   bool
+	minimal bool
 }
 
 // MarkupMod is a function type that Markup can take multiples of. It
@@ -39,13 +41,6 @@ func WithMinimal() MarkupMod {
 func WithShade() MarkupMod {
 	return func(opts *markupOpts) {
 		opts.shade = true
-	}
-}
-
-// WithMultiline renders the markup in multiple lines.
-func WithMultiline() MarkupMod {
-	return func(opts *markupOpts) {
-		opts.multiline = true
 	}
 }
 
@@ -79,6 +74,13 @@ func WithWidgetColor(w gtk.Widgetter) MarkupMod {
 func WithTextTagAttr(attr markuputil.TextTag) MarkupMod {
 	return func(opts *markupOpts) {
 		opts.textTag = attr
+	}
+}
+
+// WithName overrides the name in the generated author string.
+func WithName(name string) MarkupMod {
+	return func(opts *markupOpts) {
+		opts.name = name
 	}
 }
 
@@ -125,6 +127,10 @@ func Name(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Mark
 		}
 	}
 
+	if opts.name != "" {
+		name = opts.name
+	}
+
 	if opts.at && !strings.HasPrefix(name, "@") {
 		name = "@" + name
 	}
@@ -159,6 +165,10 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 		}
 	}
 
+	if opts.name != "" {
+		name = opts.name
+	}
+
 	if opts.at && !strings.HasPrefix(name, "@") {
 		name = "@" + name
 	}
@@ -182,25 +192,31 @@ func Markup(c *gotktrix.Client, rID matrix.RoomID, uID matrix.UserID, mods ...Ma
 	}
 
 	if pronoun := pronouns.UserPronouns(c, rID, uID).Pronoun(); pronoun != "" {
-		if opts.multiline {
-			b.WriteByte('\n')
-		} else {
-			b.WriteByte(' ')
-		}
+		b.WriteByte(' ')
 		b.WriteString(fmt.Sprintf(
 			`<span fgalpha="90%%" size="small">(%s)</span>`,
 			html.EscapeString(string(pronoun)),
 		))
 	}
 
-	if ambiguous {
-		if opts.multiline {
-			b.WriteByte('\n')
-		} else {
+	if ev, _ := c.RoomState(rID, event.TypeRoomMember, string(uID)); ev != nil {
+		member := m.DiscordMemberFromMatrix(ev.(*event.RoomMemberEvent))
+		if member != nil {
 			b.WriteByte(' ')
+			b.WriteString(fmt.Sprintf(
+				`<span fgalpha="75%%" size="small">(%s)</span>`,
+				member.Username,
+			))
+			// We can show the username directly instead of the Matrix ID for
+			// Discord users.
+			ambiguous = false
 		}
+	}
+
+	if ambiguous {
+		b.WriteByte(' ')
 		b.WriteString(fmt.Sprintf(
-			` <span fgalpha="75%%" size="small">(%s)</span>`,
+			`<span fgalpha="75%%" size="small">(%s)</span>`,
 			html.EscapeString(string(uID)),
 		))
 	}
@@ -214,12 +230,19 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 	opts := mkopts(mods)
 
 	name, _, _ := uID.Parse()
+	if name == "" {
+		name = string(uID)
+	}
 
 	if rID != "" {
 		n, err := c.MemberName(rID, uID, !opts.minimal)
 		if err == nil {
 			name = n.Name
 		}
+	}
+
+	if opts.name != "" {
+		name = opts.name
 	}
 
 	if opts.at && !strings.HasPrefix(name, "@") {

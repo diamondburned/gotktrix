@@ -3,6 +3,7 @@ package m
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
@@ -140,4 +141,45 @@ func parseSpaceParentEvent(content json.RawMessage) (event.Event, error) {
 // SpaceRoomID returns the room ID that this space child event describes.
 func (ev *SpaceParentEvent) SpaceRoomID() matrix.RoomID {
 	return matrix.RoomID(ev.StateEventInfo.StateKey)
+}
+
+// DiscordMember describes a Discord member, which sits inside a field labeled
+// "uk.half-shot.discord.member" in the RoomMemberEvent.
+type DiscordMember struct {
+	ID           uint64        `json:"id,string"`
+	Username     string        `json:"username"`
+	Roles        []DiscordRole `json:"roles"`
+	DisplayColor uint32        `json:"displayColor"`
+	Bot          bool          `json:"bot"`
+}
+
+// DisplayHexColor returns the DisplayColor in hexadecimal w/ the # prefix.
+func (m DiscordMember) DisplayHexColor() string {
+	return fmt.Sprintf("#%06X", m.DisplayColor)
+}
+
+// DiscordRole describes the role of a Discord user.
+type DiscordRole struct {
+	Name     string `json:"name"`
+	Position int    `json:"position"`
+	Color    uint32 `json:"color"`
+}
+
+// DiscordMemberFromMatrix returns the DiscordMember of the given Matrix member
+// event, if any.
+func DiscordMemberFromMatrix(m *event.RoomMemberEvent) *DiscordMember {
+	raw := m.Info().Raw
+	if raw == nil {
+		// No raw, so we can't read the intended field.
+		return nil
+	}
+
+	var member struct {
+		Content struct {
+			DiscordMember *DiscordMember `json:"uk.half-shot.discord.member"`
+		} `json:"content"`
+	}
+
+	json.Unmarshal(raw, &member)
+	return member.Content.DiscordMember
 }

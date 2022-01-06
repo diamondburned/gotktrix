@@ -73,21 +73,24 @@ type eventRenderer struct {
 	roomEv *event.RoomEventInfo
 }
 
-func (r eventRenderer) author(uID matrix.UserID) string {
-	opts := []mauthor.MarkupMod{
-		mauthor.WithMinimal(),
-		nil,
-	}
-
+func (r eventRenderer) author(uID matrix.UserID, mods ...mauthor.MarkupMod) string {
+	mods = append(mods, mauthor.WithMinimal(), nil)
 	gtkutil.InvokeMain(func() {
-		opts[1] = mauthor.WithWidgetColor(app.Window(r.ctx))
+		mods[len(mods)-1] = mauthor.WithWidgetColor(app.Window(r.ctx))
 	})
 
-	return mauthor.Markup(r.client, r.roomEv.RoomID, uID, opts...)
+	return mauthor.Markup(r.client, r.roomEv.RoomID, uID, mods...)
 }
 
 func (r eventRenderer) sender() string {
 	return r.author(r.roomEv.Sender)
+}
+
+func (r eventRenderer) displayName(ev *event.RoomMemberEvent) string {
+	if ev.DisplayName == nil || *ev.DisplayName == "" {
+		return r.author(ev.UserID)
+	}
+	return r.author(ev.UserID, mauthor.WithName(*ev.DisplayName))
 }
 
 // RenderEvent returns the markup tail of an event message.
@@ -183,12 +186,12 @@ func memberEvent(r eventRenderer, ev *event.RoomMemberEvent) string {
 	case event.MemberInvited:
 		switch ev.NewState {
 		case event.MemberJoined:
-			return p.Sprintf("%s joined.", r.author(ev.UserID))
+			return p.Sprintf("%s joined.", r.displayName(ev))
 		case event.MemberLeft:
 			if ev.Sender == ev.UserID {
-				return p.Sprintf("%s rejected the invite.", r.author(ev.UserID))
+				return p.Sprintf("%s rejected the invite.", r.displayName(ev))
 			} else {
-				return p.Sprintf("%s had their invitation revoked.", r.author(ev.UserID))
+				return p.Sprintf("%s had their invitation revoked.", r.displayName(ev))
 			}
 		}
 	case event.MemberJoined:
@@ -196,25 +199,30 @@ func memberEvent(r eventRenderer, ev *event.RoomMemberEvent) string {
 		case event.MemberJoined:
 			switch {
 			case past.AvatarURL != ev.AvatarURL:
-				return p.Sprintf("%s changed their avatar.", r.author(ev.UserID))
+				return p.Sprintf("%s changed their avatar.", r.displayName(ev))
 			case !sameDisplayName(past.DisplayName, ev.DisplayName):
-				return p.Sprintf("%s changed their name.", r.author(ev.UserID))
+				past := r.displayName(past)
+				name := r.displayName(ev)
+				if past == name {
+					return p.Sprintf("%s changed their name.", name)
+				}
+				return p.Sprintf("%s changed their name to %s.", past, name)
 			default:
-				return p.Sprintf("%s updated their information.", r.author(ev.UserID))
+				return p.Sprintf("%s updated their information.", r.displayName(ev))
 			}
 		case event.MemberLeft:
 			if ev.Sender == ev.UserID {
-				return p.Sprintf("%s left.", r.author(ev.UserID))
+				return p.Sprintf("%s left.", r.displayName(ev))
 			} else {
-				return p.Sprintf("%s was kicked.", r.author(ev.UserID))
+				return p.Sprintf("%s was kicked.", r.displayName(ev))
 			}
 		case event.MemberBanned:
-			return p.Sprintf("%s was kicked and banned.", r.author(ev.UserID))
+			return p.Sprintf("%s was kicked and banned.", r.displayName(ev))
 		}
 	case event.MemberBanned:
 		switch ev.NewState {
 		case event.MemberLeft:
-			return p.Sprintf("%s was unbanned.", r.author(ev.UserID))
+			return p.Sprintf("%s was unbanned.", r.displayName(ev))
 		}
 	}
 
@@ -234,13 +242,13 @@ func sameDisplayName(n1, n2 *string) bool {
 func basicMemberEventTail(r eventRenderer, p *locale.Printer, ev *event.RoomMemberEvent) string {
 	switch ev.NewState {
 	case event.MemberInvited:
-		return p.Sprintf("%s was invited.", r.author(ev.UserID))
+		return p.Sprintf("%s was invited.", r.displayName(ev))
 	case event.MemberJoined:
-		return p.Sprintf("%s joined.", r.author(ev.UserID))
+		return p.Sprintf("%s joined.", r.displayName(ev))
 	case event.MemberLeft:
-		return p.Sprintf("%s left.", r.author(ev.UserID))
+		return p.Sprintf("%s left.", r.displayName(ev))
 	case event.MemberBanned:
-		return p.Sprintf("%s was banned by %s.", r.author(ev.UserID), r.sender())
+		return p.Sprintf("%s was banned by %s.", r.displayName(ev), r.sender())
 	default:
 		return p.Sprintf("%s performed member action %q.", r.sender(), ev.NewState)
 	}
