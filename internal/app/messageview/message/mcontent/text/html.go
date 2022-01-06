@@ -168,13 +168,24 @@ type renderState struct {
 	large bool
 }
 
+// validRightNewLines checks if it makes sense to insert this right new line.
+func validRightNewLines(n *html.Node) bool {
+	next := nodeNextSibling(n)
+	return next != nil &&
+		// ensure next node is not a paragraph tag
+		!nodeIsData(next, nodeFlagTag, "p") &&
+		// ensure next node doesn't just have spaces
+		!nodeIsFunc(next, nodeFlagText, strIsSpaces)
+}
+
 func (s *renderState) renderNode(n *html.Node) traverseStatus {
 	switch n.Type {
 	case html.TextNode:
 		trimmed := trimNewLines(n.Data)
 
-		// Make up the left-hand-side new lines.
-		if trimmed.left > 0 {
+		// Make up the left-hand-side new lines, but only if the next tag is not
+		// <p>, since that's redundant.
+		if trimmed.left > 0 && !nodeNextSiblingIs(n, nodeFlagTag, "p") {
 			text := s.block.text()
 			text.insertNewLines(trimmed.left - text.nTrailingNewLine())
 		}
@@ -189,8 +200,8 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 		text := s.block.text()
 		text.buf.Insert(text.iter, trimmed.text)
 
-		if nextNode := nodeNextSibling(n); nextNode != nil && !strIsSpaces(nextNode.Data) {
-			// Only make up new lines if we still have valid texts.
+		if validRightNewLines(n) {
+			// Only make up new lines if we still have valid text nodes.
 			text.insertNewLines(trimmed.right)
 		}
 
@@ -248,8 +259,14 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			// Only start and stop a new block if we're not already in a
 			// blockquote, since we're not nesting anything, so doing this will
 			// mess up the blockquote.
+			//
+			// Also, if we're in a blockquote, then don't add a new line if this
+			// is the first tag element. We're not counting text, since
+			// implementations may have a "\n" literal.
 			if _, ok := s.block.current().(*quoteBlock); ok {
-				s.endLine(n, 1)
+				if !nodeIsFunc(n.PrevSibling, nodeFlagText, strIsSpaces) {
+					s.endLine(n, 1)
+				}
 			} else {
 				s.block.paragraph()
 				defer s.block.finalizeBlock()
@@ -520,6 +537,52 @@ func (s *renderState) endLine(n *html.Node, amount int) {
 // strIsSpaces retruns true if str is only whitespaces.
 func strIsSpaces(str string) bool {
 	return strings.TrimSpace(str) == ""
+}
+
+type nodeCheckFlag uint8
+
+const (
+	nodeFlagTag nodeCheckFlag = iota
+	nodeFlagText
+	nodeFlagNoneIsTrue // return true if none
+)
+
+// nodeNextSiblingIs asserts that the next node is either a tag or a text node
+// with the given string.
+func nodeNextSiblingIs(n *html.Node, flag nodeCheckFlag, data string) bool {
+	return nodeIsData(nodeNextSibling(n), flag, data)
+}
+
+// nodeNextSiblingIsFunc asserts that the next node is either a tag or a text
+// node with the given function.
+func nodeNextSiblingIsFunc(n *html.Node, flag nodeCheckFlag, f func(string) bool) bool {
+	return nodeIsFunc(nodeNextSibling(n), flag, f)
+}
+
+// nodeIsData is like nodeIsFunc but takes in a data.
+func nodeIsData(n *html.Node, flag nodeCheckFlag, data string) bool {
+	return nodeIsFunc(n, flag, func(v string) bool { return v == data })
+}
+
+// nodeIsFunc returns true if the node is either a text or a tag that matches
+// the given function.
+func nodeIsFunc(n *html.Node, flag nodeCheckFlag, f func(string) bool) bool {
+	if n == nil {
+		return flag&nodeFlagNoneIsTrue != 0
+	}
+
+	switch n.Type {
+	case html.TextNode:
+		if flag&nodeFlagText != 0 {
+			return f(n.Data)
+		}
+	case html.ElementNode:
+		if flag&nodeFlagTag != 0 {
+			return f(n.Data)
+		}
+	}
+
+	return false
 }
 
 // nodeNextSibling returns the node's next sibling in the whole tree, not just

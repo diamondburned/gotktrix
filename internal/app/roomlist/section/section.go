@@ -11,12 +11,19 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
+	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
 )
+
+var messageOnly = prefs.NewBool(false, prefs.PropMeta{
+	Name:        "Sort Messages Only",
+	Section:     "Rooms",
+	Description: "Only sort rooms when there are new messages instead of any events.",
+})
 
 // SortSections sorts the given list of sections in a user-friendly way.
 func SortSections(sections []*Section) {
@@ -222,6 +229,9 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 		return s.ctrl.MoveRoomToSection(srcID, &s)
 	})
 	s.listBox.AddController(drop)
+
+	// Re-sort if this is changed.
+	messageOnly.SubscribeWidget(s, func() { s.InvalidateSort() })
 
 	return &s
 }

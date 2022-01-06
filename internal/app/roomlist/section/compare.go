@@ -109,14 +109,18 @@ func (c *Comparer) roomTimestamp(id matrix.RoomID) int64 {
 		return i
 	}
 
-	events, err := c.client.RoomTimeline(id)
-	if err != nil || len(events) == 0 {
-		// Set something just so we don't repetitively hit the API.
+	var ev event.Type
+	if messageOnly.Value() {
+		ev = event.TypeRoomMessage
+	}
+
+	found, _ := c.client.State.LatestInTimeline(id, ev)
+	if found == nil {
 		c.roomData[id] = nil
 		return 0
 	}
 
-	ts := int64(events[len(events)-1].RoomInfo().OriginServerTime)
+	ts := int64(found.RoomInfo().OriginServerTime)
 	c.roomData[id] = ts
 
 	return ts
