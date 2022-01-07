@@ -22,26 +22,33 @@ func IdleCtx(ctx context.Context, f func()) {
 }
 
 // FuncBatch batches functions for calling.
-type FuncBatch struct {
-	funcs []func()
-}
+type FuncBatch func()
 
 // FuncBatcher creates a new FuncBatch.
-func FuncBatcher() FuncBatch {
-	return FuncBatch{}
+func FuncBatcher(funcs ...func()) FuncBatch {
+	var f FuncBatch
+	f.Fs(funcs...)
+	return f
 }
 
 // F batches f.
-func (b *FuncBatch) F(f func()) { b.funcs = append(b.funcs, f) }
+func (b *FuncBatch) F(f func()) {
+	if *b == nil {
+		*b = f
+		return
+	}
 
-// Done returns a function that executes the batch when invoked.
-func (b *FuncBatch) Done(f ...func()) func() {
-	b.funcs = append(b.funcs, f...)
+	next := *b
+	*b = func() {
+		next()
+		f()
+	}
+}
 
-	return func() {
-		for _, f := range b.funcs {
-			f()
-		}
+// Fs batches multiple funcs.
+func (b *FuncBatch) Fs(funcs ...func()) {
+	for _, f := range funcs {
+		b.F(f)
 	}
 }
 

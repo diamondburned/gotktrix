@@ -187,25 +187,27 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 
 	authAssistant := auth.Show(ctx)
 	authAssistant.OnConnect(func(client *gotktrix.Client, acc *auth.Account) {
+		client.Interceptor.AddIntercept(interceptHTTPLog)
+
 		a.SetLoading()
 		ctx := gotktrix.WithClient(ctx, client)
 
-		client.OnHTTPError(func(_ *http.Request, err error) {
-			logHTTPError(err)
-		})
+		// Making the blinker right here. We don't want to miss the first sync
+		// once the screen becomes visible.
+		m := manager{ctx: ctx}
+		m.header.blinker = blinker.New(ctx)
 
-		syncbox.OpenThen(ctx, acc, func() {
-			m := manager{ctx: ctx}
-			m.ready()
-		})
+		// Open the sync loop.
+		syncbox.OpenThen(ctx, acc, func() { m.ready() })
 	})
 }
 
-func logHTTPError(err error) {
-	if errors.Is(err, context.Canceled) {
-		return
+func interceptHTTPLog(r *http.Request, next func() error) error {
+	if err := next(); err != nil && !errors.Is(err, context.Canceled) {
+		log.Println("Matrix HTTP error:", err)
+		return err
 	}
-	log.Println("Matrix HTTP error:", err)
+	return nil
 }
 
 type manager struct {
@@ -221,6 +223,8 @@ type manager struct {
 		ltext *gtk.Label
 		right *gtk.Box
 		rtext *title.Subtitle
+
+		blinker *blinker.Blinker
 	}
 
 	roomList *roomlist.Browser
@@ -331,7 +335,7 @@ func (m *manager) ready() {
 	m.header.right.AddCSSClass("titlebar")
 	m.header.right.Append(unfold)
 	m.header.right.Append(m.header.rtext)
-	m.header.right.Append(blinker.New(m.ctx))
+	m.header.right.Append(m.header.blinker)
 	m.header.right.Append(gtk.NewWindowControls(gtk.PackEnd))
 
 	m.header.fold = adaptive.NewFold(gtk.PosLeft)

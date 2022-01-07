@@ -27,8 +27,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/handler"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/httptrick"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
-	"github.com/gregjones/httpcache"
-	"github.com/gregjones/httpcache/diskcache"
 	"github.com/pkg/errors"
 )
 
@@ -182,12 +180,11 @@ func (a *ClientAuth) LoginMethods() ([]matrix.LoginMethod, error) {
 type Client struct {
 	*gotrix.Client
 	*handler.Registry
-	State *state.State
-	Index *indexer.Indexer
+	State       *state.State
+	Index       *indexer.Indexer
+	Interceptor *httptrick.Interceptor
 
-	httpErr *httptrick.RoundTripWarner
-	ctx     context.Context
-	userID  matrix.UserID
+	ctx context.Context
 }
 
 // New wraps around gotrix.NewWithClient.
@@ -203,38 +200,35 @@ func New(hcl httputil.Client, serverName string, uID matrix.UserID, token string
 	return wrapClient(c)
 }
 
+/*
 var cachedRoutes = map[string]map[string]string{
 	// TODO: this doesn't work. Investigate.
 	"/_matrix/media/r0/*": {
 		"Cache-Control": httptrick.OverrideCacheControl(4 * time.Hour),
 	},
 }
+*/
 
 func wrapClient(c *gotrix.Client) (*Client, error) {
 	logInit()
 
-	userID, _, err := c.Whoami()
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid user account")
+	if c.UserID == "" {
+		userID, _, err := c.Whoami()
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid user account")
+		}
+		c.UserID = userID
 	}
 
 	// URLEncoding is path-safe; StdEncoding is not.
-	b64Username := base64.URLEncoding.EncodeToString([]byte(userID))
+	b64Username := base64.URLEncoding.EncodeToString([]byte(c.UserID))
 
-	httpErr := httptrick.WrapRoundTripWarner(&httpcache.Transport{
-		Transport: httptrick.TransportHeaderOverride{
-			R: http.DefaultTransport,
-			H: cachedRoutes,
-		},
-		Cache: diskcache.New(config.CacheDir("api", b64Username)),
-	})
-
-	// Use a global HTTP cache.
+	interceptor := httptrick.WrapInterceptor(http.DefaultTransport)
 	c.ClientDriver = &http.Client{
-		Transport: httpErr,
+		Transport: interceptor,
 	}
 
-	s, err := state.New(config.Path("matrix-state", b64Username), userID)
+	s, err := state.New(config.Path("matrix-state", b64Username), c.UserID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make state db")
 	}
@@ -245,10 +239,6 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 	}
 
 	registry := handler.New()
-
-	c.State = registry.Wrap(s)
-	c.SyncOpts = SyncOptions
-
 	registry.OnSync(func(s *api.SyncResponse) {
 		for _, room := range s.Rooms.Joined {
 			for _, ev := range room.State.Events {
@@ -265,13 +255,15 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 		}
 	})
 
+	c.State = registry.Wrap(s)
+	c.SyncOpts = SyncOptions
+
 	return &Client{
-		Client:   c,
-		Registry: registry,
-		State:    s,
-		Index:    idx,
-		httpErr:  httpErr,
-		userID:   userID,
+		Client:      c,
+		Registry:    registry,
+		State:       s,
+		Index:       idx,
+		Interceptor: interceptor,
 	}, nil
 }
 
@@ -312,20 +304,17 @@ func (c *Client) Online(ctx context.Context) *Client {
 	return c.WithContext(ctx)
 }
 
-// OnHTTPError adds the given function to be called everytime the client's HTTP
-// emits an error
-func (c *Client) OnHTTPError(r func(*http.Request, error)) func() {
-	return c.httpErr.OnError(r)
-}
-
-// OnSyncError adds the given function to be called everytime the client fials
-// to sync.
-func (c *Client) OnSyncError(f func(err error)) func() {
-	return c.httpErr.OnError(func(r *http.Request, err error) {
-		if strings.HasPrefix(r.URL.Path, api.EndpointSync) {
-			f(err)
-		}
-	})
+// AddSyncInterceptFull adds an InterceptFullFunc for the Sync endpoint.
+func (c *Client) AddSyncInterceptFull(f httptrick.InterceptFullFunc) func() {
+	return c.Interceptor.AddInterceptFull(
+		func(r *http.Request, next func() (*http.Response, error)) (*http.Response, error) {
+			// Beware: api.EndpointX doesn't have a prefixing slash!
+			if strings.HasPrefix(r.URL.Path, "/"+api.EndpointSync) {
+				return f(r, next)
+			}
+			return next()
+		},
+	)
 }
 
 // WithContext replaces the client's internal context with the given one.
@@ -338,7 +327,7 @@ func (c *Client) WithContext(ctx context.Context) *Client {
 
 // Whoami is a cached version of the Whoami method.
 func (c *Client) Whoami() (matrix.UserID, error) {
-	return c.userID, nil
+	return c.UserID, nil
 }
 
 // SquareThumbnail is a helper function around MediaThumbnailURL. The given size

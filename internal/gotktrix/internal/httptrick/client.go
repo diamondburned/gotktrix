@@ -27,44 +27,72 @@ func (c RoundTripWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r, nil
 }
 
-// RoundTripWarner wraps around an existing roundtripper and calls certain
-// callbacks on every error.
-type RoundTripWarner struct {
+// Interceptor wraps around an existing roundtripper and calls the registered
+// callbacks on each request.
+type Interceptor struct {
 	r http.RoundTripper
-	u sync.Mutex
+	u sync.RWMutex
 	m registry.Registry
 }
 
-// WrapRoundTripWarner wraps the given RoundTripper inside a RoundTripWarner.
-func WrapRoundTripWarner(c http.RoundTripper) *RoundTripWarner {
+// InterceptFunc is a function for intercepting a request. The request being
+// intercepted is given, as well as a callback that triggers the actual request.
+type InterceptFunc func(*http.Request, func() error) error
+
+// InterceptFullFunc is the full version of InterceptFunc: the next callback
+// also returns a response.
+type InterceptFullFunc func(*http.Request, func() (*http.Response, error)) (*http.Response, error)
+
+// WrapInterceptor wraps the given RoundTripper inside a Interceptor.
+func WrapInterceptor(c http.RoundTripper) *Interceptor {
 	if c == nil {
 		c = http.DefaultTransport
 	}
 
-	return &RoundTripWarner{
+	return &Interceptor{
 		r: c,
 		m: registry.New(2),
 	}
 }
 
-func (r *RoundTripWarner) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := r.r.RoundTrip(req)
-	if err == nil {
-		return resp, nil
+func (r *Interceptor) RoundTrip(req *http.Request) (*http.Response, error) {
+	do := func() (*http.Response, error) {
+		return r.r.RoundTrip(req)
 	}
 
-	r.u.Lock()
-	r.m.Each(func(f, _ interface{}) {
-		f.(func(*http.Request, error))(req, err)
+	r.u.RLock()
+	r.m.Each(func(v, _ interface{}) {
+		f := v.(InterceptFullFunc)
+		next := do
+		do = func() (*http.Response, error) {
+			return f(req, next)
+		}
 	})
-	r.u.Unlock()
+	r.u.RUnlock()
 
-	return resp, err
+	return do()
 }
 
-// OnError adds the given callback into the warner. The callback is called when
-// RoundTrip errors out.
-func (r *RoundTripWarner) OnError(f func(*http.Request, error)) func() {
+// AddIntercept adds the given callback. The callback is called when RoundTrip
+// is called.
+func (r *Interceptor) AddIntercept(f InterceptFunc) func() {
+	return r.AddInterceptFull(
+		func(r *http.Request, next func() (*http.Response, error)) (*http.Response, error) {
+			var resp *http.Response
+			do := func() (err error) {
+				resp, err = next()
+				return
+			}
+
+			err := f(r, do)
+			return resp, err
+		},
+	)
+}
+
+// AddIntercept adds the given callback. The callback is called when RoundTrip
+// is called.
+func (r *Interceptor) AddInterceptFull(f InterceptFullFunc) func() {
 	r.u.Lock()
 	v := r.m.Add(f, nil)
 	r.u.Unlock()

@@ -245,9 +245,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		r.InvalidateAvatar(ctx)
 		r.InvalidatePreview(ctx)
 
-		b := gtkutil.FuncBatcher()
-
-		return b.Done(
+		return gtkutil.FuncBatcher(
 			r.State.Subscribe(),
 			client.SubscribeTimelineSync(roomID, func(event.RoomEvent) {
 				gtkutil.IdleCtx(ctx, func() {
