@@ -28,6 +28,7 @@ type Composer struct {
 		upload  ActionData
 		current func()
 	}
+	editing bool
 }
 
 // Controller describes the parent component that the Composer controls.
@@ -49,12 +50,15 @@ type Controller interface {
 	BindSendingMessage(mark interface{}, evID matrix.EventID) (replaced bool)
 }
 
-/*
-const (
-	ComposerMaxWidth   = 1000
-	ComposerClampWidth = 800
-)
-*/
+// inputController wraps a Composer and Controller to implement InputController.
+type inputController struct {
+	Controller
+	composer *Composer
+}
+
+func (c *inputController) IsEditing() bool {
+	return c.composer.editing
+}
 
 const (
 	sendIcon  = "document-send-symbolic"
@@ -104,7 +108,7 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 	c.action.SetHasFrame(false)
 	c.action.AddCSSClass("composer-action")
 
-	c.input = NewInput(ctx, ctrl, roomID)
+	c.input = NewInput(ctx, &inputController{ctrl, &c}, roomID)
 	c.input.SetVScrollPolicy(gtk.ScrollNatural)
 
 	c.iscroll = gtk.NewScrolledWindow()
@@ -182,6 +186,11 @@ func (c *Composer) setAction(action ActionData) {
 // TODO(diamond): allow editing older messages.
 // TODO(diamond): lossless Markdown editing (no mentions are lost).
 func (c *Composer) Edit(eventID matrix.EventID) bool {
+	c.editing = c.edit(eventID)
+	return c.editing
+}
+
+func (c *Composer) edit(eventID matrix.EventID) bool {
 	c.input.editing = eventID
 	c.input.replyingTo = ""
 

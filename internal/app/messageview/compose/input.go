@@ -26,6 +26,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+// InputController extends Controller to provide additional state getters.
+type InputController interface {
+	Controller
+	// IsEditing returns true if we're currently editing a message.
+	IsEditing() bool
+}
+
 // Input is the input component of the message composer.
 type Input struct {
 	*gtk.TextView
@@ -34,7 +41,7 @@ type Input struct {
 	anchors list.List // T = anchorPiece
 
 	ctx    context.Context
-	ctrl   Controller
+	ctrl   InputController
 	roomID matrix.RoomID
 
 	inputState
@@ -63,7 +70,7 @@ var inputCSS = cssutil.Applier("composer-input", `
 `)
 
 // NewInput creates a new Input instance.
-func NewInput(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Input {
+func NewInput(ctx context.Context, ctrl InputController, roomID matrix.RoomID) *Input {
 	go requestAllMembers(ctx, roomID)
 
 	i := Input{
@@ -147,6 +154,9 @@ func (i *Input) onAutocompleted(row autocomplete.SelectedData) bool {
 			),
 		})
 
+		// Add the invisible plain text segment.
+		md.InsertInvisible(row.Bounds[1], string(data.ID))
+
 	case autocomplete.EmojiData:
 		if data.Unicode != "" {
 			// Unicode emoji means we can just insert it in plain text.
@@ -168,6 +178,9 @@ func (i *Input) onAutocompleted(row autocomplete.SelectedData) bool {
 				anchor: anchor,
 				str:    customEmojiHTML(data),
 			})
+
+			// Add the invisible plain text segment.
+			md.InsertInvisible(row.Bounds[1], data.Name)
 		}
 	default:
 		log.Printf("unknown data type %T", data)
@@ -205,6 +218,10 @@ func (i *Input) onKey(val, _ uint, state gdk.ModifierType) bool {
 	case gdk.KEY_Tab:
 		return i.acomp.Select()
 	case gdk.KEY_Escape:
+		if i.ctrl.IsEditing() {
+			i.ctrl.Edit("")
+			return true
+		}
 		return i.acomp.Clear()
 	case gdk.KEY_Up:
 		if i.acomp.MoveUp() {
@@ -252,9 +269,12 @@ func (i *Input) HTML(start, end *gtk.TextIter) string {
 		anchors[anIter.Offset()] = anchor.str
 	}
 
-	// Borrow the start iterator to iterate over the whole text buffer.
-	for ok := true; ok; ok = start.ForwardChar() {
-		r := rune(start.Char())
+	// Use a new iterator to iterate over the whole text buffer.
+	iter := start.Copy()
+	// Borrow the start iterator to iterate over the whole text buffer. We're
+	// skipping invisible positions, because those are for plain text.
+	for ok := true; ok; ok = iter.ForwardVisibleCursorPosition() {
+		r := rune(iter.Char())
 		if r != '\uFFFC' {
 			// Rune is not a Unicode unknown character, so skip the anchor
 			// check.
@@ -275,9 +295,9 @@ func (i *Input) HTML(start, end *gtk.TextIter) string {
 	return buf.String()
 }
 
-// Text return sthe Input's content as plain text.
+// Text returns the Input's content as plain text.
 func (i *Input) Text(start, end *gtk.TextIter) string {
-	return i.buffer.Text(start, end, false)
+	return i.buffer.Text(start, end, true)
 }
 
 // Send sends the message inside the input off.
@@ -329,8 +349,7 @@ func (i *Input) Send() bool {
 // put steals the buffer and puts it into a message event. If the buffer is
 // empty, then an empty data and false are returned.
 func (i *Input) put() (inputData, bool) {
-	head := i.buffer.StartIter()
-	tail := i.buffer.EndIter()
+	head, tail := i.buffer.Bounds()
 
 	// TODO: ideally, if we want to get the previous input, we'd want a way to
 	// either re-render the HTML as Markdown and somehow preserve that
