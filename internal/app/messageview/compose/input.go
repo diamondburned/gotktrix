@@ -54,7 +54,8 @@ type inputState struct {
 
 type anchorPiece struct {
 	anchor *gtk.TextChildAnchor
-	str    string
+	html   string
+	text   string
 }
 
 var inputCSS = cssutil.Applier("composer-input", `
@@ -148,14 +149,12 @@ func (i *Input) onAutocompleted(row autocomplete.SelectedData) bool {
 		// Register the anchor.
 		i.anchors.PushBack(anchorPiece{
 			anchor: anchor,
-			str: fmt.Sprintf(
+			html: fmt.Sprintf(
 				`<a href="https://matrix.to/#/%s">%s</a>`,
 				html.EscapeString(string(data.ID)), html.EscapeString(chip.Name()),
 			),
+			text: string(data.ID),
 		})
-
-		// Add the invisible plain text segment.
-		md.InsertInvisible(row.Bounds[1], string(data.ID))
 
 	case autocomplete.EmojiData:
 		if data.Unicode != "" {
@@ -176,11 +175,9 @@ func (i *Input) onAutocompleted(row autocomplete.SelectedData) bool {
 			// Register the anchor.
 			i.anchors.PushBack(anchorPiece{
 				anchor: anchor,
-				str:    customEmojiHTML(data),
+				html:   customEmojiHTML(data),
+				text:   data.Name,
 			})
-
-			// Add the invisible plain text segment.
-			md.InsertInvisible(row.Bounds[1], data.Name)
 		}
 	default:
 		log.Printf("unknown data type %T", data)
@@ -253,6 +250,15 @@ func (i *Input) SetText(text string) {
 
 // HTML returns the Input's content as HTML.
 func (i *Input) HTML(start, end *gtk.TextIter) string {
+	return i.renderAnchors(start, end, func(anchor anchorPiece) string { return anchor.html })
+}
+
+// Text returns the Input's content as plain text.
+func (i *Input) Text(start, end *gtk.TextIter) string {
+	return i.renderAnchors(start, end, func(anchor anchorPiece) string { return anchor.text })
+}
+
+func (i *Input) renderAnchors(start, end *gtk.TextIter, f func(anchorPiece) string) string {
 	if i.anchors.Len() == 0 {
 		return i.buffer.Text(start, end, true)
 	}
@@ -266,14 +272,14 @@ func (i *Input) HTML(start, end *gtk.TextIter) string {
 	for elem := i.anchors.Front(); elem != nil; elem = elem.Next() {
 		anchor := elem.Value.(anchorPiece)
 		anIter := i.buffer.IterAtChildAnchor(anchor.anchor)
-		anchors[anIter.Offset()] = anchor.str
+		anchors[anIter.Offset()] = f(anchor)
 	}
 
 	// Use a new iterator to iterate over the whole text buffer.
 	iter := start.Copy()
 	// Borrow the start iterator to iterate over the whole text buffer. We're
 	// skipping invisible positions, because those are for plain text.
-	for ok := true; ok; ok = iter.ForwardVisibleCursorPosition() {
+	for ok := true; ok; ok = iter.ForwardChar() {
 		r := rune(iter.Char())
 		if r != '\uFFFC' {
 			// Rune is not a Unicode unknown character, so skip the anchor
@@ -283,7 +289,7 @@ func (i *Input) HTML(start, end *gtk.TextIter) string {
 		}
 
 		// Check the anchor on this position.
-		s, ok := anchors[start.Offset()]
+		s, ok := anchors[iter.Offset()]
 		if ok {
 			buf.WriteString(s)
 		} else {
@@ -293,11 +299,6 @@ func (i *Input) HTML(start, end *gtk.TextIter) string {
 	}
 
 	return buf.String()
-}
-
-// Text returns the Input's content as plain text.
-func (i *Input) Text(start, end *gtk.TextIter) string {
-	return i.buffer.Text(start, end, true)
 }
 
 // Send sends the message inside the input off.
