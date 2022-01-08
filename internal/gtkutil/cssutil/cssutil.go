@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 
@@ -38,6 +39,14 @@ func Applyf(widget gtk.Widgetter, f string, v ...interface{}) {
 // Apply applies the given CSS into the given widget's style context.
 func Apply(widget gtk.Widgetter, css string) {
 	prov := gtk.NewCSSProvider()
+	prov.Connect("parsing-error", func(sec *gtk.CSSSection, err error) {
+		loc := sec.StartLocation()
+		lines := strings.Split(css, "\n")
+		log.Printf(
+			"generated CSS error (%v) at line: %q\n%s",
+			err, lines[loc.Lines()], debug.Stack(),
+		)
+	})
 	prov.LoadFromData(css)
 
 	w := gtk.BaseWidget(widget)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -36,6 +37,7 @@ var EachBreak = db.EachBreak
 // TimelimeLimit is the number of timeline events that the database keeps.
 const TimelimeLimit = state.TimelineKeepLast
 
+// SyncOptions is used to sync.
 var SyncOptions = gotrix.SyncOptions{
 	Filter: event.GlobalFilter{
 		Room: event.RoomFilter{
@@ -49,9 +51,24 @@ var SyncOptions = gotrix.SyncOptions{
 			},
 		},
 	},
-	Timeout:        time.Minute,
-	MinBackoffTime: 2 * time.Second,
+	Timeout:        30 * time.Second,
+	MinBackoffTime: 02 * time.Second,
 	MaxBackoffTime: 10 * time.Second,
+}
+
+// DefaultTransport is the default HTTP transport configuration to use.
+var DefaultTransport = http.Transport{
+	Proxy:                 http.ProxyFromEnvironment,
+	ForceAttemptHTTP2:     true,
+	MaxIdleConns:          100,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ResponseHeaderTimeout: 45 * time.Second,
+	WriteBufferSize:       256 << 10, // 256KB
+	ReadBufferSize:        256 << 10,
+	DialContext: (&net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: 90 * time.Second,
+	}).DialContext,
 }
 
 var deviceName = "gotktrix"
@@ -223,10 +240,8 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 	// URLEncoding is path-safe; StdEncoding is not.
 	b64Username := base64.URLEncoding.EncodeToString([]byte(c.UserID))
 
-	interceptor := httptrick.WrapInterceptor(http.DefaultTransport)
-	c.ClientDriver = &http.Client{
-		Transport: interceptor,
-	}
+	interceptor := httptrick.WrapInterceptor(&DefaultTransport)
+	c.ClientDriver = &http.Client{Transport: interceptor}
 
 	s, err := state.New(config.Path("matrix-state", b64Username), c.UserID)
 	if err != nil {
