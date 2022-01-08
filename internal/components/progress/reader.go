@@ -40,11 +40,7 @@ func (r *Reader) Read(b []byte) (int, error) {
 		})
 	}
 
-	// n, err := r.r.Read(b)
-
-	n := 1000
-	err := errors.New("bruh moment")
-
+	n, err := r.r.Read(b)
 	atomic.AddInt64(&r.n, int64(n))
 
 	if err != nil {
