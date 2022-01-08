@@ -113,9 +113,13 @@ type uploadProgress struct {
 
 var uploadProgressCSS = cssutil.Applier("compose-upload-progress", `
 	.compose-upload-progress {
-		border-top: 1px solid @borders;
+		border-top:    1px solid @borders;
+		border-bottom: 1px solid transparent;
 		padding:    5px 10px;
 		padding-bottom: 10px;
+	}
+	.messageview-messagerow:not(:last-child) .compose-upload-progress {
+		border-bottom: 1px solid @borders;
 	}
 `)
 
