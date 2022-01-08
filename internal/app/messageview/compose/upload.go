@@ -20,6 +20,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/components/dialogs"
+	"github.com/diamondburned/gotktrix/internal/components/filepick"
 	"github.com/diamondburned/gotktrix/internal/components/progress"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -168,22 +169,19 @@ type uploader struct {
 // ask creates a new file chooser asking the user to pick files to be uploaded.
 func (u uploader) ask() {
 	// TODO: allow selecting multiple files
-	chooser := gtk.NewFileChooserNative(
-		"Upload File",
-		app.Window(u.ctx),
+	chooser := filepick.New(
+		u.ctx, "Upload File",
 		gtk.FileChooserActionOpen,
-		locale.S(u.ctx, "Upload"), locale.S(u.ctx, "Cancel"),
+		locale.S(u.ctx, "Upload"),
+		locale.S(u.ctx, "Cancel"),
 	)
 	chooser.SetSelectMultiple(false)
 
 	// Cannot use chooser.File(); see
 	// https://github.com/diamondburned/gotk4/issues/29.
-	chooser.Connect("response", func(chooser *gtk.FileChooserNative, resp int) {
-		if resp != int(gtk.ResponseAccept) {
-			return
-		}
-
+	chooser.ConnectAccept(func() {
 		file := chooser.File()
+
 		u.upload(fileUpload{
 			name: file.Basename(),
 			file: func(ctx context.Context) (*uploadingFile, error) {

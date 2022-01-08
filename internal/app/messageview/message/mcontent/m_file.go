@@ -12,7 +12,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/components/filepick"
 	"github.com/diamondburned/gotktrix/internal/components/progress"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -108,20 +108,15 @@ func newFileContent(ctx context.Context, msg *event.RoomMessageEvent) contentPar
 }
 
 func (c *fileContent) download() {
-	chooser := gtk.NewFileChooserNative(
-		"Download File", app.Window(c.ctx), gtk.FileChooserActionSave,
-		locale.S(c.ctx, "Download"), locale.S(c.ctx, "Cancel"),
+	chooser := filepick.New(
+		c.ctx, "Download File",
+		gtk.FileChooserActionSave,
+		locale.S(c.ctx, "Download"),
+		locale.S(c.ctx, "Cancel"),
 	)
-	chooser.SetModal(true)
 	chooser.SetCurrentName(c.name)
-	chooser.ConnectResponse(func(resp int) {
-		if gtk.ResponseType(resp) != gtk.ResponseAccept {
-			return
-		}
-
-		file := chooser.File()
-
-		if path := file.Path(); path != "" {
+	chooser.ConnectAccept(func() {
+		if path := chooser.File().Path(); path != "" {
 			c.downloadTo(path)
 		}
 	})
