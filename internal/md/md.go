@@ -270,6 +270,9 @@ func fixTextHeight(view *gtk.TextView, image *gtk.Image) {
 		// Workaround to account for GTK's weird height allocating when a widget
 		// is added. We're removing most of the excess empty padding with this.
 		h := image.AllocatedHeight() * 95 / 100
+		if h < 1 {
+			return
+		}
 
 		cssutil.Applyf(view, `* { margin-bottom: -%dpx; }`, h)
 	})

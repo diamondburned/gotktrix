@@ -170,12 +170,20 @@ type renderState struct {
 
 // validRightNewLines checks if it makes sense to insert this right new line.
 func validRightNewLines(n *html.Node) bool {
-	next := nodeNextSibling(n)
-	return next != nil &&
+	return n.PrevSibling != nil && n.NextSibling != nil &&
 		// ensure next node is not a paragraph tag
-		!nodeIsData(next, nodeFlagTag, "p") &&
+		!nodeIsData(n.NextSibling, nodeFlagTag, "p") &&
 		// ensure next node doesn't just have spaces
-		!nodeIsFunc(next, nodeFlagText, strIsSpaces)
+		!nodeIsFunc(n.NextSibling, nodeFlagText, strIsSpaces)
+}
+
+func validQuoteParagraph(n *html.Node) bool {
+	return n.PrevSibling != nil &&
+		// Add a new line only if the previous tag is NOT a single new line.
+		!nodeIsFunc(n.PrevSibling, nodeFlagText, strIsSpaces) ||
+		// Add a new line if the previous tag may be a new line, but there's
+		// something else before it (probably 2 paragraph tags.)
+		(n.PrevSibling != nil && n.PrevSibling.PrevSibling != nil)
 }
 
 func (s *renderState) renderNode(n *html.Node) traverseStatus {
@@ -190,18 +198,21 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			text.insertNewLines(trimmed.left - text.nTrailingNewLine())
 		}
 
-		if trimmed.text == "" {
-			// Ignore this segment entirely and don't write the right-trailing
-			// new lines.
-			return traverseOK
+		// if trimmed.text == "" {
+		// 	// Ignore this segment entirely and don't write the right-trailing
+		// 	// new lines.
+		// 	return traverseOK
+		// }
+
+		if trimmed.text != "" {
+			// Insert the trimmed string.
+			text := s.block.text()
+			text.buf.Insert(text.iter, trimmed.text)
 		}
 
-		// Insert the trimmed string.
-		text := s.block.text()
-		text.buf.Insert(text.iter, trimmed.text)
-
-		if validRightNewLines(n) {
+		if trimmed.right > 0 && validRightNewLines(n) {
 			// Only make up new lines if we still have valid text nodes.
+			text := s.block.text()
 			text.insertNewLines(trimmed.right)
 		}
 
@@ -264,8 +275,8 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			// is the first tag element. We're not counting text, since
 			// implementations may have a "\n" literal.
 			if _, ok := s.block.current().(*quoteBlock); ok {
-				if !nodeIsFunc(n.PrevSibling, nodeFlagText, strIsSpaces) {
-					s.endLine(n, 1)
+				if validQuoteParagraph(n) {
+					s.endLine(n, 2)
 				}
 			} else {
 				s.block.paragraph()
@@ -542,21 +553,22 @@ func strIsSpaces(str string) bool {
 type nodeCheckFlag uint8
 
 const (
-	nodeFlagTag nodeCheckFlag = iota
+	nodeFlagTag nodeCheckFlag = 1 << iota
 	nodeFlagText
-	nodeFlagNoneIsTrue // return true if none
+	nodeFlagNoneIsTrue  // return true if none
+	nodeFlagNoRecursive // don't traverse up the tree if true
 )
 
 // nodeNextSiblingIs asserts that the next node is either a tag or a text node
 // with the given string.
 func nodeNextSiblingIs(n *html.Node, flag nodeCheckFlag, data string) bool {
-	return nodeIsData(nodeNextSibling(n), flag, data)
+	return nodeIsData(nodeNextSiblingFlag(n, flag), flag, data)
 }
 
 // nodeNextSiblingIsFunc asserts that the next node is either a tag or a text
 // node with the given function.
 func nodeNextSiblingIsFunc(n *html.Node, flag nodeCheckFlag, f func(string) bool) bool {
-	return nodeIsFunc(nodeNextSibling(n), flag, f)
+	return nodeIsFunc(nodeNextSiblingFlag(n, flag), flag, f)
 }
 
 // nodeIsData is like nodeIsFunc but takes in a data.
@@ -583,6 +595,14 @@ func nodeIsFunc(n *html.Node, flag nodeCheckFlag, f func(string) bool) bool {
 	}
 
 	return false
+}
+
+// nodeNextSiblingFlag wraps nodeNextSibling to add flag support.
+func nodeNextSiblingFlag(n *html.Node, flag nodeCheckFlag) *html.Node {
+	if flag&nodeFlagNoRecursive != 0 {
+		return n.NextSibling
+	}
+	return nodeNextSibling(n)
 }
 
 // nodeNextSibling returns the node's next sibling in the whole tree, not just
