@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 type blinkerState uint8
@@ -57,6 +58,8 @@ func (s blinkerState) Class() string {
 // Blinker is the Blinker widget.
 type Blinker struct {
 	gtk.Image
+	ctx context.Context
+
 	prev  glib.SourceHandle
 	state blinkerState
 }
@@ -97,7 +100,10 @@ func New(ctx context.Context) *Blinker {
 	img.SetIconSize(gtk.IconSizeNormal)
 	blinkerCSS(img)
 
-	b := &Blinker{Image: *img}
+	b := &Blinker{
+		Image: *img,
+		ctx:   ctx,
+	}
 
 	client := gotktrix.FromContext(ctx)
 
@@ -152,7 +158,10 @@ func (b *Blinker) downloading() {
 
 func (b *Blinker) error(err error) {
 	b.set(blinkerError)
-	b.SetTooltipText(err.Error())
+	b.SetTooltipMarkup(locale.FromContext(b.ctx).Sprintf(
+		`<span color="red"><b>Error:</b></span> %s`,
+		err.Error(),
+	))
 }
 
 func (b *Blinker) cas(ifThis, thenState blinkerState) bool {
