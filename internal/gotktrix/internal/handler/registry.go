@@ -9,7 +9,7 @@ import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/registry"
+	"github.com/diamondburned/gotktrix/internal/registry"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
 )
 

@@ -116,14 +116,13 @@ func NewSpaceButton(ctx context.Context, spaceID matrix.RoomID) *SpaceButton {
 	b.ToggleButton.ConnectToggled(func() { b.name.SetRevealChild(b.Active()) })
 	spaceButtonCSS(b.ToggleButton)
 
-	b.state = room.NewState(ctx, spaceID, room.StateChangeFuncs{
-		Name: func(ctx context.Context, s room.State) {
-			b.name.label.SetText(s.Name)
-			b.box.SetTooltipText(s.Name)
-		},
-		Avatar: func(ctx context.Context, s room.State) {
-			b.icon.SetFromMXC(s.Avatar)
-		},
+	b.state = room.NewState(ctx, spaceID)
+	b.state.NotifyName(func(ctx context.Context, s room.State) {
+		b.name.label.SetText(s.Name)
+		b.box.SetTooltipText(s.Name)
+	})
+	b.state.NotifyAvatar(func(ctx context.Context, s room.State) {
+		b.icon.SetFromMXC(s.Avatar)
 	})
 
 	gtkutil.BindSubscribe(b, func() func() {

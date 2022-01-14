@@ -7,6 +7,7 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/space"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -186,4 +187,9 @@ func (b *Browser) SearchBar() *gtk.SearchBar {
 // activate the room.
 func (b *Browser) SetSelectedRoom(id matrix.RoomID) {
 	b.list.SetSelectedRoom(id)
+}
+
+// Room gets the room with the given ID, or nil if it's not known.
+func (b *Browser) Room(id matrix.RoomID) *room.Room {
+	return b.list.Room(id)
 }

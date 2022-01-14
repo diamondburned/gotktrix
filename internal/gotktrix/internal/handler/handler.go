@@ -7,7 +7,7 @@ import (
 	"github.com/chanbakjsd/gotrix"
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/event"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/registry"
+	"github.com/diamondburned/gotktrix/internal/registry"
 )
 
 type wrapper struct {

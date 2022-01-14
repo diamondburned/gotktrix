@@ -21,6 +21,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
+	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
 	"github.com/diamondburned/gotktrix/internal/app/userbutton"
 	"github.com/diamondburned/gotktrix/internal/components/title"
 	"github.com/diamondburned/gotktrix/internal/config"
@@ -229,6 +230,8 @@ type manager struct {
 
 	roomList *roomlist.Browser
 	msgView  *messageview.View
+
+	unbindLastRoom func()
 }
 
 const minMessagesWidth = 400
@@ -377,13 +380,28 @@ func (m *manager) SearchRoom(name string) {
 }
 
 func (m *manager) OpenRoom(id matrix.RoomID) {
-	page := m.msgView.OpenRoom(id)
-	page.OnTitle(func(string) {
-		app.SetTitle(m.ctx, page.RoomName())
-		m.header.rtext.SetTitle(page.RoomName())
-		m.header.rtext.SetSubtitle(page.RoomTopic())
-	})
+	if m.unbindLastRoom != nil {
+		m.unbindLastRoom()
+		m.unbindLastRoom = nil
+	}
+
+	m.msgView.OpenRoom(id)
 	m.SetSelectedRoom(id)
+
+	rm := m.roomList.Room(id)
+
+	// Slight side effect when doing this: if the room gets pushed outside the
+	// visible section, then the information won't be updated until it's
+	// revealed.
+	m.unbindLastRoom = gtkutil.FuncBatcher(
+		rm.NotifyName(func(_ context.Context, state room.State) {
+			app.SetTitle(m.ctx, state.Name)
+			m.header.rtext.SetTitle(state.Name)
+		}),
+		rm.NotifyTopic(func(_ context.Context, state room.State) {
+			m.header.rtext.SetSubtitle(state.Topic)
+		}),
+	)
 }
 
 // SetSelectedRoom sets the given room ID as the selected room row. It does not

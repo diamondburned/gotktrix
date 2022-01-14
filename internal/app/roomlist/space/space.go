@@ -187,6 +187,11 @@ func (l *List) InvalidateFilter() {
 	}
 }
 
+// Room gets the room with the given ID, or nil if the room is unknown.
+func (l *List) Room(id matrix.RoomID) *room.Room {
+	return l.rooms[id]
+}
+
 // AddRoom adds the room into the given list.
 func (l *List) AddRoom(roomID matrix.RoomID) {
 	_, ok := l.rooms[roomID]

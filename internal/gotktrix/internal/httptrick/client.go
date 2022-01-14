@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/registry"
+	"github.com/diamondburned/gotktrix/internal/registry"
 )
 
 // RoundTripWrapper wraps a http.RoundTripper for debugging.

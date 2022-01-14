@@ -196,16 +196,26 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 
 	r.ctx = gtkutil.WithVisibility(ctx, r)
 
-	r.State = NewState(ctx, roomID, StateChangeFuncs{
-		Name: func(ctx context.Context, s State) {
-			r.name.label.SetLabel(s.Name)
+	updateName := func(s State) {
+		r.name.label.SetLabel(s.Name)
+		if s.Topic != "" {
+			r.name.label.SetTooltipText(s.Name + "\n" + s.Topic)
+		} else {
 			r.name.label.SetTooltipText(s.Name)
-			r.avatar.SetName(s.Name)
-			r.avatar.SetTooltipText(s.Name)
-		},
-		Avatar: func(ctx context.Context, s State) {
-			r.avatar.SetFromMXC(s.Avatar)
-		},
+		}
+	}
+
+	r.State = NewState(ctx, roomID)
+	r.State.NotifyName(func(ctx context.Context, s State) {
+		r.avatar.SetName(s.Name)
+		r.avatar.SetTooltipText(s.Name)
+		updateName(s)
+	})
+	r.State.NotifyTopic(func(ctx context.Context, s State) {
+		updateName(s)
+	})
+	r.State.NotifyAvatar(func(ctx context.Context, s State) {
+		r.avatar.SetFromMXC(s.Avatar)
 	})
 
 	section.Insert(&r)
@@ -241,8 +251,6 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 
 	// Bind the message handler to update itself.
 	r.ctx.OnRenew(func(ctx context.Context) func() {
-		r.InvalidateName(ctx)
-		r.InvalidateAvatar(ctx)
 		r.InvalidatePreview(ctx)
 
 		return gtkutil.FuncBatcher(
