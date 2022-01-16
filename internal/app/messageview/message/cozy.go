@@ -35,7 +35,7 @@ func (v messageViewer) cozyMessage(ev *event.RoomMessageEvent) *cozyMessage {
 
 	msg := cozyMessage{}
 	msg.message = v.newMessage(ev, true)
-	msg.message.timestamp.SetYAlign(0.6)
+	msg.message.timestamp.SetYAlign(1)
 
 	msg.sender = gtk.NewLabel("")
 	msg.sender.SetTooltipText(string(ev.Sender))
