@@ -54,7 +54,7 @@ func autolink(buf *gtk.TextBuffer) []string {
 	table := buf.TagTable()
 
 	start, end := buf.Bounds()
-	text := buf.Slice(start, end, false)
+	text := buf.Slice(start, end, true)
 
 	var urls []string
 
@@ -79,11 +79,11 @@ matchLoop:
 		start.SetLine(line)
 		start.SetLineIndex(offset0)
 
-		// Ensure that the start iterator doesn't already have a link tag.
-		// Skip if it does.
+		// Ensure that the start iterator doesn't already have a link tag, nor
+		// is it invisible. Skip if it does/is.
 		for _, tag := range start.Tags() {
 			tagName := tag.ObjectProperty("name").(string)
-			if strings.HasPrefix(tagName, embeddedURLPrefix) {
+			if tagName == "_invisible" || strings.HasPrefix(tagName, embeddedURLPrefix) {
 				continue matchLoop
 			}
 		}
