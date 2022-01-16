@@ -759,11 +759,11 @@ type RoomPaginator struct {
 
 	// buffer holds all the unreturned events.
 	buffer []event.RoomEvent
-	// lastEvID keeps track of the last event that the user received. Last here
-	// means the earliest or top event.
-	lastEvID matrix.EventID
 	// lastBatch keeps track of the pagination token.
 	lastBatch string
+	// skip counts the number of events to skip during the initial fetch using
+	// prev_batch, since those messages will have been in the state already.
+	skip int
 	// drained is true if the state cache is completely drained.
 	drained bool
 	// onTop is true if we're out of events.
@@ -811,9 +811,9 @@ func (p *RoomPaginator) Paginate(ctx context.Context) ([]event.RoomEvent, error)
 
 	// Calculate the boundary to which we should slice the buffer. The boundary
 	// will be calculated starting from the end of buffer.
-	bound := len(p.buffer)
-	if bound > p.limit {
-		bound -= p.limit
+	bound := len(p.buffer) - p.limit
+	if bound < 0 {
+		bound = 0
 	}
 
 	// Reslice the buffer to not have the region that we're about to split away.
@@ -827,18 +827,6 @@ func (p *RoomPaginator) Paginate(ctx context.Context) ([]event.RoomEvent, error)
 
 // fill fills the paginator's buffer.
 func (p *RoomPaginator) fill(ctx context.Context) error {
-	if !p.drained {
-		p.drained = true
-
-		events, err := p.c.State.RoomTimeline(p.roomID)
-		if err == nil {
-			p.prepend(events)
-			if !p.needFill() {
-				return nil
-			}
-		}
-	}
-
 	if p.lastBatch == "" {
 		// Acquire the latest known pagination token. This means we'll have to
 		// seek through our cached events, but that's just how it works.
@@ -849,10 +837,22 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 		p.lastBatch = b
 	}
 
-	for p.needFill() {
-		log.Println("from lastBatch =", p.lastBatch)
+	if !p.drained {
+		p.drained = true
 
-		// https://matrix.org/docs/spec/client_server/r0.6.1#get-matrix-client-r0-rooms-roomid-messages
+		events, err := p.c.State.RoomTimeline(p.roomID)
+		if err == nil {
+			p.skip = len(events)
+			p.prepend(events)
+
+			if !p.needFill() {
+				return nil
+			}
+		}
+	}
+
+	for p.needFill() {
+		// https://spec.matrix.org/v1.1/client-server-api/#get_matrixclientv3roomsroomidmessages
 		// Fill up the last batch from start.
 		r, err := p.c.WithContext(ctx).RoomMessages(p.roomID, api.RoomMessagesQuery{
 			From:      p.lastBatch,
@@ -863,19 +863,29 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 			return errors.Wrapf(err, "failed to query messages for room %q", p.roomID)
 		}
 
-		// If start and end matches, then we're out of messages.
-		if r.Start == r.End {
-			log.Println("no more messages")
+		// If End is empty, then we can't go further.
+		if r.End == "" {
+			// log.Println("no more messages")
 			p.onTop = true
-			break
 		}
 
 		// Update the last batch.
 		// End is used to request earlier events if direction is backwards.
 		p.lastBatch = r.End
 
-		log.Println("new  lastBatch =", p.lastBatch)
-		log.Println("     start =", r.Start)
+		// log.Println("new  lastBatch =", p.lastBatch)
+		// log.Println("     start     =", r.Start)
+
+		// Only prepend known ones.
+		if p.skip > 0 {
+			new := p.skip
+			p.skip -= len(r.Chunk)
+
+			if new >= len(r.Chunk) {
+				continue
+			}
+			r.Chunk = r.Chunk[new:]
+		}
 
 		// Flip the message list. Code from SliceTricks.
 		for i, j := 0, len(r.Chunk)-1; i < j; i, j = i+1, j-1 {
@@ -884,16 +894,7 @@ func (p *RoomPaginator) fill(ctx context.Context) error {
 
 		// Seek until we stumble on the wanted events.
 		events := sys.ParseAllTimeline(r.Chunk, p.roomID)
-		for i, ev := range events {
-			if ev.RoomInfo().ID == p.lastEvID {
-				// Include all events from before the found one to the first
-				// event, which is the earliest event.
-				p.prepend(events[:i])
-				log.Println("seeked to last event ID")
-				break
-			}
-		}
-		log.Println("cannot seek to last event ID")
+		p.prepend(events)
 	}
 
 	return nil
@@ -911,6 +912,21 @@ func (p *RoomPaginator) prepend(events []event.RoomEvent) {
 		return
 	}
 
+	if len(events) == 0 {
+		return
+	}
+
+	// log.Println("current buffer state:")
+	// log.Printf("events | %s", events[0].RoomInfo().OriginServerTime.Time())
+	// log.Printf("       | ...")
+	// log.Printf("       | %s", events[len(events)-1].RoomInfo().OriginServerTime.Time())
+	// if len(p.buffer) > 0 {
+	// 	log.Printf("buffer | %s", p.buffer[0].RoomInfo().OriginServerTime.Time())
+	// 	log.Printf("       | ...")
+	// 	log.Printf("       | %s", p.buffer[len(p.buffer)-1].RoomInfo().OriginServerTime.Time())
+	// }
+	// log.Println("--------")
+
 	// TODO: optimize.
 	new := make([]event.RoomEvent, len(p.buffer)+len(events))
 
@@ -919,7 +935,6 @@ func (p *RoomPaginator) prepend(events []event.RoomEvent) {
 	n += copy(new[n:], p.buffer)
 
 	p.buffer = new
-	p.lastEvID = p.buffer[0].RoomInfo().ID // first is earliest
 }
 
 // RoomTimeline queries the state cache for the timeline of the given room. If
