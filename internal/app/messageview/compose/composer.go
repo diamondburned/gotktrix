@@ -7,9 +7,11 @@ import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 // Composer is a message composer.
@@ -81,6 +83,11 @@ var composerCSS = cssutil.Applier("composer", `
 		margin-left:  14px;
 		margin-right: 8px;
 	}
+	.composer-input-placeholder {
+		padding: 0px 2px; /* Keep the same as .composer-input */
+		padding-top: 12px;
+		color: alpha(@theme_fg_color, 0.65);
+	}
 `)
 
 var sendCSS = cssutil.Applier("composer-send", `
@@ -111,12 +118,39 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 	c.input = NewInput(ctx, &inputController{ctrl, &c}, roomID)
 	c.input.SetVScrollPolicy(gtk.ScrollNatural)
 
+	roomName, _ := gotktrix.FromContext(ctx).Offline().RoomName(roomID)
+
+	placeholder := gtk.NewLabel(locale.Sprintf(ctx, "Message %s", roomName))
+	placeholder.AddCSSClass("composer-input-placeholder")
+	placeholder.SetVAlign(gtk.AlignStart)
+	placeholder.SetHAlign(gtk.AlignStart)
+	placeholder.SetEllipsize(pango.EllipsizeEnd)
+
+	revealer := gtk.NewRevealer()
+	revealer.SetChild(placeholder)
+	revealer.SetCanTarget(false)
+	revealer.SetRevealChild(true)
+	revealer.SetTransitionType(gtk.RevealerTransitionTypeCrossfade)
+	revealer.SetTransitionDuration(50)
+
+	overlay := gtk.NewOverlay()
+	overlay.SetChild(c.input)
+	overlay.AddOverlay(revealer)
+	overlay.SetClipOverlay(revealer, true)
+
+	// Show or hide the placeholder when the buffer is empty or not.
+	c.input.buffer.ConnectChanged(func() {
+		start, end := c.input.buffer.Bounds()
+		// Reveal if the buffer has 0 length.
+		revealer.SetRevealChild(start.Offset() == end.Offset())
+	})
+
 	c.iscroll = gtk.NewScrolledWindow()
 	c.iscroll.AddCSSClass("composer-input-scroll")
 	c.iscroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	c.iscroll.SetPropagateNaturalHeight(true)
 	c.iscroll.SetMaxContentHeight(500)
-	c.iscroll.SetChild(c.input)
+	c.iscroll.SetChild(overlay)
 
 	c.send = gtk.NewButtonFromIconName(sendIcon)
 	c.send.SetTooltipText("Send")
