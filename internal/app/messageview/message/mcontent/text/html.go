@@ -399,7 +399,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				} else {
 					w, h = smallEmojiSize, smallEmojiSize
 				}
-				url, _ = client.SquareThumbnail(src, w, gtkutil.ScaleFactor())
+				url, _ = client.ScaledThumbnail(src, w, h, gtkutil.ScaleFactor())
 
 			} else {
 				w, h = gotktrix.MaxSize(

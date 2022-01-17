@@ -239,22 +239,13 @@ var inlineImageCSS = cssutil.Applier("md-inlineimage", `
 // way that the text position of the text buffer is not scrambled. Images
 // created using this function will have the ".md-inlineimage" class.
 func InsertImageWidget(view *gtk.TextView, anchor *gtk.TextChildAnchor) *InlineImage {
-	// buf := view.Buffer()
-
 	image := gtk.NewImageFromIconName("image-x-generic-symbolic")
 	inlineImageCSS(image)
-
-	// iter := buf.IterAtChildAnchor(anchor)
-	// startOffset := iter.Offset()
 
 	fixTextHeight(view, image)
 
 	view.AddChildAtAnchor(image, anchor)
 	view.AddCSSClass("md-hasimage")
-
-	// tag := TextTags.FromBuffer(buf, "_image")
-	// start := buf.IterAtOffset(startOffset)
-	// buf.ApplyTag(tag, start, iter)
 
 	return &InlineImage{image}
 }
