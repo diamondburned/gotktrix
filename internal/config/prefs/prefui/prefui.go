@@ -343,6 +343,17 @@ type propWidget struct {
 func newPropWidget(d *Dialog, p prefs.LocalizedProp) propWidget {
 	switch p := p.Prop.(type) {
 	case *prefs.Bool:
+		// Note: using gtk.Switch actually causes a crash using the Cairo
+		// renderer for some reason. The log goes:
+		//
+		//    2022/01/16 16:38:37 Message: Gsk: Failed to realize renderer of type 'GskNglRenderer' for surface 'GdkWaylandPopup': Failed to create EGL display
+		//    2022/01/16 16:38:37 Message: Gsk: Failed to realize renderer of type 'GskNglRenderer' for surface 'GdkWaylandToplevel': Failed to create EGL display
+		//    2022/01/16 16:38:37 Warning: Gsk: drawing failure for render node GskTextureNode: invalid matrix (not invertible)
+		//    gotktrix: cairo-surface.c:2995: _cairo_surface_create_in_error: Assertion `status < CAIRO_STATUS_LAST_STATUS' failed.
+		//    SIGABRT: abort
+		//    PC=0x7fe2a496ebaa m=3 sigcode=18446744073709551610
+		//
+		// See issue https://gitlab.gnome.org/GNOME/gtk/-/issues/4642.
 		sw := gtk.NewSwitch()
 		sw.AddCSSClass("prefui-prop")
 		sw.AddCSSClass("prefui-prop-bool")
