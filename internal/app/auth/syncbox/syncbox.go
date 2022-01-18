@@ -15,6 +15,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 const avatarSize = 36
@@ -95,6 +96,13 @@ func openThen(ctx context.Context, acc *auth.Account, f func()) *Popup {
 	glib.IdleAdd(func() {
 		popup = Show(ctx, acc)
 
+		_, hasSynced := client.State.NextBatch()
+		if hasSynced {
+			popup.SetLabel(locale.S(ctx, "Syncing..."))
+		} else {
+			popup.SetLabel(locale.S(ctx, "Initial Syncing..."))
+		}
+
 		go func() {
 			if err := client.Open(); err != nil {
 				app.Fatal(ctx, err)
@@ -102,7 +110,7 @@ func openThen(ctx context.Context, acc *auth.Account, f func()) *Popup {
 				return
 			}
 
-			app.FromContext(ctx).Connect("shutdown", func() {
+			app.FromContext(ctx).ConnectShutdown(func() {
 				log.Println("shutting down Matrix...")
 
 				if err := client.Close(); err != nil {
@@ -136,7 +144,7 @@ func Show(ctx context.Context, account *auth.Account) *Popup {
 	spinner := gtk.NewSpinner()
 	spinner.SetSizeRequest(18, 18)
 
-	loadLabel := gtk.NewLabel("Syncing...")
+	loadLabel := gtk.NewLabel("")
 	loadLabel.SetWrap(true)
 	loadLabel.SetWrapMode(pango.WrapWordChar)
 
@@ -155,7 +163,6 @@ func Show(ctx context.Context, account *auth.Account) *Popup {
 
 	app := app.FromContext(ctx)
 	app.Window().SetChild(content)
-	app.SetTitle("Syncing")
 	app.NotifyChild(true, func() { spinner.Stop() })
 
 	spinner.Start()
@@ -167,7 +174,7 @@ func Show(ctx context.Context, account *auth.Account) *Popup {
 	}
 }
 
-// SetLabel sets the popup's label. The default label is "Syncing".
+// SetLabel sets the popup's label.
 func (p *Popup) SetLabel(text string) {
 	p.app.SetTitle(text)
 	p.label.SetLabel(text)

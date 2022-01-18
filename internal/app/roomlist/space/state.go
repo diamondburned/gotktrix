@@ -11,28 +11,42 @@ import (
 )
 
 type spaceState struct {
+	filter   func()
 	id       matrix.RoomID
-	children map[matrix.RoomID]struct{}
-
-	cancel context.CancelFunc
+	children spaceRooms
+	cancel   context.CancelFunc
 }
 
-func (s *spaceState) update(ctx context.Context, start func() func()) {
+func newSpaceState(invalidateFilter func()) spaceState {
+	return spaceState{
+		filter: invalidateFilter,
+	}
+}
+
+// update updates the internal room children state and calls the
+// invalidateFilter callback.
+func (s *spaceState) update(ctx context.Context, spaceID matrix.RoomID) {
 	if s.cancel != nil {
 		s.cancel()
 		s.cancel = nil
 	}
 
-	if s.id == "" {
+	s.id = spaceID
+	s.children.reset()
+
+	if spaceID == "" {
+		s.filter()
 		return
 	}
 
-	s.children = nil
-
 	client := gotktrix.FromContext(ctx)
 
-	err := client.State.EachRoomStateLen(s.id, m.SpaceChildEventType, s.eachEvent)
-	if err == nil {
+	// Perform an offline fetch first.
+	ok := s.children.fetch(client.Offline(), spaceID)
+	s.filter()
+
+	if ok {
+		// Fetched successfully, so just bail early.
 		return
 	}
 
@@ -42,34 +56,76 @@ func (s *spaceState) update(ctx context.Context, start func() func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 
-	cpy := *s
-	stop := start()
-
 	gtkutil.Async(ctx, func() func() {
-		// It's fine if we use the root context, since the events that we
-		// receive from the API will be saved into the state for the next time.
-		client.EachRoomStateLen(s.id, m.SpaceChildEventType, cpy.eachEvent)
+		var children spaceRooms
+		children.fetch(client, spaceID)
 
 		return func() {
-			s.children = cpy.children
-			stop()
+			s.children = children
+			s.filter()
+
+			s.cancel()
+			s.cancel = nil
 		}
 	})
 }
 
-func (s *spaceState) eachEvent(ev event.StateEvent, len int) error {
-	if s.children == nil {
-		s.children = make(map[matrix.RoomID]struct{}, len)
-	}
-	s.children[matrix.RoomID(ev.StateInfo().StateKey)] = struct{}{}
-	return nil
+// spaceRooms is a set of room IDs for the purpose of tracking which rooms are
+// in a space.
+type spaceRooms map[matrix.RoomID]struct{}
+
+func (s spaceRooms) has(roomID matrix.RoomID) bool {
+	_, has := s[roomID]
+	return has
 }
 
-func (s *spaceState) has(roomID matrix.RoomID) bool {
-	if s.id == "" {
-		return true
+func (s *spaceRooms) reset() {
+	*s = nil
+}
+
+// fetch populates spaceRooms with all room IDs inside a certain given space.
+func (s *spaceRooms) fetch(client *gotktrix.Client, spaceID matrix.RoomID) bool {
+	// It's fine if we use the online context here, since the events that we
+	// receive from the API will be saved into the state for the next time.
+	err1 := client.EachRoomStateLen(spaceID, m.SpaceChildEventType,
+		func(ev event.StateEvent, len int) error {
+			if *s == nil {
+				*s = make(map[matrix.RoomID]struct{}, len)
+			}
+
+			space := ev.(*m.SpaceChildEvent)
+			(*s)[space.ChildRoomID()] = struct{}{}
+			return nil
+		},
+	)
+
+	// Succumb to Matrix's terrible design: iterate over each room and determine
+	// if it's in our space or not. We can do this lazily, but we prefer not to.
+	roomIDs, err2 := client.Rooms()
+	if err2 != nil {
+		return false
 	}
 
-	_, has := s.children[roomID]
-	return has
+	// At this point, *s shouldn't have been nil, but it might be if we can't
+	// find the space parent in the state because the server splurged out.
+	if *s == nil {
+		*s = make(map[matrix.RoomID]struct{})
+	}
+
+	for _, roomID := range roomIDs {
+		_, ok := (*s)[roomID]
+		if ok {
+			continue
+		}
+
+		// Hitting the API is super expensive and slow here, especially when the
+		// rooms aren't in a space, so we hit the state only.
+		e, _ := client.State.RoomState(roomID, m.SpaceParentEventType, string(spaceID))
+		if e != nil {
+			room := e.(*m.SpaceParentEvent)
+			(*s)[room.SpaceRoomID()] = struct{}{}
+		}
+	}
+
+	return err1 == nil && err2 == nil
 }

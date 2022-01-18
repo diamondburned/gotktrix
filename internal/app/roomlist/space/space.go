@@ -114,6 +114,8 @@ func New(ctx context.Context, ctrl Controller) *List {
 		return ctrl.ForwardTypingTo()
 	})
 
+	l.space = newSpaceState(l.InvalidateFilter)
+
 	return &l
 }
 
@@ -127,16 +129,7 @@ func (l *List) SpaceID() matrix.RoomID {
 // out all rooms, only leaving behind rooms that belong to the given space.
 // Sections that don't have any rooms after filtering will be hidden.
 func (l *List) SetSpaceID(spaceID matrix.RoomID) {
-	l.space.id = spaceID
-	l.space.update(l.ctx, func() func() {
-		l.SetSensitive(false)
-		return func() {
-			l.SetSensitive(true)
-			l.InvalidateFilter()
-		}
-	})
-
-	l.InvalidateFilter()
+	l.space.update(l.ctx, spaceID)
 }
 
 // VAdjustment returns the list's ScrolledWindow's vertical adjustment for
@@ -147,23 +140,18 @@ func (l *List) VAdjustment() *gtk.Adjustment {
 
 // RoomIsVisible returns true if the room with the given ID should be visible.
 func (l *List) RoomIsVisible(roomID matrix.RoomID) bool {
-	if l.search == "" && l.space.id == "" {
-		return true
-	}
-
-	room, ok := l.rooms[roomID]
-	if !ok {
-		return false
-	}
-
 	if l.search != "" {
+		room, ok := l.rooms[roomID]
+		if !ok {
+			return false
+		}
 		if !sortutil.ContainsFold(room.Name, l.search) {
 			return false
 		}
 	}
 
 	if l.space.id != "" {
-		if !l.space.has(roomID) {
+		if !l.space.children.has(roomID) {
 			return false
 		}
 	}

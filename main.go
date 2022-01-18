@@ -204,11 +204,11 @@ func activate(ctx context.Context, gtkapp *gtk.Application) {
 }
 
 func interceptHTTPLog(r *http.Request, next func() error) error {
-	if err := next(); err != nil && !errors.Is(err, context.Canceled) {
+	err := next()
+	if err != nil && !errors.Is(err, context.Canceled) {
 		log.Println("Matrix HTTP error:", err)
-		return err
 	}
-	return nil
+	return err
 }
 
 type manager struct {

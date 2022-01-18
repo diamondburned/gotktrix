@@ -1,6 +1,7 @@
 package httptrick
 
 import (
+	"log"
 	"net/http"
 	"sync"
 
@@ -57,7 +58,11 @@ func WrapInterceptor(c http.RoundTripper) *Interceptor {
 
 func (r *Interceptor) RoundTrip(req *http.Request) (*http.Response, error) {
 	do := func() (*http.Response, error) {
-		return r.r.RoundTrip(req)
+		r, err := r.r.RoundTrip(req)
+		if err == nil && r == nil {
+			log.Println("base RoundTripper impl returned nil (r, err)")
+		}
+		return r, err
 	}
 
 	r.u.RLock()

@@ -80,7 +80,7 @@ const ReactionEventType event.Type = "m.reaction"
 // ReactionEvent is a reaction event of type m.reaction.
 type ReactionEvent struct {
 	event.RoomEventInfo `json:"-"`
-	// RelatesTo
+
 	RelatesTo ReactionRelatesTo `json:"m.relates_to"`
 }
 
@@ -104,7 +104,7 @@ const SpaceChildEventType = "m.space.child"
 // rooms.
 type SpaceChildEvent struct {
 	event.StateEventInfo `json:"-"`
-	// Via contains a list of space rooms that the child belongs to.
+
 	Via       []string `json:"via"`
 	Order     string   `json:"order,omitempty"`
 	Suggested bool     `json:"suggested,omitempty"`
@@ -127,7 +127,7 @@ const SpaceParentEventType = "m.space.parent"
 // SpaceParentEvent is an event emitted by children rooms to advertise spaces.
 type SpaceParentEvent struct {
 	event.StateEventInfo `json:"-"`
-	// Via contains a list of space rooms that the child belongs to.
+
 	Via       []string `json:"via"`
 	Canonical bool     `json:"canonical,omitempty"`
 }

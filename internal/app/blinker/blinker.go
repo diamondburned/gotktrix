@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/chanbakjsd/gotrix/api"
-	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -139,14 +139,14 @@ func (b *Blinker) onSynced(*api.SyncResponse) {
 
 func (b *Blinker) sync() {
 	b.set(blinkerSync)
-	b.prev = glib.TimeoutAdd(blinkerStayTime, func() {
+	b.prev = glib.TimeoutAddPriority(blinkerStayTime, glib.PriorityDefaultIdle, func() {
 		b.prev = 0
 		b.cas(blinkerSync, blinkerNone)
 	})
 }
 
 func (b *Blinker) syncing() {
-	b.prev = glib.TimeoutSecondsAdd(2, func() {
+	b.prev = glib.TimeoutSecondsAddPriority(2, glib.PriorityDefaultIdle, func() {
 		b.prev = 0
 		b.cas(blinkerNone, blinkerSyncing)
 	})

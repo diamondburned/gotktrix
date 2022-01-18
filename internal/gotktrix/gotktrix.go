@@ -41,9 +41,9 @@ const TimelimeLimit = state.TimelineKeepLast
 var SyncOptions = gotrix.SyncOptions{
 	Filter: event.GlobalFilter{
 		Room: event.RoomFilter{
-			IncludeLeave: true,
 			State: event.StateFilter{
-				LazyLoadMembers: true,
+				LazyLoadMembers:         true,
+				IncludeRedundantMembers: true,
 			},
 			Timeline: event.RoomEventFilter{
 				Limit:           TimelimeLimit,
@@ -52,8 +52,8 @@ var SyncOptions = gotrix.SyncOptions{
 		},
 	},
 	Timeout:        30 * time.Second,
-	MinBackoffTime: 02 * time.Second,
-	MaxBackoffTime: 10 * time.Second,
+	MinBackoffTime: 1 * time.Second,
+	MaxBackoffTime: 5 * time.Second,
 }
 
 // DefaultTransport is the default HTTP transport configuration to use.
@@ -66,8 +66,7 @@ var DefaultTransport = http.Transport{
 	WriteBufferSize:       256 << 10, // 256KB
 	ReadBufferSize:        256 << 10,
 	DialContext: (&net.Dialer{
-		Timeout:   10 * time.Second,
-		KeepAlive: 90 * time.Second,
+		Timeout: 10 * time.Second,
 	}).DialContext,
 }
 
@@ -261,9 +260,10 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 					continue
 				}
 
-				if member, ok := sys.Parse(ev).(*event.RoomMemberEvent); ok {
+				e, err := sys.ParseAs(ev, event.TypeRoomMember)
+				if err == nil {
 					b := idx.Begin()
-					b.IndexRoomMember(member)
+					b.IndexRoomMember(e.(*event.RoomMemberEvent))
 					b.Commit()
 				}
 			}
