@@ -2,7 +2,10 @@
 	src ? ./..,
 	lib,
 	pkgs,
+	suffix ? "",
 	buildPkgs ? import ./pkgs.nix {}, # only for overriding
+	goPkgs    ? buildPkgs,
+	wrapGApps ? true,
 }:
 
 let desktopFile = pkgs.makeDesktopItem {
@@ -13,14 +16,14 @@ let desktopFile = pkgs.makeDesktopItem {
 	categories = "GTK;GNOME;Chat;Network;";
 };
 
-in buildPkgs.buildGoModule {
+in goPkgs.buildGoModule {
 	inherit src;
 
-	pname = "gotktrix";
+	pname = "gotktrix" + suffix;
 	version = "0.0.1-tip";
 
 	# Bump this on go.mod change.
-	vendorSha256 = "01x4xz2pypmn2s8rhyahs0hmhpivppmipwm5fx4zh7v094vvm55g";
+	vendorSha256 = "0qzrljq8cdhl8jfpsdami68zlf2bsbjwbj1n2jamr3fd9y679n97";
 
 	buildInputs = with buildPkgs; [
 		gtk4
@@ -32,8 +35,9 @@ in buildPkgs.buildGoModule {
 
 	nativeBuildInputs = with pkgs; [
 		pkgconfig
-		wrapGAppsHook
-	];
+	] ++ (lib.optional wrapGApps [ pkgs.wrapGAppsHook ]);
+
+	subPackages = [ "." ];
 
 	preFixup = ''
 		mkdir -p $out/share/icons/hicolor/256x256/apps/ $out/share/applications/
