@@ -8,13 +8,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
-	"github.com/pkg/errors"
 	"golang.org/x/text/message"
 )
 
@@ -133,7 +131,7 @@ func TakeSnapshot() Snapshot {
 // JSON marshals the snapshot as JSON. Any error that arises from marshaling the
 // JSON is assumed to be the user tampering with it.
 func (s Snapshot) JSON() []byte {
-	b, err := json.Marshal(s)
+	b, err := json.MarshalIndent(s, "", "\t")
 	if err != nil {
 		log.Panicln("prefs: cannot marshal snapshot:", err)
 	}
@@ -144,25 +142,7 @@ var prefsPath = config.Path("prefs.json")
 
 // Save atomically saves the snapshot to file.
 func (s Snapshot) Save() error {
-	tmp, err := os.CreateTemp(filepath.Dir(prefsPath), ".tmp.*")
-	if err != nil {
-		return errors.Wrap(err, "cannot mktemp")
-	}
-	defer os.Remove(tmp.Name())
-	defer tmp.Close()
-
-	if _, err := tmp.Write(s.JSON()); err != nil {
-		return errors.Wrap(err, "cannot write to temp file")
-	}
-	if err := tmp.Close(); err != nil {
-		return errors.Wrap(err, "temp file error")
-	}
-
-	if err := os.Rename(tmp.Name(), prefsPath); err != nil {
-		return errors.Wrap(err, "cannot swap new prefs file")
-	}
-
-	return nil
+	return config.WriteFile(prefsPath, s.JSON())
 }
 
 // ReadSavedData reads the saved preferences from a predetermined location.

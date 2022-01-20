@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 // AppID is the prefix for gotktrix's application ID.
@@ -78,4 +80,27 @@ func joinTails(dir string, tails []string) string {
 	}
 
 	return dir
+}
+
+// WriteFile writes b to the file in path atomically.
+func WriteFile(path string, b []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp.*")
+	if err != nil {
+		return errors.Wrap(err, "cannot mktemp")
+	}
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+
+	if _, err := tmp.Write(b); err != nil {
+		return errors.Wrap(err, "cannot write to temp file")
+	}
+	if err := tmp.Close(); err != nil {
+		return errors.Wrap(err, "temp file error")
+	}
+
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return errors.Wrap(err, "cannot swap new prefs file")
+	}
+
+	return nil
 }

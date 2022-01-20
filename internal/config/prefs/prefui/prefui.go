@@ -10,10 +10,11 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/config/prefs"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/pkg/errors"
 )
 
 // Dialog is a widget that lists all known preferences in a dialog.
@@ -21,15 +22,13 @@ type Dialog struct {
 	*gtk.Dialog
 	ctx context.Context
 
-	header  *gtk.HeaderBar
-	box     *gtk.Box
-	search  *gtk.SearchBar
-	loading *gtk.Spinner
-
+	header   *gtk.HeaderBar
+	box      *gtk.Box
+	search   *gtk.SearchBar
+	loading  *gtk.Spinner
 	sections []*section
 
-	isSaving    bool
-	needsSaving bool
+	saver config.ConfigStore
 }
 
 var currentDialog *Dialog
@@ -102,9 +101,27 @@ var _ = cssutil.WriteCSS(`
 	}
 `)
 
+func configSnapshotter(ctx context.Context) func() (save func()) {
+	return func() func() {
+		snapshot := prefs.TakeSnapshot()
+		return func() {
+			if err := snapshot.Save(); err != nil {
+				app.Error(ctx, errors.Wrap(err, "cannot save prefs"))
+			}
+		}
+	}
+}
+
 // newDialog creates a new preferences UI.
 func newDialog(ctx context.Context) *Dialog {
 	d := Dialog{ctx: ctx}
+
+	d.saver = config.NewConfigStore(configSnapshotter(ctx))
+	d.saver.Widget = (*dialogSaver)(&d)
+	// Computers are just way too fast. Ensure that the loading circle visibly
+	// pops up before it closes.
+	d.saver.Minimum = 100 * time.Millisecond
+
 	d.box = gtk.NewBox(gtk.OrientationVertical, 0)
 
 	sections := prefs.ListProperties(ctx)
@@ -171,48 +188,19 @@ func (d *Dialog) Search(query string) {
 }
 
 func (d *Dialog) save() {
-	// Mark that we need to save. This will cause any queued up background task
-	// to save for us if we can't save.
-	d.needsSaving = true
-	d.saveRecursive()
+	d.saver.Save()
 }
 
-func (d *Dialog) saveRecursive() {
-	// Ensure that we're not already saving.
-	if d.isSaving {
-		return
-	}
-	d.isSaving = true
+type dialogSaver Dialog
 
+func (d *dialogSaver) SaveBegin() {
 	d.loading.Show()
 	d.loading.Start()
+}
 
-	snapshot := prefs.TakeSnapshot()
-
-	gtkutil.Async(context.Background(), func() func() {
-		// Computers are just way too fast. Ensure that the loading circle
-		// visibly pops up before it closes.
-		delay := time.After(100 * time.Millisecond)
-
-		if err := snapshot.Save(); err != nil {
-			app.Error(d.ctx, err)
-		}
-
-		<-delay
-
-		return func() {
-			d.loading.Stop()
-			d.loading.Hide()
-
-			d.isSaving = false
-
-			if d.needsSaving {
-				d.needsSaving = false
-				// Resave if we need to save.
-				d.saveRecursive()
-			}
-		}
-	})
+func (d *dialogSaver) SaveEnd() {
+	d.loading.Stop()
+	d.loading.Hide()
 }
 
 type section struct {
