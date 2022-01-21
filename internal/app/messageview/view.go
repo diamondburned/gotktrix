@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 )
@@ -12,7 +11,6 @@ import (
 // View describes a view for multiple message views.
 type View struct {
 	*gtk.Stack
-	view  *adaptive.Bin
 	empty gtk.Widgetter
 
 	ctx    context.Context
@@ -36,15 +34,11 @@ func New(ctx context.Context, ctrl Controller) *View {
 	// 	view.SetShowTabs(view.NPages() > 0)
 	// })
 
-	view := adaptive.NewBin()
-
 	stack := gtk.NewStack()
 	stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
-	stack.AddNamed(view, "named")
 
 	return &View{
 		Stack:  stack,
-		view:   view,
 		ctx:    ctx,
 		ctrl:   ctrl,
 		client: gotktrix.FromContext(ctx),
@@ -53,11 +47,11 @@ func New(ctx context.Context, ctrl Controller) *View {
 
 // SetPlaceholder sets the placeholder widget.
 func (v *View) SetPlaceholder(w gtk.Widgetter) {
+	v.Stack.AddChild(w)
+
 	if v.empty != nil {
 		v.Stack.Remove(v.empty)
 	}
-
-	v.Stack.AddNamed(w, "empty")
 	v.empty = w
 
 	if v.current == nil {
@@ -82,19 +76,23 @@ func (v *View) OpenRoomInNewTab(id matrix.RoomID) *Page {
 */
 
 func (v *View) openRoom(id matrix.RoomID, newTab bool) *Page {
-	v.Stack.SetVisibleChild(v.view)
-
 	// Break up a potential infinite call recursion.
 	if v.current != nil && v.current.roomID == id {
 		return v.current
 	}
 
 	page := NewPage(v.ctx, v, id)
-	page.Load(func() {})
+	page.Load()
+
 	gtk.BaseWidget(page).SetName(string(id))
 
+	v.Stack.AddChild(page)
+	v.Stack.SetVisibleChild(page)
+
+	if v.current != nil {
+		v.Stack.Remove(v.current)
+	}
 	v.current = page
-	v.view.SetChild(page)
 
 	return page
 }

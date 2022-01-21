@@ -821,9 +821,8 @@ func (p *Page) keyAtIndex(i int) messageKey {
 
 // Load asynchronously loads the page. The given callback is called once the
 // page finishes loading.
-func (p *Page) Load(done func()) {
+func (p *Page) Load() {
 	if p.loaded {
-		done()
 		return
 	}
 	p.loaded = true
@@ -836,9 +835,35 @@ func (p *Page) Load(done func()) {
 
 	load := func(events []event.RoomEvent) {
 		p.main.SetChild(p.box)
+		p.list.GrabFocus()
 		p.scroll.ScrollToBottom()
-		p.addBulkEvents(events)
-		done()
+
+		// Delay adding messages a slight bit. This code allows loading all
+		// messages while the fading animation is still playing, allowing some
+		// breathing room for the main loop.
+		const thres = 10
+		const delay = 50 // total 250ms for 50 messages
+
+		for i := 0; i < len(events); i += thres {
+			i := i
+			time := uint(i/thres) * delay
+			load := func() {
+				for j := i; j < i+thres && j < len(events); j++ {
+					k := p.onRoomEvent(events[j])
+
+					r, ok := p.messages[k]
+					if ok {
+						r.body.LoadMore()
+					}
+				}
+			}
+
+			if time == 0 {
+				load()
+			} else {
+				glib.TimeoutAddPriority(time, glib.PriorityHighIdle, load)
+			}
+		}
 	}
 
 	// We can rely on this comparison to directly call Paginate on the main
@@ -872,7 +897,6 @@ func (p *Page) Load(done func()) {
 			app.Error(ctx, err)
 			return func() {
 				p.main.SetError(err)
-				done()
 			}
 		}
 
@@ -890,7 +914,22 @@ func (p *Page) loadMore(done paginateDoneFunc) {
 		}
 
 		return func() {
-			keys := p.addBulkEvents(events)
+			keys := make([]messageKey, len(events))
+			// Require old messages first, so cozy mode works properly.
+			for i, ev := range events {
+				keys[i] = p.onRoomEvent(ev)
+			}
+
+			p.list.GrabFocus()
+
+			// Load the newest messages first so it doesn't screw up scrolling as
+			// hard.
+			for i := len(keys) - 1; i >= 0; i-- {
+				r, ok := p.messages[keys[i]]
+				if ok {
+					r.body.LoadMore()
+				}
+			}
 
 			// Scroll to the middle message.
 			for i := len(keys) - 1; i >= 0; i-- {
@@ -905,27 +944,6 @@ func (p *Page) loadMore(done paginateDoneFunc) {
 			done(true, nil)
 		}
 	})
-}
-
-func (p *Page) addBulkEvents(events []event.RoomEvent) []messageKey {
-	keys := make([]messageKey, len(events))
-	// Require old messages first, so cozy mode works properly.
-	for i, ev := range events {
-		keys[i] = p.onRoomEvent(ev)
-	}
-
-	p.list.GrabFocus()
-
-	// Load the newest messages first so it doesn't screw up scrolling as
-	// hard.
-	for i := len(keys) - 1; i >= 0; i-- {
-		r, ok := p.messages[keys[i]]
-		if ok {
-			r.body.LoadMore()
-		}
-	}
-
-	return keys
 }
 
 // Edit triggers the input composer to edit an existing message.
