@@ -13,6 +13,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
@@ -51,7 +52,18 @@ var embedCSS = cssutil.Applier("mcontent-embed", `
 
 var descReplacer = strings.NewReplacer("\n", "  ")
 
+var enableEmbeds = prefs.NewBool(true, prefs.PropMeta{
+	Name:    "Load Link Embeds",
+	Section: "Text",
+	Description: "If enabled, query the Matrix server for information about " +
+		"links in messages and show them as embeds.",
+})
+
 func loadEmbeds(ctx context.Context, box *gtk.Box, urls []string) {
+	if !enableEmbeds.Value() {
+		return
+	}
+
 	go func() {
 		client := gotktrix.FromContext(ctx)
 
