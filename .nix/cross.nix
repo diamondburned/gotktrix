@@ -26,7 +26,7 @@ let nixpkgs_21_11 =
 	shellCopy = pkg: name: attr: sh: pkgs.runCommandLocal
 		name
 		({
-			src = pkg;
+			src = pkg.outPath;
 			buildInputs = pkg.buildInputs;
 		} // attr)
 		''
@@ -50,7 +50,6 @@ let nixpkgs_21_11 =
 			];
 		}
 		''
-			ls -la $out/bin/
 			patchelf --set-interpreter ${interpreter} $out/bin/*
 		'';
 
@@ -67,10 +66,9 @@ let nixpkgs_21_11 =
 
 		for pkg in "''${pkgs[@]}"; {
 			[[ "$pkg" == "" || "$pkg" == $'\n' ]] && continue
-			printf "working on %q\n..." "$pkg"
 
 			read -r name path <<< "$pkg"
-			cp -rf "$path/bin" "$out/name"
+			cp -rf "$path/bin" "$out/$name"
 		}
 	'';
 
