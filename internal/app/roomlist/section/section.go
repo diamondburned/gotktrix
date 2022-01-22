@@ -11,6 +11,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
+	"github.com/diamondburned/gotktrix/internal/config/kvstate"
 	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -121,6 +122,10 @@ type Section struct {
 	filtered bool
 }
 
+func acquireConfig(uID matrix.UserID) *kvstate.Config {
+	return kvstate.AcquireConfig("sections", gotktrix.Base64UserID(uID), "state.json")
+}
+
 // New creates a new deactivated section.
 func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	list := gtk.NewListBox()
@@ -138,10 +143,25 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	inner.Append(list)
 	inner.Append(minify)
 
+	client := gotktrix.FromContext(ctx)
+	cfg := acquireConfig(client.UserID)
+
+	var reveal bool
+	if !cfg.Get(string(tag), &reveal) {
+		reveal = true
+	}
+
 	rev := gtk.NewRevealer()
-	rev.SetRevealChild(true)
+	rev.SetRevealChild(reveal)
 	rev.SetTransitionType(gtk.RevealerTransitionTypeSlideDown)
 	rev.SetChild(inner)
+	rev.Connect("notify::reveal-child", func() {
+		if rev.RevealChild() {
+			cfg.Set(string(tag), nil)
+		} else {
+			cfg.Set(string(tag), false)
+		}
+	})
 
 	name := TagName(ctx, tag)
 
@@ -201,7 +221,6 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 		ctrl.OpenRoom(matrix.RoomID(row.Name()))
 	})
 
-	client := gotktrix.FromContext(ctx)
 	s.comparer = *NewComparer(client.Offline(), SortActivity, tag)
 
 	s.listBox.SetSortFunc(func(i, j *gtk.ListBoxRow) int {

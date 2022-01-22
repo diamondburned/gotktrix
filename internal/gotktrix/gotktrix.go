@@ -193,6 +193,11 @@ func (a *ClientAuth) LoginMethods() ([]matrix.LoginMethod, error) {
 	return a.c.Client.GetLoginMethods()
 }
 
+// Base64UserID creates a path-friendly base64 string from the given user ID.
+func Base64UserID(uID matrix.UserID) string {
+	return base64.URLEncoding.EncodeToString([]byte(uID))
+}
+
 type Client struct {
 	*gotrix.Client
 	*handler.Registry
@@ -237,7 +242,7 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 	}
 
 	// URLEncoding is path-safe; StdEncoding is not.
-	b64Username := base64.URLEncoding.EncodeToString([]byte(c.UserID))
+	b64Username := Base64UserID(c.UserID)
 
 	interceptor := httptrick.WrapInterceptor(&DefaultTransport)
 	c.ClientDriver = &http.Client{Transport: interceptor}

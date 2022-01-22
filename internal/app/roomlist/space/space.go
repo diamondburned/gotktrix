@@ -34,9 +34,10 @@ type List struct {
 	outer  *adaptive.Bin
 	inner  *gtk.Box // contains sections
 
-	space    spaceState
 	sections []*section.Section
-	rooms    map[matrix.RoomID]*room.Room
+
+	space spaceState
+	rooms map[matrix.RoomID]*room.Room
 }
 
 // Controller describes the controller requirement.

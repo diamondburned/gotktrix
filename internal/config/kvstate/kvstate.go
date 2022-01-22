@@ -11,8 +11,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/config"
 )
 
-// State is a single state configuration.
-type State struct {
+// Config is a single state configuration.
+type Config struct {
 	path  string
 	store config.ConfigStore
 
@@ -21,51 +21,109 @@ type State struct {
 	loaded bool
 }
 
-// NewConfigState is a convenient function around NewState.
-func NewConfigState(tails ...string) *State {
-	tails = append([]string{"app-state"}, tails...)
-	return newState(config.Path(tails...))
+// AcquireConfig creates a new Config instance.
+func AcquireConfig(tails ...string) *Config {
+	return acquireConfig(config.Path(tails...))
 }
 
-// newState creates a new state config.
-func newState(path string) *State {
-	s := State{path: path}
-	s.store = config.NewConfigStore(s.snapshotFunc)
-	return &s
+var registry = struct {
+	sync.RWMutex
+	cfgs map[string]*Config
+}{
+	cfgs: map[string]*Config{},
+}
+
+// acquireConfig creates a new state config.
+func acquireConfig(path string) *Config {
+	registry.RLock()
+	c, ok := registry.cfgs[path]
+	registry.RUnlock()
+
+	if ok {
+		return c
+	}
+
+	registry.Lock()
+	defer registry.Unlock()
+
+	c, ok = registry.cfgs[path]
+	if ok {
+		return c
+	}
+
+	c = &Config{path: path}
+	c.store = config.NewConfigStore(c.snapshotFunc)
+
+	registry.cfgs[path] = c
+	return c
 }
 
 // Get gets the value of the key.
-func (s *State) Get(key string, dst interface{}) {
-	s.mut.Lock()
-	s.load()
-	b := s.state[key]
-	s.mut.Unlock()
+func (c *Config) Get(key string, dst interface{}) bool {
+	c.mut.Lock()
+	c.load()
+	b, ok := c.state[key]
+	c.mut.Unlock()
+
+	if !ok {
+		return false
+	}
 
 	if err := json.Unmarshal(b, dst); err != nil {
-		log.Panicf("cannot unmarshal %q into %T: %v", b, dst, err)
-	}
-}
-
-// Set sets the value of the key.
-func (s *State) Set(key string, val interface{}) {
-	b, err := json.Marshal(val)
-	if err != nil {
-		log.Panicf("cannot marshal %T: %v", val, err)
+		log.Printf("cannot unmarshal %q into %T: %v", b, dst, err)
+		return false
 	}
 
-	s.mut.Lock()
-	s.load()
-	s.state[key] = b
-	s.mut.Unlock()
+	return true
 }
 
-func (s *State) load() {
-	if s.loaded {
+// Exists returns true if key exists.
+func (c *Config) Exists(key string) bool {
+	c.mut.Lock()
+	c.load()
+	_, ok := c.state[key]
+	c.mut.Unlock()
+
+	return ok
+}
+
+// Set sets the value of the key. If val = nil, then the key is deleted.
+func (c *Config) Set(key string, val interface{}) {
+	var b []byte
+	if val != nil {
+		var err error
+
+		b, err = json.Marshal(val)
+		if err != nil {
+			log.Panicf("cannot marshal %T: %v", val, err)
+		}
+	}
+
+	c.mut.Lock()
+	c.load()
+	if val == nil {
+		delete(c.state, key)
+	} else {
+		c.state[key] = b
+	}
+	c.mut.Unlock()
+
+	c.store.Save()
+}
+
+// Delete calls Set(key, nil).
+func (c *Config) Delete(key string) {
+	c.Set(key, nil)
+}
+
+func (c *Config) load() {
+	if c.loaded {
 		return
 	}
-	s.loaded = true
+	c.loaded = true
+	c.state = make(map[string]json.RawMessage)
 
-	f, err := os.Open(s.path)
+	f, err := os.Open(c.path)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			log.Println("cannot open preference:", err)
@@ -74,21 +132,28 @@ func (s *State) load() {
 	}
 	defer f.Close()
 
-	if err := json.NewDecoder(f).Decode(&s.state); err != nil {
-		log.Printf("preference %q has invalid JSON: %v", s.path, err)
+	if err := json.NewDecoder(f).Decode(&c.state); err != nil {
+		log.Printf("preference %q has invalid JSON: %v", c.path, err)
 		return
 	}
 }
 
-func (s *State) snapshotFunc() func() {
-	b, err := json.MarshalIndent(s.state, "", "\t")
+func (c *Config) snapshotFunc() func() {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+
+	if !c.loaded {
+		log.Panicf("cannot snapshot unloaded config %q", c.path)
+	}
+
+	b, err := json.MarshalIndent(c.state, "", "\t")
 	if err != nil {
 		log.Panicln("cannot marshal kvstate.State:", err)
 	}
 
 	return func() {
-		if err := config.WriteFile(s.path, b); err != nil {
-			log.Println("cannot save kvstate")
+		if err := config.WriteFile(c.path, b); err != nil {
+			log.Println("cannot save kvstate:", err)
 		}
 	}
 }

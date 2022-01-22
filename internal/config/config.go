@@ -84,7 +84,12 @@ func joinTails(dir string, tails []string) string {
 
 // WriteFile writes b to the file in path atomically.
 func WriteFile(path string, b []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp.*")
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return errors.Wrap(err, "cannot mkdir -p")
+	}
+
+	tmp, err := os.CreateTemp(dir, ".tmp.*")
 	if err != nil {
 		return errors.Wrap(err, "cannot mktemp")
 	}
