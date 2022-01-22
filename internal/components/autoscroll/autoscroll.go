@@ -170,5 +170,11 @@ func (w *Window) emitBottomed() {
 
 // SetChild sets the child of the ScrolledWindow.
 func (w *Window) SetChild(child gtk.Widgetter) {
-	w.view.SetChild(child)
+	_, scrollable := child.(gtk.Scrollabler)
+	if scrollable {
+		w.ScrolledWindow.SetChild(child)
+	} else {
+		w.view.SetChild(child)
+		w.ScrolledWindow.SetChild(w.view)
+	}
 }

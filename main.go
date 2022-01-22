@@ -19,6 +19,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/auth/syncbox"
 	"github.com/diamondburned/gotktrix/internal/app/blinker"
 	"github.com/diamondburned/gotktrix/internal/app/emojiview"
+	"github.com/diamondburned/gotktrix/internal/app/logui"
 	"github.com/diamondburned/gotktrix/internal/app/messageview"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
@@ -163,6 +164,7 @@ func main() {
 
 func activate(ctx context.Context, gtkapp *gtk.Application) {
 	adaptive.Init()
+	logui.BindDefaultLogger()
 
 	// Load saved preferences.
 	gtkutil.Async(ctx, func() func() {
@@ -312,6 +314,7 @@ func (m *manager) ready() {
 			gtkutil.MenuSeparator(""),
 			gtkutil.MenuItem(locale.S(m.ctx, "_Preferences"), "app.preferences"),
 			gtkutil.MenuItem(locale.S(m.ctx, "_About"), "app.about"),
+			gtkutil.MenuItem(locale.S(m.ctx, "_Logs"), "app.logs"),
 			gtkutil.MenuItem(locale.S(m.ctx, "_Quit"), "app.quit"),
 		}
 	})
@@ -366,6 +369,7 @@ func (m *manager) ready() {
 	gtkutil.BindActionMap(a.Window(), map[string]func(){
 		"app.preferences": func() { prefui.ShowDialog(m.ctx) },
 		"app.about":       func() { about.Show(m.ctx) },
+		"app.logs":        func() { logui.NewDefaultViewer(m.ctx).Show() },
 		"app.quit":        func() { a.Quit() },
 		"win.user-emojis": func() { emojiview.ForUser(m.ctx) },
 	})
