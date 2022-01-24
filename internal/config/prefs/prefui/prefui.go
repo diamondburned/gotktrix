@@ -64,6 +64,11 @@ var _ = cssutil.WriteCSS(`
 		color: mix(@theme_fg_color, @theme_bg_color, 0.15);
 	}
 
+	row.prefui-prop, list.prefui-section {
+		border: none;
+		background: none;
+	}
+
 	.prefui-section {
 		margin:  0 10px;
 		padding: 0;
