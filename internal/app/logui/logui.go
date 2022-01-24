@@ -7,11 +7,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/components/autoscroll"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
@@ -56,7 +56,7 @@ func NewBuffer() *Buffer {
 
 // Write implements io.Writer. It is thread-safe.
 func (b *Buffer) Write(bytes []byte) (int, error) {
-	gtkutil.InvokeMain(func() {
+	glib.IdleAdd(func() {
 		endIter := b.EndIter()
 		b.Insert(endIter, strings.ToValidUTF8(string(bytes), "\uFFFD"))
 
