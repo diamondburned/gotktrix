@@ -1312,3 +1312,14 @@ func roomIsDM(dir *event.DirectEvent, roomID matrix.RoomID) bool {
 	}
 	return false
 }
+
+// PushNotifyMessage returns true if msg is notified.
+func (c *Client) PushNotifyMessage(msg *event.RoomMessageEvent) bool {
+	e, err := c.State.UserEvent(event.TypePushRules)
+	if err != nil {
+		return false
+	}
+
+	rules := e.(*event.PushRulesEvent)
+	return event.PushNotifyMessage(rules.Global, msg)
+}

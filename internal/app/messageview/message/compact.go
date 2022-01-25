@@ -13,11 +13,6 @@ type collapsedMessage struct {
 	*message
 }
 
-const (
-	avatarSize  = 36
-	avatarWidth = avatarSize + 10*2 // keep consistent with CSS
-)
-
 var compactCSS = cssutil.Applier("message-collapsed", `
 	.message-collapsed {
 		padding-top:    2px;

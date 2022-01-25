@@ -17,13 +17,18 @@ type cozyMessage struct {
 	sender *gtk.Label
 }
 
+const (
+	avatarSize  = 36
+	avatarWidth = avatarSize + 8*2 // keep consistent with CSS
+)
+
 var _ = cssutil.WriteCSS(`
 	.message-cozy {
 		padding-top:    4px;
 		padding-bottom: 2px;
 	}
 	.message-cozy > box {
-		margin-left: 10px;
+		margin-left: 8px;
 	}
 	.message-cozy .message-timestamp {
 		margin-left: .5em;

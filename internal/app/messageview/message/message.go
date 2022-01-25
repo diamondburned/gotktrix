@@ -37,6 +37,11 @@ var messageCSS = cssutil.Applier("message-message", `
 	.message-message {
 		margin: 0;
 		padding-right: 8px;
+		border-left: 2px solid transparent;
+	}
+	.message-mentions {
+		border-left: 2px solid @theme_selected_bg_color;
+		background-color: alpha(@theme_selected_bg_color, 0.05);
 	}
 `)
 
@@ -74,15 +79,22 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, ev event.RoomEvent,
 		event:         ev,
 	}
 
+	var message Message
+
 	if ev, ok := ev.(*event.RoomMessageEvent); ok {
 		if lastIsAuthor(before, ev) {
-			return viewer.collapsedMessage(ev)
+			message = viewer.collapsedMessage(ev)
 		} else {
-			return viewer.cozyMessage(ev)
+			message = viewer.cozyMessage(ev)
 		}
+		if viewer.client().PushNotifyMessage(ev) {
+			gtk.BaseWidget(message).AddCSSClass("message-mentions")
+		}
+	} else {
+		message = viewer.eventMessage()
 	}
 
-	return viewer.eventMessage()
+	return message
 }
 
 const maxCozyAge = 10 * time.Minute

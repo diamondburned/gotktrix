@@ -2,6 +2,8 @@ module github.com/diamondburned/gotktrix
 
 go 1.17
 
+replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix v0.1.2-0.20220124212750-baf6b03eab9e
+
 require (
 	github.com/alecthomas/chroma v0.9.2
 	github.com/bbrks/go-blurhash v1.1.1
