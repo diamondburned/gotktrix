@@ -87,8 +87,12 @@ func NewCozyMessage(ctx context.Context, view MessageViewer, ev event.RoomEvent,
 		} else {
 			message = viewer.cozyMessage(ev)
 		}
-		if viewer.client().PushNotifyMessage(ev) {
-			gtk.BaseWidget(message).AddCSSClass("message-mentions")
+
+		client := viewer.client()
+
+		if client.NotifyMessage(ev, gotktrix.HighlightMessage) != 0 {
+			w := gtk.BaseWidget(message)
+			w.AddCSSClass("message-mentions")
 		}
 	} else {
 		message = viewer.eventMessage()

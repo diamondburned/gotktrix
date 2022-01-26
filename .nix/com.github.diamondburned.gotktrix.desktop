@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=gotktrix
+Comment=A Matrix client in Go and GTK4
+Exec=gotktrix
+Icon=com.github.diamondburned.gotktrix
+Terminal=false
+Type=Application
+Categories=GNOME;GTK;Chat;
+StartupNotify=true
+DBusActivatable=true
+X-GNOME-UsesNotifications=true

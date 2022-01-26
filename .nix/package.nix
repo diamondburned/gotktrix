@@ -1,29 +1,20 @@
 {
-	src ? ./..,
-	lib,
-	pkgs,
+	pkgs, lib,
+
+	gotktrixSrc ? ./..,
 	suffix ? "",
 	buildPkgs ? import ./pkgs.nix {}, # only for overriding
-	goPkgs    ? buildPkgs,
+	goPkgs ? buildPkgs,
 	wrapGApps ? true,
+	vendorSha256 ? "052cnzxnkk9q6hns8plhjx29sy7759mmg8hiazp5aa0cb00wd1dj",
 }:
 
-let desktopFile = pkgs.makeDesktopItem {
-    desktopName = "gotktrix";
-	icon = "gotktrix";
-	name = "gotktrix";
-	exec = "gotktrix";
-	categories = "GTK;GNOME;Chat;Network;";
-};
-
-in goPkgs.buildGoModule {
-	inherit src;
+goPkgs.buildGoModule {
+	src = gotktrixSrc;
+	inherit vendorSha256;
 
 	pname = "gotktrix" + suffix;
 	version = "0.0.1-tip";
-
-	# Bump this on go.mod change.
-	vendorSha256 = "0qzrljq8cdhl8jfpsdami68zlf2bsbjwbj1n2jamr3fd9y679n97";
 
 	buildInputs = with buildPkgs; [
 		gtk4
@@ -42,7 +33,7 @@ in goPkgs.buildGoModule {
 	preFixup = ''
 		mkdir -p $out/share/icons/hicolor/256x256/apps/ $out/share/applications/
 		# Install the desktop file
-		cp "${desktopFile}"/share/applications/* $out/share/applications/
+		cp "${./com.github.diamondburned.gotktrix.desktop}" $out/share/applications/
 		# Install the icon
 		cp "${../.github/logo-256.png}" $out/share/icons/hicolor/256x256/apps/gotktrix.png
 	'';

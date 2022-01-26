@@ -63,8 +63,10 @@ github.com/diamondburned/adaptive v0.0.2-0.20220104050111-af838c128399 h1:fqDh+P
 github.com/diamondburned/adaptive v0.0.2-0.20220104050111-af838c128399/go.mod h1:1bhSWaLf1C6TPd4YvkIvlPVkDKOXQZILBoWO0rWf9Jg=
 github.com/diamondburned/gotk4/pkg v0.0.0-20211231035909-9969b912d153 h1:WChqrh+WxFPDqwHDkm/J5TFjtUp9Io3RkqlqrAsg8NM=
 github.com/diamondburned/gotk4/pkg v0.0.0-20211231035909-9969b912d153/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotrix v0.1.2-0.20220124212750-baf6b03eab9e h1:uJV0T3glGznAX3AX8B3CRtR+RiKNJhCjZ/N36kgSLvc=
-github.com/diamondburned/gotrix v0.1.2-0.20220124212750-baf6b03eab9e/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
+github.com/diamondburned/gotk4/pkg v0.0.0-20220122220719-35ae0ab485d4 h1:aVHiabUvHMYghU5vGHyMCE85R3Y74PYAblt+qLkLfsQ=
+github.com/diamondburned/gotk4/pkg v0.0.0-20220122220719-35ae0ab485d4/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotrix v0.1.2-0.20220125231747-dfaf95cc325f h1:PX3DQeACdBSmqjv7vbc6s1itaDxmHsCt2NWWcFW2Uuw=
+github.com/diamondburned/gotrix v0.1.2-0.20220125231747-dfaf95cc325f/go.mod h1:KcGu7QS3aAPOKmV9pRsWBk6p20EOnh4n3PtDNW1AD+k=
 github.com/dlclark/regexp2 v1.4.0 h1:F1rxgk7p4uKjwIQxBs9oAXe5CqrXlCduYEJvrF4u93E=
 github.com/dlclark/regexp2 v1.4.0/go.mod h1:2pZnwuY/m+8K6iRw6wQdMtk+rH5tNGR1i55kozfMjCc=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=

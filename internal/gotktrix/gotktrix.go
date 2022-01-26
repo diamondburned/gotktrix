@@ -1313,13 +1313,60 @@ func roomIsDM(dir *event.DirectEvent, roomID matrix.RoomID) bool {
 	return false
 }
 
-// PushNotifyMessage returns true if msg is notified.
-func (c *Client) PushNotifyMessage(msg *event.RoomMessageEvent) bool {
+// NotifyMessageAction is a simple enum to determine what kind of notification
+// action the application should do.
+type NotifyMessageAction uint8
+
+const (
+	NotifyMessage NotifyMessageAction = 1 << iota
+	NotifySoundMessage
+	HighlightMessage
+)
+
+// NotifyMessage returns true if msg should be notified with action. The
+// returned NotifyMessageAction contains enabled bits for the actions that the
+// found rule wants.
+//
+// Note that this isn't perfect: only a single rule is accounted for, which is
+// the first one that happens to match the message, so some conditions may be
+// missed.
+func (c *Client) NotifyMessage(msg *event.RoomMessageEvent, action NotifyMessageAction) NotifyMessageAction {
+	if action == 0 {
+		return 0
+	}
+
 	e, err := c.State.UserEvent(event.TypePushRules)
 	if err != nil {
-		return false
+		return 0
 	}
 
 	rules := e.(*event.PushRulesEvent)
-	return event.PushNotifyMessage(rules.Global, msg)
+
+	rule, ok := event.PushNotifyMessage(rules.Global, msg)
+	if !ok {
+		return 0
+	}
+
+	var enabled NotifyMessageAction
+
+	if (action & NotifyMessage) != 0 {
+		switch rule.Actions.Action {
+		case matrix.NotifyAction, matrix.CoalesceAction:
+			enabled |= NotifyMessage
+		}
+	}
+
+	if (action & NotifySoundMessage) != 0 {
+		if _, ok := rule.Actions.Tweaks[matrix.SoundActionTweak]; ok {
+			enabled |= NotifySoundMessage
+		}
+	}
+
+	if (action & HighlightMessage) != 0 {
+		if rule.Actions.Highlight() {
+			enabled |= HighlightMessage
+		}
+	}
+
+	return enabled
 }

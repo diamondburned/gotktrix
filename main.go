@@ -140,7 +140,7 @@ func main() {
 		message.Catalog(locale.MustLoadLocales(locales)),
 	))
 
-	app := gtk.NewApplication(config.AppIDDot("gotktrix"), 0)
+	app := gtk.NewApplication(config.AppIDDot(), 0)
 	app.Connect("activate", func() { activate(ctx, app) })
 
 	go func() {
