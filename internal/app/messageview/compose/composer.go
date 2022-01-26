@@ -80,7 +80,7 @@ var composerCSS = cssutil.Applier("composer", `
 	.composer-action {
 		padding: 4px;
 		margin-top:   7px; /* why 7 */
-		margin-left:  14px;
+		margin-left:  12px;
 		margin-right: 8px;
 	}
 	.composer-input-placeholder {
