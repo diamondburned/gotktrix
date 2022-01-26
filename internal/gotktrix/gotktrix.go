@@ -595,21 +595,6 @@ func (c *Client) RoomIsSpace(roomID matrix.RoomID) bool {
 	return c.RoomType(roomID) == "m.space"
 }
 
-// RoomIsUnread returns true if the room with the given ID has not been read by
-// this user. The result of the unread boolean will always be valid, but if ok
-// is false, then it might not be accurate.
-func (c *Client) RoomIsUnread(roomID matrix.RoomID) (unread, ok bool) {
-	t, err := c.RoomTimeline(roomID)
-	if err != nil || len(t) == 0 {
-		// Nothing in the timeline. Assume the user has already caught up, since
-		// the room is empty.
-		return false, false
-	}
-
-	seen, ok := c.hasSeenEvent(roomID, t[len(t)-1].RoomInfo().ID)
-	return !seen, ok
-}
-
 func (c *Client) hasSeenEvent(roomID matrix.RoomID, eventID matrix.EventID) (seen, ok bool) {
 	e, _ := c.RoomEvent(roomID, m.FullyReadEventType)
 	if fullyRead, ok := e.(*m.FullyReadEvent); ok {
@@ -682,7 +667,11 @@ func (c *Client) RoomCountUnread(roomID matrix.RoomID) (n int, more bool) {
 	var found bool
 
 	c.EachTimelineReverse(roomID, func(ev event.RoomEvent) error {
-		if ev.RoomInfo().ID == latestID {
+		info := ev.RoomInfo()
+		// Treat the user's event as a read indicator as well, since it makes
+		// sense to assume that the user have read everything above the messages
+		// they sent.
+		if info.ID == latestID || info.Sender == c.UserID {
 			found = true
 			return EachBreak
 		}
