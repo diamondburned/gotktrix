@@ -51,18 +51,25 @@ var SyncOptions = gotrix.SyncOptions{
 			},
 		},
 	},
-	Timeout:        30 * time.Second,
+	Timeout:        1 * time.Minute,
 	MinBackoffTime: 1 * time.Second,
-	MaxBackoffTime: 5 * time.Second,
+	MaxBackoffTime: 10 * time.Second,
 }
 
 // DefaultTransport is the default HTTP transport configuration to use.
+//
+// A few notes:
+//
+//    - We use a high ResponseHeaderTimeout because the server presumably won't
+//      send us a header while it's preparing the response to be sent. We don't
+//      want to mark the connection as timed out.
+//
 var DefaultTransport = http.Transport{
 	Proxy:                 http.ProxyFromEnvironment,
 	ForceAttemptHTTP2:     true,
 	MaxIdleConns:          100,
 	TLSHandshakeTimeout:   10 * time.Second,
-	ResponseHeaderTimeout: 45 * time.Second,
+	ResponseHeaderTimeout: 5 * time.Minute,
 	WriteBufferSize:       256 << 10, // 256KB
 	ReadBufferSize:        256 << 10,
 	DialContext: (&net.Dialer{
