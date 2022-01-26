@@ -329,7 +329,7 @@ func (c *Client) AddSyncInterceptFull(f httptrick.InterceptFullFunc) func() {
 	return c.Interceptor.AddInterceptFull(
 		func(r *http.Request, next func() (*http.Response, error)) (*http.Response, error) {
 			// Beware: api.EndpointX doesn't have a prefixing slash!
-			if strings.HasPrefix(r.URL.Path, "/"+api.EndpointSync) {
+			if strings.HasPrefix(r.URL.Path, "/"+c.Endpoints.Sync()) {
 				return f(r, next)
 			}
 			return next()
@@ -699,7 +699,7 @@ func (c *Client) MarkRoomAsRead(roomID matrix.RoomID, eventID matrix.EventID) er
 	request.Read = eventID
 
 	return c.Request(
-		"POST", api.EndpointRoom(roomID)+"/read_markers",
+		"POST", c.Endpoints.Room(roomID)+"/read_markers",
 		nil, httputil.WithToken(), httputil.WithJSONBody(request),
 	)
 }
