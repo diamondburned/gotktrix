@@ -18,6 +18,24 @@ self: super: {
 	};
 	gotools = super.gotools; # TODO
 
+	dominikh = {
+		gotools = self.buildGoModule {
+			name = "dominikh-go-tools";
+
+			src = super.fetchFromGitHub {
+				owner  = "dominikh";
+				repo   = "go-tools";
+				rev    = "c8caa92bad8c27ae734c6725b8a04932d54a147b";
+				sha256 = "1yhbz2sf332b6i00slsj4cn8r66x27kddw5vcjygkkiyny1a99qb";
+			};
+
+			vendorSha256 = "09jbarlbq47pcxy5zkja8gqvnqjp2mpbxnciv9lhilw9swqqwc0j";
+
+			doCheck = false;
+			subPackages = [ "staticcheck" ];
+		};
+	};
+
 	# CAUTION, for when I return: uncommenting these will trigger rebuilding a lot of Rust
 	# dependencies, which will take forever! Don't do it!
 

@@ -1,6 +1,4 @@
-{
-	gotext ? false,
-}:
+{}:
 
 let src = import ./src.nix;
 
@@ -28,9 +26,8 @@ in shell.overrideAttrs (old: {
 		# Always use patched Go, since it's much faster.
 		goPkgs.go
 		goPkgs.gopls
-
-	] ++ lib.optional gotext [
-		pkgs.gotools
+		goPkgs.gotools
+		goPkgs.dominikh.gotools
 	];
 
 	# Workaround for the lack of wrapGAppsHook:
