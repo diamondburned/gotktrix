@@ -70,7 +70,8 @@ func (b htmlBox) SetExtraMenu(model gio.MenuModeller) {
 		case *textBlock:
 			block.SetExtraMenu(model)
 		case *quoteBlock:
-			block.text.SetExtraMenu(model)
+			box := htmlBox{block.state.parent, block.state.list}
+			box.SetExtraMenu(model)
 		case *codeBlock:
 			block.text.SetExtraMenu(model)
 		}
@@ -120,31 +121,44 @@ func renderHTML(ctx context.Context, roomID matrix.RoomID, htmlBody string) (Ren
 	}
 
 	// Auto-link all buffers.
-	for n := state.block.list.Front(); n != nil; n = n.Next() {
-		var text *textBlock
-
-		switch block := n.Value.(type) {
-		case *textBlock:
-			text = block
-		case *quoteBlock:
-			text = block.text
-		default:
-			continue
-		}
-
-		// Prevent some bugs where the TextView isn't sized properly.
-		text.QueueResize()
-
-		urls := autolink(text.buf)
-		if len(urls) == 0 {
-			continue
-		}
-
-		text.hasLink()
-		rendered.URLs = append(rendered.URLs, urls...)
-	}
+	autolinkBlock(state.block.list)
 
 	return rendered, true
+}
+
+func autolinkBlock(l *list.List) []string {
+	var allURLs []string
+
+	var each func(*list.List)
+	each = func(l *list.List) {
+		for n := l.Front(); n != nil; n = n.Next() {
+			var text *textBlock
+
+			switch block := n.Value.(type) {
+			case *textBlock:
+				text = block
+			case *quoteBlock:
+				each(block.state.list)
+				continue
+			default:
+				continue
+			}
+
+			// Prevent some bugs where the TextView isn't sized properly.
+			text.QueueResize()
+
+			urls := autolink(text.buf)
+			if len(urls) == 0 {
+				continue
+			}
+
+			text.hasLink()
+			allURLs = append(allURLs, urls...)
+		}
+	}
+
+	each(l)
+	return allURLs
 }
 
 type traverseStatus uint8
@@ -156,7 +170,7 @@ const (
 )
 
 type renderState struct {
-	block currentBlockState
+	block *currentBlockState
 
 	ctx  context.Context
 	room matrix.RoomID
@@ -184,6 +198,15 @@ func validQuoteParagraph(n *html.Node) bool {
 		// Add a new line if the previous tag may be a new line, but there's
 		// something else before it (probably 2 paragraph tags.)
 		(n.PrevSibling != nil && n.PrevSibling.PrevSibling != nil)
+}
+
+// withBlock creates a new renderState with the given block state.
+func (s *renderState) withBlock(block *currentBlockState) *renderState {
+	return &renderState{
+		block: block,
+		ctx:   s.ctx,
+		room:  s.room,
+	}
 }
 
 func (s *renderState) renderNode(n *html.Node) traverseStatus {
@@ -254,8 +277,11 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		// Block Elements.
 		case "blockquote":
-			s.block.quote()
-			s.traverseChildren(n)
+			quote := s.block.quote()
+
+			state := s.withBlock(quote.state)
+			state.traverseChildren(n)
+
 			s.block.finalizeBlock()
 			return traverseSkipChildren
 
@@ -529,20 +555,7 @@ func (s *renderState) endLine(n *html.Node, amount int) {
 		}
 	}
 
-	if amount < 1 {
-		return
-	}
-
-	switch block := s.block.current().(type) {
-	case *textBlock:
-		block.endLine(n, amount)
-	case *quoteBlock:
-		block.text.endLine(n, amount)
-	case *codeBlock:
-		block.text.endLine(n, amount)
-	default:
-		s.block.finalizeBlock()
-	}
+	s.block.endLine(n, amount)
 }
 
 // strIsSpaces retruns true if str is only whitespaces.

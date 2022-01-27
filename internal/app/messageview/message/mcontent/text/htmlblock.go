@@ -18,24 +18,31 @@ import (
 	"golang.org/x/net/html"
 )
 
-// currentBlock describes blocks of widgets that behave similarly to HTML block
-// elements. It does not have any concept of nesting, however, and nested HTML
-// blocks are flattened out, which will also erase its stylings.
-
 type currentBlockState struct {
 	context context.Context
+	table   *gtk.TextTagTable
+
 	parent  *gtk.Box
 	list    *list.List
 	element *list.Element
-	table   *gtk.TextTagTable
 }
 
-func newBlockState(ctx context.Context, parent *gtk.Box) currentBlockState {
-	return currentBlockState{
+func newBlockState(ctx context.Context, parent *gtk.Box) *currentBlockState {
+	return &currentBlockState{
 		context: ctx,
+		table:   gtk.NewTextTagTable(),
 		parent:  parent,
 		list:    list.New(),
-		table:   gtk.NewTextTagTable(),
+	}
+}
+
+// descend returns a new block that holds a new list and parent.
+func (s *currentBlockState) clone(parent *gtk.Box) *currentBlockState {
+	return &currentBlockState{
+		context: s.context,
+		table:   s.table,
+		parent:  parent,
+		list:    list.New(),
 	}
 }
 
@@ -54,7 +61,7 @@ func (s *currentBlockState) text() *textBlock {
 	case *codeBlock:
 		return block.text
 	case *quoteBlock:
-		return block.text
+		return block.state.text()
 	default:
 		// Everything else is not text.
 		return s.paragraph()
@@ -68,10 +75,27 @@ func (s *currentBlockState) richText() *textBlock {
 	case *textBlock:
 		return block
 	case *quoteBlock:
-		return block.text
+		return block.state.richText()
 	default:
 		// Everything else is not text.
 		return s.paragraph()
+	}
+}
+
+func (s *currentBlockState) endLine(n *html.Node, amount int) {
+	if amount < 1 {
+		return
+	}
+
+	switch block := s.current().(type) {
+	case *textBlock:
+		block.endLine(n, amount)
+	case *quoteBlock:
+		block.state.endLine(n, amount)
+	case *codeBlock:
+		block.text.endLine(n, amount)
+	default:
+		s.finalizeBlock()
 	}
 }
 
@@ -302,7 +326,7 @@ func (b *textBlock) insertNewLines(n int) {
 
 type quoteBlock struct {
 	*gtk.Box
-	text *textBlock
+	state *currentBlockState
 }
 
 var quoteBlockCSS = cssutil.Applier("mcontent-quote-block", `
@@ -319,15 +343,12 @@ var quoteBlockCSS = cssutil.Applier("mcontent-quote-block", `
 `)
 
 func newQuoteBlock(s *currentBlockState) *quoteBlock {
-	text := newTextBlock(s)
-
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
 	box.SetOverflow(gtk.OverflowHidden)
-	box.Append(text)
 
 	quote := quoteBlock{
-		Box:  box,
-		text: text,
+		Box:   box,
+		state: s.clone(box),
 	}
 	quoteBlockCSS(quote)
 	return &quote
