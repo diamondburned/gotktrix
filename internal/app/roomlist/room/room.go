@@ -118,14 +118,6 @@ type Section interface {
 	MoveRoomToTag(src matrix.RoomID, tag matrix.TagName) bool
 }
 
-// roomEvents is the list of room state events to subscribe to.
-var roomEvents = []event.Type{
-	event.TypeRoomName,
-	event.TypeRoomCanonicalAlias,
-	event.TypeRoomAvatar,
-	m.FullyReadEventType,
-}
-
 var showMessagePreview = prefs.NewBool(true, prefs.PropMeta{
 	Name:        "Message Preview",
 	Section:     "Rooms",

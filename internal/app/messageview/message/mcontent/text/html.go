@@ -578,11 +578,11 @@ func nodeNextSiblingIs(n *html.Node, flag nodeCheckFlag, data string) bool {
 	return nodeIsData(nodeNextSiblingFlag(n, flag), flag, data)
 }
 
-// nodeNextSiblingIsFunc asserts that the next node is either a tag or a text
-// node with the given function.
-func nodeNextSiblingIsFunc(n *html.Node, flag nodeCheckFlag, f func(string) bool) bool {
-	return nodeIsFunc(nodeNextSiblingFlag(n, flag), flag, f)
-}
+// // nodeNextSiblingIsFunc asserts that the next node is either a tag or a text
+// // node with the given function.
+// func nodeNextSiblingIsFunc(n *html.Node, flag nodeCheckFlag, f func(string) bool) bool {
+// 	return nodeIsFunc(nodeNextSiblingFlag(n, flag), flag, f)
+// }
 
 // nodeIsData is like nodeIsFunc but takes in a data.
 func nodeIsData(n *html.Node, flag nodeCheckFlag, data string) bool {
