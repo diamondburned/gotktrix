@@ -30,7 +30,7 @@ tasks:
   - build: |-
       # Everything in lint will require building the binary first, so we might
       # as well do it here.
-      [[ ! $GITHUB_EVENT || $GITHUB_EVENT == "release" ]] || exit
+      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || exit
 
       cd gotktrix
       nix-shell --run 'time go build -v ./...'
@@ -38,14 +38,14 @@ tasks:
   - lint: |-
       # Skip lint here because both vet and staticcheck require building all
       # dependencies.
-      [[ ! $GITHUB_EVENT || $GITHUB_EVENT == "release" ]] || exit
+      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || exit
 
       cd gotktrix
       nix-shell --run 'time go vet ./...'
       nix-shell --run 'time staticcheck -f stylish ./...'
 
   - artifact: |-
-      [[ ! $GITHUB_EVENT || $GITHUB_EVENT == "release" ]] || exit
+      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || exit
 
       cd gotktrix
       nix-shell --command '
