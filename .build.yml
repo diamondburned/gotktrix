@@ -7,13 +7,13 @@ packages:
   - nixos.gotools
   - nixos.goimports
 artifacts:
-  - gotktrix/gotktrix-nixos
-  - gotktrix/gotktrix
+  - artifacts/gotktrix
+  - artifacts/gotktrix-nixos
 tasks:
-  - format: |-
-      cd gotktrix
-      deps="$(for d in $(go list -f {{.Dir}} ./...); { goimports -l $d; })"
-      [[ ! "$deps" ]] || printf "Unformatted files: \n%s\n" "$deps"
+  - prepare: |-
+      mkdir artifacts
+      touch artifacts/gotktrix
+      touch artifacts/gotktrix-nixos
 
   - gomod: |-
       cd gotktrix
@@ -24,36 +24,32 @@ tasks:
         exit 1
       fi
 
-  - nix-init: |-
-      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || exit
+  - format: |-
+      cd gotktrix
+      deps="$(for d in $(go list -f {{.Dir}} ./...); { goimports -l $d; })"
+      [[ ! "$deps" ]] || printf "Unformatted files: \n%s\n" "$deps"
 
+  - release-check: |-
+      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || complete-build
+
+  - nix: |-
       cd gotktrix
       time nix-shell --run 'true'
 
   - build: |-
-      # Everything in lint will require building the binary first, so we might
-      # as well do it here.
-      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || exit
-
       cd gotktrix
       nix-shell --run 'time go build -v ./...'
 
   - lint: |-
-      # Skip lint here because both vet and staticcheck require building all
-      # dependencies.
-      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || exit
-
       cd gotktrix
       nix-shell --run 'time go vet ./...'
       nix-shell --run 'time staticcheck -f stylish ./...'
 
   - artifact: |-
-      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || exit
-
       cd gotktrix
       nix-shell --command '
-        go build -o gotktrix-nixos
+        go build -o ../artifacts/gotktrix-nixos
 
-        go build -o gotktrix
-        patchelf-x86_64 gotktrix
+        go build -o ../artifacts/gotktrix
+        patchelf-x86_64 ../artifacts/gotktrix
       '
