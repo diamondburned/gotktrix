@@ -32,7 +32,7 @@ self: super: {
 			vendorSha256 = "09jbarlbq47pcxy5zkja8gqvnqjp2mpbxnciv9lhilw9swqqwc0j";
 
 			doCheck = false;
-			subPackages = [ "staticcheck" ];
+			subPackages = [ "cmd/staticcheck" ];
 		};
 	};
 
