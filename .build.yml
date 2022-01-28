@@ -1,0 +1,56 @@
+image: "nixos/latest"
+sources:
+  - https://github.com/diamondburned/gotktrix
+packages:
+  - nixos.git
+artifacts:
+  - gotktrix/gotktrix-nixos
+  - gotktrix/gotktrix
+tasks:
+  - init: |-
+      cd gotktrix
+      time nix-shell --run 'true'
+
+  - gomod: |-
+      cd gotktrix
+      nix-shell --run 'go mod tidy'
+
+      if [[ $(git status --porcelain) ]]; then
+        git diff | cat
+        exit 1
+      fi
+
+  - format: |-
+      cd gotktrix
+      nix-shell --command '
+        deps="$(for d in $(go list -f {{.Dir}} ./...); { goimports -l $d; })"
+        [[ ! "$deps" ]] || printf "Unformatted files: \n%s\n" "$deps"
+      '
+
+  - build: |-
+      # Everything in lint will require building the binary first, so we might
+      # as well do it here.
+      [[ ! $GITHUB_EVENT || $GITHUB_EVENT == "release" ]] || exit
+
+      cd gotktrix
+      nix-shell --run 'time go build -v ./...'
+
+  - lint: |-
+      # Skip lint here because both vet and staticcheck require building all
+      # dependencies.
+      [[ ! $GITHUB_EVENT || $GITHUB_EVENT == "release" ]] || exit
+
+      cd gotktrix
+      nix-shell --run 'time go vet ./...'
+      nix-shell --run 'time staticcheck -f stylish ./...'
+
+  - artifact: |-
+      [[ ! $GITHUB_EVENT || $GITHUB_EVENT == "release" ]] || exit
+
+      cd gotktrix
+      nix-shell --command '
+        go build -o gotktrix-nixos
+
+        go build -o gotktrix
+        patchelf-x86_64 gotktrix
+      '
