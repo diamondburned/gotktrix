@@ -1,4 +1,10 @@
-self: super: {
+self: super:
+
+let patchelfer = arch: interpreter: super.writeShellScriptBin
+		"patchelf-${arch}"
+		"${super.patchelf}/bin/patchelf --set-interpreter ${interpreter} \"$@\"";
+	
+in {
 	go = super.go.overrideAttrs (old: {
 		version = "1.17.6";
 		src = builtins.fetchurl {
@@ -35,6 +41,9 @@ self: super: {
 			subPackages = [ "cmd/staticcheck" ];
 		};
 	};
+
+	patchelf-x86_64  = patchelfer "x86_64"  "/lib64/ld-linux-x86-64.so.2";
+	patchelf-aarch64 = patchelfer "aarch64" "/lib64/ld-linux-aarch64.so.1";
 
 	# CAUTION, for when I return: uncommenting these will trigger rebuilding a lot of Rust
 	# dependencies, which will take forever! Don't do it!

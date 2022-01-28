@@ -28,6 +28,9 @@ in shell.overrideAttrs (old: {
 		goPkgs.gopls
 		goPkgs.gotools
 		goPkgs.dominikh.gotools
+
+		patchelf-x86_64
+		patchelf-aarch64
 	];
 
 	# Workaround for the lack of wrapGAppsHook:
