@@ -19,10 +19,9 @@ in shell.overrideAttrs (old: {
 		graphene
 		gdk-pixbuf
 		gobjectIntrospection
-	];
 
-	nativeBuildInputs = with pkgs; [
 		pkgconfig
+
 		# Always use patched Go, since it's much faster.
 		goPkgs.go
 		goPkgs.gopls
