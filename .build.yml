@@ -1,31 +1,34 @@
-image: "nixos/latest"
+image: "nixos/unstable"
 sources:
   - https://github.com/diamondburned/gotktrix
 packages:
   - nixos.git
+  - nixos.go_1_17
+  - nixos.gotools
+  - nixos.goimports
 artifacts:
   - gotktrix/gotktrix-nixos
   - gotktrix/gotktrix
 tasks:
-  - init: |-
+  - format: |-
       cd gotktrix
-      time nix-shell --run 'true'
+      deps="$(for d in $(go list -f {{.Dir}} ./...); { goimports -l $d; })"
+      [[ ! "$deps" ]] || printf "Unformatted files: \n%s\n" "$deps"
 
   - gomod: |-
       cd gotktrix
-      nix-shell --run 'go mod tidy'
+      go mod tidy
 
       if [[ $(git status --porcelain) ]]; then
         git diff | cat
         exit 1
       fi
 
-  - format: |-
+  - nix-init: |-
+      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || exit
+
       cd gotktrix
-      nix-shell --command '
-        deps="$(for d in $(go list -f {{.Dir}} ./...); { goimports -l $d; })"
-        [[ ! "$deps" ]] || printf "Unformatted files: \n%s\n" "$deps"
-      '
+      time nix-shell --run 'true'
 
   - build: |-
       # Everything in lint will require building the binary first, so we might
