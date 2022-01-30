@@ -12,6 +12,8 @@ type Keyring struct {
 	id string
 }
 
+var ErrUnsupportedPlatform = keyring.ErrUnsupportedPlatform
+
 var _ Driver = (*Keyring)(nil)
 
 // KeyringDriver creates a new keyring driver.

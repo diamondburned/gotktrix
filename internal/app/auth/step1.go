@@ -17,7 +17,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/secret"
 	"github.com/pkg/errors"
-	"github.com/zalando/go-keyring"
 )
 
 const avatarSize = 32
@@ -140,7 +139,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 			minusChild()
 			defer wg.Done()
 
-			if errors.Is(err, keyring.ErrUnsupportedPlatform) {
+			if errors.Is(err, secret.ErrUnsupportedPlatform) {
 				// Invalidate the keyring now while we can. This will aid
 				// visually in step 4.
 				a.keyring = nil
