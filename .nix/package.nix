@@ -33,7 +33,7 @@ goPkgs.buildGoModule {
 	preFixup = ''
 		mkdir -p $out/share/icons/hicolor/256x256/apps/ $out/share/applications/
 		# Install the desktop file
-		cp "${./com.github.diamondburned.gotktrix.desktop}" $out/share/applications/
+		cp "${./com.github.diamondburned.gotktrix.desktop}" $out/share/applications/com.github.diamondburned.gotktrix.desktop
 		# Install the icon
 		cp "${../.github/logo-256.png}" $out/share/icons/hicolor/256x256/apps/gotktrix.png
 	'';
