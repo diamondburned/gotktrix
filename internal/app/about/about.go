@@ -12,7 +12,7 @@ func Show(ctx context.Context) *gtk.AboutDialog {
 	// TODO: add go.mod parsing for authors maybe
 
 	about := gtk.NewAboutDialog()
-	about.SetTransientFor(app.Window(ctx))
+	about.SetTransientFor(app.GTKWindowFromContext(ctx))
 	about.SetModal(true)
 	about.SetProgramName("gotktrix")
 	about.SetVersion("git") // TODO version

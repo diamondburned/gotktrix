@@ -291,8 +291,7 @@ func newFormatter(
 	globalTag.RUnlock()
 
 	if tokenTags == nil {
-		window := app.FromContext(ctx).Window()
-		isDark := markuputil.IsDarkTheme(&window.Widget)
+		isDark := markuputil.IsDarkTheme(app.GTKWindowFromContext(ctx))
 		tokenTags = defaultTagMap(isDark)
 	}
 

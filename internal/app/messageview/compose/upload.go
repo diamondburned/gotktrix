@@ -244,7 +244,7 @@ func (u uploader) promptUpload(file fileUpload) {
 	content.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	content.SetChild(bin)
 
-	d := dialogs.New(app.Window(u.ctx), "Cancel", "Upload")
+	d := dialogs.New(u.ctx, locale.S(u.ctx, "Cancel"), locale.S(u.ctx, "Upload"))
 	d.SetDefaultSize(300, 200)
 	d.SetTitle("Upload File")
 	d.SetChild(content)

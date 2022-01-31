@@ -13,6 +13,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/components/autoscroll"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 var (
@@ -70,8 +71,13 @@ func (b *Buffer) Write(bytes []byte) (int, error) {
 
 // Viewer is a TextView dialog that views a particular log buffer in real time.
 type Viewer struct {
-	*gtk.ApplicationWindow
+	*app.Window
 	TextView *gtk.TextView
+}
+
+// ShowDefaultViewer calls NewDefaultViewer then Show.
+func ShowDefaultViewer(ctx context.Context) {
+	NewDefaultViewer(ctx).Show()
 }
 
 // NewDefaultViewer creates a new viewer on the default buffer.
@@ -87,8 +93,6 @@ var _ = cssutil.WriteCSS(`
 
 // NewViewer creates a new log viewer dialog.
 func NewViewer(ctx context.Context, buffer *Buffer) *Viewer {
-	app := app.FromContext(ctx)
-
 	v := Viewer{}
 	v.TextView = gtk.NewTextViewWithBuffer(buffer.TextBuffer)
 	v.TextView.AddCSSClass("logui-textview")
@@ -101,10 +105,10 @@ func NewViewer(ctx context.Context, buffer *Buffer) *Viewer {
 	scroll.SetChild(v.TextView)
 	scroll.ScrollToBottom()
 
-	v.ApplicationWindow = gtk.NewApplicationWindow(app.Application)
+	v.Window = app.FromContext(ctx).NewWindow()
 	v.AddCSSClass("logui-viewer")
 	v.SetChild(scroll)
-	v.SetTitle("gotktrix logs")
+	v.SetTitle(locale.S(ctx, "gotktrix logs"))
 	v.SetDefaultSize(500, 400)
 
 	esc := gtk.NewEventControllerKey()

@@ -126,7 +126,7 @@ func (r *reactor) showEntry(parent gtk.Widgetter) *gtk.Entry {
 	b := adaptive.NewBin()
 	b.SetChild(entry)
 
-	d := dialogs.New(app.Window(r.ctx), "Cancel", "React")
+	d := dialogs.NewLocalize(r.ctx, "Cancel", "React")
 	d.SetTitle("React to Message")
 	d.SetDefaultSize(-1, -1)
 	d.SetChild(b)
@@ -206,7 +206,7 @@ func showMsgSource(ctx context.Context, event event.RoomEvent) {
 	}
 
 	d := gtk.NewDialog()
-	d.SetTransientFor(app.Window(ctx))
+	d.SetTransientFor(app.GTKWindowFromContext(ctx))
 	d.SetModal(true)
 	d.SetDefaultSize(400, 300)
 

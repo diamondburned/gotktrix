@@ -1,15 +1,23 @@
 package gtkutil
 
 import (
+	"encoding/json"
 	"log"
+	"reflect"
 	"strings"
-	"unicode"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
+
+// ActionFunc creates a CallbackActionFunc from a function.
+func ActionFunc(name string, f func()) *CallbackAction {
+	c := NewCallbackAction(name)
+	c.OnActivate(f)
+	return c
+}
 
 // CallbackAction extends SimpleAction to provide idiomatic callback APIs.
 type CallbackAction struct {
@@ -22,34 +30,15 @@ func NewCallbackAction(name string) *CallbackAction {
 	return &CallbackAction{a}
 }
 
-// ActionID transforms name into a viable action ID.
-//
-// Deprecated: using this harms localization.
-func ActionID(name string) string {
-	return strings.Map(func(r rune) rune {
-		switch {
-		case unicode.IsUpper(r):
-			return unicode.ToLower(r)
-		case unicode.IsLower(r):
-			return r
-		case r == '_':
-			return -1
-		default:
-			return '-'
-		}
-	}, name)
-}
-
-// ActionFunc creates a CallbackActionFunc from a function.
-func ActionFunc(name string, f func()) *CallbackAction {
-	c := NewCallbackAction(name)
-	c.OnActivate(f)
-	return c
+// NewCallbackActionParam creates a new CallbackAction with a single parameter.
+func NewCallbackActionParam(name string, paramType *glib.VariantType) *CallbackAction {
+	a := gio.NewSimpleAction(name, paramType)
+	return &CallbackAction{a}
 }
 
 // OnActivate binds the given function callback to be called when the action is
 // activated.
-func (a *CallbackAction) OnActivate(f func()) {
+func (a *CallbackAction) OnActivate(f interface{}) {
 	if f != nil {
 		a.SimpleAction.Connect("activate", f)
 	}
@@ -90,6 +79,79 @@ func BindActionMap(w gtk.Widgetter, m map[string]func()) {
 		}
 
 		group.AddAction(ActionFunc(parts[1], v))
+	}
+}
+
+// JSONVariantType is the GVariantType that describes the JSON argument that
+// NewJSONActionCallback outputs.
+var JSONVariantType = glib.NewVariantType("ay") // array of bytes
+
+// NewJSONVariant creates a new GVariant instance from any Go value that can be
+// encoded into JSON. If the value cannot be encoded, then the function panics.
+func NewJSONVariant(v interface{}) *glib.Variant {
+	b, err := json.Marshal(v)
+	if err != nil {
+		log.Panicln("cannot encode JSON for GVariant:", err.Error())
+		return nil
+	}
+	return glib.NewVariantBytestring(b)
+}
+
+// NewJSONActionCallback creates a new ActionCallback that uses JSON to marshal
+// and unmarshal data.
+func NewJSONActionCallback(f interface{}) ActionCallback {
+	funcType := reflect.TypeOf(f)
+	if funcType.Kind() != reflect.Func || funcType.NumIn() != 1 || funcType.NumOut() != 0 {
+		panic("f must be of type func(T)")
+	}
+
+	funcValue := reflect.ValueOf(f)
+	argType := funcType.In(0)
+
+	return ActionCallback{
+		ArgType: JSONVariantType,
+		Func: func(variant *glib.Variant) {
+			v := reflect.New(argType)
+			b := variant.Bytestring()
+
+			if err := json.Unmarshal(b, v.Interface()); err != nil {
+				log.Printf("received JSON action with invalid JSON %q: %v", b, err)
+				return
+			}
+
+			funcValue.Call([]reflect.Value{v.Elem()})
+		},
+	}
+}
+
+// ActionCallback is a type holding a callback with a GVariant argument and a
+// GVariantType field describing its internal structure.
+type ActionCallback struct {
+	Func    func(*glib.Variant)
+	ArgType *glib.VariantType
+}
+
+// BindActionCallbackMap is a moer verbose variant of BindActionMap.
+func BindActionCallbackMap(w gtk.Widgetter, m map[string]ActionCallback) {
+	actions := make(map[string]*gio.SimpleActionGroup)
+
+	for k, v := range m {
+		parts := strings.SplitN(k, ".", 2)
+		if len(parts) != 2 {
+			log.Panicf("invalid action key %q", k)
+		}
+
+		group, ok := actions[parts[0]]
+		if !ok {
+			group = gio.NewSimpleActionGroup()
+			gtk.BaseWidget(w).InsertActionGroup(parts[0], group)
+
+			actions[parts[0]] = group
+		}
+
+		action := gio.NewSimpleAction(parts[1], v.ArgType)
+		action.ConnectActivate(v.Func)
+		group.AddAction(action)
 	}
 }
 

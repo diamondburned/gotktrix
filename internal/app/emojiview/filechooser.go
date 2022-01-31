@@ -1,16 +1,19 @@
 package emojiview
 
 import (
+	"context"
+
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/components/filepick"
 )
 
-func newFileChooser(w *gtk.Window, done func([]string)) *filepick.FilePicker {
+func newFileChooser(ctx context.Context, done func([]string)) *filepick.FilePicker {
 	filter := gtk.NewFileFilter()
 	filter.AddMIMEType("image/*")
 
-	chooser := filepick.NewWithWindow(w, "Upload Emojis", gtk.FileChooserActionOpen, "Upload", "Cancel")
+	chooser := filepick.NewLocalize(
+		ctx, "Upload Emojis", gtk.FileChooserActionOpen, "Upload", "Cancel")
 	chooser.SetSelectMultiple(true)
 	chooser.AddFilter(filter)
 	chooser.ConnectAccept(func() {

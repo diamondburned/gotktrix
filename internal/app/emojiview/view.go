@@ -61,7 +61,7 @@ var nameAttrs = markuputil.Attrs(
 
 func dialog(ctx context.Context, v *View) {
 	dialog := gtk.NewDialog()
-	dialog.SetTransientFor(app.Window(ctx))
+	dialog.SetTransientFor(app.GTKWindowFromContext(ctx))
 	dialog.SetDefaultSize(400, 500)
 	dialog.SetChild(v)
 	dialog.SetTitle(app.SuffixedTitle("Add Emojis for " + v.name.Label()))
@@ -185,7 +185,7 @@ func new(ctx context.Context, roomID matrix.RoomID) *View {
 	})
 
 	addButton.Connect("clicked", func() {
-		chooser := newFileChooser(app.Window(ctx), view.addEmotesFromFiles)
+		chooser := newFileChooser(ctx, view.addEmotesFromFiles)
 		chooser.Show()
 	})
 
@@ -341,7 +341,7 @@ func (v *View) promptRenameEmojis(names []emojis.EmojiName) {
 	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	scroll.SetChild(listBox)
 
-	dialog := dialogs.New(app.Window(v.ctx.Take()), "Cancel", "Save")
+	dialog := dialogs.NewLocalize(v.ctx.Take(), "Cancel", "Save")
 	dialog.SetDefaultSize(300, 240)
 	dialog.SetTitle("Rename Emojis")
 	dialog.SetChild(scroll)

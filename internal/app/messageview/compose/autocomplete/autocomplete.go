@@ -317,7 +317,7 @@ func (a *Autocompleter) move(down bool) bool {
 
 	// Steal focus. This is a hack to scroll to the selected item without having
 	// to manually calculate the coordinates.
-	focused := gtk.BaseWidget(app.Window(a.parent).Focus())
+	focused := gtk.BaseWidget(app.WindowFromContext(a.parent).Focus())
 	a.listRows[ix].ListBoxRow.GrabFocus()
 	focused.GrabFocus()
 

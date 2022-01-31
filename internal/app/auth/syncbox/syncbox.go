@@ -30,7 +30,7 @@ var popupCSS = cssutil.Applier("syncbox-popup", `
 `)
 
 type Popup struct {
-	app     *app.Application
+	win     *app.Window
 	spinner *gtk.Spinner
 	label   *gtk.Label
 }
@@ -161,14 +161,14 @@ func Show(ctx context.Context, account *auth.Account) *Popup {
 	content.SetVAlign(gtk.AlignCenter)
 	popupCSS(content)
 
-	app := app.FromContext(ctx)
-	app.Window().SetChild(content)
-	app.NotifyChild(true, func() { spinner.Stop() })
+	win := app.WindowFromContext(ctx)
+	win.SetChild(content)
+	win.NotifyChild(true, spinner.Stop)
 
 	spinner.Start()
 
 	return &Popup{
-		app:     app,
+		win:     win,
 		spinner: spinner,
 		label:   loadLabel,
 	}
@@ -176,7 +176,7 @@ func Show(ctx context.Context, account *auth.Account) *Popup {
 
 // SetLabel sets the popup's label.
 func (p *Popup) SetLabel(text string) {
-	p.app.SetTitle(text)
+	p.win.SetTitle(text)
 	p.label.SetLabel(text)
 }
 

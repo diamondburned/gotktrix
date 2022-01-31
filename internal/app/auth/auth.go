@@ -54,7 +54,7 @@ func Show(ctx context.Context) *Assistant {
 // ShowWithClient creates a new authentication assistant with the given HTTP
 // client.
 func ShowWithClient(ctx context.Context, client httputil.Client) *Assistant {
-	ass := assistant.Use(app.FromContext(ctx).Window(), nil)
+	ass := assistant.Use(app.GTKWindowFromContext(ctx), nil)
 	ass.SetTitle("Getting Started")
 
 	a := Assistant{

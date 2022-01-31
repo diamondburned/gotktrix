@@ -22,6 +22,11 @@ goPkgs.buildGoModule {
 		graphene
 		gdk-pixbuf
 		gobjectIntrospection
+		hicolor-icon-theme
+
+		# Optional
+		sound-theme-freedesktop
+		libcanberra-gtk3
 	];
 
 	nativeBuildInputs = with pkgs; [

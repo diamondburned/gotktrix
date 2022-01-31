@@ -7,6 +7,8 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/config/prefs"
+	"github.com/diamondburned/gotktrix/internal/locale"
+	"golang.org/x/text/message"
 )
 
 var useNative = prefs.NewBool(true, prefs.PropMeta{
@@ -26,9 +28,16 @@ type FilePicker struct {
 	dialog dialog
 }
 
+// NewLocalize creates a new file chooser using the given message reference
+// strings localized using the given context.
+func NewLocalize(ctx context.Context, title message.Reference, action gtk.FileChooserAction, accept, cancel message.Reference) *FilePicker {
+	p := locale.SFunc(ctx)
+	return New(ctx, p(title), action, p(accept), p(cancel))
+}
+
 // New creates a new file chooser.
 func New(ctx context.Context, title string, action gtk.FileChooserAction, accept, cancel string) *FilePicker {
-	return NewWithWindow(app.Window(ctx), title, action, accept, cancel)
+	return NewWithWindow(app.GTKWindowFromContext(ctx), title, action, accept, cancel)
 }
 
 // NewWithWindow creates a file chooser with the given parent window.

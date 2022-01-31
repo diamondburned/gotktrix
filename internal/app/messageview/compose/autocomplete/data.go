@@ -63,7 +63,7 @@ var subNameAttrs = markuputil.Attrs(
 func (d RoomMemberData) Row(ctx context.Context) *gtk.ListBoxRow {
 	client := gotktrix.FromContext(ctx).Offline()
 	author := mauthor.Markup(client, d.Room, d.ID,
-		mauthor.WithWidgetColor(&app.Window(ctx).Widget),
+		mauthor.WithWidgetColor(&app.GTKWindowFromContext(ctx).Widget),
 		mauthor.WithMinimal(),
 	)
 

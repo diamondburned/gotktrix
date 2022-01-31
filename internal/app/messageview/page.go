@@ -329,7 +329,7 @@ func NewPage(ctx context.Context, parent *View, roomID matrix.RoomID) *Page {
 	p.scroll.OnBottomed(p.OnScrollBottomed)
 
 	p.ctx.OnRenew(func(ctx context.Context) func() {
-		w := app.Window(ctx)
+		w := app.GTKWindowFromContext(ctx)
 		h := w.Connect("notify::is-active", p.OnScrollBottomed)
 		return func() { w.HandlerDisconnect(h) }
 	})

@@ -173,6 +173,9 @@ func SignalToggler(signal string, f interface{}) func(obj coreglib.Objector) {
 func BindSubscribe(widget gtk.Widgetter, f func() (unsub func())) {
 	w := gtk.BaseWidget(widget)
 	var unsub func()
+	if w.Mapped() {
+		unsub = f()
+	}
 	w.ConnectMap(func() {
 		unsub = f()
 	})
@@ -202,12 +205,6 @@ func InvokeMain(f func()) {
 	})
 	<-done
 }
-
-// InMain returns true if the current execution thread is the main thread. It is
-// useful for guarding thread-unsafe init functions.
-// func InMain() bool {
-// 	return mainThread.IsOwner()
-// }
 
 // Async runs asyncFn in a goroutine and runs the returned callback in the main
 // thread. If ctx is cancelled during, the returned callback will not be called.

@@ -338,7 +338,6 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 		unread, more := client.RoomCountUnread(r.ID)
 
 		return func() {
-
 			// Only show the unread bar if we have unread messages, not unread
 			// any other events. We can do this by a comparison check: if there
 			// are less events than unread messages, then there's an unread
@@ -503,11 +502,7 @@ func (r *Room) promptReorder() {
 	box.Append(inputBox)
 	reorderDialog(box)
 
-	dialog := dialogs.New(
-		app.Window(ctx),
-		locale.S(ctx, "Discard"),
-		locale.S(ctx, "Save"),
-	)
+	dialog := dialogs.NewLocalize(ctx, "Discard", "Save")
 	dialog.SetDefaultSize(500, 225)
 	dialog.SetChild(box)
 	dialog.SetTitle("Reorder " + r.Name)

@@ -76,7 +76,7 @@ type eventRenderer struct {
 func (r eventRenderer) author(uID matrix.UserID, mods ...mauthor.MarkupMod) string {
 	mods = append(mods, mauthor.WithMinimal(), nil)
 	gtkutil.InvokeMain(func() {
-		mods[len(mods)-1] = mauthor.WithWidgetColor(app.Window(r.ctx))
+		mods[len(mods)-1] = mauthor.WithWidgetColor(app.WindowFromContext(r.ctx))
 	})
 
 	return mauthor.Markup(r.client, r.roomEv.RoomID, uID, mods...)

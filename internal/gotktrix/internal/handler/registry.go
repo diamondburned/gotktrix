@@ -74,6 +74,11 @@ func (r *Registry) OnSyncCh(ctx context.Context, ch chan<- *api.SyncResponse) {
 	}()
 }
 
+// SubscribeAllTimeline subscribes to the timeline of all rooms.
+func (r *Registry) SubscribeAllTimeline(f interface{}) func() {
+	return r.subscribeTimeline("*", f, handlerMeta{})
+}
+
 // SubscribeTimeline subscribes the given function to the timeline of a room. If
 // the returned callback is called, then the room is removed from the handlers.
 func (r *Registry) SubscribeTimeline(rID matrix.RoomID, f interface{}) func() {
@@ -200,40 +205,53 @@ func (r *Registry) invokeUser(raws []event.RawEvent) {
 }
 
 func (r *Registry) invokeRoomStripped(rID matrix.RoomID, stripped []event.StrippedEvent) {
-	rh, ok := r.roomFns[rID]
-	if !ok {
-		return
-	}
+	for _, id := range []matrix.RoomID{rID, "*"} {
+		rh, ok := r.roomFns[id]
+		if !ok {
+			continue
+		}
 
-	for _, raw := range stripped {
-		invokeHandlers(sys.ParseRoom(raw, rID), rh)
+		for _, raw := range stripped {
+			invokeHandlers(sys.ParseRoom(raw, rID), rh)
+		}
 	}
 }
 
 func (r *Registry) invokeRoom(rID matrix.RoomID, raws []event.RawEvent) {
-	rh, ok := r.roomFns[rID]
-	if !ok {
-		return
-	}
+	for _, id := range []matrix.RoomID{rID, "*"} {
+		rh, ok := r.roomFns[id]
+		if !ok {
+			continue
+		}
 
-	for _, ev := range sys.ParseAllRoom(raws, rID) {
-		invokeHandlers(ev, rh)
+		for _, ev := range sys.ParseAllRoom(raws, rID) {
+			invokeHandlers(ev, rh)
+		}
 	}
 }
 
 func (r *Registry) invokeTimeline(rID matrix.RoomID, raws []event.RawEvent) {
-	rh, ok := r.timeline[rID]
-	if !ok || len(raws) == 0 {
-		return
-	}
-
-	if rh.IsEmpty() {
+	if len(raws) == 0 {
 		return
 	}
 
 	if len(raws) > state.TimelineKeepLast {
 		// Only dispatch the latest 100 room events.
 		raws = raws[len(raws)-state.TimelineKeepLast:]
+	}
+
+	for _, id := range []matrix.RoomID{rID, "*"} {
+		if rh, ok := r.timeline[id]; ok {
+			r.invokeTimelineRegistry(rID, rh, raws)
+		}
+	}
+}
+
+func (r *Registry) invokeTimelineRegistry(
+	rID matrix.RoomID, rh registry.Registry, raws []event.RawEvent) {
+
+	if rh.IsEmpty() {
+		return
 	}
 
 	var evs []event.Event

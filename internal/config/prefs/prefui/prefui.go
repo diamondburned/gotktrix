@@ -163,7 +163,7 @@ func newDialog(ctx context.Context) *Dialog {
 	outerBox.Append(scroll)
 
 	d.Dialog = gtk.NewDialogWithFlags(
-		locale.S(ctx, "Preferences"), app.Window(ctx),
+		locale.S(ctx, "Preferences"), app.GTKWindowFromContext(ctx),
 		gtk.DialogDestroyWithParent|gtk.DialogUseHeaderBar,
 	)
 	d.Dialog.AddCSSClass("prefui-dialog")

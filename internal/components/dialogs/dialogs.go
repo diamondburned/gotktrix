@@ -1,8 +1,13 @@
 package dialogs
 
 import (
+	"context"
+
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotktrix/internal/locale"
+	"golang.org/x/text/message"
 )
 
 // Dialog provides a dialog with a headerbar.
@@ -13,14 +18,20 @@ type Dialog struct {
 	Cancel *gtk.Button
 }
 
+// NewLocalize creates a new dialog using message references as button labels.
+func NewLocalize(ctx context.Context, cancel, ok message.Reference) *Dialog {
+	p := locale.SFunc(ctx)
+	return New(ctx, p(cancel), p(ok))
+}
+
 // New creates a new dialog.
-func New(transientFor *gtk.Window, cancel, ok string) *Dialog {
+func New(ctx context.Context, cancel, ok string) *Dialog {
 	const dialogFlags = 0 |
 		gtk.DialogDestroyWithParent |
 		gtk.DialogModal |
 		gtk.DialogUseHeaderBar
 
-	dialog := gtk.NewDialogWithFlags("", transientFor, dialogFlags)
+	dialog := gtk.NewDialogWithFlags("", app.GTKWindowFromContext(ctx), dialogFlags)
 	dialog.SetDefaultSize(375, 500)
 
 	okBtn := dialog.AddButton(ok, int(gtk.ResponseOK)).(*gtk.Button)
