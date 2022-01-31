@@ -106,9 +106,13 @@ func (r *Registry) subscribeTimeline(rID matrix.RoomID, f interface{}, meta hand
 
 func valueRemover(mu *sync.Mutex, v *registry.Value) func() {
 	return func() {
-		mu.Lock()
-		v.Delete()
-		mu.Unlock()
+		// Workaround in some cases where the callback triggers a removal that
+		// acquires the same mutex.
+		go func() {
+			mu.Lock()
+			v.Delete()
+			mu.Unlock()
+		}()
 	}
 }
 

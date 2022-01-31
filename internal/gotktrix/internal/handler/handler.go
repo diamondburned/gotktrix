@@ -59,12 +59,14 @@ func (h eventHandlers) addEvsRm(types []event.Type, fn interface{}, meta handler
 	}
 
 	return func() {
-		h.mut.Lock()
-		defer h.mut.Unlock()
+		go func() {
+			h.mut.Lock()
+			defer h.mut.Unlock()
 
-		for _, elem := range elems {
-			elem.Delete()
-		}
+			for _, elem := range elems {
+				elem.Delete()
+			}
+		}()
 	}
 }
 
@@ -81,9 +83,11 @@ func (h eventHandlers) add(typ event.Type, fn interface{}, meta handlerMeta) *re
 func (h eventHandlers) addRm(typ event.Type, fn interface{}, meta handlerMeta) func() {
 	b := h.add(typ, fn, meta)
 	return func() {
-		h.mut.Lock()
-		b.Delete()
-		h.mut.Unlock()
+		go func() {
+			h.mut.Lock()
+			b.Delete()
+			h.mut.Unlock()
+		}()
 	}
 }
 
