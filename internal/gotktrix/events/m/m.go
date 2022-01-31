@@ -183,3 +183,10 @@ func DiscordMemberFromMatrix(m *event.RoomMemberEvent) *DiscordMember {
 	json.Unmarshal(raw, &member)
 	return member.Content.DiscordMember
 }
+
+// NotificationCount is the struct type inside
+// api.SyncJoinedRoomEvents.UnreadCount.
+type NotificationCount struct {
+	Highlight    int `json:"highlight_count,omitempty"`
+	Notification int `json:"notification_count,omitempty"`
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/db"
 	"github.com/pkg/errors"
@@ -533,6 +534,13 @@ func (s *State) IsDirect(roomID matrix.RoomID) (is, ok bool) {
 	return e.(*event.RoomMemberEvent).IsDirect, true
 }
 
+// RoomNotificationCount returns the notification count for the given room.
+func (s *State) RoomNotificationCount(roomID matrix.RoomID) m.NotificationCount {
+	var count m.NotificationCount
+	s.db.NodeFromPath(s.paths.rooms).Node(string(roomID)).GetAny("__unread_count", &count)
+	return count
+}
+
 // AddEvent sets the room state events inside a State to be returned by State later.
 func (s *State) AddEvents(sync *api.SyncResponse) error {
 	return s.top.TxUpdate(func(n db.Node) error {
@@ -559,6 +567,7 @@ func (s *State) AddEvents(sync *api.SyncResponse) error {
 			s.paths.setRaws(n, k, v.AccountData.Events, true)
 			s.paths.setSummary(n, k, v.Summary)
 			s.paths.setTimeline(n, k, v.Timeline)
+			s.paths.setRoomAny(n, k, "__unread_count", v.UnreadCount)
 		}
 
 		for k, v := range sync.Rooms.Invited {

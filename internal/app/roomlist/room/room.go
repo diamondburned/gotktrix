@@ -17,7 +17,6 @@ import (
 	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
 	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
@@ -81,7 +80,7 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 		padding-right: 0;
 		border-left:  2px solid transparent;
 	}
-	.room-unread-message .room-box {
+	.room-notified-message .room-box {
 		border-left:  2px solid @theme_fg_color;
 	}
 	.room-right {
@@ -99,6 +98,17 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 	.room-preview-extra {
 		color: alpha(@theme_fg_color, 0.75);
 		margin-left: 2px;
+	}
+	.room-highlighted-message {
+		/* See message/message.go @ messageCSS. */
+		background-color: alpha(@highlighted_message, 0.15);
+	}
+	.room-highlighted-message:hover,
+	.room-highlighted-message:focus {
+		background: mix(alpha(@highlighted_message, 0.15), @theme_fg_color, 0.15);
+	}
+	.room-highlighted-message .room-box {
+		border-color: @highlighted_message;
 	}
 `)
 
@@ -247,15 +257,10 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 
 		return gtkutil.FuncBatcher(
 			r.State.Subscribe(),
-			client.SubscribeTimelineSync(roomID, func(event.RoomEvent) {
+			client.SubscribeRoomSync(roomID, func() {
+				fn := r.invalidatePreview(ctx)
 				gtkutil.IdleCtx(ctx, func() {
-					r.InvalidatePreview(ctx)
-					r.Changed()
-				})
-			}),
-			client.SubscribeRoom(roomID, m.FullyReadEventType, func(ev event.Event) {
-				gtkutil.IdleCtx(ctx, func() {
-					r.InvalidatePreview(ctx)
+					fn()
 					r.Changed()
 				})
 			}),
@@ -324,57 +329,71 @@ func (r *Room) InvalidatePreview(ctx context.Context) {
 	// unmarshal a bunch of messages. This might make things arrive out of
 	// order, but honestly, whatever.
 	gtkutil.Async(ctx, func() func() {
-		client := gotktrix.FromContext(ctx)
-
-		first, extra := client.State.LatestInTimeline(r.ID, event.TypeRoomMessage)
-		if first == nil {
-			first, extra = client.State.LatestInTimeline(r.ID, "")
-		}
-		if first == nil {
-			return func() { r.erasePreview() }
-		}
-
-		preview := message.RenderEvent(ctx, first)
-		unread, more := client.RoomCountUnread(r.ID)
-
-		return func() {
-			// Only show the unread bar if we have unread messages, not unread
-			// any other events. We can do this by a comparison check: if there
-			// are less events than unread messages, then there's an unread
-			// message, otherwise if there's more, then we have none.
-			if extra < unread {
-				r.AddCSSClass("room-unread-message")
-			} else {
-				r.RemoveCSSClass("room-unread-message")
-			}
-
-			if unread == 0 {
-				r.RemoveCSSClass("room-unread-events")
-			} else {
-				r.AddCSSClass("room-unread-events")
-			}
-
-			switch {
-			case unread == 0:
-				r.name.unread.SetText("")
-			case more:
-				r.name.unread.SetText(fmt.Sprintf("(%d+)", unread-1))
-			default:
-				r.name.unread.SetText(fmt.Sprintf("(%d)", unread))
-			}
-
-			r.preview.label.SetMarkup(preview)
-			r.preview.label.SetTooltipMarkup(preview)
-			r.preview.Show()
-
-			r.preview.extra.SetVisible(showEventNum.Value())
-			if extra > 0 {
-				r.preview.extra.SetLabel(fmt.Sprintf("+%d events", extra))
-			} else {
-				r.preview.extra.SetLabel("")
-			}
-		}
+		return r.invalidatePreview(ctx)
 	})
+}
+
+// invalidatePreview is called asynchronously.
+func (r *Room) invalidatePreview(ctx context.Context) func() {
+	if !showMessagePreview.Value() {
+		return func() { r.erasePreview() }
+	}
+
+	client := gotktrix.FromContext(ctx)
+
+	first, extra := client.State.LatestInTimeline(r.ID, event.TypeRoomMessage)
+	if first == nil {
+		first, extra = client.State.LatestInTimeline(r.ID, "")
+	}
+	if first == nil {
+		return func() { r.erasePreview() }
+	}
+
+	preview := message.RenderEvent(ctx, first)
+	unread, more := client.RoomCountUnread(r.ID)
+	notifications := client.State.RoomNotificationCount(r.ID)
+
+	return func() {
+		if notifications.Notification > 0 {
+			r.AddCSSClass("room-notified-message")
+		} else {
+			r.RemoveCSSClass("room-notified-message")
+		}
+
+		if notifications.Highlight > 0 {
+			r.AddCSSClass("room-highlighted-message")
+		} else {
+			r.RemoveCSSClass("room-highlighted-message")
+		}
+
+		if unread == 0 {
+			r.RemoveCSSClass("room-unread-events")
+		} else {
+			r.AddCSSClass("room-unread-events")
+		}
+
+		switch {
+		case unread == 0:
+			r.name.unread.SetText("")
+		case more:
+			r.name.unread.SetText(fmt.Sprintf("(%d+)", unread-1))
+		default:
+			r.name.unread.SetText(fmt.Sprintf("(%d)", unread))
+		}
+
+		r.preview.label.SetMarkup(preview)
+		r.preview.label.SetTooltipMarkup(preview)
+		r.preview.Show()
+
+		showEventNum := showEventNum.Value()
+		r.preview.extra.SetVisible(showEventNum)
+
+		if showEventNum && extra > 0 {
+			r.preview.extra.SetLabel(locale.Sprintf(ctx, "+%d events", extra))
+		} else {
+			r.preview.extra.SetLabel("")
+		}
+	}
 }
 
 // SetOrder sets the room's order within the section it is in. If the order is

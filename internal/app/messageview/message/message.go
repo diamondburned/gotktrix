@@ -30,6 +30,8 @@ type Message interface {
 }
 
 var messageCSS = cssutil.Applier("message-message", `
+	@define-color highlighted_message @theme_selected_bg_color;
+
 	/* .message-collapsed */
 	/* .message-cozy */
 	/* .message-event */
@@ -40,8 +42,8 @@ var messageCSS = cssutil.Applier("message-message", `
 		border-left: 2px solid transparent;
 	}
 	.message-mentions {
-		border-left: 2px solid @theme_selected_bg_color;
-		background-color: alpha(@theme_selected_bg_color, 0.05);
+		border-left: 2px solid @highlighted_message;
+		background-color: alpha(@highlighted_message, 0.05);
 	}
 `)
 

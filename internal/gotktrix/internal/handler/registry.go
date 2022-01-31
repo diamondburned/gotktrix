@@ -127,6 +127,19 @@ func (r *Registry) SubscribeRoom(rID matrix.RoomID, typ event.Type, f interface{
 	return r.SubscribeRoomEvents(rID, []event.Type{typ}, f)
 }
 
+type roomSyncEvent struct{}
+
+const roomSyncEventType event.Type = "__roomSyncEvent"
+
+func (ev roomSyncEvent) Info() *event.EventInfo {
+	return &event.EventInfo{Type: roomSyncEventType}
+}
+
+// SubscribeRoomSync subscribes f to be called every time the room is synced.
+func (r *Registry) SubscribeRoomSync(rID matrix.RoomID, f func()) func() {
+	return r.SubscribeRoom(rID, roomSyncEventType, f)
+}
+
 // SubscribeRoomStateKey is similarly to SubscribeRoom, except it only filters
 // for the given state key.
 func (r *Registry) SubscribeRoomStateKey(
@@ -173,6 +186,7 @@ func (r *Registry) AddEvents(sync *api.SyncResponse) error {
 		r.invokeRoom(k, v.State.Events)
 		r.invokeRoom(k, v.Ephemeral.Events)
 		r.invokeRoom(k, v.AccountData.Events)
+		r.invokeRoomSingle(k, roomSyncEvent{})
 	}
 
 	for k, v := range sync.Rooms.Invited {
@@ -227,6 +241,17 @@ func (r *Registry) invokeRoom(rID matrix.RoomID, raws []event.RawEvent) {
 		for _, ev := range sys.ParseAllRoom(raws, rID) {
 			invokeHandlers(ev, rh)
 		}
+	}
+}
+
+func (r *Registry) invokeRoomSingle(rID matrix.RoomID, ev event.Event) {
+	for _, id := range []matrix.RoomID{rID, "*"} {
+		rh, ok := r.roomFns[id]
+		if !ok {
+			continue
+		}
+
+		invokeHandlers(ev, rh)
 	}
 }
 

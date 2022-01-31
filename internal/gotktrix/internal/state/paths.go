@@ -98,6 +98,12 @@ func (p *dbPaths) setSummary(n db.Node, roomID matrix.RoomID, s api.SyncRoomSumm
 	}
 }
 
+func (p *dbPaths) setRoomAny(n db.Node, roomID matrix.RoomID, k string, v interface{}) {
+	if err := n.FromPath(p.rooms).Node(string(roomID)).SetAny(k, v); err != nil {
+		log.Printf("failed to set room key %q: %v", k, err)
+	}
+}
+
 func (p *dbPaths) timelineNode(n db.Node, roomID matrix.RoomID) db.Node {
 	return n.FromPath(p.timelines).Node(string(roomID))
 }
