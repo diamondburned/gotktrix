@@ -349,7 +349,6 @@ func (r *Room) invalidatePreview(ctx context.Context) func() {
 		return func() { r.erasePreview() }
 	}
 
-	preview := message.RenderEvent(ctx, first)
 	unread, more := client.RoomCountUnread(r.ID)
 	notifications := client.State.RoomNotificationCount(r.ID)
 
@@ -381,6 +380,7 @@ func (r *Room) invalidatePreview(ctx context.Context) func() {
 			r.name.unread.SetText(fmt.Sprintf("(%d)", unread))
 		}
 
+		preview := message.RenderEvent(ctx, first)
 		r.preview.label.SetMarkup(preview)
 		r.preview.label.SetTooltipMarkup(preview)
 		r.preview.Show()
