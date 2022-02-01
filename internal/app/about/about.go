@@ -2,6 +2,8 @@ package about
 
 import (
 	"context"
+	"path"
+	"runtime/debug"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotktrix/internal/app"
@@ -23,7 +25,30 @@ func Show(ctx context.Context) *gtk.AboutDialog {
 		"diamondburned",
 		"chanbakjsd (library)",
 	})
+
+	build, ok := debug.ReadBuildInfo()
+	if !ok {
+		panic("gotktrix not build with module support")
+	}
+
+	about.AddCreditSection("Dependency Authors", modAuthors(build.Deps))
+
 	about.Show()
 
 	return about
+}
+
+func modAuthors(mods []*debug.Module) []string {
+	authors := make([]string, 0, len(mods))
+	authMap := make(map[string]struct{}, len(mods))
+
+	for _, mod := range mods {
+		author := path.Dir(mod.Path)
+		if _, ok := authMap[author]; !ok {
+			authors = append(authors, author)
+			authMap[author] = struct{}{}
+		}
+	}
+
+	return authors
 }
