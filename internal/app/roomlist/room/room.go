@@ -80,7 +80,7 @@ var roomBoxCSS = cssutil.Applier("room-box", `
 		padding-right: 0;
 		border-left:  2px solid transparent;
 	}
-	.room-notified-message .room-box {
+	.room-unread-message .room-box {
 		border-left:  2px solid @theme_fg_color;
 	}
 	.room-right {
@@ -349,10 +349,20 @@ func (r *Room) invalidatePreview(ctx context.Context) func() {
 		return func() { r.erasePreview() }
 	}
 
-	unread, more := client.RoomCountUnread(r.ID)
+	unread, _ := client.RoomCountUnread(r.ID)
 	notifications := client.State.RoomNotificationCount(r.ID)
 
 	return func() {
+		// Only show the unread bar if we have unread messages, not unread
+		// any other events. We can do this by a comparison check: if there
+		// are less events than unread messages, then there's an unread
+		// message, otherwise if there's more, then we have none.
+		if extra < unread {
+			r.AddCSSClass("room-unread-message")
+		} else {
+			r.RemoveCSSClass("room-unread-message")
+		}
+
 		if notifications.Notification > 0 {
 			r.AddCSSClass("room-notified-message")
 		} else {
@@ -371,13 +381,10 @@ func (r *Room) invalidatePreview(ctx context.Context) func() {
 			r.AddCSSClass("room-unread-events")
 		}
 
-		switch {
-		case unread == 0:
+		if notifications.Notification == 0 {
 			r.name.unread.SetText("")
-		case more:
-			r.name.unread.SetText(fmt.Sprintf("(%d+)", unread-1))
-		default:
-			r.name.unread.SetText(fmt.Sprintf("(%d)", unread))
+		} else {
+			r.name.unread.SetText(fmt.Sprintf("(%d)", notifications.Notification))
 		}
 
 		preview := message.RenderEvent(ctx, first)
