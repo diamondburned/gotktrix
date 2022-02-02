@@ -26,6 +26,12 @@ func Show(ctx context.Context) *gtk.AboutDialog {
 		"chanbakjsd (library)",
 	})
 
+	about.AddCreditSection("Sound Files", []string{
+		// https://directory.fsf.org/wiki/Sound-theme-freedesktop
+		"freedesktop.org",
+		"Lennart Poettering",
+	})
+
 	build, ok := debug.ReadBuildInfo()
 	if !ok {
 		panic("gotktrix not build with module support")

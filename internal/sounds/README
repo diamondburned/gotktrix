@@ -1,0 +1,6 @@
+Licenses:
+
+message.opus is taken from `sound-theme-freedesktop` at
+https://directory.fsf.org/wiki/Sound-theme-freedesktop. It is re-encoded from
+the original .oga file to a low bitrate .opus file. It is licensed under
+Creative Commons.

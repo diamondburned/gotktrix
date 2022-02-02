@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os/exec"
 	"strings"
 
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
+	"github.com/diamondburned/gotktrix/internal/sounds"
 )
 
 // MaxNotificationIconSize is the maximum size of the notification icon to give to
@@ -77,8 +76,8 @@ type NotificationSound string
 // Known notification sound constants.
 const (
 	NoNotificationSound      NotificationSound = ""
-	BellNotificationSound    NotificationSound = "bell"
-	MessageNotificationSound NotificationSound = "message"
+	BellNotificationSound    NotificationSound = sounds.Bell
+	MessageNotificationSound NotificationSound = sounds.Message
 )
 
 // NotificationID is a type for a notification ID. It exists so convenient
@@ -126,7 +125,7 @@ type Notification struct {
 // async returns true if the notification must be constructed within a
 // goroutine.
 func (n *Notification) async() bool {
-	return n.Sound != "" || (n.Icon != nil && n.Icon.async())
+	return (n.Icon != nil && n.Icon.async())
 }
 
 func (n *Notification) asGio() *gio.Notification {
@@ -175,17 +174,9 @@ func init() {
 }
 
 func (n *Notification) playSound() {
-	if n.Sound == NoNotificationSound || !playNotificationSound.Value() {
+	if playNotificationSound.Value() && n.Sound != NoNotificationSound {
+		sounds.Play(string(n.Sound))
 		return
-	}
-
-	// Try with canberra-gtk-theme.
-	canberra := exec.Command("canberra-gtk-play", "--id", string(n.Sound))
-	if err := canberra.Run(); err != nil {
-		log.Println("notifying using beep() because:", err)
-
-		disp := gdk.DisplayGetDefault()
-		disp.Beep()
 	}
 }
 
