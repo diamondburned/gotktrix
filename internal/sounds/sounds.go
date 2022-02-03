@@ -26,6 +26,7 @@ const (
 
 type mediaFile struct {
 	*gtk.MediaFile
+	ID    string
 	Error error
 }
 
@@ -35,22 +36,11 @@ var mediaFiles = map[string]mediaFile{}
 // ~/.cache/gotktrix/{id}.opus, then the embedded audio (if any), then
 // display.Beep() otherwise.
 func Play(id string) {
-	canberra := exec.Command("canberra-gtk-play", "--id", id)
-	if err := canberra.Run(); err == nil {
-		return
-	} else {
-		log.Println("canberra error:", err)
-	}
-
-	if filepath.Ext(id) == "" {
-		id += ".opus"
-	}
-
 	media, ok := mediaFiles[id]
 	if ok {
 		glib.IdleAdd(func() {
 			if media.Error != nil {
-				playEmbedError(id, media.Error)
+				playEmbedError(media.ID, media.Error)
 			} else {
 				media.Play()
 			}
@@ -58,11 +48,23 @@ func Play(id string) {
 		return
 	}
 
-	dst := config.CacheDir("sounds", id)
+	name := id
+	if filepath.Ext(name) == "" {
+		name += ".opus"
+	}
+
+	dst := config.CacheDir("sounds", name)
 
 	_, err := os.Stat(dst)
 	if err != nil {
-		if err := copyToFS(dst, id); err != nil {
+		canberra := exec.Command("canberra-gtk-play", "--id", id)
+		if err := canberra.Run(); err == nil {
+			return
+		} else {
+			log.Println("canberra error:", err)
+		}
+
+		if err := copyToFS(dst, name); err != nil {
 			log.Printf("cannot copy sound %q: %v", id, err)
 			glib.IdleAdd(beep)
 			return
@@ -73,6 +75,7 @@ func Play(id string) {
 		media := gtk.NewMediaFileForFilename(dst)
 		mediaFiles[id] = mediaFile{
 			MediaFile: media,
+			ID:        id,
 			Error:     nil,
 		}
 
