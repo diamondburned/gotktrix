@@ -1,4 +1,6 @@
-{
+let base = import ./package-base.nix;
+
+in {
 	pkgs, lib,
 
 	gotktrixSrc ? ./..,
@@ -6,32 +8,20 @@
 	buildPkgs ? import ./pkgs.nix {}, # only for overriding
 	goPkgs ? buildPkgs,
 	wrapGApps ? true,
-	vendorSha256 ? "052cnzxnkk9q6hns8plhjx29sy7759mmg8hiazp5aa0cb00wd1dj",
+	vendorSha256 ? base.vendorSha256,
 }:
 
 goPkgs.buildGoModule {
 	src = gotktrixSrc;
 	inherit vendorSha256;
+	inherit (base) version;
 
-	pname = "gotktrix" + suffix;
-	version = "0.0.1-tip";
+	pname = base.pname + suffix;
 
-	buildInputs = with buildPkgs; [
-		gtk4
-		glib
-		graphene
-		gdk-pixbuf
-		gobjectIntrospection
-		hicolor-icon-theme
+	buildInputs = base.buildInputs buildPkgs;
 
-		# Optional
-		sound-theme-freedesktop
-		libcanberra-gtk3
-	];
-
-	nativeBuildInputs = with pkgs; [
-		pkgconfig
-	] ++ (lib.optional wrapGApps [ pkgs.wrapGAppsHook ]);
+	nativeBuildInputs = base.nativeBuildInputs pkgs 
+		++ (lib.optional wrapGApps [ pkgs.wrapGAppsHook ]);
 
 	subPackages = [ "." ];
 

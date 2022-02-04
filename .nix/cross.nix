@@ -1,28 +1,6 @@
-let nixpkgs_21_11 =
-	let pkgs = import <nixpkgs> {};
-	in  pkgs.fetchFromGitHub {
-		owner = "NixOS";
-		repo  = "nixpkgs";
-		rev   = "8a70a6808c884282161bd77706927caeac0c11e8";
-		hash  = "sha256:1dcw9qxda18vnx0pis5xccn3ha9ds82l1r81k40l865am8507sj5";
-	};
-
-	pkgs' = override: import nixpkgs_21_11 (override // {
-		overlays = [ (import ./overlay.nix) ];
-	});
-
-	pkgs = pkgs' {};
-	qemuPkgs = system: pkgs' { inherit system; };
-
+let pkgs = import ./pkgs.nix {};
 	lib = pkgs.lib;
 	
-	package = pkgs: name: pkgs.callPackage ./package.nix {
-		suffix = if (name == "") then "" else "-" + name;
-		buildPkgs = pkgs;
-		wrapGApps = false;
-		gotktrixSrc = ./..;
-	};
-
 	shellCopy = pkg: name: attr: sh: pkgs.runCommandLocal
 		name
 		({
@@ -43,8 +21,8 @@ let nixpkgs_21_11 =
 	} "";
 
 	withPatchelf = patchelf: pkg: shellCopy pkg
-		"${pkg.name}-${patchelf.name}" 
-		"${patchelf.name}/bin/${patchelf.name} $out/bin/*";
+		"${pkg.name}-${patchelf.name}" {}
+		"${patchelf}/bin/${patchelf.name} $out/bin/*";
 
 	output = name: packages: pkgs.runCommandLocal name {
 		# Join the object of name to packages into a line-delimited list of strings.
@@ -61,22 +39,28 @@ let nixpkgs_21_11 =
 			[[ "$pkg" == "" || "$pkg" == $'\n' ]] && continue
 
 			read -r name path <<< "$pkg"
-			cp -rf "$path/bin" "$out/$name"
+			cp -rf "$path/bin/gotktrix" "$out/gotktrix-$name"
 		}
 	'';
 
 	basePkgs = {
-		native  = package (pkgs) "";
-		aarch64 = package (qemuPkgs "aarch64-linux") "aarch64-linux";
+		native = pkgs.callPackage ./package.nix {
+			buildPkgs = pkgs;
+			wrapGApps = false;
+		};
+		aarch64 = import ./cross-package.nix {
+			GOOS        = "linux";
+			GOARCH      = "arm64";
+			system      = "aarch64-linux";
+			crossSystem = "aarch64-unknown-linux-gnu";
+		};
 	};
 
 	outputs = with pkgs; {
-		# Assume native is x86_64.
-		native-nixos = wrapGApps basePkgs.native;
-		native       = withPatchelf patchelf-x86_64 basePkgs.native;
-		# Build aarch64 using QEMU and binfmt. I should probaly figure out pkgsCross.
-		aarch64-nixos = wrapGApps basePkgs.aarch64;
-		aarch64       = withPatchelf patchelf-aarch64 basePkgs.aarch64;
+		nixos-x86_64  = wrapGApps basePkgs.native;
+		linux-x86_64  = withPatchelf patchelf-x86_64 basePkgs.native;
+		nixos-aarch64 = wrapGApps basePkgs.aarch64;
+		linux-aarch64 = withPatchelf patchelf-aarch64 basePkgs.aarch64;
 	};
 
 in output "gotktrix-cross" outputs
