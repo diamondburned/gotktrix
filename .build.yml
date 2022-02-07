@@ -19,6 +19,10 @@ tasks:
       touch artifacts/gotktrix-nixos-aarch64
       touch artifacts/gotktrix-linux-aarch64
 
+  - github-debug: |- # REMOVEME
+      echo "$GITHUB_DELIVERY"
+      echo "$GITHUB_REF"
+
   - gomod: |-
       cd gotktrix
       go mod tidy
