@@ -1,4 +1,4 @@
-let pkgs = import ./pkgs.nix {};
+let pkgs = import ./pkgs.nix { useFetched = true; };
 	lib = pkgs.lib;
 	
 	shellCopy = pkg: name: attr: sh: pkgs.runCommandLocal
