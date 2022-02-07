@@ -7,13 +7,17 @@ packages:
   - nixos.gotools
   - nixos.goimports
 artifacts:
-  - artifacts/gotktrix
-  - artifacts/gotktrix-nixos
+  - artifacts/gotktrix-nixos-x86_64
+  - artifacts/gotktrix-linux-x86_64
+  - artifacts/gotktrix-nixos-aarch64
+  - artifacts/gotktrix-linux-aarch64
 tasks:
   - prepare: |-
       mkdir artifacts
-      touch artifacts/gotktrix
-      touch artifacts/gotktrix-nixos
+      touch artifacts/gotktrix-nixos-x86_64
+      touch artifacts/gotktrix-linux-x86_64
+      touch artifacts/gotktrix-nixos-aarch64
+      touch artifacts/gotktrix-linux-aarch64
 
   - gomod: |-
       cd gotktrix
@@ -32,24 +36,19 @@ tasks:
   - release-check: |-
       [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || complete-build
 
-  - nix: |-
-      cd gotktrix
-      time nix-shell --run 'true'
-
-  - build: |-
-      cd gotktrix
-      nix-shell --run 'time go build -v ./...'
-
-  - lint: |-
-      cd gotktrix
-      nix-shell --run 'time go vet ./...'
-      nix-shell --run 'time staticcheck -f stylish ./...'
+  # - nix: |-
+  #     cd gotktrix
+  #     time nix-shell --run 'true'
+  #
+  # - build: |-
+  #     cd gotktrix
+  #     nix-shell --run 'time go build -v ./...'
+  #
+  # - lint: |-
+  #     cd gotktrix
+  #     nix-shell --run 'time go vet ./...'
+  #     nix-shell --run 'time staticcheck -f stylish ./...'
 
   - artifact: |-
       cd gotktrix
-      nix-shell --command '
-        go build -o ../artifacts/gotktrix-nixos
-
-        go build -o ../artifacts/gotktrix
-        patchelf-x86_64 ../artifacts/gotktrix
-      '
+      nix-build -j1 .nix/cross.nix
