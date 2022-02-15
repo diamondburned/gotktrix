@@ -45,6 +45,9 @@ var messageCSS = cssutil.Applier("message-message", `
 		border-left: 2px solid @highlighted_message;
 		background-color: alpha(@highlighted_message, 0.05);
 	}
+	.message-blurred {
+		opacity: 0.5;
+	}
 `)
 
 // MessageViewer describes the parent that holds messages.
@@ -153,7 +156,6 @@ func (m *message) LoadMore() {
 }
 
 func (m *message) setBlur(parent gtk.Widgetter, blur bool) {
-	gtk.BaseWidget(m.content).SetSensitive(!blur)
 	setBlurClass(m.content, blur)
 }
 
