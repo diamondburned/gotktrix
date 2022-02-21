@@ -155,7 +155,7 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 	c.send = gtk.NewButtonFromIconName(sendIcon)
 	c.send.SetTooltipText("Send")
 	c.send.SetHasFrame(false)
-	c.send.Connect("clicked", func() { c.input.Send() })
+	c.send.ConnectClicked(func() { c.input.Send() })
 	sendCSS(c.send)
 
 	c.Box = gtk.NewBox(gtk.OrientationHorizontal, 0)
@@ -177,7 +177,7 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 		Func: func() { c.uploader().ask() },
 	}
 
-	c.action.Connect("clicked", func() { c.action.current() })
+	c.action.ConnectClicked(func() { c.action.current() })
 	c.setAction(c.action.upload)
 
 	return &c

@@ -59,7 +59,7 @@ func WithApplication(ctx context.Context, app *Application) context.Context {
 	ctx = context.WithValue(ctx, applicationKey, app)
 
 	ctx, cancel := context.WithCancel(ctx)
-	app.Connect("shutdown", cancel)
+	app.ConnectShutdown(cancel)
 
 	return ctx
 }
@@ -150,7 +150,7 @@ func filterAndLogErrors(prefix string, errors []error) []error {
 
 // ConnectActivate connects f to be called when Application is activated.
 func (app *Application) ConnectActivate(f func(ctx context.Context)) {
-	app.Application.Connect("activate", func() {
+	app.Application.ConnectActivate(func() {
 		if app.ctx == nil {
 			panic("unreachable")
 		}

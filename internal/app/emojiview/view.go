@@ -173,7 +173,7 @@ func new(ctx context.Context, roomID matrix.RoomID) *View {
 		return view.search == "" || strings.Contains(row.Name(), view.search)
 	})
 
-	renameButton.Connect("clicked", func() {
+	renameButton.ConnectClicked(func() {
 		selected := list.SelectedRows()
 		names := make([]emojis.EmojiName, len(selected))
 
@@ -184,12 +184,12 @@ func new(ctx context.Context, roomID matrix.RoomID) *View {
 		view.promptRenameEmojis(names)
 	})
 
-	addButton.Connect("clicked", func() {
+	addButton.ConnectClicked(func() {
 		chooser := newFileChooser(ctx, view.addEmotesFromFiles)
 		chooser.Show()
 	})
 
-	delButton.Connect("clicked", func() {
+	delButton.ConnectClicked(func() {
 		for _, row := range list.SelectedRows() {
 			delete(view.emojis, emojis.EmojiName(row.Name()))
 			list.Remove(&row)
@@ -198,7 +198,7 @@ func new(ctx context.Context, roomID matrix.RoomID) *View {
 		syncButton.SetSensitive(true)
 	})
 
-	syncButton.Connect("clicked", func(syncButton *gtk.Button) {
+	syncButton.ConnectClicked(func() {
 		syncButton.SetSensitive(false)
 		busy.Start()
 		busy.Show()
@@ -347,8 +347,8 @@ func (v *View) promptRenameEmojis(names []emojis.EmojiName) {
 	dialog.SetChild(scroll)
 	dialog.Show()
 
-	dialog.Cancel.Connect("clicked", dialog.Close)
-	dialog.OK.Connect("clicked", func() {
+	dialog.Cancel.ConnectClicked(dialog.Close)
+	dialog.OK.ConnectClicked(func() {
 		for _, rename := range renames {
 			v.renameEmoji(rename.name, newEmojiName(rename.entry.Text()))
 		}
@@ -444,8 +444,8 @@ func (v *View) addEmotesFromfile(path string) {
 
 	ctx, cancel := context.WithCancel(v.ctx.Take())
 
-	emoji.action.Connect("clicked", func(action *gtk.Button) {
-		action.SetSensitive(false)
+	emoji.action.ConnectClicked(func() {
+		emoji.action.SetSensitive(false)
 		cancel()
 	})
 

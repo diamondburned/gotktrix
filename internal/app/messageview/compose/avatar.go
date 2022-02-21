@@ -80,7 +80,7 @@ func NewAvatar(ctx context.Context, roomID matrix.RoomID) *Avatar {
 		)
 	})
 
-	button.Connect("clicked", func() {
+	button.ConnectClicked(func() {
 		if avatar.menuItems == nil {
 			return
 		}

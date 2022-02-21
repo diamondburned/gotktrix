@@ -498,7 +498,7 @@ func (r *Room) promptReorder() {
 
 	var resetting bool
 
-	reset.Connect("toggled", func() {
+	reset.ConnectToggled(func() {
 		resetting = reset.Active()
 		// Disable the spinner if we're resetting.
 		spin.SetSensitive(!resetting)
@@ -533,11 +533,11 @@ func (r *Room) promptReorder() {
 	dialog.SetChild(box)
 	dialog.SetTitle("Reorder " + r.Name)
 
-	dialog.Cancel.Connect("clicked", func() {
+	dialog.Cancel.ConnectClicked(func() {
 		dialog.Close()
 	})
 
-	dialog.OK.Connect("clicked", func() {
+	dialog.OK.ConnectClicked(func() {
 		dialog.Close()
 		if resetting {
 			r.SetOrder(-1)
@@ -579,7 +579,7 @@ func (r *Room) moveToSectionBox() gtk.Widgetter {
 	entry.SetInputPurpose(gtk.InputPurposeFreeForm)
 	entry.SetInputHints(gtk.InputHintSpellcheck | gtk.InputHintEmoji)
 	entry.SetMaxLength(255 - len("u."))
-	entry.Connect("activate", func() {
+	entry.ConnectActivate(func() {
 		text := entry.Text()
 		if text != "" {
 			r.section.MoveRoomToTag(r.ID, matrix.TagName("u."+string(text)))

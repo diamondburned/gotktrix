@@ -299,7 +299,7 @@ var errNilPixbuf = errors.New("nil pixbuf")
 
 func readPixbuf(r io.Reader, opts *opts) (*gdkpixbuf.Pixbuf, error) {
 	loader := gdkpixbuf.NewPixbufLoader()
-	loader.Connect("size-prepared", func(loader *gdkpixbuf.PixbufLoader, w, h int) {
+	loader.ConnectSizePrepared(func(w, h int) {
 		if opts.w > 0 && opts.h > 0 {
 			if w != opts.w || h != opts.h {
 				w, h = gotktrix.MaxSize(w, h, opts.w, opts.h)

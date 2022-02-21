@@ -136,7 +136,7 @@ func newImageEmbed(name string, maxW, maxH int) *imageEmbed {
 	e.Button.SetChild(e.image)
 	e.Button.SetTooltipText(name)
 	e.Button.SetSensitive(false)
-	e.Button.Connect("clicked", func() { e.openURL() })
+	e.Button.ConnectClicked(func() { e.openURL() })
 	imageCSS(e.Button)
 
 	return e

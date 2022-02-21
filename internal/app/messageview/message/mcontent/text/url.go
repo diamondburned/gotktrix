@@ -186,11 +186,11 @@ func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
 	}
 
 	motion := gtk.NewEventControllerMotion()
-	motion.Connect("leave", func() {
+	motion.ConnectLeave(func() {
 		unhover()
 		iters = [2]*gtk.TextIter{}
 	})
-	motion.Connect("motion", func(x, y float64) {
+	motion.ConnectMotion(func(x, y float64) {
 		u := checkURL(x, y)
 		if u == lastURL {
 			return

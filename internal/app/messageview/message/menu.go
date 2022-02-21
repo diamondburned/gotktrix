@@ -132,7 +132,7 @@ func (r *reactor) showEntry(parent gtk.Widgetter) *gtk.Entry {
 	d.SetChild(b)
 	d.Show()
 
-	d.Cancel.Connect("clicked", d.Close)
+	d.Cancel.ConnectClicked(d.Close)
 
 	submit := func() {
 		text := entry.Text()
@@ -143,8 +143,8 @@ func (r *reactor) showEntry(parent gtk.Widgetter) *gtk.Entry {
 		d.Close()
 	}
 
-	d.OK.Connect("clicked", submit)
-	entry.Connect("activate", submit)
+	d.OK.ConnectClicked(submit)
+	entry.ConnectActivate(submit)
 
 	return entry
 }

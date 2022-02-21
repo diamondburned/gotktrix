@@ -214,7 +214,7 @@ func newReaction(ctx context.Context, ev *m.ReactionEvent) *reaction {
 	reaction.update(ctx, ev.Sender, ev.ID)
 
 	// Use the first ever reaction event for this key as the event to send over.
-	btn.Connect("clicked", func() { reaction.react(ctx, ev) })
+	btn.ConnectClicked(func() { reaction.react(ctx, ev) })
 
 	return &reaction
 }

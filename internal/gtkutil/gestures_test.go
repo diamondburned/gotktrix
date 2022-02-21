@@ -7,12 +7,12 @@ import (
 
 func ExampleBindRightClick() {
 	app := gtk.NewApplication("com.github.diamondburned.gotk4-examples.gtk4.simple", 0)
-	app.Connect("activate", func() {
+	app.ConnectActivate(func() {
 		l := gtk.NewLabel("Right click or hold me.")
 
 		b := gtk.NewButtonWithLabel("Reset")
 		b.SetSensitive(false)
-		b.Connect("clicked", func() {
+		b.ConnectClicked(func() {
 			l.SetLabel("Right click or hold me.")
 			b.SetSensitive(false)
 		})

@@ -102,8 +102,8 @@ func NewInput(ctx context.Context, ctrl InputController, roomID matrix.RoomID) *
 
 	i.buffer = i.TextView.Buffer()
 
-	i.buffer.Connect("changed", func(buffer *gtk.TextBuffer) {
-		md.WYSIWYG(ctx, buffer)
+	i.buffer.ConnectChanged(func() {
+		md.WYSIWYG(ctx, i.buffer)
 		i.acomp.Autocomplete()
 	})
 

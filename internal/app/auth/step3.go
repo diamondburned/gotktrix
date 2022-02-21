@@ -62,7 +62,7 @@ func hasLoginMethod(methods []matrix.LoginMethod, method matrix.LoginMethod) boo
 func loginMethodButton(a *Assistant, method matrix.LoginMethod, big, small string) *gtk.Button {
 	button := gtk.NewButton()
 	button.SetChild(bigSmallTitleBox(big, small))
-	button.Connect("clicked", methodToggler(a, method))
+	button.ConnectClicked(methodToggler(a, method))
 	return button
 }
 

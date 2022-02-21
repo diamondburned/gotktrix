@@ -191,8 +191,8 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 			tailbox.Append(errLabel)
 			tailbox.Append(box)
 
-			password.Connect("activate", func() { button.Activate() })
-			button.Connect("clicked", func() {
+			password.ConnectActivate(func() { button.Activate() })
+			button.ConnectClicked(func() {
 				// Populate the encryption for step 4.
 				a.encrypt = secret.EncryptedFileDriver(password.Text(), encryptionPath)
 				// Add to the waitgroup and wait until decryption is done.
@@ -283,7 +283,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 		}()
 	}
 
-	accountList.Connect("row-activated", func(accountList *gtk.ListBox, row *gtk.ListBoxRow) {
+	accountList.ConnectRowActivated(func(row *gtk.ListBoxRow) {
 		switch ix := row.Index(); {
 		case ix == len(a.accounts):
 			a.signinPage()

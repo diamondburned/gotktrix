@@ -298,7 +298,7 @@ func newRememberMeBox(a *Assistant) *rememberMeBox {
 		passInner.SetHAlign(gtk.AlignCenter)
 		rememberMePasswordCSS(passInner)
 
-		passEntry.Connect("activate", func() {
+		passEntry.ConnectActivate(func() {
 			// Enter key activates.
 			passPrompt.Response(int(gtk.ResponseAccept))
 		})

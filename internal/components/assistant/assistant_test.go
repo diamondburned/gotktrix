@@ -58,7 +58,7 @@ func (l *Login) Passhash() string {
 
 func Example() {
 	app := gtk.NewApplication("com.github.diamondburned.example-app", 0)
-	app.Connect("activate", func(app *gtk.Application) {
+	app.ConnectActivate(func(app *gtk.Application) {
 		login := NewLogin()
 
 		window := gtk.NewApplicationWindow(app)

@@ -40,7 +40,14 @@ func NewCallbackActionParam(name string, paramType *glib.VariantType) *CallbackA
 // activated.
 func (a *CallbackAction) OnActivate(f interface{}) {
 	if f != nil {
-		a.SimpleAction.Connect("activate", f)
+		a.SimpleAction.ConnectActivate(func(variant *glib.Variant) {
+			switch f := f.(type) {
+			case func():
+				f()
+			case func(*glib.Variant):
+				f(variant)
+			}
+		})
 	}
 }
 

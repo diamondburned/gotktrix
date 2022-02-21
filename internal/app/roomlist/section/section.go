@@ -217,7 +217,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 		}
 	})
 
-	s.listBox.Connect("row-activated", func(list *gtk.ListBox, row *gtk.ListBoxRow) {
+	s.listBox.ConnectRowActivated(func(row *gtk.ListBoxRow) {
 		ctrl.OpenRoom(matrix.RoomID(row.Name()))
 	})
 

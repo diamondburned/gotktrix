@@ -132,7 +132,7 @@ func Use(window *gtk.Window, steps []*Step) *Assistant {
 		current:   -1,
 	}
 
-	cancel.Connect("clicked", func() {
+	cancel.ConnectClicked(func() {
 		if a.cancelState.cancel != nil {
 			a.cancelState.cancel()
 			a.cancel.SetSensitive(false)
@@ -152,7 +152,7 @@ func Use(window *gtk.Window, steps []*Step) *Assistant {
 		window.Close()
 	})
 
-	ok.Connect("clicked", func() {
+	ok.ConnectClicked(func() {
 		if a.current < 0 {
 			return
 		}

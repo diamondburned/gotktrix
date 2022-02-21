@@ -57,7 +57,7 @@ func NewWithWindow(parent *gtk.Window, title string, action gtk.FileChooserActio
 			gtk.DialogUseHeaderBar|gtk.DialogModal|gtk.DialogDestroyWithParent)
 		dialog.SetDefaultSize(750, 550)
 		dialog.SetChild(w)
-		dialog.Connect("response", dialog.Destroy)
+		dialog.ConnectResponse(func(int) { dialog.Destroy() })
 
 		p.FileChooser = &w.FileChooser
 		p.dialog = dialog

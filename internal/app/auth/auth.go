@@ -152,10 +152,10 @@ func (a *Assistant) makeInputs(names ...string) (gtk.Widgetter, []*gtk.Entry) {
 		if i < len(names)-1 {
 			// Enter moves to the next entry.
 			next := i + 1
-			entry.Connect("activate", func() { entries[next].GrabFocus() })
+			entry.ConnectActivate(func() { entries[next].GrabFocus() })
 		} else {
 			// Enter hits the OK button.
-			entry.Connect("activate", func() { a.OKButton().Activate() })
+			entry.ConnectActivate(func() { a.OKButton().Activate() })
 		}
 
 		box.Append(label)

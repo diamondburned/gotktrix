@@ -494,13 +494,11 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	click := gtk.NewGestureClick()
 	click.SetButton(gdk.BUTTON_PRIMARY)
 	click.SetExclusive(true)
-	click.Connect("pressed", func() bool {
+	click.ConnectPressed(func(n int, x, y float64) {
 		// TODO: don't handle this on a touchscreen.
 		if !expand.Active() {
 			expand.Activate()
-			return true
 		}
-		return false
 	})
 	clickOverlay.AddController(click)
 
