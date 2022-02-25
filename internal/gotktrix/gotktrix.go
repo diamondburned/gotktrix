@@ -68,8 +68,9 @@ var DefaultTransport = http.Transport{
 	Proxy:                 http.ProxyFromEnvironment,
 	ForceAttemptHTTP2:     true,
 	MaxIdleConns:          100,
+	IdleConnTimeout:       90 * time.Second,
 	TLSHandshakeTimeout:   10 * time.Second,
-	ResponseHeaderTimeout: 5 * time.Minute,
+	ExpectContinueTimeout: 1 * time.Second,
 	WriteBufferSize:       256 << 10, // 256KB
 	ReadBufferSize:        256 << 10,
 	DialContext: (&net.Dialer{
