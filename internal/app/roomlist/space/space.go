@@ -102,7 +102,7 @@ func New(ctx context.Context, ctrl Controller) *List {
 	l.SearchBar.SetSearchMode(false)
 	l.SearchBar.SetShowCloseButton(false)
 	l.SearchBar.SetChild(searchEntry)
-	l.SearchBar.Connect("notify::search-mode-enabled", func() {
+	l.SearchBar.NotifyProperty("search-mode-enabled", func() {
 		if !l.SearchBar.SearchMode() {
 			l.Search("")
 		}

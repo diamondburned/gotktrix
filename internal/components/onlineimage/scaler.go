@@ -53,7 +53,7 @@ func (p *pixbufScaler) init(parent *baseImage) {
 	p.parentSz = [2]int{w, h}
 
 	base := gtk.BaseWidget(parent)
-	base.Connect("notify::scale-factor", func() {
+	base.NotifyProperty("scale-factor", func() {
 		gtkutil.SetScaleFactor(gtk.BaseWidget(p.parent).ScaleFactor())
 		p.Invalidate()
 	})

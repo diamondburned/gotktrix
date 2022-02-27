@@ -74,7 +74,7 @@ func newRevealButton(rev *gtk.Revealer, name string) *iconButton {
 
 	icon := button.icon
 
-	button.Connect("toggled", func(button *gtk.ToggleButton) {
+	button.ConnectToggled(func() {
 		reveal := button.Active()
 		rev.SetRevealChild(reveal)
 		icon.SetFromIconName(revealIconName(reveal))

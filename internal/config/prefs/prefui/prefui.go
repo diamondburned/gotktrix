@@ -154,7 +154,7 @@ func newDialog(ctx context.Context) *Dialog {
 	searchButton.ConnectClicked(func() {
 		d.search.SetSearchMode(searchButton.Active())
 	})
-	d.search.Connect("notify::search-mode-enabled", func() {
+	d.search.NotifyProperty("search-mode-enabled", func() {
 		searchButton.SetActive(d.search.SearchMode())
 	})
 

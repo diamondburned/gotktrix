@@ -445,7 +445,7 @@ func NewRadioButtons(d RadioData, f func(int)) gtk.Widgetter {
 		i := i
 
 		radio := gtk.NewCheckButtonWithLabel(opt)
-		radio.Connect("toggled", func() {
+		radio.ConnectToggled(func() {
 			if radio.Active() {
 				f(i)
 			}

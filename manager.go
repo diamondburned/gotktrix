@@ -95,7 +95,7 @@ func (m *manager) ready() {
 
 	// Keep the button updated when the user activates search without it.
 	roomSearchBar := m.roomList.SearchBar()
-	roomSearchBar.Connect("notify::search-mode-enabled", func() {
+	roomSearchBar.NotifyProperty("search-mode-enabled", func() {
 		roomSearch.SetActive(roomSearchBar.SearchMode())
 	})
 	// Reveal or close the search bar when the button is toggled.

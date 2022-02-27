@@ -28,11 +28,11 @@ func NewDragSourceWithContent(w gtk.Widgetter, a gdk.DragAction, v interface{}) 
 	widget := gtk.BaseWidget(w)
 
 	paint := gtk.NewWidgetPaintable(w)
-	drag.Connect("drag-begin", func() {
+	drag.ConnectDragBegin(func(gdk.Dragger) {
 		widget.AddCSSClass("dragging")
 		drag.SetIcon(paint, 0, 0)
 	})
-	drag.Connect("drag-end", func() {
+	drag.ConnectDragEnd(func(gdk.Dragger, bool) {
 		widget.RemoveCSSClass("dragging")
 	})
 
@@ -69,14 +69,14 @@ func BindDragDrop(w gtk.Widgetter, a gdk.DragAction, dst interface{}, f func(gtk
 // NewListDropTarget creates a new DropTarget that highlights the row.
 func NewListDropTarget(l *gtk.ListBox, typ coreglib.Type, actions gdk.DragAction) *gtk.DropTarget {
 	drop := gtk.NewDropTarget(typ, actions)
-	drop.Connect("motion", func(drop *gtk.DropTarget, x, y float64) gdk.DragAction {
+	drop.ConnectMotion(func(x, y float64) gdk.DragAction {
 		if row := l.RowAtY(int(y)); row != nil {
 			l.DragHighlightRow(row)
 			return actions
 		}
 		return 0
 	})
-	drop.Connect("leave", func() {
+	drop.ConnectLeave(func() {
 		l.DragUnhighlightRow()
 	})
 	return drop
@@ -275,7 +275,7 @@ func initScale() {
 	initScaleOnce.Do(func() {
 		InvokeMain(func() {
 			dmanager := gdk.DisplayManagerGet()
-			dmanager.Connect("display-opened", func() {
+			dmanager.ConnectDisplayOpened(func(*gdk.Display) {
 				bindDisplayManager(dmanager)
 			})
 			bindDisplayManager(dmanager)
@@ -301,7 +301,7 @@ func bindDisplay(display *gdk.Display) {
 	display.ConnectClosed(func(bool) { delete(boundDisplays, dname) })
 
 	monitors := display.Monitors()
-	monitors.Connect("items-changed", func() { updateScale(monitors) })
+	monitors.ConnectItemsChanged(func(_, _, _ uint) { updateScale(monitors) })
 	updateScale(monitors)
 }
 

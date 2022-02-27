@@ -95,7 +95,7 @@ func show(parent *gtk.Window, errors []error, done func()) {
 	windows[parent] = state
 
 	state.cycle()
-	dialog.Connect("response", state.cycle)
+	dialog.ConnectResponse(func(int) { state.cycle() })
 
 	dialog.Show()
 }

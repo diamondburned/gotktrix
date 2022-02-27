@@ -113,7 +113,7 @@ func New(ctx context.Context, text *gtk.TextView, f SelectedFunc) *Autocompleter
 		searchers: make(map[rune]Searcher),
 	}
 
-	list.Connect("row-activated", func(list *gtk.ListBox, row *gtk.ListBoxRow) {
+	list.ConnectRowActivated(func(row *gtk.ListBoxRow) {
 		ac.selectRow(row)
 	})
 

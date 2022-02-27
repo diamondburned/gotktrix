@@ -79,7 +79,7 @@ func Play(id string) {
 			Error:     nil,
 		}
 
-		media.Connect("notify::error", func() {
+		media.NotifyProperty("error", func() {
 			f := mediaFiles[id]
 			f.Error = media.Error()
 			mediaFiles[id] = f

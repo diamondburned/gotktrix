@@ -549,7 +549,7 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	expand.ConnectClicked(toggleExpand)
 
 	// Workaround for issue https://gitlab.gnome.org/GNOME/gtk/-/issues/3515.
-	vadj.Connect("notify::upper", func() {
+	vadj.NotifyProperty("upper", func() {
 		upperHeight := codeUpperHeight.Value()
 		lowerHeight := codeLowerHeight.Value()
 		if upperHeight < lowerHeight {

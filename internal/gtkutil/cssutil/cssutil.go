@@ -39,7 +39,7 @@ func Applyf(widget gtk.Widgetter, f string, v ...interface{}) {
 // Apply applies the given CSS into the given widget's style context.
 func Apply(widget gtk.Widgetter, css string) {
 	prov := gtk.NewCSSProvider()
-	prov.Connect("parsing-error", func(sec *gtk.CSSSection, err error) {
+	prov.ConnectParsingError(func(sec *gtk.CSSSection, err error) {
 		loc := sec.StartLocation()
 		lines := strings.Split(css, "\n")
 		log.Printf(
@@ -81,7 +81,7 @@ func ApplyGlobalCSS() {
 		globalCSS := globalCSS.String()
 
 		prov := gtk.NewCSSProvider()
-		prov.Connect("parsing-error", func(sec *gtk.CSSSection, err error) {
+		prov.ConnectParsingError(func(sec *gtk.CSSSection, err error) {
 			loc := sec.StartLocation()
 
 			lines := strings.Split(globalCSS, "\n")

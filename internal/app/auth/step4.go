@@ -248,7 +248,7 @@ func newRememberMeBox(a *Assistant) *rememberMeBox {
 	var useKeyring *gtk.CheckButton
 	if a.keyring != nil {
 		useKeyring = gtk.NewCheckButtonWithLabel("System Keyring")
-		useKeyring.Connect("toggled", func(useKeyring *gtk.CheckButton) {
+		useKeyring.ConnectToggled(func() {
 			state.keyring = useKeyring.Active()
 		})
 
@@ -256,7 +256,7 @@ func newRememberMeBox(a *Assistant) *rememberMeBox {
 	}
 
 	encryptFile := gtk.NewCheckButtonWithLabel("Encrypted File")
-	encryptFile.Connect("toggled", func(encryptFile *gtk.CheckButton) {
+	encryptFile.ConnectToggled(func() {
 		if !encryptFile.Active() {
 			state.encrypt = false
 			return
@@ -303,7 +303,7 @@ func newRememberMeBox(a *Assistant) *rememberMeBox {
 			passPrompt.Response(int(gtk.ResponseAccept))
 		})
 
-		passPrompt.Connect("response", func(passPrompt *gtk.Dialog, id int) {
+		passPrompt.ConnectResponse(func(id int) {
 			defer passPrompt.Close()
 
 			password := passEntry.Text()
@@ -330,7 +330,7 @@ func newRememberMeBox(a *Assistant) *rememberMeBox {
 	revealer.SetChild(box)
 
 	rememberMe := gtk.NewCheckButtonWithLabel("Remember Me")
-	rememberMe.Connect("toggled", func(rememberMe *gtk.CheckButton) {
+	rememberMe.ConnectToggled(func() {
 		isActive := rememberMe.Active()
 		revealer.SetRevealChild(isActive)
 

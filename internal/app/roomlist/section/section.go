@@ -155,7 +155,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	rev.SetRevealChild(reveal)
 	rev.SetTransitionType(gtk.RevealerTransitionTypeSlideDown)
 	rev.SetChild(inner)
-	rev.Connect("notify::reveal-child", func() {
+	rev.NotifyProperty("reveal-child", func() {
 		if rev.RevealChild() {
 			cfg.Set(string(tag), nil)
 		} else {
@@ -239,8 +239,8 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 
 	// default drag-and-drop mode.
 	drop := gtk.NewDropTarget(glib.TypeString, gdk.ActionMove)
-	drop.Connect("drop", func(_ *gtk.DropTarget, v *glib.Value) bool {
-		srcID, ok := roomIDFromValue(v)
+	drop.ConnectDrop(func(v glib.Value, _, _ float64) bool {
+		srcID, ok := roomIDFromValue(&v)
 		if !ok {
 			return false
 		}

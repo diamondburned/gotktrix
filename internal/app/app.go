@@ -300,7 +300,7 @@ func (w *Window) SetLoading() {
 // then f is never called again.
 func (w *Window) NotifyChild(once bool, f func()) {
 	var childHandle glib.SignalHandle
-	childHandle = w.Window.Connect("notify::child", func() {
+	childHandle = w.Window.NotifyProperty("child", func() {
 		f()
 		if once {
 			w.Window.HandlerDisconnect(childHandle)

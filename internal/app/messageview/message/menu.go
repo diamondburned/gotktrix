@@ -105,7 +105,7 @@ func (r *reactor) showEmoji(parent gtk.Widgetter) *gtk.EmojiChooser {
 	picker.SetParent(parent)
 	picker.SetPosition(gtk.PosBottom)
 	picker.SetAutohide(true)
-	picker.Connect("emoji-picked", func(emoji string) {
+	picker.ConnectEmojiPicked(func(emoji string) {
 		r.react(emoji)
 		picker.Popdown()
 	})

@@ -146,7 +146,7 @@ func new(ctx context.Context, roomID matrix.RoomID) *View {
 	box.Append(scroll)
 	boxCSS(box)
 
-	list.Connect("selected-rows-changed", func(list *gtk.ListBox) {
+	list.ConnectSelectedRowsChanged(func() {
 		// Allow pressing the delete button if we have selected rows.
 		selected := len(list.SelectedRows()) > 0
 		delButton.SetSensitive(selected)
