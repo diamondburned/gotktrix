@@ -3,12 +3,14 @@ package compose
 
 import (
 	"context"
+	"html"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
+	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
@@ -17,9 +19,10 @@ import (
 // Composer is a message composer.
 type Composer struct {
 	*gtk.Box
-	iscroll *gtk.ScrolledWindow
-	input   *Input
-	send    *gtk.Button
+	iscroll     *gtk.ScrolledWindow
+	input       *Input
+	send        *gtk.Button
+	placeholder *gtk.Label
 
 	ctx    context.Context
 	ctrl   Controller
@@ -27,7 +30,6 @@ type Composer struct {
 
 	action struct {
 		*gtk.Button
-		upload  ActionData
 		current func()
 	}
 	editing bool
@@ -118,20 +120,18 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 	c.input = NewInput(ctx, &inputController{ctrl, &c}, roomID)
 	c.input.SetVScrollPolicy(gtk.ScrollNatural)
 
-	roomName, _ := gotktrix.FromContext(ctx).Offline().RoomName(roomID)
-
-	placeholder := gtk.NewLabel(locale.Sprintf(ctx, "Message %s", roomName))
-	placeholder.AddCSSClass("composer-input-placeholder")
-	placeholder.SetVAlign(gtk.AlignStart)
-	placeholder.SetHAlign(gtk.AlignStart)
-	placeholder.SetEllipsize(pango.EllipsizeEnd)
+	c.placeholder = gtk.NewLabel("")
+	c.placeholder.AddCSSClass("composer-input-placeholder")
+	c.placeholder.SetVAlign(gtk.AlignStart)
+	c.placeholder.SetHAlign(gtk.AlignStart)
+	c.placeholder.SetEllipsize(pango.EllipsizeEnd)
 
 	revealer := gtk.NewRevealer()
-	revealer.SetChild(placeholder)
+	revealer.SetChild(c.placeholder)
 	revealer.SetCanTarget(false)
 	revealer.SetRevealChild(true)
 	revealer.SetTransitionType(gtk.RevealerTransitionTypeCrossfade)
-	revealer.SetTransitionDuration(50)
+	revealer.SetTransitionDuration(75)
 
 	overlay := gtk.NewOverlay()
 	overlay.SetChild(c.input)
@@ -171,16 +171,21 @@ func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {
 	// 	"stop-editing":  func() { ctrl.Edit("") },
 	// })
 
-	c.action.upload = ActionData{
-		Name: "Upload File",
-		Icon: "list-add-symbolic",
-		Func: func() { c.uploader().ask() },
-	}
-
 	c.action.ConnectClicked(func() { c.action.current() })
-	c.setAction(c.action.upload)
+	c.resetAction()
+	c.SetPlaceholder("")
 
 	return &c
+}
+
+// SetPlaceholder sets the composer's placeholder. The default is used if an
+// empty string is given.
+func (c *Composer) SetPlaceholder(markup string) {
+	if markup == "" {
+		roomName, _ := gotktrix.FromContext(c.ctx).Offline().RoomName(c.roomID)
+		markup = locale.Sprintf(c.ctx, "Message %s", html.EscapeString(roomName))
+	}
+	c.placeholder.SetMarkup(markup)
 }
 
 func (c *Composer) uploader() uploader {
@@ -199,8 +204,8 @@ func (c *Composer) Input() *Input {
 // ActionData is the data that the action button in the composer bar is
 // currently doing.
 type ActionData struct {
-	Icon string
 	Name string
+	Icon string
 	Func func()
 }
 
@@ -212,6 +217,14 @@ func (c *Composer) setAction(action ActionData) {
 	c.action.current = action.Func
 }
 
+func (c *Composer) resetAction() {
+	c.setAction(ActionData{
+		Name: locale.S(c.ctx, "Upload File"),
+		Icon: "list-add-symbolic",
+		Func: func() { c.uploader().ask() },
+	})
+}
+
 // Edit switches the composer to edit mode and grabs an older message's body. If
 // the message cannot be fetched from just the timeline state, then it will not
 // be shown to the user. This means that editing backlog messages will behave
@@ -221,6 +234,12 @@ func (c *Composer) setAction(action ActionData) {
 // TODO(diamond): lossless Markdown editing (no mentions are lost).
 func (c *Composer) Edit(eventID matrix.EventID) bool {
 	c.editing = c.edit(eventID)
+	if !c.editing {
+		c.send.SetIconName(sendIcon)
+		c.input.SetText("")
+		c.resetAction()
+		c.SetPlaceholder("")
+	}
 	return c.editing
 }
 
@@ -229,14 +248,10 @@ func (c *Composer) edit(eventID matrix.EventID) bool {
 	c.input.replyingTo = ""
 
 	if c.input.editing == "" {
-		c.send.SetIconName(sendIcon)
-		c.input.SetText("")
-		c.setAction(c.action.upload)
 		return false
 	}
 
-	client := gotktrix.FromContext(c.ctx).Offline()
-	revent := roomTimelineEvent(client, c.input.roomID, eventID)
+	revent := c.roomTimelineEvent(eventID)
 	if revent == nil {
 		c.input.editing = ""
 		return false
@@ -249,15 +264,21 @@ func (c *Composer) edit(eventID matrix.EventID) bool {
 	}
 
 	c.setAction(ActionData{
-		Name: "Stop Editing",
+		Name: locale.S(c.ctx, "Stop Editing"),
 		Icon: "edit-clear-all-symbolic",
 		Func: func() { c.ctrl.Edit("") },
 	})
 
+	c.SetPlaceholder(locale.S(c.ctx, "Editing message"))
 	c.send.SetIconName(editIcon)
 	c.input.SetText(msg.Body)
 
 	return true
+}
+
+func (c *Composer) roomTimelineEvent(eventID matrix.EventID) event.RoomEvent {
+	client := gotktrix.FromContext(c.ctx).Offline()
+	return roomTimelineEvent(client, c.roomID, eventID)
 }
 
 func roomTimelineEvent(
@@ -281,14 +302,26 @@ func (c *Composer) ReplyTo(eventID matrix.EventID) bool {
 
 	if c.input.replyingTo == "" {
 		c.send.SetIconName(sendIcon)
+		c.resetAction()
+		c.SetPlaceholder("")
 		return false
 	}
 
 	c.setAction(ActionData{
-		Name: "Stop Replying",
+		Name: locale.S(c.ctx, "Stop Replying"),
 		Icon: "edit-clear-all-symbolic",
 		Func: func() { c.ctrl.ReplyTo("") },
 	})
+
+	if ev := c.roomTimelineEvent(eventID); ev != nil {
+		client := gotktrix.FromContext(c.ctx).Offline()
+		author := mauthor.Markup(client, c.roomID, ev.RoomInfo().Sender,
+			mauthor.WithWidgetColor(c),
+			mauthor.WithMinimal())
+		c.SetPlaceholder(locale.Sprintf(c.ctx, "Replying to %s", author))
+	} else {
+		c.SetPlaceholder(locale.S(c.ctx, "Replying to a message"))
+	}
 
 	c.send.SetIconName(replyIcon)
 	return true
