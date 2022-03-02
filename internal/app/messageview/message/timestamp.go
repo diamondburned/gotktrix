@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/locale"
 )
@@ -36,6 +37,7 @@ func newTimestamp(ctx context.Context, ts time.Time, long bool) *timestamp {
 
 	l := gtk.NewLabel(t)
 	l.SetTooltipText(locale.Time(ts, true))
+	l.SetEllipsize(pango.EllipsizeMiddle)
 	timestampCSS(l)
 
 	return &timestamp{l, ctx, ts, long}

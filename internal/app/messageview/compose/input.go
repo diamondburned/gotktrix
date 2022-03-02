@@ -271,8 +271,10 @@ func (i *Input) renderAnchors(start, end *gtk.TextIter, f func(anchorPiece) stri
 
 	for elem := i.anchors.Front(); elem != nil; elem = elem.Next() {
 		anchor := elem.Value.(anchorPiece)
-		anIter := i.buffer.IterAtChildAnchor(anchor.anchor)
-		anchors[anIter.Offset()] = f(anchor)
+		if !anchor.anchor.Deleted() {
+			anIter := i.buffer.IterAtChildAnchor(anchor.anchor)
+			anchors[anIter.Offset()] = f(anchor)
+		}
 	}
 
 	// Use a new iterator to iterate over the whole text buffer.

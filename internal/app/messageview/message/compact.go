@@ -33,6 +33,8 @@ var compactCSS = cssutil.Applier("message-collapsed", `
 func (v messageViewer) collapsedMessage(ev *event.RoomMessageEvent) *collapsedMessage {
 	msg := v.newMessage(ev, false)
 	msg.timestamp.SetSizeRequest(avatarWidth, -1)
+	// Actually make ellipsizing work.
+	msg.timestamp.SetLayoutManager(gtk.NewFixedLayout())
 	msg.timestamp.SetVAlign(gtk.AlignStart)
 	msg.timestamp.SetYAlign(1)
 
