@@ -3,6 +3,7 @@ package blinker
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -62,6 +63,7 @@ type Blinker struct {
 
 	prev  glib.SourceHandle
 	state blinkerState
+	last  time.Time
 }
 
 var blinkerCSS = cssutil.Applier("blinker", `
@@ -134,11 +136,13 @@ func (b *Blinker) onRequest(
 }
 
 func (b *Blinker) onSynced(*api.SyncResponse) {
-	glib.IdleAdd(b.sync)
+	now := time.Now()
+	glib.IdleAdd(func() { b.sync(now) })
 }
 
-func (b *Blinker) sync() {
+func (b *Blinker) sync(now time.Time) {
 	b.set(blinkerSync)
+	b.last = now
 	b.prev = glib.TimeoutAddPriority(blinkerStayTime, glib.PriorityDefaultIdle, func() {
 		b.prev = 0
 		b.cas(blinkerSync, blinkerNone)
@@ -173,7 +177,7 @@ func (b *Blinker) cas(ifThis, thenState blinkerState) bool {
 }
 
 func (b *Blinker) set(state blinkerState) {
-	b.SetTooltipText("")
+	b.SetTooltipText(b.tooltipText())
 
 	if b.state != blinkerNone {
 		b.RemoveCSSClass(b.state.Class())
@@ -194,6 +198,13 @@ func (b *Blinker) set(state blinkerState) {
 	if icon := state.Icon(); icon != "" {
 		b.SetFromIconName(icon)
 	}
+}
+
+func (b *Blinker) tooltipText() string {
+	if !b.last.IsZero() {
+		return locale.Sprintf(b.ctx, "Last synced %s", locale.Time(b.last, true))
+	}
+	return ""
 }
 
 /*
