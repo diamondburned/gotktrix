@@ -56,6 +56,10 @@ func indentError(msg string) string {
 }
 
 func show(parent *gtk.Window, errors []error, done func()) {
+	if parent == nil {
+		return
+	}
+
 	if len(errors) == 0 {
 		done()
 		return
