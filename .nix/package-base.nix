@@ -1,7 +1,7 @@
 {
 	pname = "gotktrix";
 	version = "0.0.1-tip";
-	vendorSha256 = "1r4kcr4ipa3wm1yflp624saia8c1n1jdm5681ag2fm4fylrgdvvq";
+	vendorSha256 = "0mk590dssawdlgzl381vmzn7k00jahz6xq783al5rlqd9a0lmgq6";
 
 	buildInputs = buildPkgs: with buildPkgs; [
 		gtk4
