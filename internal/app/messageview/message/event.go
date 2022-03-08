@@ -60,7 +60,9 @@ func (m *eventMessage) SetBlur(blur bool) {
 	setBlurClass(m, blur)
 }
 
-func (m *eventMessage) OnRelatedEvent(ev event.RoomEvent) {}
+func (m *eventMessage) OnRelatedEvent(ev event.RoomEvent) bool {
+	return false
+}
 
 func (m *eventMessage) LoadMore() {}
 

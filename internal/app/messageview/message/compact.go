@@ -57,12 +57,14 @@ func (m *collapsedMessage) SetBlur(blur bool) {
 	m.message.setBlur(m, blur)
 }
 
-func (m *collapsedMessage) OnRelatedEvent(ev event.RoomEvent) {
-	m.message.OnRelatedEvent(ev)
+func (m *collapsedMessage) OnRelatedEvent(ev event.RoomEvent) bool {
+	ok := m.message.OnRelatedEvent(ev)
 
 	_, edited := m.content.EditedTimestamp()
 	if edited {
 		m.AddCSSClass("message-collapsed-edited")
 		m.timestamp.SetText(locale.S(m.parent, "(edited)"))
 	}
+
+	return ok
 }

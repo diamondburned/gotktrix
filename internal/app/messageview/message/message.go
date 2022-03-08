@@ -22,8 +22,9 @@ type Message interface {
 	// Event returns the message's event.
 	Event() event.RoomEvent
 	// OnRelatedEvent is called by the caller for each event that's related to
-	// the message. The caller should check the m.relates_to field.
-	OnRelatedEvent(event.RoomEvent)
+	// the message. The caller should check the m.relates_to field. If the
+	// RoomEvent is unknown to the message, then false should be returned.
+	OnRelatedEvent(event.RoomEvent) bool
 	// LoadMore loads more information in the message, such as embeds. It should
 	// be synchronous most of the time.
 	LoadMore()
@@ -142,13 +143,15 @@ func (m *message) Event() event.RoomEvent {
 	return m.parent.event
 }
 
-func (m *message) OnRelatedEvent(ev event.RoomEvent) {
-	m.content.OnRelatedEvent(ev)
+func (m *message) OnRelatedEvent(ev event.RoomEvent) bool {
+	ok := m.content.OnRelatedEvent(ev)
 
 	t, edited := m.content.EditedTimestamp()
 	if edited {
 		m.timestamp.setEdited(t.Time())
 	}
+
+	return ok
 }
 
 func (m *message) LoadMore() {

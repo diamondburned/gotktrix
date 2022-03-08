@@ -685,11 +685,9 @@ func (p *Page) onRoomEvent(ev event.RoomEvent) (key messageKey) {
 
 	if relatesToID := relatesTo(ev); relatesToID != "" {
 		r, ok := p.relatedEvent(relatesToID)
-		if ok {
+		if ok && r.body.OnRelatedEvent(ev) {
 			// Register this event as a related event.
 			p.mrelated[ev.RoomInfo().ID] = relatesToID
-			// Trigger the message's callback.
-			r.body.OnRelatedEvent(ev)
 			return
 		}
 		// Treat as a new message.

@@ -111,9 +111,9 @@ func (c *Content) EditedTimestamp() (matrix.Timestamp, bool) {
 	return c.editedTime, c.editedTime > 0
 }
 
-func (c *Content) OnRelatedEvent(ev event.RoomEvent) {
+func (c *Content) OnRelatedEvent(ev event.RoomEvent) bool {
 	if c.isRedacted() {
-		return
+		return false
 	}
 
 	switch ev := ev.(type) {
@@ -122,26 +122,30 @@ func (c *Content) OnRelatedEvent(ev event.RoomEvent) {
 			if editor, ok := c.part.(editableContentPart); ok {
 				editor.edit(body)
 				c.editedTime = ev.OriginServerTime
+				return true
 			}
 		}
 	case *event.RoomRedactionEvent:
 		if ev.Redacts == c.ev.ID {
 			// Redacting this message itself.
 			c.redact(ev)
-			return
+			return true
 		}
 		// TODO: if we have a proper graph data structure that keeps track of
 		// relational events separately instead of keeping it nested in its
 		// respective events, then we wouldn't need to do this.
 		if c.react == nil || c.react.Remove(c.ctx, ev) {
-			return
+			return true
 		}
 	case *m.ReactionEvent:
 		if ev.RelatesTo.RelType == "m.annotation" {
 			c.ensureReactions()
 			c.react.Add(c.ctx, ev)
+			return true
 		}
 	}
+
+	return false
 }
 
 func (c *Content) ensureReactions() {
