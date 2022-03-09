@@ -380,10 +380,12 @@ var codeBlockCSS = cssutil.Applier("mcontent-code-block", `
 		padding-bottom: 0px; /* bottom-margin */
 	}
 	.mcontent-code-block-actions > *:not(label) {
-		background-color: @theme_bg_color;
 		margin-top:    4px;
 		margin-right:  4px;
 		margin-bottom: 4px;
+		min-height: 0;
+		min-width:  0;
+		background-color: alpha(@theme_bg_color, 0.5);
 	}
 	.mcontent-code-block-language {
 		font-family: monospace;
@@ -449,10 +451,12 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	language.SetVAlign(gtk.AlignCenter)
 
 	wrap := gtk.NewToggleButton()
+	wrap.AddCSSClass("osd")
 	wrap.SetIconName("format-justify-left-symbolic")
 	wrap.SetTooltipText("Toggle Word Wrapping")
 
 	copy := gtk.NewButtonFromIconName("edit-copy-symbolic")
+	copy.AddCSSClass("osd")
 	copy.SetTooltipText("Copy All")
 	copy.ConnectClicked(func() {
 		popover := gtk.NewPopover()
@@ -476,6 +480,7 @@ func newCodeBlock(s *currentBlockState) *codeBlock {
 	})
 
 	expand := gtk.NewToggleButton()
+	expand.AddCSSClass("osd")
 	expand.SetTooltipText("Toggle Reveal Code")
 
 	actions := gtk.NewBox(gtk.OrientationHorizontal, 0)

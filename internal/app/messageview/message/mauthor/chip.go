@@ -83,7 +83,7 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 		// sufficed, but we're doing this just to make sure the chip is only as
 		// tall as it needs to be.
 		h := c.name.AllocatedHeight()
-		if h == 0 {
+		if h < 1 {
 			return true
 		}
 		c.avatar.SetSizeRequest(h)

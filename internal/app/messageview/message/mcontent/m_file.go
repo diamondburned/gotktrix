@@ -184,17 +184,18 @@ func newFileInfo(info event.FileInfo, name, url string) *fileInfo {
 	inf.right.name.SetEllipsize(pango.EllipsizeMiddle)
 	inf.right.name.SetXAlign(0)
 
+	inf.right.Box = gtk.NewBox(gtk.OrientationVertical, 0)
+	inf.right.Box.SetHExpand(true)
+	inf.right.Box.SetVAlign(gtk.AlignCenter)
+	inf.right.Box.Append(inf.right.name)
+
 	if info.Size > 0 {
 		inf.right.size = gtk.NewLabel(humanize.Bytes(uint64(info.Size)))
 		inf.right.size.AddCSSClass("mcontent-file-size")
 		inf.right.size.SetEllipsize(pango.EllipsizeMiddle)
 		inf.right.size.SetXAlign(0)
+		inf.right.Box.Append(inf.right.size)
 	}
-
-	inf.right.Box = gtk.NewBox(gtk.OrientationVertical, 0)
-	inf.right.Box.SetHExpand(true)
-	inf.right.Box.Append(inf.right.name)
-	inf.right.Box.Append(inf.right.size)
 
 	inf.action = gtk.NewButton()
 	inf.action.SetVAlign(gtk.AlignCenter)
