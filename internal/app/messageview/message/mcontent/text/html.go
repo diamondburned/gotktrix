@@ -367,7 +367,11 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			return traverseSkipChildren
 
 		case "ol": // start
-			s.list = 1
+			v, err := strconv.Atoi(nodeAttr(n, "start"))
+			if err != nil {
+				v = 1
+			}
+			s.list = v
 			s.traverseChildren(n)
 			s.list = 0
 			return traverseSkipChildren
