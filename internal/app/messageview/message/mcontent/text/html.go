@@ -93,7 +93,7 @@ func renderHTML(ctx context.Context, roomID matrix.RoomID, htmlBody string) (Ren
 		block: newBlockState(ctx, box),
 		ctx:   ctx,
 		room:  roomID,
-		list:  0,
+		list:  -1,
 		// TODO: detect unicode emojis.
 		large: !nodeHasText(n),
 	}
@@ -368,22 +368,22 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		case "ol": // start
 			v, err := strconv.Atoi(nodeAttr(n, "start"))
-			if err != nil {
+			if err != nil || v < 0 {
 				v = 1
 			}
 			s.list = v
 			s.traverseChildren(n)
-			s.list = 0
+			s.list = -1
 			return traverseSkipChildren
 
 		case "ul":
-			s.list = 0
+			s.list = -1
 			// No need to reset s.list.
 			return traverseOK
 
 		case "li":
 			bullet := "● "
-			if s.list != 0 {
+			if s.list > -1 {
 				bullet = strconv.Itoa(s.list) + ". "
 				s.list++
 			}
