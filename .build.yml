@@ -53,5 +53,5 @@ tasks:
   #     nix-shell --run 'time staticcheck -f stylish ./...'
 
   - artifact: |-
-      cd gotktrix
-      nix-build -j1 .nix/cross.nix
+      out="$(cd gotktrix && nix-build -j1 .nix/cross.nix)"
+      cp $out/* ./artifacts/
