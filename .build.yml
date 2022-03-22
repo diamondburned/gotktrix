@@ -5,6 +5,11 @@ packages:
   - nixos.git
   - nixos.go_1_17
   - nixos.gotools
+  - nixos.curl
+  - nixos.coreutils
+  - nixos.jq
+secrets:
+  - 82568347-1c9e-406e-8de0-525ee7dd21e2
 artifacts:
   - artifacts/gotktrix-nixos-x86_64
   - artifacts/gotktrix-linux-x86_64
@@ -37,7 +42,7 @@ tasks:
       [[ ! "$deps" ]] || printf "Unformatted files: \n%s\n" "$deps"
 
   - release-check: |-
-      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" ]] || complete-build
+      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" || $GITHUB_REF == *"/tags/"* ]] || complete-build
 
   # - nix: |-
   #     cd gotktrix
@@ -55,3 +60,6 @@ tasks:
   - artifact: |-
       out="$(cd gotktrix && nix-build -j1 .nix/cross.nix)"
       cp $out/* ./artifacts/
+
+  - upload-artifacts: |-
+      bash ./gotktrix/.github/upload-artifacts.sh
