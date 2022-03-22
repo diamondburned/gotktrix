@@ -42,8 +42,9 @@ in {
 		};
 	};
 
+	# See https://sourceware.org/glibc/wiki/ABIList.
 	patchelf-x86_64  = patchelfer "x86_64"  "/lib64/ld-linux-x86-64.so.2";
-	patchelf-aarch64 = patchelfer "aarch64" "/lib64/ld-linux-aarch64.so.1";
+	patchelf-aarch64 = patchelfer "aarch64" "/lib/ld-linux-aarch64.so.1";
 
 	# CAUTION, for when I return: uncommenting these will trigger rebuilding a lot of Rust
 	# dependencies, which will take forever! Don't do it!
