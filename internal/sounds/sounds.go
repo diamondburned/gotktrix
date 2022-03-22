@@ -20,8 +20,8 @@ var sounds embed.FS
 
 // Sound IDs.
 const (
-	Bell    = "bell.opus"
-	Message = "message.opus"
+	Bell    = "bell"
+	Message = "message"
 )
 
 type mediaFile struct {
@@ -58,6 +58,8 @@ func Play(id string) {
 	_, err := os.Stat(dst)
 	if err != nil {
 		canberra := exec.Command("canberra-gtk-play", "--id", id)
+		canberra.Stderr = os.Stderr
+
 		if err := canberra.Run(); err == nil {
 			return
 		} else {
