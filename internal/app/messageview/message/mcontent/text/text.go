@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/md"
 )
@@ -68,7 +69,9 @@ func RenderText(ctx context.Context, text string) RenderWidget {
 		}
 	}
 
-	body.QueueResize()
+	// Annoying workaround to prevent the whole label from being selected when
+	// initially focused.
+	gtkutil.OnFirstDraw(body, func() { body.SelectRegion(0, 0) })
 
 	return RenderWidget{
 		RenderWidgetter: body,

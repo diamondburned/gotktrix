@@ -3,12 +3,13 @@ package message
 import (
 	"context"
 	"fmt"
+	"html"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -19,15 +20,20 @@ import (
 
 type Reply struct {
 	*gtk.Box
-	ctx context.Context
+	ctx  context.Context
+	view MessageViewer
 
 	box struct {
 		header  *gtk.Box
+		info    *gtk.Label
 		content *gtk.Label
 	}
 
-	replyID matrix.EventID
-	roomID  matrix.RoomID
+	event event.RoomEvent
+
+	replyID    matrix.EventID
+	roomID     matrix.RoomID
+	mentionURL string
 
 	done bool
 }
@@ -55,29 +61,31 @@ var replyCSS = cssutil.Applier("message-reply", `
 // NewReply creates a new Reply widget.
 func NewReply(ctx context.Context, v MessageViewer, roomID matrix.RoomID, eventID matrix.EventID) *Reply {
 	r := Reply{
-		ctx:     ctx,
-		replyID: eventID,
-		roomID:  roomID,
+		ctx:        ctx,
+		view:       v,
+		replyID:    eventID,
+		roomID:     roomID,
+		mentionURL: mentionURL(roomID, eventID),
 	}
 
-	info := gtk.NewLabel("")
-	info.SetMarkup(fmt.Sprintf(
-		`<a href="#mentioned">%s</a>`,
-		locale.S(ctx, "In reply to "),
+	r.box.info = gtk.NewLabel("")
+	r.box.info.SetMarkup(fmt.Sprintf(
+		`<a href="%s">%s</a>`,
+		html.EscapeString(r.mentionURL), locale.S(ctx, "In reply to "),
 	))
-	info.ConnectActivateLink(func(link string) bool {
-		if link == "#mentioned" {
+	r.box.info.ConnectActivateLink(func(link string) bool {
+		if link == r.mentionURL {
 			if !v.ScrollTo(eventID) {
-				app.OpenURI(ctx, r.MentionURL())
+				r.ShowContent()
 			}
 			return true
 		}
 		return false
 	})
-	replyInfoCSS(info)
+	replyInfoCSS(r.box.info)
 
 	r.box.header = gtk.NewBox(gtk.OrientationHorizontal, 0)
-	r.box.header.Append(info)
+	r.box.header.Append(r.box.info)
 
 	r.box.content = gtk.NewLabel("")
 	r.box.content.SetXAlign(0)
@@ -97,7 +105,40 @@ func NewReply(ctx context.Context, v MessageViewer, roomID matrix.RoomID, eventI
 // MentionURL returns the URL to matrix.to for the message that this is replying
 // to.
 func (r *Reply) MentionURL() string {
-	return fmt.Sprintf(`https://matrix.to/#/%s/%s`, r.roomID, r.replyID)
+	return r.mentionURL
+}
+
+func mentionURL(roomID matrix.RoomID, replyID matrix.EventID) string {
+	return fmt.Sprintf(`https://matrix.to/#/%s/%s`, roomID, replyID)
+}
+
+// ShowContent opens a new Popover with the message content.
+func (r *Reply) ShowContent() {
+	msg := NewCozyMessage(r.ctx, r.view, r.event, nil)
+	msg.LoadMore()
+	gtk.BaseWidget(msg).SetVAlign(gtk.AlignStart)
+
+	view := gtk.NewViewport(nil, nil)
+	view.SetChild(msg)
+
+	scroll := gtk.NewScrolledWindow()
+	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	scroll.SetMinContentWidth(250)
+	scroll.SetMaxContentWidth(650)
+	scroll.SetMinContentHeight(10)
+	scroll.SetMaxContentHeight(600)
+	scroll.SetPropagateNaturalWidth(true)
+	scroll.SetPropagateNaturalHeight(true)
+	scroll.SetChild(view)
+
+	p := gtk.NewPopover()
+	p.SetParent(r.box.info)
+	p.SetPosition(gtk.PosTop)
+	p.SetChild(scroll)
+	p.Popup()
+	p.ConnectHide(func() {
+		glib.TimeoutSecondsAdd(2, p.Unparent)
+	})
 }
 
 // InvalidateContent invalidates the Reply's content. For now, this function
@@ -122,7 +163,9 @@ func (r *Reply) InvalidateContent() {
 		return func() {
 			author := mauthor.NewChip(r.ctx, r.roomID, ev.RoomInfo().Sender)
 			author.Unpad()
+
 			r.box.header.Append(author)
+			r.event = ev
 
 			message, ok := ev.(*event.RoomMessageEvent)
 			if !ok {
@@ -141,7 +184,6 @@ func (r *Reply) useError(err error) {
 
 func (r *Reply) setContent(content string) {
 	r.box.content.SetText(content)
-	r.box.content.SetTooltipText(content)
 }
 
 /*

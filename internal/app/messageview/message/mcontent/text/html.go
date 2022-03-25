@@ -49,7 +49,7 @@ func RenderHTML(
 	// If html is text, then just render it as plain text, because using the
 	// Label should yield much better performance than running it through the
 	// parser.
-	if (html == text && !mightBeHTML(html)) || md.IsUnicodeEmoji(html) {
+	if (html == text && !mightBeHTML(html)) || html == "" || md.IsUnicodeEmoji(html) {
 		return RenderText(ctx, html)
 	}
 

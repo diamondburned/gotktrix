@@ -8,14 +8,25 @@ import (
 // BindRightClick binds the given widget to take in right-click gestures. The
 // function will also check for long-hold gestures.
 func BindRightClick(w gtk.Widgetter, f func()) {
-	BindRightClickAt(w, func(x, y float64) { f() })
+	BindButton(w, gdk.BUTTON_SECONDARY, f)
 }
 
 // BindRightClickAt is a version of BindRightClick with accurate coordinates
 // given to the callback.
 func BindRightClickAt(w gtk.Widgetter, f func(x, y float64)) {
+	BindButtonAt(w, gdk.BUTTON_SECONDARY, f)
+}
+
+// BindButton binds the given widget to take in button gestures.
+func BindButton(w gtk.Widgetter, button uint, f func()) {
+	BindButtonAt(w, button, func(x, y float64) { f() })
+}
+
+// BindButtonAt is a version of BindButton with accurate coordinates given to
+// the callback.
+func BindButtonAt(w gtk.Widgetter, button uint, f func(x, y float64)) {
 	c := gtk.NewGestureClick()
-	c.SetButton(3)       // secondary
+	c.SetButton(button)
 	c.SetExclusive(true) // handle mouse only
 	c.ConnectAfter("pressed", func(nPress int, x, y float64) {
 		if nPress == 1 {
@@ -23,15 +34,17 @@ func BindRightClickAt(w gtk.Widgetter, f func(x, y float64)) {
 		}
 	})
 
-	l := gtk.NewGestureLongPress()
-	l.SetTouchOnly(true)
-	l.ConnectAfter("pressed", func(x, y float64) {
-		f(x, y)
-	})
-
 	widget := gtk.BaseWidget(w)
 	widget.AddController(c)
-	widget.AddController(l)
+
+	if button == gdk.BUTTON_SECONDARY {
+		l := gtk.NewGestureLongPress()
+		l.SetTouchOnly(true)
+		l.ConnectAfter("pressed", func(x, y float64) {
+			f(x, y)
+		})
+		widget.AddController(l)
+	}
 }
 
 // ForwardTyping forwards all typing events from w to dst.
