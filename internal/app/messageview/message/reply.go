@@ -2,11 +2,13 @@ package message
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotktrix/internal/app"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil"
@@ -38,7 +40,7 @@ var replyInfoCSS = cssutil.Applier("message-reply-info", `
 
 var replyContentCSS = cssutil.Applier("message-reply-content", `
 	.message-reply-content {
-		/* color: alpha(@theme_fg_color, 0.85); */
+		caret-color: transparent;
 	}
 `)
 
@@ -51,14 +53,27 @@ var replyCSS = cssutil.Applier("message-reply", `
 `)
 
 // NewReply creates a new Reply widget.
-func NewReply(ctx context.Context, roomID matrix.RoomID, eventID matrix.EventID) *Reply {
+func NewReply(ctx context.Context, v MessageViewer, roomID matrix.RoomID, eventID matrix.EventID) *Reply {
 	r := Reply{
 		ctx:     ctx,
 		replyID: eventID,
 		roomID:  roomID,
 	}
 
-	info := gtk.NewLabel(locale.S(ctx, "In reply to "))
+	info := gtk.NewLabel("")
+	info.SetMarkup(fmt.Sprintf(
+		`<a href="#mentioned">%s</a>`,
+		locale.S(ctx, "In reply to "),
+	))
+	info.ConnectActivateLink(func(link string) bool {
+		if link == "#mentioned" {
+			if !v.ScrollTo(eventID) {
+				app.OpenURI(ctx, r.MentionURL())
+			}
+			return true
+		}
+		return false
+	})
 	replyInfoCSS(info)
 
 	r.box.header = gtk.NewBox(gtk.OrientationHorizontal, 0)
@@ -68,6 +83,7 @@ func NewReply(ctx context.Context, roomID matrix.RoomID, eventID matrix.EventID)
 	r.box.content.SetXAlign(0)
 	r.box.content.SetEllipsize(pango.EllipsizeEnd)
 	r.box.content.SetSingleLineMode(true)
+	r.box.content.SetSelectable(true)
 	replyContentCSS(r.box.content)
 
 	r.Box = gtk.NewBox(gtk.OrientationVertical, 0)
@@ -76,6 +92,12 @@ func NewReply(ctx context.Context, roomID matrix.RoomID, eventID matrix.EventID)
 	replyCSS(r.Box)
 
 	return &r
+}
+
+// MentionURL returns the URL to matrix.to for the message that this is replying
+// to.
+func (r *Reply) MentionURL() string {
+	return fmt.Sprintf(`https://matrix.to/#/%s/%s`, r.roomID, r.replyID)
 }
 
 // InvalidateContent invalidates the Reply's content. For now, this function

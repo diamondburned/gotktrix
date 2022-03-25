@@ -944,6 +944,15 @@ func (p *Page) loadMore(done paginateDoneFunc) {
 	})
 }
 
+// ScrollTo implements message.MessageViewer.
+func (p *Page) ScrollTo(eventID matrix.EventID) bool {
+	m, ok := p.relatedEvent(eventID)
+	if ok {
+		return m.row.GrabFocus()
+	}
+	return false
+}
+
 // Edit triggers the input composer to edit an existing message.
 func (p *Page) Edit(eventID matrix.EventID) {
 	if p.replyingTo != "" {

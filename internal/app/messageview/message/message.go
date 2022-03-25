@@ -58,6 +58,9 @@ type MessageViewer interface {
 	ReplyTo(matrix.EventID)
 	// Edit starts the editing for given message ID.
 	Edit(matrix.EventID)
+	// ScrollTo scrolls to the given event, or if it doesn't exist, then false
+	// is returned.
+	ScrollTo(matrix.EventID) bool
 }
 
 // messageViewer fuses MessageViewer into Context. It's only used internally;
@@ -136,7 +139,7 @@ func (v messageViewer) newMessage(ev *event.RoomMessageEvent, longTimestamp bool
 	content := mcontent.New(v.Context, ev)
 
 	if replyID := messageRepliesTo(ev); replyID != "" {
-		reply := NewReply(v.Context, ev.RoomID, replyID)
+		reply := NewReply(v.Context, v.MessageViewer, ev.RoomID, replyID)
 		reply.InvalidateContent()
 
 		content.Prepend(reply)
