@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/chanbakjsd/gotrix/event"
@@ -132,10 +133,19 @@ func (v messageViewer) newMessage(ev *event.RoomMessageEvent, longTimestamp bool
 	timestamp := newTimestamp(v, v.event.RoomInfo().OriginServerTime.Time(), longTimestamp)
 	timestamp.SetEllipsize(pango.EllipsizeEnd)
 
+	content := mcontent.New(v.Context, ev)
+
+	if replyID := messageRepliesTo(ev); replyID != "" {
+		reply := NewReply(v.Context, ev.RoomID, replyID)
+		reply.InvalidateContent()
+
+		content.Prepend(reply)
+	}
+
 	return &message{
 		parent:    v,
 		timestamp: timestamp,
-		content:   mcontent.New(v.Context, ev),
+		content:   content,
 	}
 }
 
@@ -168,4 +178,15 @@ func setBlurClass(w gtk.Widgetter, blur bool) {
 	} else {
 		gtk.BaseWidget(w).RemoveCSSClass("message-blurred")
 	}
+}
+
+func messageRepliesTo(ev *event.RoomMessageEvent) matrix.EventID {
+	var relatesTo struct {
+		InReplyTo struct {
+			EventID matrix.EventID `json:"event_id"`
+		} `json:"m.in_reply_to"`
+	}
+
+	json.Unmarshal(ev.RelatesTo, &relatesTo)
+	return relatesTo.InReplyTo.EventID
 }

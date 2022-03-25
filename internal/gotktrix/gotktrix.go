@@ -484,6 +484,30 @@ func (c *Client) MessageMediaURL(msg *event.RoomMessageEvent) (string, error) {
 	return u, nil
 }
 
+// RoomTimelineEvent fetches a single room timeline event by its ID.
+func (c *Client) RoomTimelineEvent(roomID matrix.RoomID, id matrix.EventID) (event.RoomEvent, error) {
+	var found event.RoomEvent
+
+	c.EachTimeline(roomID, func(ev event.RoomEvent) error {
+		if ev.RoomInfo().ID == id {
+			found = ev
+			return EachBreak
+		}
+		return nil
+	})
+
+	if found != nil {
+		return found, nil
+	}
+
+	raw, err := c.Client.RoomEvent(roomID, id)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot get event from API")
+	}
+
+	return sys.ParseTimeline(raw, roomID), nil
+}
+
 // RoomEvent queries the event with the given type. If the event type implies a
 // state event, then the empty key is tried.
 func (c *Client) RoomEvent(roomID matrix.RoomID, typ event.Type) (event.Event, error) {

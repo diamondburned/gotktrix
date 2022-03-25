@@ -331,8 +331,8 @@ type quoteBlock struct {
 
 var quoteBlockCSS = cssutil.Applier("mcontent-quote-block", `
 	.mcontent-quote-block {
-		border-left:  3px solid alpha(@theme_fg_color, 0.5);
-		padding-left: 5px;
+		border-left: 3px solid alpha(@theme_fg_color, 0.5);
+		padding:     0 5px;
 	}
 	.mcontent-quote-block:not(:last-child) {
 		margin-bottom: 3px;

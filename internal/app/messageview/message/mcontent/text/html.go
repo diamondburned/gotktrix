@@ -35,9 +35,17 @@ const (
 	mentionURLPrefix = "https://matrix.to/#/@"
 )
 
+// Opts is the options for rendering.
+type Opts struct {
+	// SkipReply, if true, will skip rendering all mx-reply tags.
+	SkipReply bool
+}
+
 // RenderHTML tries rendering the HTML and falls back to using plain text if
 // the HTML doesn't work.
-func RenderHTML(ctx context.Context, text, html string, roomID matrix.RoomID) RenderWidget {
+func RenderHTML(
+	ctx context.Context, text, html string, roomID matrix.RoomID, o Opts) RenderWidget {
+
 	// If html is text, then just render it as plain text, because using the
 	// Label should yield much better performance than running it through the
 	// parser.
@@ -45,7 +53,7 @@ func RenderHTML(ctx context.Context, text, html string, roomID matrix.RoomID) Re
 		return RenderText(ctx, html)
 	}
 
-	rw, ok := renderHTML(ctx, roomID, html)
+	rw, ok := renderHTML(ctx, roomID, html, o)
 	if !ok {
 		rw = RenderText(ctx, text)
 	}
@@ -79,7 +87,9 @@ func (b htmlBox) SetExtraMenu(model gio.MenuModeller) {
 }
 
 // renderHTML returns true if the HTML parsing and rendering is successful.
-func renderHTML(ctx context.Context, roomID matrix.RoomID, htmlBody string) (RenderWidget, bool) {
+func renderHTML(
+	ctx context.Context, roomID matrix.RoomID, htmlBody string, o Opts) (RenderWidget, bool) {
+
 	n, err := html.Parse(strings.NewReader(htmlBody))
 	if err != nil {
 		log.Println("invalid message HTML:", err)
@@ -93,6 +103,7 @@ func renderHTML(ctx context.Context, roomID matrix.RoomID, htmlBody string) (Ren
 		block: newBlockState(ctx, box),
 		ctx:   ctx,
 		room:  roomID,
+		opts:  o,
 		list:  -1,
 		// TODO: detect unicode emojis.
 		large: !nodeHasText(n),
@@ -104,7 +115,7 @@ func renderHTML(ctx context.Context, roomID matrix.RoomID, htmlBody string) (Ren
 
 	rendered := RenderWidget{
 		RenderWidgetter: htmlBox{
-			Box:  box,
+			Box:  state.block.parent,
 			list: state.block.list,
 		},
 	}
@@ -174,6 +185,7 @@ type renderState struct {
 
 	ctx  context.Context
 	room matrix.RoomID
+	opts Opts
 
 	replyURL string
 
@@ -465,9 +477,11 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 			return traverseOK
 
 		case "mx-reply":
-			s.reply = true
-			s.traverseChildren(n)
-			s.reply = false
+			if !s.opts.SkipReply {
+				s.reply = true
+				s.traverseChildren(n)
+				s.reply = false
+			}
 			return traverseSkipChildren
 
 		default:

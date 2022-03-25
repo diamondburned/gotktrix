@@ -60,9 +60,13 @@ func (c *textContent) setContent(body MessageBody, isEdited bool) {
 		c.Box.Remove(c.embeds)
 	}
 
+	o := text.Opts{
+		SkipReply: true,
+	}
+
 	switch body.Format {
 	case event.FormatHTML:
-		c.render = text.RenderHTML(c.ctx, body.Body, body.FormattedBody, c.roomID)
+		c.render = text.RenderHTML(c.ctx, body.Body, body.FormattedBody, c.roomID, o)
 	default:
 		c.render = text.RenderText(c.ctx, body.Body)
 	}

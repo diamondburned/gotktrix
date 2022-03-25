@@ -43,6 +43,9 @@ var chipCSS = cssutil.Applier("mauthor-chip", `
 		border-radius: 9999px 9999px;
 		margin-bottom: -0.4em;
 	}
+	.mauthor-chip-unpadded {
+		margin-bottom: 0;
+	}
 	.mauthor-chip-colored {
 		background-color: transparent; /* override custom CSS */
 		margin: -1px 0;
@@ -99,6 +102,11 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 	c.Invalidate()
 
 	return &c
+}
+
+// Unpad removes the negative margin in the Chip.
+func (c *Chip) Unpad() {
+	c.AddCSSClass("mauthor-chip-unpadded")
 }
 
 // InsertText inserts the chip into the given TextView at the given TextIter.
