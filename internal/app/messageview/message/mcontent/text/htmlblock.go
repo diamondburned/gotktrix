@@ -10,9 +10,10 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
-	"github.com/diamondburned/gotktrix/internal/config/prefs"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/prefs"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/diamondburned/gotktrix/internal/md/hl"
 	"golang.org/x/net/html"
@@ -205,7 +206,7 @@ func newTextView(ctx context.Context, buf *gtk.TextBuffer) *gtk.TextView {
 	tview.SetWrapMode(gtk.WrapWordChar)
 
 	textContentCSS(tview)
-	md.SetTabSize(tview)
+	textutil.SetTabSize(tview)
 
 	return tview
 }

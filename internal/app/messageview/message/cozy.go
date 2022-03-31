@@ -5,9 +5,10 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/components/onlineimage"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
-	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 )
 
 type cozyMessage struct {
@@ -48,10 +49,10 @@ func (v messageViewer) cozyMessage(ev *event.RoomMessageEvent) *cozyMessage {
 	msg.sender.SetEllipsize(pango.EllipsizeEnd)
 	msg.sender.SetMarkup(mauthor.Markup(
 		client, ev.RoomID, ev.Sender,
-		mauthor.WithWidgetColor(msg.sender),
+		mauthor.WithWidgetColor(),
 	))
 
-	msg.avatar = onlineimage.NewAvatar(v, avatarSize)
+	msg.avatar = onlineimage.NewAvatar(v, gotktrix.AvatarProvider, avatarSize)
 	msg.avatar.ConnectLabel(msg.sender)
 	msg.avatar.SetVAlign(gtk.AlignStart)
 	msg.avatar.SetMarginTop(2)
@@ -59,7 +60,7 @@ func (v messageViewer) cozyMessage(ev *event.RoomMessageEvent) *cozyMessage {
 
 	mxc, _ := client.MemberAvatar(ev.RoomID, ev.Sender)
 	if mxc != nil {
-		msg.avatar.SetFromMXC(*mxc)
+		msg.avatar.SetFromURL(string(*mxc))
 	}
 
 	authorTsBox := gtk.NewBox(gtk.OrientationHorizontal, 0)
@@ -91,7 +92,7 @@ func (m *cozyMessage) LoadMore() {
 }
 
 func (m *cozyMessage) asyncFetch() {
-	opt := mauthor.WithWidgetColor(m.sender)
+	opt := mauthor.WithWidgetColor()
 
 	roomEv := m.parent.event.RoomInfo()
 	go func() {
@@ -100,7 +101,7 @@ func (m *cozyMessage) asyncFetch() {
 
 		mxc, _ := m.parent.client().MemberAvatar(roomEv.RoomID, roomEv.Sender)
 		if mxc != nil {
-			glib.IdleAdd(func() { m.avatar.SetFromMXC(*mxc) })
+			glib.IdleAdd(func() { m.avatar.SetFromURL(string(*mxc)) })
 		}
 	}()
 }

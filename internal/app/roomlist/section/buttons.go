@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/app/locale"
 )
 
 var iconButtonCSS = cssutil.Applier("roomlist-iconbutton", `

@@ -6,7 +6,7 @@ import (
 	"runtime/debug"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
 )
 
 // Show shows the about dialog.

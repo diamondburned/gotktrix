@@ -12,11 +12,11 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/components/filepick"
 	"github.com/diamondburned/gotktrix/internal/components/progress"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/dustin/go-humanize"
 )
 

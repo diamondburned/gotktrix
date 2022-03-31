@@ -14,16 +14,16 @@ import (
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/compose"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
-	"github.com/diamondburned/gotktrix/internal/components/autoscroll"
+	"github.com/diamondburned/gotkit/components/autoscroll"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 )
 
 type messageKey string

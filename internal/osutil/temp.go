@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/pkg/errors"
 )
 
@@ -13,8 +12,6 @@ import (
 type TempFile struct {
 	os.File
 }
-
-var tempDir = config.CacheDir("temp")
 
 type copyError struct {
 	err error
@@ -60,6 +57,8 @@ func Consume(r io.Reader) (*TempFile, error) {
 // Mktemp creates a new temp file in a predefined temporary directory. Pattern
 // is optional.
 func Mktemp(pattern string) (*TempFile, error) {
+	tempDir := os.TempDir()
+
 	if err := os.MkdirAll(tempDir, os.ModePerm); err != nil {
 		return nil, errors.Wrap(err, "failed to make tempDir")
 	}

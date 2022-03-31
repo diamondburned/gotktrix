@@ -5,30 +5,27 @@ import (
 	"embed"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
 
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/app/prefs"
+	"github.com/diamondburned/gotkit/components/logui"
+	"github.com/diamondburned/gotkit/components/prefui"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/about"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
 	"github.com/diamondburned/gotktrix/internal/app/auth/syncbox"
 	"github.com/diamondburned/gotktrix/internal/app/blinker"
-	"github.com/diamondburned/gotktrix/internal/app/logui"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/msgnotify"
-	"github.com/diamondburned/gotktrix/internal/config"
-	"github.com/diamondburned/gotktrix/internal/config/prefs"
-	"github.com/diamondburned/gotktrix/internal/config/prefs/prefui"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/pkg/errors"
 	"golang.org/x/text/message"
 
-	_ "github.com/diamondburned/gotktrix/internal/gtkutil/aggressivegc"
+	_ "github.com/diamondburned/gotkit/gtkutil/aggressivegc"
 )
 
 var _ = cssutil.WriteCSS(`
@@ -122,21 +119,14 @@ var locales embed.FS
 func main() {
 	glib.LogUseDefaultLogger()
 
-	// Quit the application on a SIGINT.
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-
 	// Initialize translations and locales.
-	ctx = locale.WithPrinter(ctx, locale.NewLocalPrinter(
+	ctx := locale.WithPrinter(context.Background(), locale.NewLocalPrinter(
 		message.Catalog(locale.MustLoadLocales(locales)),
 	))
 
-	app := app.New(config.AppIDDot())
-	app.ConnectActivate(activate)
-
-	if code := app.Run(ctx, os.Args); code > 0 {
-		os.Exit(code)
-	}
+	app := app.New("com.github.diamondburned.gotktrix", "gotktrix")
+	app.ConnectActivate(func() { activate(app.Context()) })
+	app.RunMain(ctx)
 }
 
 // initialized is true if the global initializers are ran. We assume that
@@ -164,11 +154,10 @@ func activate(ctx context.Context) {
 		initialized = true
 
 		adaptive.Init()
-		logui.BindDefaultLogger()
 
 		// Load saved preferences.
 		gtkutil.Async(ctx, func() func() {
-			data, err := prefs.ReadSavedData()
+			data, err := prefs.ReadSavedData(ctx)
 			if err != nil {
 				a.Error(errors.Wrap(err, "cannot read saved preferences"))
 				return nil

@@ -9,8 +9,8 @@ import (
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 )
 
 // Assistant is a widget that behaves similarly to gtk.Assistant.
@@ -375,15 +375,15 @@ var (
 	crumbInactiveClass = []string{"assistant-crumb"}
 	crumbActiveClass   = []string{"assistant-crumb", "assistant-active-crumb"}
 
-	crumbInactiveAttrs = markuputil.Attrs(
+	crumbInactiveAttrs = textutil.Attrs(
 		pango.NewAttrScale(1.1),
 		pango.NewAttrWeight(pango.WeightBook),
 	)
-	crumbActiveAttrs = markuputil.Attrs(
+	crumbActiveAttrs = textutil.Attrs(
 		pango.NewAttrScale(1.3),
 		pango.NewAttrWeight(pango.WeightBold),
 	)
-	crumbArrowAttrs = markuputil.Attrs(
+	crumbArrowAttrs = textutil.Attrs(
 		pango.NewAttrScale(1.2),
 		pango.NewAttrWeight(pango.WeightBold),
 	)

@@ -9,14 +9,14 @@ import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/pronouns"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
 type markupOpts struct {
-	textTag markuputil.TextTag
+	textTag textutil.TextTag
 	hasher  ColorHasher
 	name    string
 	at      bool
@@ -61,8 +61,8 @@ func WithMention() MarkupMod {
 // WithWidgetColor determines the best hasher from the given widget. The caller
 // should beware to call this function in the main thread to not cause a race
 // condition.
-func WithWidgetColor(w gtk.Widgetter) MarkupMod {
-	if markuputil.IsDarkTheme(w) {
+func WithWidgetColor() MarkupMod {
+	if textutil.IsDarkTheme() {
 		return WithColorHasher(LightColorHasher)
 	} else {
 		return WithColorHasher(DarkColorHasher)
@@ -71,7 +71,7 @@ func WithWidgetColor(w gtk.Widgetter) MarkupMod {
 
 // WithTextTagAttr sets the given attribute into the text tag used for the
 // author. It is only useful for Text.
-func WithTextTagAttr(attr markuputil.TextTag) MarkupMod {
+func WithTextTagAttr(attr textutil.TextTag) MarkupMod {
 	return func(opts *markupOpts) {
 		opts.textTag = attr
 	}
@@ -263,7 +263,7 @@ func Text(c *gotktrix.Client, iter *gtk.TextIter, rID matrix.RoomID, uID matrix.
 	tag := tags.Lookup("_mauthor_" + string(uID))
 	if tag == nil {
 		color := userColor(uID, opts)
-		attrs := markuputil.TextTag{
+		attrs := textutil.TextTag{
 			"foreground": color,
 		}
 		if opts.shade {

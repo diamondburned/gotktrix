@@ -3,7 +3,7 @@ package messageview
 import (
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 )
 
 type loadMoreButton struct {

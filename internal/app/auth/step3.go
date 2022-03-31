@@ -4,8 +4,8 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
 func methodToggler(a *Assistant, method matrix.LoginMethod) func() {
@@ -71,7 +71,7 @@ func bigSmallTitleBox(big, small string) gtk.Widgetter {
 	bigLabel.SetWrap(true)
 	bigLabel.SetWrapMode(pango.WrapWordChar)
 	bigLabel.SetXAlign(0)
-	bigLabel.SetAttributes(markuputil.Attrs(
+	bigLabel.SetAttributes(textutil.Attrs(
 		pango.NewAttrScale(1.125),
 		pango.NewAttrWeight(pango.WeightNormal),
 	))
@@ -80,7 +80,7 @@ func bigSmallTitleBox(big, small string) gtk.Widgetter {
 	smallLabel.SetWrap(true)
 	smallLabel.SetWrapMode(pango.WrapWordChar)
 	smallLabel.SetXAlign(0)
-	smallLabel.SetAttributes(markuputil.Attrs(
+	smallLabel.SetAttributes(textutil.Attrs(
 		pango.NewAttrScale(0.9),
 		pango.NewAttrWeight(pango.WeightBook),
 		pango.NewAttrForegroundAlpha(65535*85/100), // 85% alpha

@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
+	"github.com/diamondburned/gotkit/components/onlineimage"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
 // Toggle is a toggle button showing the user avatar. It shows a PopoverMenu
@@ -42,7 +42,7 @@ func NewToggle(ctx context.Context) *Toggle {
 
 	username, _, _ := gotktrix.FromContext(ctx).UserID.Parse()
 
-	t.avatar = onlineimage.NewAvatar(ctx, 32)
+	t.avatar = onlineimage.NewAvatar(ctx, gotktrix.AvatarProvider, 32)
 	t.avatar.SetInitials(username)
 
 	t.ToggleButton = gtk.NewToggleButton()
@@ -76,13 +76,10 @@ func (t *Toggle) InvalidateAvatar() {
 
 	gtkutil.Async(t.ctx, func() func() {
 		mxc, _ := client.AvatarURL(client.UserID)
-		return func() {
-			if mxc == nil {
-				t.avatar.SetFromURL("")
-				return
-			}
-			t.avatar.SetFromMXC(*mxc)
+		if mxc == nil {
+			return func() { t.avatar.SetFromURL("") }
 		}
+		return func() { t.avatar.SetFromURL(string(*mxc)) }
 	})
 }
 

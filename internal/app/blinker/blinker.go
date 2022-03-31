@@ -8,10 +8,10 @@ import (
 	"github.com/chanbakjsd/gotrix/api"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 )
 
 type blinkerState uint8

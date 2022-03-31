@@ -8,7 +8,7 @@ import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
 )
 

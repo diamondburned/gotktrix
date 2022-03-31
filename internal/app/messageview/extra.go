@@ -2,8 +2,8 @@ package messageview
 
 import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/components/animations"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/components/animations"
 )
 
 type extraRevealer struct {

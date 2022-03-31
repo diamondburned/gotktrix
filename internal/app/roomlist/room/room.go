@@ -10,17 +10,17 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/prefs"
+	"github.com/diamondburned/gotkit/components/dialogs"
+	"github.com/diamondburned/gotkit/components/onlineimage"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
-	"github.com/diamondburned/gotktrix/internal/components/dialogs"
-	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
-	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/pkg/errors"
 
 	localemsg "golang.org/x/text/message"
@@ -182,7 +182,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 	r.right.Append(r.name)
 	r.right.Append(r.preview)
 
-	r.avatar = onlineimage.NewAvatar(ctx, AvatarSize)
+	r.avatar = onlineimage.NewAvatar(ctx, gotktrix.AvatarProvider, AvatarSize)
 	r.avatar.ConnectLabel(r.name.label)
 	avatarCSS(r.avatar)
 
@@ -217,7 +217,7 @@ func AddTo(ctx context.Context, section Section, roomID matrix.RoomID) *Room {
 		updateName(s)
 	})
 	r.State.NotifyAvatar(func(ctx context.Context, s State) {
-		r.avatar.SetFromMXC(s.Avatar)
+		r.avatar.SetFromURL(string(s.Avatar))
 	})
 
 	section.Insert(&r)
@@ -461,7 +461,7 @@ going from 0 to 1, or more precisely in interval notation, <tt>[0.0, 1.0]</tt>.
 order.</b> Rooms that have the same order number will use the section's sorting
 (A-Z or Activity).`
 
-var reorderHelpAttrs = markuputil.Attrs(
+var reorderHelpAttrs = textutil.Attrs(
 	pango.NewAttrScale(0.95),
 )
 
@@ -571,7 +571,7 @@ var moveToSectionCSS = cssutil.Applier("room-movetosection", `
 func (r *Room) moveToSectionBox() gtk.Widgetter {
 	header := gtk.NewLabel(locale.Sprint(r.ctx.Take(), "Section Name"))
 	header.SetXAlign(0)
-	header.SetAttributes(markuputil.Attrs(
+	header.SetAttributes(textutil.Attrs(
 		pango.NewAttrWeight(pango.WeightBold),
 	))
 

@@ -20,7 +20,6 @@ import (
 	"github.com/chanbakjsd/gotrix/api/httputil"
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
@@ -64,7 +63,7 @@ var SyncOptions = gotrix.SyncOptions{
 //      send us a header while it's preparing the response to be sent. We don't
 //      want to mark the connection as timed out.
 //
-var DefaultTransport = http.Transport{
+var DefaultTransport = &http.Transport{
 	Proxy:                 http.ProxyFromEnvironment,
 	ForceAttemptHTTP2:     true,
 	MaxIdleConns:          100,
@@ -77,6 +76,10 @@ var DefaultTransport = http.Transport{
 		Timeout: 10 * time.Second,
 	}).DialContext,
 }
+
+var defaultClient = httputil.NewCustomClient(&http.Client{
+	Transport: DefaultTransport,
+})
 
 var deviceName = "gotktrix"
 
@@ -125,87 +128,31 @@ func FromContext(ctx context.Context) *Client {
 	return nil
 }
 
-// ClientAuth holds a partial client.
-type ClientAuth struct {
-	c *gotrix.Client
-}
-
-// Discover wraps around gotrix.DiscoverWithClienT.
-func Discover(hcl httputil.Client, serverName string) (*ClientAuth, error) {
-	c, err := gotrix.DiscoverWithClient(hcl, serverName)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ClientAuth{c}, nil
-}
-
-// WithContext creates a copy of ClientAuth that uses the provided context.
-func (a *ClientAuth) WithContext(ctx context.Context) *ClientAuth {
-	return &ClientAuth{c: a.c.WithContext(ctx)}
-}
-
-// LoginPassword authenticates the client using the provided username and
-// password.
-func (a *ClientAuth) LoginPassword(username, password string) (*Client, error) {
-	err := a.c.Client.Login(api.LoginArg{
-		Type: matrix.LoginPassword,
-		Identifier: matrix.Identifier{
-			Type: matrix.IdentifierUser,
-			User: username,
-		},
-		Password:                 password,
-		InitialDeviceDisplayName: deviceName,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return wrapClient(a.c)
-}
-
-// LoginToken authenticates the client using the provided token.
-func (a *ClientAuth) LoginToken(token string) (*Client, error) {
-	err := a.c.Client.Login(api.LoginArg{
-		Type:                     matrix.LoginToken,
-		Token:                    deviceName,
-		InitialDeviceDisplayName: deviceName,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return wrapClient(a.c)
-}
-
-// LoginSSO returns the HTTP address for logging in as SSO and the channel
-// indicating if the user is done or not.
-func (a *ClientAuth) LoginSSO(done func(*Client, error)) (string, error) {
-	address, wait, err := a.c.LoginSSO()
-	if err != nil {
-		return "", err
-	}
-
-	go func() {
-		if err := wait(); err != nil {
-			done(nil, err)
-			return
-		}
-
-		done(wrapClient(a.c))
-	}()
-
-	return address, nil
-}
-
-// LoginMethods returns the login methods supported by the homeserver.
-func (a *ClientAuth) LoginMethods() ([]matrix.LoginMethod, error) {
-	return a.c.Client.GetLoginMethods()
-}
-
 // Base64UserID creates a path-friendly base64 string from the given user ID.
 func Base64UserID(uID matrix.UserID) string {
 	return base64.URLEncoding.EncodeToString([]byte(uID))
 }
 
+// Opts describes the client options when constructing.
+type Opts struct {
+	Client     httputil.Client
+	ConfigPath ConfigPather
+}
+
+var defaultOpts = Opts{
+	Client:     defaultClient,
+	ConfigPath: constConfigPath(os.TempDir()),
+}
+
+// must swaps o out for the default if it's empty.
+func (o *Opts) init() {
+	if *o == (Opts{}) {
+		*o = defaultOpts
+	}
+}
+
+// Client extends a gotrix.Client to implement additional functions useful for
+// gotktrix.
 type Client struct {
 	*gotrix.Client
 	*handler.Registry
@@ -217,16 +164,17 @@ type Client struct {
 }
 
 // New wraps around gotrix.NewWithClient.
-func New(hcl httputil.Client, serverName string, uID matrix.UserID, token string) (*Client, error) {
-	c, err := gotrix.NewWithClient(hcl, serverName)
+func New(serverName, token string, opts Opts) (*Client, error) {
+	opts.init()
+
+	c, err := gotrix.NewWithClient(opts.Client, serverName)
 	if err != nil {
 		return nil, err
 	}
 
-	c.UserID = uID
 	c.AccessToken = token
 
-	return wrapClient(c)
+	return wrapClient(c, opts)
 }
 
 /*
@@ -238,8 +186,9 @@ var cachedRoutes = map[string]map[string]string{
 }
 */
 
-func wrapClient(c *gotrix.Client) (*Client, error) {
+func wrapClient(c *gotrix.Client, opts Opts) (*Client, error) {
 	logInit()
+	opts.init()
 
 	if c.UserID == "" {
 		userID, _, err := c.Whoami()
@@ -252,15 +201,21 @@ func wrapClient(c *gotrix.Client) (*Client, error) {
 	// URLEncoding is path-safe; StdEncoding is not.
 	b64Username := Base64UserID(c.UserID)
 
-	interceptor := httptrick.WrapInterceptor(&DefaultTransport)
-	c.ClientDriver = &http.Client{Transport: interceptor}
+	var interceptor *httptrick.Interceptor
+	if client, ok := c.ClientDriver.(*http.Client); ok {
+		interceptor = httptrick.WrapInterceptor(client.Transport)
+		client.Transport = interceptor
+	} else {
+		interceptor = httptrick.WrapInterceptor(DefaultTransport)
+		c.ClientDriver = &http.Client{Transport: interceptor}
+	}
 
-	s, err := state.New(config.Path("matrix-state", b64Username), c.UserID)
+	s, err := state.New(opts.ConfigPath.ConfigPath("matrix-state", b64Username), c.UserID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make state db")
 	}
 
-	idx, err := indexer.Open(config.Path("matrix-index", b64Username))
+	idx, err := indexer.Open(opts.ConfigPath.ConfigPath("matrix-index", b64Username))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to make indexer")
 	}

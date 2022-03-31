@@ -4,10 +4,9 @@ package md
 import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/config/prefs"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -53,44 +52,18 @@ var Converter = goldmark.New(
 	),
 )
 
-// TabWidth is the width of a tab character in regular monospace characters.
-var TabWidth = prefs.NewInt(4, prefs.IntMeta{
-	Name:        "Tab Width",
-	Section:     "Text",
-	Description: "The tab width in characters.",
-	Min:         0,
-	Max:         16,
-})
-
-var monospaceAttr = markuputil.Attrs(
-	pango.NewAttrFamily("Monospace"),
-)
-
-// SetTabSize sets the given TextView's tab size.
-func SetTabSize(text *gtk.TextView) {
-	layout := text.CreatePangoLayout(" ")
-	layout.SetAttributes(monospaceAttr)
-
-	width, _ := layout.PixelSize()
-
-	stops := pango.NewTabArray(1, true)
-	stops.SetTab(0, pango.TabLeft, TabWidth.Value()*width)
-
-	text.SetTabs(stops)
-}
-
 // EmojiScale is the scale of Unicode emojis.
 const EmojiScale = 2.5
 
 // EmojiAttrs is the Pango attributes set for a label showing an emoji. It is
 // kept the same as the _emoji tag in TextTags.
-var EmojiAttrs = markuputil.Attrs(
+var EmojiAttrs = textutil.Attrs(
 	pango.NewAttrScale(EmojiScale),
 )
 
 // TextTags contains the tag table mapping most Matrix HTML tags to GTK
 // TextTags.
-var TextTags = markuputil.TextTagsMap{
+var TextTags = textutil.TextTagsMap{
 	// https://www.w3schools.com/cssref/css_default_values.asp
 	"h1":     htag(1.75),
 	"h2":     htag(1.50),
@@ -137,8 +110,8 @@ var TextTags = markuputil.TextTagsMap{
 	"_nohyphens": {"insert-hyphens": false},
 }
 
-func htag(scale float64) markuputil.TextTag {
-	return markuputil.TextTag{
+func htag(scale float64) textutil.TextTag {
+	return textutil.TextTag{
 		"scale":  scale,
 		"weight": pango.WeightBold,
 	}

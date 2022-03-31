@@ -11,11 +11,11 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/imgutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"golang.org/x/net/html"
 )
@@ -260,7 +260,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 
 		// Inline.
 		case "font", "span": // data-mx-bg-color, data-mx-color
-			tag := markuputil.HashTag(s.block.table, markuputil.TextTag{
+			tag := textutil.HashTag(s.block.table, textutil.TextTag{
 				"foreground": nodeAttr(n, "data-mx-color", "color"),
 				"background": nodeAttr(n, "data-mx-bg-color"),
 			})
@@ -371,7 +371,7 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				text.buf.ApplyTag(tag, startIter, text.iter)
 
 				if color {
-					a := markuputil.LinkTags().FromTable(text.table, "a")
+					a := textutil.LinkTags().FromTable(text.table, "a")
 					text.buf.ApplyTag(a, startIter, text.iter)
 				}
 			}

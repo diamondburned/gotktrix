@@ -10,16 +10,16 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
-	"github.com/diamondburned/gotktrix/internal/components/actionbutton"
-	"github.com/diamondburned/gotktrix/internal/components/dialogs"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/imgutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
+	"github.com/diamondburned/gotkit/components/actionbutton"
+	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/components/uploadutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
 	"github.com/pkg/errors"
 )
@@ -53,7 +53,7 @@ var boxCSS = cssutil.Applier("emojiview-box", `
 	}
 `)
 
-var nameAttrs = markuputil.Attrs(
+var nameAttrs = textutil.Attrs(
 	pango.NewAttrScale(1.2),
 	pango.NewAttrWeight(pango.WeightBold),
 	pango.NewAttrInsertHyphens(false),
@@ -64,7 +64,7 @@ func dialog(ctx context.Context, v *View) {
 	dialog.SetTransientFor(app.GTKWindowFromContext(ctx))
 	dialog.SetDefaultSize(400, 500)
 	dialog.SetChild(v)
-	dialog.SetTitle(app.SuffixedTitle("Add Emojis for " + v.name.Label()))
+	dialog.SetTitle(app.FromContext(ctx).SuffixedTitle("Add Emojis for " + v.name.Label()))
 	dialog.Show()
 }
 
@@ -453,7 +453,7 @@ func (v *View) addEmotesFromfile(path string) {
 
 	onError := func(err error) {
 		prefix := strings.Trim(string(name), ":")
-		emoji.name.SetMarkup(markuputil.Error(prefix + ": " + err.Error()))
+		emoji.name.SetMarkup(textutil.ErrorMarkup(prefix + ": " + err.Error()))
 		emoji.pbar.Error()
 
 		emoji.action.SetIconName("view-refresh-symbolic")

@@ -7,15 +7,14 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/imgutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	unicodeemoji "github.com/enescakir/emoji"
 	"github.com/sahilm/fuzzy"
 )
@@ -54,7 +53,7 @@ func (l *dataList) add(data Data) {
 // RoomMemberData is the data for each room member. It implements Data.
 type RoomMemberData indexer.IndexedRoomMember
 
-var subNameAttrs = markuputil.Attrs(
+var subNameAttrs = textutil.Attrs(
 	pango.NewAttrScale(0.85),
 	pango.NewAttrForegroundAlpha(75*65535/100), // 75%
 )
@@ -63,7 +62,7 @@ var subNameAttrs = markuputil.Attrs(
 func (d RoomMemberData) Row(ctx context.Context) *gtk.ListBoxRow {
 	client := gotktrix.FromContext(ctx).Offline()
 	author := mauthor.Markup(client, d.Room, d.ID,
-		mauthor.WithWidgetColor(&app.GTKWindowFromContext(ctx).Widget),
+		mauthor.WithWidgetColor(),
 		mauthor.WithMinimal(),
 	)
 

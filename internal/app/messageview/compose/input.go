@@ -15,13 +15,14 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/imgutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/compose/autocomplete"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/pkg/errors"
 )
@@ -90,7 +91,7 @@ func NewInput(ctx context.Context, ctrl InputController, roomID matrix.RoomID) *
 		gtk.InputHintWordCompletion |
 		gtk.InputHintUppercaseSentences,
 	)
-	md.SetTabSize(i.TextView)
+	textutil.SetTabSize(i.TextView)
 	inputCSS(i)
 
 	i.acomp = autocomplete.New(ctx, i.TextView, i.onAutocompleted)

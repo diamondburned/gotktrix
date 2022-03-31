@@ -7,7 +7,9 @@ import (
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/prefs"
+	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/app/blinker"
 	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview"
@@ -15,11 +17,9 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
 	"github.com/diamondburned/gotktrix/internal/app/userbutton"
-	"github.com/diamondburned/gotktrix/internal/components/title"
-	"github.com/diamondburned/gotktrix/internal/config/prefs"
+	"github.com/diamondburned/gotkit/components/title"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 )
 
 type manager struct {

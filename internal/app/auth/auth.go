@@ -9,18 +9,12 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
-	"github.com/diamondburned/gotktrix/internal/config"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/secret"
-)
-
-var (
-	keyringAppID   = config.AppIDDot("secrets")
-	encryptionPath = config.Path("secrets")
 )
 
 type Assistant struct {
@@ -34,8 +28,9 @@ type Assistant struct {
 	accounts      []assistantAccount
 	currentClient *gotktrix.ClientAuth
 
-	keyring *secret.Keyring
-	encrypt *secret.EncryptedFile
+	keyring     *secret.Keyring
+	encrypt     *secret.EncryptedFile
+	encryptPath string
 
 	// hasConnected is true if the connection has already been connected.
 	hasConnected bool
@@ -57,11 +52,14 @@ func ShowWithClient(ctx context.Context, client httputil.Client) *Assistant {
 	ass := assistant.Use(app.GTKWindowFromContext(ctx), nil)
 	ass.SetTitle("Getting Started")
 
+	app := app.FromContext(ctx)
+
 	a := Assistant{
-		Assistant: ass,
-		ctx:       ctx,
-		client:    client,
-		keyring:   secret.KeyringDriver(keyringAppID),
+		Assistant:   ass,
+		ctx:         ctx,
+		client:      client,
+		keyring:     secret.KeyringDriver(app.IDDot("secrets")),
+		encryptPath: app.ConfigPath("secrets"),
 	}
 
 	ass.AddStep(accountChooserStep(&a))
@@ -130,7 +128,7 @@ var inputBoxCSS = cssutil.Applier("auth-input-box", `
 	}
 `)
 
-var inputLabelAttrs = markuputil.Attrs(
+var inputLabelAttrs = textutil.Attrs(
 	pango.NewAttrForegroundAlpha(65535 * 90 / 100), // 90%
 )
 
@@ -174,7 +172,7 @@ var errorLabelCSS = cssutil.Applier("auth-error-label", `
 `)
 
 func makeErrorLabel() *gtk.Label {
-	errLabel := markuputil.ErrorLabel("")
+	errLabel := textutil.ErrorLabel("")
 	errorLabelCSS(errLabel)
 	return errLabel
 }

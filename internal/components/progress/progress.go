@@ -3,7 +3,7 @@ package progress
 import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 )
 
 var barCSS = cssutil.Applier("progress-bar", `

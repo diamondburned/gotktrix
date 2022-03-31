@@ -5,9 +5,9 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
 )
 
 type spaceState struct {

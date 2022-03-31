@@ -10,13 +10,13 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
 	"github.com/diamondburned/gotktrix/internal/md"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
 	"github.com/pkg/errors"
@@ -262,7 +262,7 @@ func (r *reaction) update(
 		r.people = append(r.people, reactedUser{
 			id: sender,
 			name: mauthor.Markup(client, r.roomID, sender,
-				mauthor.WithWidgetColor(r.box),
+				mauthor.WithWidgetColor(),
 				mauthor.WithMinimal(),
 			),
 		})

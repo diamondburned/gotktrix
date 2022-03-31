@@ -9,7 +9,7 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/config/prefs"
+	"github.com/diamondburned/gotkit/app/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 )
 

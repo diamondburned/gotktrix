@@ -9,14 +9,14 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
-	"github.com/diamondburned/gotktrix/internal/components/errpopup"
+	"github.com/diamondburned/gotkit/components/errpopup"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotktrix/internal/secret"
 	"github.com/pkg/errors"
 )
@@ -78,7 +78,7 @@ func loginStepForm(a *Assistant, method matrix.LoginMethod) *assistant.Step {
 	content.Append(rememberMe)
 
 	onError := func(err error) {
-		errLabel.SetMarkup(markuputil.Error(err.Error()))
+		errLabel.SetMarkup(textutil.ErrorMarkup(err.Error()))
 		errLabel.Show()
 		a.Continue()
 	}
@@ -314,7 +314,7 @@ func newRememberMeBox(a *Assistant) *rememberMeBox {
 			}
 
 			if id == int(gtk.ResponseAccept) {
-				a.encrypt = secret.EncryptedFileDriver(password, encryptionPath)
+				a.encrypt = secret.EncryptedFileDriver(password, a.encryptPath)
 				state.encrypt = true
 				return
 			}

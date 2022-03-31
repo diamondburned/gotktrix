@@ -7,7 +7,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 )
 
 // ColorHasher describes a string hasher that outputs a color.
@@ -42,7 +42,7 @@ var (
 // RGBHex converts the given color to a HTML hex color string. The alpha value
 // is ignored.
 func RGBHex(c color.RGBA) string {
-	return markuputil.RGBHex(c)
+	return textutil.RGBHex(c)
 }
 
 // HSVHasher describes a color hasher that accepts saturation and value

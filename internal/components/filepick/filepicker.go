@@ -5,9 +5,9 @@ import (
 
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/app"
-	"github.com/diamondburned/gotktrix/internal/config/prefs"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/prefs"
+	"github.com/diamondburned/gotkit/app/locale"
 	"golang.org/x/text/message"
 )
 

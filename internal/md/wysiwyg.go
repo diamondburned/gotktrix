@@ -7,14 +7,14 @@ import (
 	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/md/hl"
 	"github.com/yuin/goldmark/ast"
 )
 
 const wysiwygPrefix = "_wysiwyg_"
 
-var wysiwygTags = make(markuputil.TextTagsMap, len(TextTags))
+var wysiwygTags = make(textutil.TextTagsMap, len(TextTags))
 
 func init() {
 	for name, attrs := range TextTags {
@@ -115,7 +115,7 @@ func (w *wysiwyg) enter(n ast.Node) ast.WalkStatus {
 		}
 
 	case *ast.Link:
-		linkTags := markuputil.LinkTags()
+		linkTags := textutil.LinkTags()
 		w.markTextTags(n, linkTags.FromTable(w.table, "a"))
 		return ast.WalkSkipChildren
 
@@ -171,8 +171,8 @@ func (w *wysiwyg) boundIsInvisible() bool {
 }
 
 func (w *wysiwyg) markBounds(i, j int, names ...string) {
-	w.head.SetOffset(i)
-	w.tail.SetOffset(j)
+	w.setIter(w.head, i)
+	w.setIter(w.tail, j)
 
 	if w.boundIsInvisible() {
 		return

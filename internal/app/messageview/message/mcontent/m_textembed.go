@@ -12,19 +12,19 @@ import (
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
-	"github.com/diamondburned/gotktrix/internal/config/prefs"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/prefs"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 )
 
-var titleAttrs = markuputil.Attrs(
+var titleAttrs = textutil.Attrs(
 	pango.NewAttrWeight(pango.WeightBold),
 )
 
-var descAttrs = markuputil.Attrs(
+var descAttrs = textutil.Attrs(
 	pango.NewAttrWeight(pango.WeightSemilight),
 	pango.NewAttrScale(0.85),
 )

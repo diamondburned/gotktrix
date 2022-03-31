@@ -10,13 +10,12 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 // eventMessage is a mini-message.
@@ -78,7 +77,7 @@ type eventRenderer struct {
 func (r eventRenderer) author(uID matrix.UserID, mods ...mauthor.MarkupMod) string {
 	mods = append(mods, mauthor.WithMinimal(), nil)
 	gtkutil.InvokeMain(func() {
-		mods[len(mods)-1] = mauthor.WithWidgetColor(app.WindowFromContext(r.ctx))
+		mods[len(mods)-1] = mauthor.WithWidgetColor()
 	})
 
 	return mauthor.Markup(r.client, r.roomEv.RoomID, uID, mods...)

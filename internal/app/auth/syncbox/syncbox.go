@@ -9,13 +9,13 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/components/onlineimage"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
-	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 )
 
 const avatarSize = 36
@@ -35,14 +35,14 @@ type Popup struct {
 	label   *gtk.Label
 }
 
-var serverAttrs = markuputil.Attrs(
+var serverAttrs = textutil.Attrs(
 	pango.NewAttrScale(0.8),
 	pango.NewAttrWeight(pango.WeightBook),
 	pango.NewAttrForegroundAlpha(uint16(math.Round(0.75*65535))),
 )
 
 func newAccountGrid(ctx context.Context, account *auth.Account) gtk.Widgetter {
-	avatar := onlineimage.NewAvatar(ctx, avatarSize)
+	avatar := onlineimage.NewAvatar(ctx, gotktrix.AvatarProvider, avatarSize)
 	avatar.SetInitials(account.Username)
 	avatar.SetFromURL(account.AvatarURL)
 

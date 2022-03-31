@@ -8,8 +8,8 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent/text"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
 )
 
 type textContent struct {
@@ -85,8 +85,10 @@ func (c *textContent) LoadMore() {
 	if len(c.render.URLs) == 0 {
 		return
 	}
+
 	if c.embeds != nil {
-		c.Box.Remove(c.embeds)
+		c.embeds.Unparent()
+		c.embeds = nil
 	}
 
 	c.embeds = gtk.NewBox(gtk.OrientationVertical, 0)

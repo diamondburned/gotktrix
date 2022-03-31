@@ -6,10 +6,11 @@ import (
 
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/chanbakjsd/gotrix/matrix"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/notify"
+	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
 )
 
 // OpenRoomCommand is the command structure for the open room action.
@@ -34,38 +35,40 @@ func StartNotify(ctx context.Context, actionID string) (stop func()) {
 		}
 
 		// TODO: NotifySoundMessage?
-		notify := client.NotifyMessage(message, gotktrix.NotifyMessage)
-		if notify == 0 {
+		action := client.NotifyMessage(message, gotktrix.NotifyMessage)
+		if action == 0 {
 			return
 		}
 
-		const unreadIcon = app.NotificationIconName("unread-mail")
-		icon := app.NotificationIcon(unreadIcon)
+		const unreadIcon = notify.IconName("unread-mail")
+		icon := notify.Icon(unreadIcon)
 
 		avatar, _ := client.MemberAvatar(message.RoomID, message.Sender)
 		if avatar != nil {
-			avatarURL, _ := client.SquareThumbnail(*avatar, app.MaxNotificationIconSize, 1)
-			icon = app.NotificationIconURL{
+			avatarURL, _ := client.SquareThumbnail(*avatar, notify.MaxIconSize, 1)
+			icon = notify.IconURL{
 				Context:      ctx,
 				URL:          avatarURL,
 				FallbackIcon: unreadIcon,
 			}
 		}
 
-		a := app.FromContext(ctx)
-		a.SendNotification(app.Notification{
-			ID:    app.HashNotificationID("new_message", client.UserID, message.RoomID),
+		notification := notify.Notification{
+			ID:    notify.HashID("new_message", client.UserID, message.RoomID),
 			Title: mauthor.Name(client, message.RoomID, message.Sender),
 			Body:  message.Body,
 			Icon:  icon,
-			Sound: app.MessageNotificationSound,
-			Action: app.NotificationAction{
+			Sound: notify.MessageSound,
+			Action: notify.Action{
 				ActionID: actionID,
 				Argument: gtkutil.NewJSONVariant(OpenRoomCommand{
 					UserID: client.UserID,
 					RoomID: message.RoomID,
 				}),
 			},
-		})
+		}
+
+		a := app.FromContext(ctx)
+		notification.Send(a)
 	})
 }

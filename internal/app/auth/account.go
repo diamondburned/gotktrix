@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotktrix/internal/secret"
 	"github.com/pkg/errors"
 )

@@ -11,12 +11,10 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/diamondburned/gotktrix/internal/config"
+	"github.com/diamondburned/gotkit/app"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/semaphore"
 )
-
-var thumbnailDir = config.CacheDir("thumbnail")
 
 // thumbnailTmpPattern has the output format for the thumbnail.
 const thumbnailTmpPattern = "*.jpeg"
@@ -28,11 +26,6 @@ func init() {
 	hasFFmpeg = ffmpeg != ""
 }
 
-var thumbnailGC = cacheGC{
-	Dir: thumbnailDir,
-	Age: 24 * time.Hour,
-}
-
 // Thumbnail fetches the thumbnail of the given URL and returns the path to the
 // file.
 func Thumbnail(ctx context.Context, url string, w, h int) (string, error) {
@@ -40,20 +33,23 @@ func Thumbnail(ctx context.Context, url string, w, h int) (string, error) {
 		return "", nil
 	}
 
+	app := app.FromContext(ctx)
+	thumbDir := app.CachePath("thumbnails")
+
 	return doTmp(
-		thumbnailURLPath(url, fmt.Sprintf("w=%d;h=%d", w, h)),
+		thumbnailURLPath(thumbDir, url, fmt.Sprintf("w=%d;h=%d", w, h)),
 		thumbnailTmpPattern,
 		func(out string) error {
-			thumbnailGC.do()
+			doGC(thumbDir, 24*time.Hour)
 			return doFFmpeg(ctx, url, out, "-frames:v", "1", "-f", "image2")
 		},
 	)
 }
 
-func thumbnailURLPath(url, fragment string) string {
+func thumbnailURLPath(baseDir, url, fragment string) string {
 	b := sha1.Sum([]byte(url + "#" + fragment))
 	f := base64.URLEncoding.EncodeToString(b[:])
-	return filepath.Join(thumbnailDir, f)
+	return filepath.Join(baseDir, f)
 }
 
 var ffmpegSema = semaphore.NewWeighted(int64(runtime.GOMAXPROCS(-1)))
@@ -80,8 +76,6 @@ func doFFmpeg(ctx context.Context, src, dst string, opts ...string) error {
 
 		return err
 	}
-
-	thumbnailGC.do()
 
 	return nil
 }

@@ -9,10 +9,10 @@ import (
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 )
 
 // Chip describes a user chip. It is used for display in messages and for
@@ -95,7 +95,7 @@ func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip 
 
 	gtkutil.OnFirstMap(c, func() {
 		// Update the color using CSS.
-		color := UserColor(user, WithWidgetColor(c))
+		color := UserColor(user, WithWidgetColor())
 		addCustomCSS(customChipCSS(color), c.name, c.Box)
 	})
 
@@ -153,13 +153,15 @@ func (c *Chip) setAvatar(client *gotktrix.Client, mxc *matrix.URL) {
 		return
 	}
 
-	avatarURL, _ := client.SquareThumbnail(*mxc, 24, gtkutil.ScaleFactor())
-	imgutil.AsyncGET(
-		c.ctx, avatarURL, c.avatar.SetFromPaintable,
+	ctx := imgutil.WithOpts(c.ctx,
 		imgutil.WithErrorFn(func(err error) {
 			log.Print("error getting avatar ", mxc, ": ", err)
 		}),
 	)
+
+	avatarURL, _ := client.SquareThumbnail(*mxc, 24, gtkutil.ScaleFactor())
+
+	imgutil.AsyncGET(ctx, avatarURL, c.avatar.SetFromPaintable)
 }
 
 const maxChipWidth = 200

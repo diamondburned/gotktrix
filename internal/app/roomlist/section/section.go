@@ -10,13 +10,13 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/app/prefs"
+	"github.com/diamondburned/gotkit/app/prefs/kvstate"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
-	"github.com/diamondburned/gotktrix/internal/config/kvstate"
-	"github.com/diamondburned/gotktrix/internal/config/prefs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
 )
 
@@ -122,8 +122,8 @@ type Section struct {
 	filtered bool
 }
 
-func acquireConfig(uID matrix.UserID) *kvstate.Config {
-	return kvstate.AcquireConfig("sections", gotktrix.Base64UserID(uID), "state.json")
+func acquireConfig(ctx context.Context, uID matrix.UserID) *kvstate.Config {
+	return kvstate.AcquireConfig(ctx, "sections", gotktrix.Base64UserID(uID), "state.json")
 }
 
 // New creates a new deactivated section.
@@ -144,7 +144,7 @@ func New(ctx context.Context, ctrl Controller, tag matrix.TagName) *Section {
 	inner.Append(minify)
 
 	client := gotktrix.FromContext(ctx)
-	cfg := acquireConfig(client.UserID)
+	cfg := acquireConfig(ctx, client.UserID)
 
 	var reveal bool
 	if !cfg.Get(string(tag), &reveal) {
@@ -273,7 +273,7 @@ func (s *Section) Tag() matrix.TagName {
 func (s *Section) sortByBox() gtk.Widgetter {
 	header := gtk.NewLabel(locale.S(s.ctx, "Sort by"))
 	header.SetXAlign(0)
-	header.SetAttributes(markuputil.Attrs(
+	header.SetAttributes(textutil.Attrs(
 		pango.NewAttrWeight(pango.WeightBold),
 	))
 

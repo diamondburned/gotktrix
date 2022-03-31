@@ -5,10 +5,11 @@ import (
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/pkg/errors"
 )
 
@@ -36,15 +37,16 @@ func homeserverStep(a *Assistant) *assistant.Step {
 		go func() {
 			onErr := func(err error) {
 				glib.IdleAdd(func() {
-					errLabel.SetMarkup(markuputil.Error(err.Error()))
+					errLabel.SetMarkup(textutil.ErrorMarkup(err.Error()))
 					errLabel.Show()
 					a.Continue()
 				})
 			}
 
-			client := a.client.WithContext(ctx)
-
-			c, err := gotktrix.Discover(client, inputs[0].Text())
+			c, err := gotktrix.Discover(inputs[0].Text(), gotktrix.Opts{
+				Client:     a.client.WithContext(ctx),
+				ConfigPath: app.FromContext(ctx),
+			})
 			if err != nil {
 				onErr(err)
 				return

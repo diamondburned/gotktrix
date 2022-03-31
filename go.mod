@@ -11,9 +11,9 @@ require (
 	github.com/chanbakjsd/gotrix v0.3.2-0.20220103051835-3dbe83009cb2
 	github.com/diamondburned/adaptive v0.0.2-0.20220226002257-ef8720b54399
 	github.com/diamondburned/gotk4/pkg v0.0.0-20220228011804-2178059e90d8
+	github.com/diamondburned/gotkit v0.0.0-20220327045555-7fbeda46a8d8
 	github.com/dustin/go-humanize v1.0.0
 	github.com/enescakir/emoji v1.0.0
-	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 	github.com/pkg/errors v0.9.1
 	github.com/sahilm/fuzzy v0.1.0
 	github.com/yuin/goldmark v1.4.0
@@ -49,6 +49,7 @@ require (
 	github.com/golang/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/btree v1.0.1 // indirect
+	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect

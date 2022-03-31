@@ -9,11 +9,11 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
 )
 
 // Composer is a message composer.
@@ -316,7 +316,7 @@ func (c *Composer) ReplyTo(eventID matrix.EventID) bool {
 	if ev := c.roomTimelineEvent(eventID); ev != nil {
 		client := gotktrix.FromContext(c.ctx).Offline()
 		author := mauthor.Markup(client, c.roomID, ev.RoomInfo().Sender,
-			mauthor.WithWidgetColor(c),
+			mauthor.WithWidgetColor(),
 			mauthor.WithMinimal())
 		c.SetPlaceholder(locale.Sprintf(c.ctx, "Replying to %s", author))
 	} else {

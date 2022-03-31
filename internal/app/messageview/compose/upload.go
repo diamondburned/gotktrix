@@ -18,17 +18,17 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
-	"github.com/diamondburned/gotktrix/internal/components/dialogs"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/imgutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
+	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/components/filepick"
 	"github.com/diamondburned/gotktrix/internal/components/progress"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotktrix/internal/osutil"
 	"github.com/dustin/go-humanize"
 	"github.com/pkg/errors"
@@ -267,7 +267,7 @@ func (u uploader) promptUpload(file fileUpload) {
 		label := gtk.NewLabel(file.name)
 		label.SetXAlign(0)
 		label.SetEllipsize(pango.EllipsizeEnd)
-		label.SetAttributes(markuputil.Attrs(
+		label.SetAttributes(textutil.Attrs(
 			pango.NewAttrScale(1.1),
 		))
 
@@ -321,7 +321,7 @@ func (u uploader) promptUpload(file fileUpload) {
 				return close
 			}
 
-			p, err := imgutil.Read(r)
+			p, err := imgutil.Read(ctx, r)
 			r.Rewind()
 
 			if err != nil {

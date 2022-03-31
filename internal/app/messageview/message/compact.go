@@ -3,8 +3,8 @@ package message
 import (
 	"github.com/chanbakjsd/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/app/locale"
 )
 
 // collapsedMessage is part of the full message container.

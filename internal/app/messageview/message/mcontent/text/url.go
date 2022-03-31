@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 )
 
 var allowedSchemes = map[string]struct{}{
@@ -91,7 +91,7 @@ matchLoop:
 		end.SetLine(line)
 		end.SetLineIndex(offset1)
 
-		a := markuputil.LinkTags().FromTable(table, "a")
+		a := textutil.LinkTags().FromTable(table, "a")
 		buf.ApplyTag(a, start, end)
 
 		href := text[match[0]:match[1]]
@@ -105,7 +105,7 @@ matchLoop:
 // BindLinkHandler binds input handlers for triggering hyperlinks within the
 // TextView.
 func BindLinkHandler(tview *gtk.TextView, onURL func(string)) {
-	linkTags := markuputil.LinkTags()
+	linkTags := textutil.LinkTags()
 
 	checkURL := func(x, y float64) *EmbeddedURL {
 		bx, by := tview.WindowToBufferCoords(gtk.TextWindowWidget, int(x), int(y))

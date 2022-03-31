@@ -6,11 +6,12 @@ import (
 	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/components/onlineimage"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
-	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/locale"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotkit/app/locale"
 )
 
 type spaceButton interface {
@@ -104,7 +105,7 @@ func NewSpaceButton(ctx context.Context, spaceID matrix.RoomID) *SpaceButton {
 	b.name.SetRevealChild(false)
 	b.name.SetTransitionType(gtk.RevealerTransitionTypeSlideRight)
 
-	b.icon = onlineimage.NewAvatar(ctx, spaceIconSize)
+	b.icon = onlineimage.NewAvatar(ctx, gotktrix.AvatarProvider, spaceIconSize)
 
 	b.box = gtk.NewBox(gtk.OrientationHorizontal, 0)
 	b.box.SetOverflow(gtk.OverflowHidden)
@@ -122,7 +123,7 @@ func NewSpaceButton(ctx context.Context, spaceID matrix.RoomID) *SpaceButton {
 		b.box.SetTooltipText(s.Name)
 	})
 	b.state.NotifyAvatar(func(ctx context.Context, s room.State) {
-		b.icon.SetFromMXC(s.Avatar)
+		b.icon.SetFromURL(string(s.Avatar))
 	})
 
 	gtkutil.BindSubscribe(b, func() func() {

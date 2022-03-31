@@ -6,15 +6,15 @@ import (
 	"math"
 	"sync"
 
-	"github.com/chanbakjsd/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/components/onlineimage"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
-	"github.com/diamondburned/gotktrix/internal/components/onlineimage"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/markuputil"
 	"github.com/diamondburned/gotktrix/internal/secret"
 	"github.com/pkg/errors"
 )
@@ -43,11 +43,11 @@ func newAddEntry() *gtk.ListBoxRow {
 	return row
 }
 
-var usernameAttrs = markuputil.Attrs(
+var usernameAttrs = textutil.Attrs(
 // pango.NewAttrWeight(pango.WeightBold),
 )
 
-var serverAttrs = markuputil.Attrs(
+var serverAttrs = textutil.Attrs(
 	pango.NewAttrScale(0.8),
 	pango.NewAttrWeight(pango.WeightBook),
 	pango.NewAttrForegroundAlpha(uint16(math.Round(0.75*65535))),
@@ -60,8 +60,8 @@ var avatarCSS = cssutil.Applier("auth-avatar", `
 	}
 `)
 
-func newAccountEntry(account *Account) *gtk.ListBoxRow {
-	avatar := onlineimage.NewAvatar(context.Background(), avatarSize)
+func newAccountEntry(ctx context.Context, account *Account) *gtk.ListBoxRow {
+	avatar := onlineimage.NewAvatar(ctx, gotktrix.AvatarProvider, avatarSize)
 	avatar.SetInitials(account.Username)
 	avatar.SetFromURL(account.AvatarURL)
 	avatarCSS(avatar)
@@ -150,7 +150,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 
 			if err != nil {
 				keyringStatus.Show()
-				keyringStatus.SetMarkup(markuputil.Error(err.Error()))
+				keyringStatus.SetMarkup(textutil.ErrorMarkup(err.Error()))
 				return
 			}
 
@@ -160,7 +160,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 	}()
 
 	go func() {
-		if !secret.PathIsEncrypted(encryptionPath) {
+		if !secret.PathIsEncrypted(a.encryptPath) {
 			glib.IdleAdd(func() {
 				minusChild()
 				wg.Done()
@@ -194,7 +194,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 			password.ConnectActivate(func() { button.Activate() })
 			button.ConnectClicked(func() {
 				// Populate the encryption for step 4.
-				a.encrypt = secret.EncryptedFileDriver(password.Text(), encryptionPath)
+				a.encrypt = secret.EncryptedFileDriver(password.Text(), a.encryptPath)
 				// Add to the waitgroup and wait until decryption is done.
 				wg.Add(1)
 				// Disable button.
@@ -207,7 +207,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 						defer wg.Done()
 
 						if err != nil {
-							errLabel.SetMarkup(markuputil.Error(err.Error()))
+							errLabel.SetMarkup(textutil.ErrorMarkup(err.Error()))
 							errLabel.Show()
 							return
 						}
@@ -225,7 +225,7 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 	errLabel.Hide()
 
 	onError := func(err error) {
-		errLabel.SetMarkup(markuputil.Error(err.Error()))
+		errLabel.SetMarkup(textutil.ErrorMarkup(err.Error()))
 		errLabel.Show()
 		a.Continue()
 	}
@@ -235,9 +235,10 @@ func accountChooserStep(a *Assistant) *assistant.Step {
 		ctx := a.CancellableBusy(a.ctx)
 
 		go func() {
-			client := a.client.WithContext(ctx)
-
-			c, err := gotktrix.New(client, acc.Server, matrix.UserID(acc.UserID), acc.Token)
+			c, err := gotktrix.New(acc.Server, acc.Token, gotktrix.Opts{
+				Client:     a.client.WithContext(ctx),
+				ConfigPath: app.FromContext(ctx),
+			})
 			if err != nil {
 				err = errors.Wrap(err, "server error")
 				glib.IdleAdd(func() {
@@ -329,6 +330,6 @@ func addAccounts(a *Assistant, accountList *gtk.ListBox, src secret.Driver, acco
 			Account: account,
 			src:     src,
 		})
-		accountList.Prepend(newAccountEntry(account))
+		accountList.Prepend(newAccountEntry(a.ctx, account))
 	}
 }

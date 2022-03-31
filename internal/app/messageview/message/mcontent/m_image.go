@@ -14,11 +14,11 @@ import (
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotktrix/internal/app"
+	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/gtkutil"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/cssutil"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/imgutil"
 )
 
 type imageContent struct {
@@ -143,10 +143,9 @@ func newImageEmbed(name string, maxW, maxH int) *imageEmbed {
 }
 
 func (e *imageEmbed) useURL(ctx context.Context, url string) {
+	ctx = imgutil.WithOpts(ctx, imgutil.WithErrorFn(e.onError))
 	// Only load the image when we actually draw the image.
-	gtkutil.OnFirstDraw(e, func() {
-		imgutil.AsyncGET(ctx, url, e.setPaintable, imgutil.WithErrorFn(e.onError))
-	})
+	gtkutil.OnFirstDraw(e, func() { imgutil.AsyncGET(ctx, url, e.setPaintable) })
 }
 
 func (e *imageEmbed) setPaintable(p gdk.Paintabler) {

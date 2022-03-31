@@ -7,33 +7,42 @@ import (
 	"sync"
 	"time"
 
-	"github.com/diamondburned/gotktrix/internal/config"
-	"github.com/gregjones/httpcache"
-	"github.com/gregjones/httpcache/diskcache"
 	"github.com/pkg/errors"
 )
 
-// Client is the HTTP client used to fetch all images.
-var Client = http.Client{
+var defaultClient = http.Client{
 	Timeout: 4 * time.Minute,
-	Transport: httpcache.NewTransport(
-		diskcache.New(config.CacheDir("media")),
-	),
 }
 
 const gcPeriod = time.Minute
 
-type cacheGC struct {
-	Dir string
-	Age time.Duration
+var (
+	gcs  = map[string]*cacheGC{}
+	gcMu sync.Mutex
+)
 
+func doGC(path string, age time.Duration) {
+	gcMu.Lock()
+
+	gc, ok := gcs[path]
+	if !ok {
+		gc = &cacheGC{}
+		gcs[path] = gc
+	}
+
+	gcMu.Unlock()
+
+	gc.do(path, age)
+}
+
+type cacheGC struct {
 	mut     sync.Mutex
 	lastRun time.Time
 	running bool
 }
 
 // do runs the GC asynchronously.
-func (c *cacheGC) do() {
+func (c *cacheGC) do(path string, age time.Duration) {
 	now := time.Now()
 
 	// Only run the GC after the set period and once the previous GC job is
@@ -48,7 +57,7 @@ func (c *cacheGC) do() {
 	c.mut.Unlock()
 
 	go func() {
-		files, _ := os.ReadDir(c.Dir)
+		files, _ := os.ReadDir(path)
 
 		for _, file := range files {
 			s, err := file.Info()
@@ -56,9 +65,9 @@ func (c *cacheGC) do() {
 				continue
 			}
 
-			if s.ModTime().Add(c.Age).Before(now) {
+			if s.ModTime().Add(age).Before(now) {
 				// Outdated.
-				os.Remove(filepath.Join(thumbnailDir, file.Name()))
+				os.Remove(filepath.Join(path, file.Name()))
 			}
 		}
 
