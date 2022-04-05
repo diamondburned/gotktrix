@@ -15,15 +15,15 @@ import (
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/components/autoscroll"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/compose"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
-	"github.com/diamondburned/gotkit/components/autoscroll"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
-	"github.com/diamondburned/gotkit/app/locale"
 )
 
 type messageKey string
@@ -134,10 +134,15 @@ type Page struct {
 }
 
 type messageRow struct {
+	// these fields determine the state of the fields after it.
 	row    *gtk.ListBoxRow
 	ev     event.RoomEvent
-	body   message.Message
 	custom bool
+	// these fields are changed depending on the above fields.
+	body message.Message
+	// before tracks the event before so we can invalidate it if we insert a new
+	// one before.
+	before matrix.EventID
 }
 
 var _ message.MessageViewer = (*Page)(nil)
@@ -764,11 +769,29 @@ func (p *Page) resetMessage(key messageKey, before messageRow) bool {
 		return false
 	}
 
-	// Recreate the body if the raw events don't match.
-	if !msg.custom && (msg.body == nil || !eventEq(msg.ev, msg.body.Event())) {
-		msg.body = message.NewCozyMessage(p.parent.ctx, p, msg.ev, before.body)
-		p.messages[key] = msg
+	// Don't recreate if custom is true, since we'll override the widget that we
+	// intentionally want to be different.
+	recreate := !msg.custom && (false ||
+		// body is nil if we've never initialized this.
+		msg.body == nil ||
+		// before's event ID is different for the same reason above OR we've
+		// inserted a new message before this one.
+		before.ev.RoomInfo().ID != msg.before ||
+		// ev doesn't match up if the initialized event widget holds a different
+		// event.
+		!eventEq(msg.ev, msg.body.Event()))
 
+	// Recreate the body if the raw events don't match.
+	if recreate {
+		msg.body = message.NewCozyMessage(p.parent.ctx, p, msg.ev, before.body)
+		msg.before = ""
+
+		if before.ev != nil {
+			beforeInfo := before.ev.RoomInfo()
+			msg.before = beforeInfo.ID
+		}
+
+		p.messages[key] = msg
 		msg.row.SetChild(msg.body)
 	}
 
