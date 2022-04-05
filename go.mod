@@ -11,7 +11,7 @@ require (
 	github.com/chanbakjsd/gotrix v0.3.2-0.20220103051835-3dbe83009cb2
 	github.com/diamondburned/adaptive v0.0.2-0.20220226002257-ef8720b54399
 	github.com/diamondburned/gotk4/pkg v0.0.0-20220228011804-2178059e90d8
-	github.com/diamondburned/gotkit v0.0.0-20220327045555-7fbeda46a8d8
+	github.com/diamondburned/gotkit v0.0.0-20220401200241-044b6c30868e
 	github.com/dustin/go-humanize v1.0.0
 	github.com/enescakir/emoji v1.0.0
 	github.com/pkg/errors v0.9.1
@@ -56,7 +56,7 @@ require (
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/steveyen/gtreap v0.1.0 // indirect
-	go4.org/unsafe/assume-no-moving-gc v0.0.0-20201222180813-1025295fd063 // indirect
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
 	golang.org/x/mod v0.3.0 // indirect
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
 	golang.org/x/tools v0.0.0-20200928182047-19e03678916f // indirect
