@@ -10,23 +10,7 @@ packages:
   - nixos.jq
 secrets:
   - 82568347-1c9e-406e-8de0-525ee7dd21e2
-artifacts:
-  - artifacts/gotktrix-nixos-x86_64
-  - artifacts/gotktrix-linux-x86_64
-  - artifacts/gotktrix-nixos-aarch64
-  - artifacts/gotktrix-linux-aarch64
 tasks:
-  - prepare: |-
-      mkdir artifacts
-      touch artifacts/gotktrix-nixos-x86_64
-      touch artifacts/gotktrix-linux-x86_64
-      touch artifacts/gotktrix-nixos-aarch64
-      touch artifacts/gotktrix-linux-aarch64
-
-  - github-debug: |- # REMOVEME
-      echo "$GITHUB_DELIVERY"
-      echo "$GITHUB_REF"
-
   - gomod: |-
       cd gotktrix
       go mod tidy
@@ -41,25 +25,16 @@ tasks:
       deps="$(for d in $(go list -f {{.Dir}} ./...); { goimports -l $d; })"
       [[ ! "$deps" ]] || printf "Unformatted files: \n%s\n" "$deps"
 
-  - release-check: |-
-      [[ ! $GITHUB_REF || $GITHUB_REF == *"/release" || $GITHUB_REF == *"/tags/"* ]] || complete-build
+  - test-build: |-
+      [[ $GITHUB_REF && $GITHUB_REF != *"/release" ]] && exit
+      nix-build -j1 .nix/package-impure.nix
 
-  # - nix: |-
-  #     cd gotktrix
-  #     time nix-shell --run 'true'
-  #
-  # - build: |-
-  #     cd gotktrix
-  #     nix-shell --run 'time go build -v ./...'
-  #
-  # - lint: |-
-  #     cd gotktrix
-  #     nix-shell --run 'time go vet ./...'
-  #     nix-shell --run 'time staticcheck -f stylish ./...'
-
-  - artifact: |-
+  - tagged-build: |-
+      [[ $GITHUB_REF != *"/tags/"* ]] && exit
       out="$(cd gotktrix && nix-build -j1 .nix/cross.nix)"
+
+      mkdir artifacts
       cp $out/* ./artifacts/
 
-  - upload-artifacts: |-
       bash ./gotktrix/.github/upload-artifacts.sh
+
