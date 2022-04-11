@@ -62,8 +62,9 @@ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/diamondburned/adaptive v0.0.2-0.20220226002257-ef8720b54399 h1:MGJoYuTUukTa+y3XIAvQQmZAOO2JeRTefkdxhsoPfSY=
 github.com/diamondburned/adaptive v0.0.2-0.20220226002257-ef8720b54399/go.mod h1:cLoCdQtpCp/TSJBJTgXe7W2FJNelXrmPv+X7luB6/Qg=
 github.com/diamondburned/gotk4/pkg v0.0.0-20220225135826-2bb7260a63bb/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotk4/pkg v0.0.0-20220228011804-2178059e90d8 h1:zAMK1hml4eOSvvC5m2YKG1p0CobSmz0lJQa2ecSGnK8=
 github.com/diamondburned/gotk4/pkg v0.0.0-20220228011804-2178059e90d8/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
+github.com/diamondburned/gotk4/pkg v0.0.0-20220408070453-08962439fbbc h1:BkDOBlc7okNAJL5KYPXD7ZB4pB3x23XeCh79wmVC5x8=
+github.com/diamondburned/gotk4/pkg v0.0.0-20220408070453-08962439fbbc/go.mod h1:rLH6FHos690jFgAM/GYEpMykuE/9NmN6zOvFlr8JTvE=
 github.com/diamondburned/gotkit v0.0.0-20220401200241-044b6c30868e h1:6w0titJwajJ4mqs0uJuoZ7oXBXQwdn11JBh/1VVJvog=
 github.com/diamondburned/gotkit v0.0.0-20220401200241-044b6c30868e/go.mod h1:nuSiLYlASFCkAYVmzfzv5jj36cJuELVREaS7W2Bqet4=
 github.com/diamondburned/gotrix v0.1.2-0.20220126231559-ac2f83400369 h1:cS9X12uBpoqjeWyezV4+lX1Fgq8EGSjS4ucTJ0635tw=
