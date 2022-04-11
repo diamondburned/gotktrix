@@ -2,7 +2,7 @@
 
 ![screenshot](./.github/screenshot7.png)
 
-Work-in-progress Matrix client in Go and GTK4.
+Matrix client in Go and GTK4.
 
 ## Features
 
@@ -48,12 +48,15 @@ Additionally, the client implements:
 - Mobile support (partial)
 - Partial [Spaces](https://github.com/matrix-org/matrix-doc/blob/old_master/proposals/1772-groups-as-rooms.md) support
 
-## Building
+## Installing
 
 ```sh
-go build
+go install -v github.com/diamondburned/gotktrix@latest
 ```
 
 ### Dependencies
 
-See [package.nix](.nix/package.nix).
+See [package-base.nix](.nix/package-base.nix).
+
+Installing is faster with a patched Go compiler; see
+[overlay.nix](.nix/overlay.nix).
