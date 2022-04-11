@@ -16,8 +16,8 @@ List taken from the Features section of the
 - [ ] Room user list
 - [ ] Display Room Description
 - [ ] Edit Room Description
-- [ ] Highlights
-- [ ] Push rules
+- [x] Highlights
+- [x] Push rules
 - [x] Send read markers
 - [ ] Display read markers
 - [ ] Sending Invites
