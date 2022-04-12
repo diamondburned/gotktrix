@@ -2,16 +2,14 @@ module github.com/diamondburned/gotktrix
 
 go 1.17
 
-replace github.com/chanbakjsd/gotrix => github.com/diamondburned/gotrix v0.1.2-0.20220126231559-ac2f83400369
-
 require (
 	github.com/alecthomas/chroma v0.9.2
 	github.com/bbrks/go-blurhash v1.1.1
 	github.com/blevesearch/bleve/v2 v2.1.0
-	github.com/chanbakjsd/gotrix v0.3.2-0.20220103051835-3dbe83009cb2
 	github.com/diamondburned/adaptive v0.0.2-0.20220226002257-ef8720b54399
 	github.com/diamondburned/gotk4/pkg v0.0.0-20220408070453-08962439fbbc
 	github.com/diamondburned/gotkit v0.0.0-20220401200241-044b6c30868e
+	github.com/diamondburned/gotrix v0.1.2-0.20220411211558-ddbed452e46f
 	github.com/dustin/go-humanize v1.0.0
 	github.com/enescakir/emoji v1.0.0
 	github.com/pkg/errors v0.9.1

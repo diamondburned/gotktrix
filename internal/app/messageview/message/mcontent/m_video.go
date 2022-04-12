@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/chanbakjsd/gotrix/event"
+	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/app"
 	"github.com/diamondburned/gotkit/gtkutil"

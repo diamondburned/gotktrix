@@ -8,7 +8,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/chanbakjsd/gotrix/api"
+	"github.com/diamondburned/gotrix/api"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"

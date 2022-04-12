@@ -3,9 +3,9 @@ package gotktrix
 import (
 	"context"
 
-	"github.com/chanbakjsd/gotrix"
-	"github.com/chanbakjsd/gotrix/api"
-	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotrix"
+	"github.com/diamondburned/gotrix/api"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 // ClientAuth holds a partial client.

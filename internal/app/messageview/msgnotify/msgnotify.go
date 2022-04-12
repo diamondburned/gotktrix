@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/chanbakjsd/gotrix/event"
-	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotkit/app"
 	"github.com/diamondburned/gotkit/app/notify"
 	"github.com/diamondburned/gotkit/gtkutil"

@@ -4,9 +4,9 @@ import (
 	"log"
 	"sync"
 
-	"github.com/chanbakjsd/gotrix"
-	"github.com/chanbakjsd/gotrix/api"
-	"github.com/chanbakjsd/gotrix/event"
+	"github.com/diamondburned/gotrix"
+	"github.com/diamondburned/gotrix/api"
+	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotktrix/internal/registry"
 )
 

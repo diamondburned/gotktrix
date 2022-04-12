@@ -3,7 +3,7 @@ package sys
 import (
 	"encoding/json"
 
-	"github.com/chanbakjsd/gotrix/event"
+	"github.com/diamondburned/gotrix/event"
 )
 
 // ErroneousEvent is a pseudoevent returned by Parse to indicate events

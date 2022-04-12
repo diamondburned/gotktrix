@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/chanbakjsd/gotrix/debug"
+	"github.com/diamondburned/gotrix/debug"
 )
 
 var (

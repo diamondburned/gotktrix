@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/chanbakjsd/gotrix/api"
+	"github.com/diamondburned/gotrix/api"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/gtkutil"

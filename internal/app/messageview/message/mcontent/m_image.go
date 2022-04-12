@@ -8,7 +8,7 @@ import (
 	"log"
 
 	"github.com/bbrks/go-blurhash"
-	"github.com/chanbakjsd/gotrix/event"
+	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"

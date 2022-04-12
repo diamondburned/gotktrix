@@ -2,8 +2,8 @@ package indexer
 
 import (
 	"github.com/blevesearch/bleve/v2"
-	"github.com/chanbakjsd/gotrix/event"
-	"github.com/chanbakjsd/gotrix/matrix"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 // func doc(id string, fields []document.Field) {}
