@@ -27,6 +27,7 @@ tasks:
 
   - test-build: |-
       [[ $GITHUB_REF && $GITHUB_REF != *"/release" ]] && exit
+      cd gotktrix
       nix-build -j1 .nix/package-impure.nix
 
   - tagged-build: |-
