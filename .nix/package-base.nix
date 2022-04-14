@@ -8,7 +8,7 @@
 		glib
 		graphene
 		gdk-pixbuf
-		gobjectIntrospection
+		gobject-introspection
 		hicolor-icon-theme
 
 		# Optional
