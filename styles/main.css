@@ -1,0 +1,82 @@
+windowhandle .adaptive-sidebar-revealer {
+	background: none;
+}
+
+windowhandle,
+.composer,
+.roomlist-spaces-revealer > * {
+	min-height: 46px;
+}
+
+.roomlist-spaces-revealer > * {
+	border: none;
+	border-top: 1px solid @borders;
+}
+
+/* Use a border-bottom for this instead of border-top so the typing overlay
+ * can work properly. */
+.messageview-rhs .messageview-box > overlay {
+	border-bottom: 1px solid @borders;
+}
+
+.roomlist-spaces-revealer {
+	box-shadow: 0 0 8px 0px rgba(0, 0, 0, 0.35);
+}
+
+.adaptive-sidebar-revealer > * {
+	border-right: 1px solid @borders;
+}
+
+.adaptive-avatar label {
+	background-color: mix(@theme_fg_color, @theme_bg_color, 0.75);
+}
+
+.left-header,
+.right-header .subtitle-title {
+	font-weight: 600;
+}
+
+.left-header,
+.right-header {
+	padding-right: 6px;
+}
+
+.left-header {
+	padding-left: 6px;
+	border-top-right-radius: 0;
+}
+
+.right-header {
+	padding-left: 12px;
+	border-top-left-radius: 0;
+}
+
+.right-header .subtitle {
+	padding: 0px 0px;
+	min-height: 46px;
+}
+
+.right-header .subtitle-subtitle {
+	margin-top: -10px;
+}
+
+.right-header .adaptive-sidebar-reveal-button button {
+	margin: 0 2px;
+	margin-right: 12px;
+}
+
+.left-header  button:not(.userbutton-toggle),
+.right-header button {
+	min-width:  32px; /* keep these in sync wcith room.AvatarSize */
+	min-height: 32px;
+	padding: 0;
+}
+
+.left-header > .app-username {
+	margin: 0 4px;
+}
+
+/* Fix a quirk to do with the Default theme. */
+.titlebar box {
+	opacity: initial;
+}
