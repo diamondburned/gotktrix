@@ -8,9 +8,6 @@ import (
 	"mime"
 	"strings"
 
-	"github.com/diamondburned/gotrix"
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/gioutil"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -30,6 +27,9 @@ import (
 	"github.com/diamondburned/gotktrix/internal/components/progress"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
+	"github.com/diamondburned/gotrix"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 	"github.com/dustin/go-humanize"
 	"github.com/pkg/errors"
 )

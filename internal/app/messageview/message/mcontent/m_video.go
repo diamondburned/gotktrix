@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/app"
 	"github.com/diamondburned/gotkit/gtkutil"
@@ -12,6 +11,7 @@ import (
 	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
+	"github.com/diamondburned/gotrix/event"
 )
 
 type videoContent struct {

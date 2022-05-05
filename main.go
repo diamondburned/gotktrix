@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotkit/app"
@@ -22,6 +21,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/blinker"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/msgnotify"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotrix/matrix"
 	"github.com/pkg/errors"
 	"golang.org/x/text/message"
 

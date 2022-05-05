@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotrix/matrix"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
 )
 
 // EmojiMap is a map (object) of emoji names to emoji objects.

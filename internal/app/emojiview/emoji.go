@@ -1,12 +1,12 @@
 package emojiview
 
 import (
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/components/uploadutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 type emoji struct {

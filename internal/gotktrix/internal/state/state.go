@@ -6,13 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/db"
 	"github.com/diamondburned/gotrix"
 	"github.com/diamondburned/gotrix/api"
 	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotrix/matrix"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/db"
 	"github.com/pkg/errors"
 )
 

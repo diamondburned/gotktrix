@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/gtkutil"
@@ -17,6 +16,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/md"
+	"github.com/diamondburned/gotrix/matrix"
 	"golang.org/x/net/html"
 )
 
