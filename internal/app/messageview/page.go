@@ -2,6 +2,7 @@ package messageview
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,8 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -24,6 +23,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 type messageKey string
@@ -147,53 +148,13 @@ type messageRow struct {
 
 var _ message.MessageViewer = (*Page)(nil)
 
-var msgListCSS = cssutil.Applier("messageview-msglist", `
-	.messageview-msglist {
-		background: none;
-		margin-bottom: .8em; /* for the extraRevealer */
-	}
-	.messageview-msglist > row {
-		padding: 0;
-		transition: linear 150ms background-color;
-		background: none;
-		background-image: none;
-		background-color: transparent;
-	}
-	.messageview-msglist > row:focus,
-	.messageview-msglist > row:hover {
-		transition: none;
-	}
-	.messageview-msglist > row:focus {
-		background-color: alpha(@theme_fg_color, 0.125);
-	}
-	.messageview-msglist > row:hover {
-		background-color: alpha(@theme_fg_color, 0.075);
-	}
-	.messageview-msglist > row.messageview-editing,
-	.messageview-msglist > row.messageview-replyingto {
-		transition: none;
-		background-color: alpha(@theme_selected_bg_color, 0.25);
-		background-size: 18px;
-		background-repeat: no-repeat;
-		background-position: calc(100% - 5px) 5px;
-	}
-	.messageview-msglist > row.messageview-edited:hover,
-	.messageview-msglist > row.messageview-replyingto:hover {
-		background-color: alpha(@theme_selected_bg_color, 0.45);
-	}
-	.messageview-msglist > row.messageview-replyingto {
-		background-image: -gtk-icontheme("mail-reply-sender");
-	}
-	.messageview-msglist > row.messageview-editing {
-		background-image: -gtk-icontheme("document-edit");
-	}
-`)
+//go:embed styles/messageview-msglist.css
+var msgListStyle string
+var msgListCSS = cssutil.Applier("messageview-msglist", msgListStyle)
 
-var rhsCSS = cssutil.Applier("messageview-rhs", `
-	.messageview-rhs .messageview-box {
-		background-image: linear-gradient(to top, @theme_base_color 0px, transparent 40px);
-	}
-`)
+//go:embed styles/messageview-rhs.css
+var rhsStyle string
+var rhsCSS = cssutil.Applier("messageview-rhs", rhsStyle)
 
 // maxFetch is the number of events to initially display. Keep it low so loading
 // isn't as slow.

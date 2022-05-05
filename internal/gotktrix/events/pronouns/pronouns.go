@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotrix/matrix"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/pkg/errors"
 )
 

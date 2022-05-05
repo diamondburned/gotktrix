@@ -1,6 +1,8 @@
 package messageview
 
 import (
+	_ "embed"
+
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
@@ -16,12 +18,9 @@ type loadMoreButton struct {
 
 type paginateDoneFunc func(hasMore bool, err error)
 
-var loadMoreCSS = cssutil.Applier("messageview-loadmore", `
-	.messageview-loadmore {
-		margin: 4px;
-		margin-top: 50px;
-	}
-`)
+//go:embed styles/messageview-loadmore.css
+var loadMoreStyle string
+var loadMoreCSS = cssutil.Applier("messageview-loadmore", loadMoreStyle)
 
 func newLoadMore(loadMore func(done paginateDoneFunc)) *loadMoreButton {
 	b := &loadMoreButton{}

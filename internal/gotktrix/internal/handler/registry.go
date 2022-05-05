@@ -4,13 +4,13 @@ import (
 	"context"
 	"sync"
 
+	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
+	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
+	"github.com/diamondburned/gotktrix/internal/registry"
 	"github.com/diamondburned/gotrix"
 	"github.com/diamondburned/gotrix/api"
 	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotrix/matrix"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
-	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
-	"github.com/diamondburned/gotktrix/internal/registry"
 )
 
 type Registry struct {

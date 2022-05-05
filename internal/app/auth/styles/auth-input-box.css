@@ -1,0 +1,11 @@
+.auth-input-box {
+	margin-top: 4px;
+}
+
+.auth-input-box label {
+	margin-left: .5em;
+}
+
+.auth-input-box>entry {
+	margin-bottom: 4px;
+}

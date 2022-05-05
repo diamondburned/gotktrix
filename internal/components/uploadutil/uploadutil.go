@@ -2,28 +2,22 @@ package uploadutil
 
 import (
 	"bufio"
+	_ "embed"
 	"errors"
 	"io"
 	"net/http"
 	"sync/atomic"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
-var progressBarCSS = cssutil.Applier("uploadutil-progress", `
-	.uploadutil-progress.failed text {
-		color: red;
-	}
-	.uploadutil-progress.failed progress {
-		background-color: red;
-		border-color: red;
-		color: red;
-	}
-`)
+//go:embed styles/uploadutil-progress.css
+var progressBarStyle string
+var progressBarCSS = cssutil.Applier("uploadutil-progress", progressBarStyle)
 
 // ProgressBar is a wrapper around gtk.ProgressBar.
 type ProgressBar struct {

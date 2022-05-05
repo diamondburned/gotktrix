@@ -2,25 +2,26 @@ package emojiview
 
 import (
 	"context"
+	_ "embed"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/components/actionbutton"
+	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
-	"github.com/diamondburned/gotkit/components/actionbutton"
-	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/components/uploadutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
+	"github.com/diamondburned/gotrix/matrix"
 	"github.com/pkg/errors"
 )
 
@@ -41,17 +42,9 @@ type View struct {
 	client *gotktrix.Client
 }
 
-var boxCSS = cssutil.Applier("emojiview-box", `
-	.emojiview-box {
-		padding: 8px;
-	}
-	.emojiview-box .emojiview-name {
-		margin: 0 8px;
-	}
-	.emojiview-box .emojiview-rightbox {
-		margin-bottom: 8px;
-	}
-`)
+//go:embed styles/emojiview-box.css
+var boxStyle string
+var boxCSS = cssutil.Applier("emojiview-box", boxStyle)
 
 var nameAttrs = textutil.Attrs(
 	pango.NewAttrScale(1.2),

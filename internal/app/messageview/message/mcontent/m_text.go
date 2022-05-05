@@ -2,14 +2,15 @@ package mcontent
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent/text"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 type textContent struct {
@@ -75,11 +76,9 @@ func (c *textContent) setContent(body MessageBody, isEdited bool) {
 	c.Box.Append(c.render)
 }
 
-var embedsCSS = cssutil.Applier("mcontent-embeds", `
-	.mcontent-embeds > * {
-		margin-top: 6px;
-	}
-`)
+//go:embed styles/mcontent-embeds.css
+var embedsStyle string
+var embedsCSS = cssutil.Applier("mcontent-embeds", embedsStyle)
 
 func (c *textContent) LoadMore() {
 	if len(c.render.URLs) == 0 {

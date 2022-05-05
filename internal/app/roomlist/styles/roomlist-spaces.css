@@ -1,0 +1,10 @@
+.roomlist-spaces {
+	padding: 0 6px;
+}
+
+.roomlist-spaces>* {
+	border-radius: 999px 999px;
+	padding: 0;
+	min-width: 0;
+	min-height: 0;
+}

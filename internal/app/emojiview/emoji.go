@@ -1,12 +1,14 @@
 package emojiview
 
 import (
-	"github.com/diamondburned/gotrix/matrix"
+	_ "embed"
+
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/components/uploadutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 type emoji struct {
@@ -18,14 +20,9 @@ type emoji struct {
 	mxc matrix.URL
 }
 
-var emojiCSS = cssutil.Applier("emojiview-emoji", `
-	.emojiview-emoji {
-		padding: 8px;
-	}
-	.emojiview-emoji > *:not(:first-child) {
-		margin-left: 8px;
-	}
-`)
+//go:embed styles/emojiview-emoji.css
+var emojiStyle string
+var emojiCSS = cssutil.Applier("emojiview-emoji", emojiStyle)
 
 func newEmptyEmoji(name emojis.EmojiName) emoji {
 	img := gtk.NewImage()

@@ -1,10 +1,12 @@
 package message
 
 import (
-	"github.com/diamondburned/gotrix/event"
+	_ "embed"
+
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotrix/event"
 )
 
 // collapsedMessage is part of the full message container.
@@ -13,22 +15,9 @@ type collapsedMessage struct {
 	*message
 }
 
-var compactCSS = cssutil.Applier("message-collapsed", `
-	.message-collapsed {
-		padding-top:    2px;
-		padding-bottom: 2px;
-	}
-	.message-collapsed .message-timestamp {
-		font-size:  0.65em;
-		min-height: 1.9em;
-	}
-	.message-collapsed:not(.message-collapsed-edited) .message-timestamp {
-		opacity: 0;
-	}
-	.message-collapsed:hover .message-timestamp {
-		opacity: 1;
-	}
-`)
+//go:embed styles/message-collapsed.css
+var compactStyle string
+var compactCSS = cssutil.Applier("message-collapsed", compactStyle)
 
 func (v messageViewer) collapsedMessage(ev *event.RoomMessageEvent) *collapsedMessage {
 	msg := v.newMessage(ev, false)

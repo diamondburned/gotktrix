@@ -1,9 +1,11 @@
 package messageview
 
 import (
+	_ "embed"
+
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/components/animations"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 )
 
 type extraRevealer struct {
@@ -11,22 +13,9 @@ type extraRevealer struct {
 	Label *gtk.Label
 }
 
-var extraCSS = cssutil.Applier("messageview-extra", `
-	.messageview-extra {
-		padding: 0;
-		margin:  0 10px;
-		margin-bottom: -10px; /* I can't believe this works! */
-	}
-	.messageview-extra > * {
-		padding: 0 5px;
-		border-radius: 5px;
-		background-color: mix(@theme_selected_bg_color, @theme_bg_color, 0.75);
-	}
-	.messageview-extralabel {
-		padding-left: 4px;
-		font-size: .8em;
-	}
-`)
+//go:embed styles/messageview-extra.css
+var extraStyle string
+var extraCSS = cssutil.Applier("messageview-extra", extraStyle)
 
 func newExtraRevealer() *extraRevealer {
 	l := gtk.NewLabel("")

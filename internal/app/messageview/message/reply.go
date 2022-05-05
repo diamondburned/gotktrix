@@ -2,20 +2,21 @@ package message
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"html"
 
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 type Reply struct {
@@ -38,25 +39,17 @@ type Reply struct {
 	done bool
 }
 
-var replyInfoCSS = cssutil.Applier("message-reply-info", `
-	.message-reply-info {
-		color: alpha(@theme_fg_color, 0.85);
-	}
-`)
+//go:embed styles/message-reply-info.css
+var replyInfoStyle string
+var replyInfoCSS = cssutil.Applier("message-reply-info", replyInfoStyle)
 
-var replyContentCSS = cssutil.Applier("message-reply-content", `
-	.message-reply-content {
-		caret-color: transparent;
-	}
-`)
+//go:embed styles/message-reply-content.css
+var replyContentStyle string
+var replyContentCSS = cssutil.Applier("message-reply-content", replyContentStyle)
 
-var replyCSS = cssutil.Applier("message-reply", `
-	.message-reply {
-		margin-bottom: 2px;
-		border-left: 3px solid alpha(@theme_fg_color, 0.5);
-		padding: 0 5px;
-	}
-`)
+//go:embed styles/message-reply.css
+var replyStyle string
+var replyCSS = cssutil.Applier("message-reply", replyStyle)
 
 // NewReply creates a new Reply widget.
 func NewReply(ctx context.Context, v MessageViewer, roomID matrix.RoomID, eventID matrix.EventID) *Reply {

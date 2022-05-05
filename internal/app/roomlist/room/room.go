@@ -2,15 +2,15 @@ package room
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"strings"
 
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotkit/app/prefs"
 	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotkit/components/onlineimage"
@@ -20,7 +20,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/emojiview"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 	"github.com/pkg/errors"
 
 	localemsg "golang.org/x/text/message"
@@ -54,63 +55,18 @@ type Room struct {
 	section Section
 }
 
-var rowCSS = cssutil.Applier("room-row", `
-	.room-row:selected {
-		background: inherit;
-	}
-	.room-row:hover,
-	.room-row:focus {
-		background: @borders;
-	}
-	.room-row.room-active {
-		background-color: mix(@theme_selected_bg_color, @borders, 0.5); 
-	}
-	.room-row.room-active:hover,
-	.room-row.room-active:focus {
-		background: mix(mix(@theme_selected_bg_color, @borders, 0.5), @theme_fg_color, 0.2);
-	}
-`)
+//go:embed styles/room-row.css
+var rowStyle string
+var rowCSS = cssutil.Applier("room-row", rowStyle)
 
-var avatarCSS = cssutil.Applier("room-avatar", ``)
+//TODO: add css to style
+//go:embed styles/room-avatar.css
+var avatarStyle string
+var avatarCSS = cssutil.Applier("room-avatar", avatarStyle)
 
-var roomBoxCSS = cssutil.Applier("room-box", `
-	.room-box {
-		padding:  2px 6px;
-		padding-left: 4px;
-		padding-right: 0;
-		border-left:  2px solid transparent;
-	}
-	.room-unread-message .room-box {
-		border-left:  2px solid @theme_fg_color;
-	}
-	.room-right {
-		margin-left: 6px;
-	}
-	.room-preview {
-		margin-right: 2px;
-	}
-	.room-unread-count,
-	.room-preview,
-	.room-preview-extra {
-		font-size: 0.8em;
-	}
-	.room-unread-count,
-	.room-preview-extra {
-		color: alpha(@theme_fg_color, 0.75);
-		margin-left: 2px;
-	}
-	.room-highlighted-message {
-		/* See message/message.go @ messageCSS. */
-		background-color: alpha(@highlighted_message, 0.15);
-	}
-	.room-highlighted-message:hover,
-	.room-highlighted-message:focus {
-		background: mix(alpha(@highlighted_message, 0.15), @theme_fg_color, 0.15);
-	}
-	.room-highlighted-message .room-box {
-		border-color: @highlighted_message;
-	}
-`)
+//go:embed styles/room-box.css
+var roomBoxStyle string
+var roomBoxCSS = cssutil.Applier("room-box", roomBoxStyle)
 
 // Section is the controller interface that Room holds as its parent section.
 type Section interface {
@@ -465,17 +421,9 @@ var reorderHelpAttrs = textutil.Attrs(
 	pango.NewAttrScale(0.95),
 )
 
-var reorderDialog = cssutil.Applier("room-reorderdialog", `
-	.room-reorderdialog {
-		padding: 15px;
-	}
-	.room-reorderdialog box.linked {
-		margin: 10px;
-	}
-	.room-reorderdialog spinbutton {
-		padding: 2px;
-	}
-`)
+//go:embed styles/room-reorderdialog.css
+var reorderDialogStyle string
+var reorderDialogCSS = cssutil.Applier("room-reorderdialog", reorderDialogStyle)
 
 func (r *Room) promptReorder() {
 	ctx := r.ctx.Take()
@@ -526,7 +474,7 @@ func (r *Room) promptReorder() {
 	box.SetVAlign(gtk.AlignCenter)
 	box.Append(help)
 	box.Append(inputBox)
-	reorderDialog(box)
+	reorderDialogCSS(box)
 
 	dialog := dialogs.NewLocalize(ctx, "Discard", "Save")
 	dialog.SetDefaultSize(500, 225)
@@ -558,15 +506,9 @@ func clean(str string) string {
 	return cleaner.Replace(strings.TrimSpace(str))
 }
 
-var moveToSectionCSS = cssutil.Applier("room-movetosection", `
-	.room-movetosection label {
-		margin: 4px 12px;
-	}
-	.room-movetosection entry {
-		margin:  2px 4px;
-		padding: 0px 4px;
-	}
-`)
+//go:embed styles/room-movetosection.css
+var moveToSectionStyle string
+var moveToSectionCSS = cssutil.Applier("room-movetosection", moveToSectionStyle)
 
 func (r *Room) moveToSectionBox() gtk.Widgetter {
 	header := gtk.NewLabel(locale.Sprint(r.ctx.Take(), "Section Name"))

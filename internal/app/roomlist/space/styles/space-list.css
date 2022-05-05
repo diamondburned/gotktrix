@@ -1,0 +1,19 @@
+.space-list {
+	background: @theme_base_color;
+}
+
+.space-section {
+	margin-bottom: 8px;
+}
+
+.space-section list {
+	background: inherit;
+}
+
+.space-reorderactions {
+	color: @theme_selected_bg_color;
+}
+
+.space-reorderactions button {
+	margin-left: 6px;
+}

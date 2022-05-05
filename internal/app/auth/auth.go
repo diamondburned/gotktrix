@@ -3,10 +3,9 @@ package auth
 
 import (
 	"context"
+	_ "embed"
 	"log"
 
-	"github.com/diamondburned/gotrix/api/httputil"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/app"
@@ -15,6 +14,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/secret"
+	"github.com/diamondburned/gotrix/api/httputil"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 type Assistant struct {
@@ -116,17 +117,9 @@ func (a *Assistant) finish(c *gotktrix.Client, acc *Account) {
 	a.onConnect(c, acc)
 }
 
-var inputBoxCSS = cssutil.Applier("auth-input-box", `
-	.auth-input-box {
-		margin-top: 4px;
-	}
-	.auth-input-box label {
-		margin-left: .5em;
-	}
-	.auth-input-box > entry {
-		margin-bottom: 4px;
-	}
-`)
+//go:embed styles/auth-input-box.css
+var inputBoxStyle string
+var inputBoxCSS = cssutil.Applier("auth-input-box", inputBoxStyle)
 
 var inputLabelAttrs = textutil.Attrs(
 	pango.NewAttrForegroundAlpha(65535 * 90 / 100), // 90%
@@ -165,11 +158,9 @@ func (a *Assistant) makeInputs(names ...string) (gtk.Widgetter, []*gtk.Entry) {
 	return box, entries
 }
 
-var errorLabelCSS = cssutil.Applier("auth-error-label", `
-	.auth-error-label {
-		padding-top: 4px;
-	}
-`)
+//go:embed styles/auth-error-label.css
+var errorLabelStyle string
+var errorLabelCSS = cssutil.Applier("auth-error-label", errorLabelStyle)
 
 func makeErrorLabel() *gtk.Label {
 	errLabel := textutil.ErrorLabel("")

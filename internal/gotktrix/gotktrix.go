@@ -15,11 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/diamondburned/gotrix"
-	"github.com/diamondburned/gotrix/api"
-	"github.com/diamondburned/gotrix/api/httputil"
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/sys"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
@@ -27,6 +22,11 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/handler"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/httptrick"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/internal/state"
+	"github.com/diamondburned/gotrix"
+	"github.com/diamondburned/gotrix/api"
+	"github.com/diamondburned/gotrix/api/httputil"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 	"github.com/pkg/errors"
 )
 

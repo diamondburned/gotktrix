@@ -2,21 +2,22 @@ package mcontent
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"html"
 	"log"
 	"strings"
 
-	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/components/filepick"
 	"github.com/diamondburned/gotktrix/internal/components/progress"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotrix/event"
 	"github.com/dustin/go-humanize"
 )
 
@@ -51,18 +52,9 @@ type fileInfo struct {
 	click  glib.SignalHandle
 }
 
-var fileCSS = cssutil.Applier("mcontent-file", `
-	.mcontent-file {
-		padding: 4px 6px;
-	}
-	.mcontent-file-info > image {
-		padding-right: 6px;
-	}
-	.mcontent-file-size {
-		font-size: 0.85rem;
-		margin-top: -2px;
-	}
-`)
+//go:embed styles/mcontent-file.css
+var fileStyle string
+var fileCSS = cssutil.Applier("mcontent-file", fileStyle)
 
 func newFileContent(ctx context.Context, msg *event.RoomMessageEvent) contentPart {
 	client := gotktrix.FromContext(ctx)

@@ -1,0 +1,44 @@
+.room-box {
+	padding: 2px 6px;
+	padding-left: 4px;
+	padding-right: 0;
+	border-left: 2px solid transparent;
+}
+
+.room-unread-message .room-box {
+	border-left: 2px solid @theme_fg_color;
+}
+
+.room-right {
+	margin-left: 6px;
+}
+
+.room-preview {
+	margin-right: 2px;
+}
+
+.room-unread-count,
+.room-preview,
+.room-preview-extra {
+	font-size: 0.8em;
+}
+
+.room-unread-count,
+.room-preview-extra {
+	color: alpha(@theme_fg_color, 0.75);
+	margin-left: 2px;
+}
+
+.room-highlighted-message {
+	/* See message/message.go @ messageCSS. */
+	background-color: alpha(@highlighted_message, 0.15);
+}
+
+.room-highlighted-message:hover,
+.room-highlighted-message:focus {
+	background: mix(alpha(@highlighted_message, 0.15), @theme_fg_color, 0.15);
+}
+
+.room-highlighted-message .room-box {
+	border-color: @highlighted_message;
+}

@@ -3,10 +3,9 @@ package compose
 
 import (
 	"context"
+	_ "embed"
 	"html"
 
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/app/locale"
@@ -14,6 +13,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 // Composer is a message composer.
@@ -70,37 +71,13 @@ const (
 	replyIcon = "mail-reply-sender-symbolic"
 )
 
-var composerCSS = cssutil.Applier("composer", `
-	.composer-attach {
-		padding: 0px;
-		min-width:  36px;
-		min-height: 36px;
-		margin:      0 12px;
-		margin-right:  10px;
-		border-radius: 99px;
-	}
-	.composer-action {
-		padding: 4px;
-		margin-top:   7px; /* why 7 */
-		margin-left:  12px;
-		margin-right: 8px;
-	}
-	.composer-input-placeholder {
-		padding: 0px 2px; /* Keep the same as .composer-input */
-		padding-top: 12px;
-		color: alpha(@theme_fg_color, 0.65);
-	}
-`)
+//go:embed styles/composer.css
+var composerStyle string
+var composerCSS = cssutil.Applier("composer", composerStyle)
 
-var sendCSS = cssutil.Applier("composer-send", `
-	.composer-send {
-		margin:   0px;
-		padding: 10px;
-		border-radius: 0;
-		min-height: 0;
-		min-width:  0;
-	}
-`)
+//go:embed styles/composer-send.css
+var sendStyle string
+var sendCSS = cssutil.Applier("composer-send", sendStyle)
 
 // New creates a new Composer.
 func New(ctx context.Context, ctrl Controller, roomID matrix.RoomID) *Composer {

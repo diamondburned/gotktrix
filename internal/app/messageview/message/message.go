@@ -2,16 +2,17 @@ package message
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"time"
 
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mcontent"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 // Message describes a generic message type.
@@ -31,26 +32,9 @@ type Message interface {
 	LoadMore()
 }
 
-var messageCSS = cssutil.Applier("message-message", `
-	@define-color highlighted_message @theme_selected_bg_color;
-
-	/* .message-collapsed */
-	/* .message-cozy */
-	/* .message-event */
-
-	.message-message {
-		margin: 0;
-		padding-right: 8px;
-		border-left: 2px solid transparent;
-	}
-	.message-mentions {
-		border-left: 2px solid @highlighted_message;
-		background-color: alpha(@highlighted_message, 0.05);
-	}
-	.message-blurred {
-		opacity: 0.5;
-	}
-`)
+//go:embed styles/message-message.css
+var messageStyle string
+var messageCSS = cssutil.Applier("message-message", messageStyle)
 
 // MessageViewer describes the parent that holds messages.
 type MessageViewer interface {

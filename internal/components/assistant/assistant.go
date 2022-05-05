@@ -4,6 +4,7 @@ package assistant
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
 
@@ -49,15 +50,9 @@ func Show(parent *gtk.Window, title string, steps []*Step) {
 	a.Show()
 }
 
-var assistantBreadCSS = cssutil.Applier("assistant-bread", `
-	.assistant-bread {
-		padding: 10px 15px;
-		box-shadow:
-			0px -5px 6px -5px rgba(0, 0, 0, 0.1) inset,
-			0px  5px 6px -5px rgba(0, 0, 0, 0.1) inset;
-		background-color: mix(@theme_bg_color, @theme_fg_color, 0.1);
-	}
-`)
+//go:embed styles/assistant-bread.css
+var assistantBreadStyle string
+var assistantBreadCSS = cssutil.Applier("assistant-bread", assistantBreadStyle)
 
 // New creates a new Assistant.
 func New(parent *gtk.Window, steps []*Step) *Assistant {
@@ -498,13 +493,9 @@ func BuildSteps(data ...StepData) []*Step {
 	return steps
 }
 
-var stepBodyCSS = cssutil.Applier("assistant-stepbody", `
-	.assistant-stepbody {
-		background-color: @theme_base_color;
-		padding: 10px;
-		margin:  15px;
-	}
-`)
+//go:embed styles/assistant-stepbody.css
+var stepBodyStyle string
+var stepBodyCSS = cssutil.Applier("assistant-stepbody", stepBodyStyle)
 
 // NewStep creates a new assistant step.
 func NewStep(title, okLabel string) *Step {

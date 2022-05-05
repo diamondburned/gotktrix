@@ -1,0 +1,48 @@
+.mcontent-code-block scrollbar {
+	background: none;
+	border: none;
+}
+
+.mcontent-code-block:active scrollbar {
+	opacity: 0.2;
+}
+
+.mcontent-code-block:not(.mcontent-code-block-expanded) scrollbar {
+	opacity: 0;
+}
+
+.mcontent-code-block-text {
+	font-family: monospace;
+	padding: 4px 6px;
+	padding-bottom: 0px;
+	/* bottom-margin */
+}
+
+.mcontent-code-block-actions>*:not(label) {
+	margin-top: 4px;
+	margin-right: 4px;
+	margin-bottom: 4px;
+	min-height: 0;
+	min-width: 0;
+	background-color: alpha(@theme_bg_color, 0.5);
+}
+
+.mcontent-code-block-language {
+	font-family: monospace;
+	font-size: 0.9em;
+	margin: 0px 6px;
+	color: mix(@theme_bg_color, @theme_fg_color, 0.85);
+}
+
+/*
+	 * ease-in-out-gradient -steps 5 -min 0.2 -max 0 
+	 * ease-in-out-gradient -steps 5 -min 0 -max 75 -f $'%.2fpx\n'
+	 */
+.mcontent-code-block-voverflow .mcontent-code-block-cover {
+	background-image: linear-gradient(to top,
+			alpha(@theme_bg_color, 0.25) 0.00px,
+			alpha(@theme_bg_color, 0.24) 2.40px,
+			alpha(@theme_bg_color, 0.19) 19.20px,
+			alpha(@theme_bg_color, 0.06) 55.80px,
+			alpha(@theme_bg_color, 0.01) 72.60px);
+}

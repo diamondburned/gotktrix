@@ -2,16 +2,17 @@ package text
 
 import (
 	"context"
+	_ "embed"
 	"html"
 	"strings"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/md"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 // RenderMetadata contains additional metadata that the message contains.
@@ -37,12 +38,9 @@ type RenderWidget struct {
 	RenderMetadata
 }
 
-var plainTextCSS = cssutil.Applier("mcontent-plain-text", `
-	.mcontent-plain-text {
-		caret-color: transparent;
-		color: @theme_fg_color;
-	}
-`)
+//go:embed styles/mcontent-plain-text.css
+var plainTextStyle string
+var plainTextCSS = cssutil.Applier("mcontent-plain-text", plainTextStyle)
 
 // RenderText renders the given plain text.
 func RenderText(ctx context.Context, text string) RenderWidget {

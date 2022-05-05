@@ -6,8 +6,8 @@ import (
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/app"
-	"github.com/diamondburned/gotkit/app/prefs"
 	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/app/prefs"
 	"golang.org/x/text/message"
 )
 

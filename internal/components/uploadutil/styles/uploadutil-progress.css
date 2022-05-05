@@ -1,0 +1,9 @@
+.uploadutil-progress.failed text {
+	color: red;
+}
+
+.uploadutil-progress.failed progress {
+	background-color: red;
+	border-color: red;
+	color: red;
+}

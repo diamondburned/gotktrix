@@ -2,13 +2,14 @@ package mcontent
 
 import (
 	"context"
+	_ "embed"
 	"strings"
 
-	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotrix/event"
 )
 
 type contentPart interface {
@@ -30,11 +31,9 @@ type redactedContent struct {
 	*gtk.Box
 }
 
-var redactedCSS = cssutil.Applier("mcontent-redacted", `
-	.mcontent-redacted {
-		opacity: 0.75;
-	}
-`)
+//go:embed styles/mcontent-redacted.css
+var redactedStyle string
+var redactedCSS = cssutil.Applier("mcontent-redacted", redactedStyle)
 
 func newRedactedContent(ctx context.Context, red *event.RoomRedactionEvent) redactedContent {
 	image := gtk.NewImageFromIconName("edit-delete-symbolic")
@@ -68,12 +67,9 @@ type unknownContent struct {
 	*gtk.Label
 }
 
-var unknownContentCSS = cssutil.Applier("mcontent-unknown", `
-	.mcontent-unknown {
-		font-size: 0.9em;
-		color: alpha(@theme_fg_color, 0.8);
-	}
-`)
+//go:embed styles/mcontent-unknown.css
+var unknownContentStyle string
+var unknownContentCSS = cssutil.Applier("mcontent-unknown", unknownContentStyle)
 
 func newUnknownContent(ctx context.Context, ev *event.RoomMessageEvent) unknownContent {
 	p := locale.FromContext(ctx)

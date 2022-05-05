@@ -1,0 +1,10 @@
+.userbutton-toggle {
+	border-radius: 999px;
+	border: none;
+	margin: 0;
+	padding: 2px;
+}
+
+.userbutton-toggle:checked {
+	background-color: @theme_selected_bg_color;
+}

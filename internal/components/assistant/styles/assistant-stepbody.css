@@ -1,0 +1,5 @@
+.assistant-stepbody {
+	background-color: @theme_base_color;
+	padding: 10px;
+	margin: 15px;
+}

@@ -1,0 +1,16 @@
+.mcontent-embed {
+	border-left: 3px solid @theme_fg_color;
+	padding: 0;
+}
+
+.mcontent-embed-body {
+	margin: 3px 6px;
+}
+
+.mcontent-embed label {
+	margin-right: 3px;
+}
+
+.mcontent-embeds>*:last-child {
+	margin-bottom: 6px;
+}

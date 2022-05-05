@@ -1,0 +1,11 @@
+.room-reorderdialog {
+	padding: 15px;
+}
+
+.room-reorderdialog box.linked {
+	margin: 10px;
+}
+
+.room-reorderdialog spinbutton {
+	padding: 2px;
+}

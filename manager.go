@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotkit/app/prefs"
+	"github.com/diamondburned/gotkit/components/title"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/app/blinker"
 	"github.com/diamondburned/gotktrix/internal/app/emojiview"
@@ -17,9 +18,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/roomlist"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
 	"github.com/diamondburned/gotktrix/internal/app/userbutton"
-	"github.com/diamondburned/gotkit/components/title"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 type manager struct {

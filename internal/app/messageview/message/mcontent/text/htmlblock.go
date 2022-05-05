@@ -3,6 +3,7 @@ package text
 import (
 	"container/list"
 	"context"
+	_ "embed"
 	"log"
 	"strings"
 
@@ -188,13 +189,9 @@ func newTextBlock(state *currentBlockState) *textBlock {
 	return &text
 }
 
-var textContentCSS = cssutil.Applier("mcontent-text", `
-	textview.mcontent-text,
-	textview.mcontent-text text {
-		background-color: transparent;
-		color: @theme_fg_color;
-	}
-`)
+//go:embed styles/mcontent-text.css
+var textContentStyle string
+var textContentCSS = cssutil.Applier("mcontent-text", textContentStyle)
 
 func newTextView(ctx context.Context, buf *gtk.TextBuffer) *gtk.TextView {
 	tview := gtk.NewTextViewWithBuffer(buf)
@@ -330,18 +327,9 @@ type quoteBlock struct {
 	state *currentBlockState
 }
 
-var quoteBlockCSS = cssutil.Applier("mcontent-quote-block", `
-	.mcontent-quote-block {
-		border-left: 3px solid alpha(@theme_fg_color, 0.5);
-		padding:     0 5px;
-	}
-	.mcontent-quote-block:not(:last-child) {
-		margin-bottom: 3px;
-	}
-	.mcontent-quote-block > textview.mauthor-haschip {
-		margin-bottom: -1em;
-	}
-`)
+//go:embed styles/mcontent-quote-block.css
+var quoteBlockStyle string
+var quoteBlockCSS = cssutil.Applier("mcontent-quote-block", quoteBlockStyle)
 
 func newQuoteBlock(s *currentBlockState) *quoteBlock {
 	box := gtk.NewBox(gtk.OrientationVertical, 0)
@@ -364,51 +352,9 @@ type codeBlock struct {
 	text   *textBlock
 }
 
-var codeBlockCSS = cssutil.Applier("mcontent-code-block", `
-	.mcontent-code-block scrollbar {
-		background: none;
-		border:     none;
-	}
-	.mcontent-code-block:active scrollbar {
-		opacity: 0.2;
-	}
-	.mcontent-code-block:not(.mcontent-code-block-expanded) scrollbar {
-		opacity: 0;
-	}
-	.mcontent-code-block-text {
-		font-family: monospace;
-		padding: 4px 6px;
-		padding-bottom: 0px; /* bottom-margin */
-	}
-	.mcontent-code-block-actions > *:not(label) {
-		margin-top:    4px;
-		margin-right:  4px;
-		margin-bottom: 4px;
-		min-height: 0;
-		min-width:  0;
-		background-color: alpha(@theme_bg_color, 0.5);
-	}
-	.mcontent-code-block-language {
-		font-family: monospace;
-		font-size: 0.9em;
-		margin: 0px 6px;
-		color: mix(@theme_bg_color, @theme_fg_color, 0.85);
-	}
-	/*
-	 * ease-in-out-gradient -steps 5 -min 0.2 -max 0 
-	 * ease-in-out-gradient -steps 5 -min 0 -max 75 -f $'%.2fpx\n'
-	 */
-	.mcontent-code-block-voverflow .mcontent-code-block-cover {
-		background-image: linear-gradient(
-			to top,
-			alpha(@theme_bg_color, 0.25) 0.00px,
-			alpha(@theme_bg_color, 0.24) 2.40px,
-			alpha(@theme_bg_color, 0.19) 19.20px,
-			alpha(@theme_bg_color, 0.06) 55.80px,
-			alpha(@theme_bg_color, 0.01) 72.60px
-		);
-	}
-`)
+//go:embed styles/mcontent-code-block.css
+var codeBlockStyle string
+var codeBlockCSS = cssutil.Applier("mcontent-code-block", codeBlockStyle)
 
 var codeLowerHeight = prefs.NewInt(200, prefs.IntMeta{
 	Name:    "Collapsed Codeblock Height",

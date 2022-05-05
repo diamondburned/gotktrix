@@ -3,20 +3,21 @@ package message
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 
-	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
-	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
-	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotktrix/internal/md/hl"
+	"github.com/diamondburned/gotrix/event"
 	"github.com/pkg/errors"
 )
 
@@ -89,11 +90,9 @@ func redactMessage(v messageViewer) {
 	}
 }
 
-var reactCSS = cssutil.Applier("message-react", `
-	entry.message-react {
-		margin: 6px;
-	}
-`)
+//go:embed styles/message-react.css
+var reactStyle string
+var reactCSS = cssutil.Applier("message-react", reactStyle)
 
 type reactor struct {
 	ctx context.Context
@@ -174,12 +173,9 @@ func (r *reactor) react(text string) {
 	}()
 }
 
-var sourceCSS = cssutil.Applier("message-source", `
-	.message-source {
-		padding: 6px 4px;
-		font-family: monospace;
-	}
-`)
+//go:embed styles/message-source.css
+var sourceStyle string
+var sourceCSS = cssutil.Applier("message-source", sourceStyle)
 
 type partialRoomEvent struct {
 	event.RoomEventInfo

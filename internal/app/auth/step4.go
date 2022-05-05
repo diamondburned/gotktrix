@@ -2,22 +2,23 @@ package auth
 
 import (
 	"context"
+	_ "embed"
 	"log"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/components/errpopup"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
-	"github.com/diamondburned/gotkit/components/errpopup"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotktrix/internal/secret"
+	"github.com/diamondburned/gotrix/matrix"
 	"github.com/pkg/errors"
 )
 
@@ -111,17 +112,9 @@ func loginStepForm(a *Assistant, method matrix.LoginMethod) *assistant.Step {
 	return step
 }
 
-var ssoLoadingCSS = cssutil.Applier("auth-sso-loading", `
-	.auth-sso-loading > label {
-		margin-bottom: 16px;
-	}
-	.auth-sso-loading > button {
-		margin-bottom: 18px;
-	}
-	.auth-sso-loading > .auth-remember-me {
-		margin-top: 6px;
-	}
-`)
+//go:embed styles/auth-sso-loading.css
+var ssoLoadingStyle string
+var ssoLoadingCSS = cssutil.Applier("auth-sso-loading", ssoLoadingStyle)
 
 func loginStepSSO(a *Assistant) *assistant.Step {
 	urlButton := gtk.NewLinkButtonWithLabel("", locale.S(a.ctx, "Opening your browser..."))
@@ -224,21 +217,13 @@ type rememberMeBox struct {
 	encrypt bool
 }
 
-var rememberMeCSS = cssutil.Applier("auth-remember-me", `
-	.auth-remember-me > revealer > box > checkbutton {
-		margin-left: 20px;
-	}
-`)
+//go:embed styles/auth-remember-me.css
+var rememberMeStyle string
+var rememberMeCSS = cssutil.Applier("auth-remember-me", rememberMeStyle)
 
-var rememberMePasswordCSS = cssutil.Applier("auth-remember-me-password", `
-	.auth-remember-me-password {
-		margin: 6px 0;
-		margin-top: 6px;
-	}
-	.auth-remember-me-password label {
-		margin-left: .5em;
-	}
-`)
+//go:embed styles/auth-remember-me-password.css
+var rememberMePasswordStyle string
+var rememberMePasswordCSS = cssutil.Applier("auth-remember-me-password", rememberMePasswordStyle)
 
 func newRememberMeBox(a *Assistant) *rememberMeBox {
 	var state rememberMeBox

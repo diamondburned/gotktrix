@@ -2,9 +2,9 @@ package mcontent
 
 import (
 	"context"
+	_ "embed"
 	"log"
 
-	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/app"
 	"github.com/diamondburned/gotkit/gtkutil"
@@ -12,6 +12,7 @@ import (
 	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
+	"github.com/diamondburned/gotrix/event"
 )
 
 type videoContent struct {
@@ -24,25 +25,9 @@ type videoContent struct {
 	size     [2]int
 }
 
-var videoCSS = cssutil.Applier("mcontent-video", `
-	.mcontent-video {
-		padding: 0;
-		margin:  0;
-		margin-top: 6px;
-	}
-	.mcontent-video-preview {
-		background-color: black;
-	}
-	.mcontent-video-play-icon {
-		background-color: alpha(@theme_bg_color, 0.85);
-		border-radius: 999px;
-		padding: 8px;
-	}
-	.mcontent-video:hover  .mcontent-video-play-icon,
-	.mcontent-video:active .mcontent-video-play-icon {
-		background-color: @theme_selected_bg_color;
-	}
-`)
+//go:embed styles/mcontent-video.css
+var videoStyle string
+var videoCSS = cssutil.Applier("mcontent-video", videoStyle)
 
 func newVideoContent(ctx context.Context, msg *event.RoomMessageEvent) contentPart {
 	client := gotktrix.FromContext(ctx).Offline()

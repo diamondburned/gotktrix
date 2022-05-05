@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	_ "embed"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -13,7 +14,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-var homeserverStepCSS = cssutil.Applier("auth-homeserver-step", ``)
+//TODO: add css to style
+//go:embed styles/auth-homeserver-step.css
+var homeserverStepStyle string
+var homeserverStepCSS = cssutil.Applier("auth-homeserver-step", homeserverStepStyle)
 
 func homeserverStep(a *Assistant) *assistant.Step {
 	inputBox, inputs := a.makeInputs("Homeserver")

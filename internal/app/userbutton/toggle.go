@@ -2,6 +2,7 @@ package userbutton
 
 import (
 	"context"
+	_ "embed"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/components/onlineimage"
@@ -23,17 +24,9 @@ type Toggle struct {
 	popoverFn func(*gtk.PopoverMenu)
 }
 
-var toggleCSS = cssutil.Applier("userbutton-toggle", `
-	.userbutton-toggle {
-		border-radius: 999px;
-		border:  none;
-		margin:  0;
-		padding: 2px;
-	}
-	.userbutton-toggle:checked {
-		background-color: @theme_selected_bg_color;
-	}
-`)
+//go:embed styles/userbutton-toggle.css
+var toggleStyle string
+var toggleCSS = cssutil.Applier("userbutton-toggle", toggleStyle)
 
 // NewToggle creates a new Toggle instance. It takes parameters similar to
 // NewPopover.

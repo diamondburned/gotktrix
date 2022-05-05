@@ -1,0 +1,16 @@
+.progress-label {
+	font-size: 0.85em;
+}
+
+.progress-error progressbar,
+.progress-error label.progress-label {
+	color: @error_color;
+}
+
+.progress-error progressbar trough {
+	background-color: alpha(@error_color, 0.2);
+}
+
+.progress-error progressbar progress {
+	background-color: @error_color;
+}
