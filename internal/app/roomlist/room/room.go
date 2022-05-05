@@ -465,7 +465,7 @@ var reorderHelpAttrs = textutil.Attrs(
 	pango.NewAttrScale(0.95),
 )
 
-var reorderDialog = cssutil.Applier("room-reorderdialog", `
+var reorderDialogCSS = cssutil.Applier("room-reorderdialog", `
 	.room-reorderdialog {
 		padding: 15px;
 	}
@@ -526,7 +526,7 @@ func (r *Room) promptReorder() {
 	box.SetVAlign(gtk.AlignCenter)
 	box.Append(help)
 	box.Append(inputBox)
-	reorderDialog(box)
+	reorderDialogCSS(box)
 
 	dialog := dialogs.NewLocalize(ctx, "Discard", "Save")
 	dialog.SetDefaultSize(500, 225)

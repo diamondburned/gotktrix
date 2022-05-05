@@ -29,8 +29,8 @@ import (
 )
 
 //go:embed styles/main.css
-var loadedCss string
-var _ = cssutil.WriteCSS(loadedCss)
+var mainStyle string
+var _ = cssutil.WriteCSS(mainStyle)
 
 //go:embed locales
 var locales embed.FS
