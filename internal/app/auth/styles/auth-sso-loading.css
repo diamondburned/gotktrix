@@ -1,0 +1,11 @@
+.auth-sso-loading>label {
+	margin-bottom: 16px;
+}
+
+.auth-sso-loading>button {
+	margin-bottom: 18px;
+}
+
+.auth-sso-loading>.auth-remember-me {
+	margin-top: 6px;
+}

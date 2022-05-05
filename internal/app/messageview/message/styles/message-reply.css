@@ -1,0 +1,5 @@
+.message-reply {
+	margin-bottom: 2px;
+	border-left: 3px solid alpha(@theme_fg_color, 0.5);
+	padding: 0 5px;
+}

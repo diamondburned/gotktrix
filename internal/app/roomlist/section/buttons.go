@@ -2,41 +2,16 @@ package section
 
 import (
 	"context"
+	_ "embed"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 )
 
-var iconButtonCSS = cssutil.Applier("roomlist-iconbutton", `
-	.roomlist-iconbutton {
-		font-size: 0.9em;
-		color: alpha(@theme_fg_color, 0.85);
-
-		border: none;
-		padding: 2px;
-		border-radius: 0;
-	}
-	.roomlist-iconbutton image {
-		min-width: 32px;
-		margin:  2px 6px;
-		padding: 0;
-	}
-
-	.roomlist-expand {
-		font-weight: bold;
-	}
-	.roomlist-expand:checked {
-		color: mix(@theme_selected_bg_color, @theme_fg_color, 0.35);
-		background-color: alpha(@theme_fg_color, 0.1);
-	}
-
-	.roomlist-showmore {
-		font-weight: initial;
-		background: none;
-		opacity: 0.6;
-	}
-`)
+//go:embed styles/roomlist-iconbutton.css
+var iconButtonStyle string
+var iconButtonCSS = cssutil.Applier("roomlist-iconbutton", iconButtonStyle)
 
 type iconButton struct {
 	*gtk.ToggleButton

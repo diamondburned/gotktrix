@@ -2,6 +2,7 @@ package blinker
 
 import (
 	"context"
+	_ "embed"
 	"net/http"
 	"time"
 
@@ -66,35 +67,9 @@ type Blinker struct {
 	last  time.Time
 }
 
-var blinkerCSS = cssutil.Applier("blinker", `
-	@define-color blinker-heart-color #F7A8B8;
-
-	.blinker {
-		color:   @blinker-heart-color;
-		margin:  6px;
-		opacity: 0;
-		transition: linear 650ms;
-		transition-property: opacity, color;
-	}
-	.blinker-sync,
-	.blinker-syncing,
-	.blinker-downloading,
-	.blinker-error {
-		transition: linear 100ms;
-	}
-	.blinker-sync {
-		opacity: 0.8;
-	}
-	.blinker-syncing,
-	.blinker-downloading {
-		color:   alpha(@theme_fg_color, 0.5);
-		opacity: 1;
-	}
-	.blinker-error {
-		color:   red;
-		opacity: 1;
-	}
-`)
+//go:embed styles/blinker.css
+var blinkerStyle string
+var blinkerCSS = cssutil.Applier("blinker", blinkerStyle)
 
 // New creates a new blinker.
 func New(ctx context.Context) *Blinker {

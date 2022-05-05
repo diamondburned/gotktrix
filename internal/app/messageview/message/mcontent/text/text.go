@@ -2,6 +2,7 @@ package text
 
 import (
 	"context"
+	_ "embed"
 	"html"
 	"strings"
 
@@ -37,12 +38,9 @@ type RenderWidget struct {
 	RenderMetadata
 }
 
-var plainTextCSS = cssutil.Applier("mcontent-plain-text", `
-	.mcontent-plain-text {
-		caret-color: transparent;
-		color: @theme_fg_color;
-	}
-`)
+//go:embed styles/mcontent-plain-text.css
+var plainTextStyle string
+var plainTextCSS = cssutil.Applier("mcontent-plain-text", plainTextStyle)
 
 // RenderText renders the given plain text.
 func RenderText(ctx context.Context, text string) RenderWidget {

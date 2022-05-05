@@ -1,0 +1,5 @@
+textview.mcontent-text,
+textview.mcontent-text text {
+	background-color: transparent;
+	color: @theme_fg_color;
+}

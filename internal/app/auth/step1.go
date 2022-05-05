@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	_ "embed"
 	"log"
 	"math"
 	"sync"
@@ -21,12 +22,9 @@ import (
 
 const avatarSize = 32
 
-var accountEntryCSS = cssutil.Applier("auth-account-entry", `
-	.auth-account-entry {
-		padding: 6px 4px;
-		min-height: 32px; /* (4px * 2) + 24px */
-	}
-`)
+//go:embed styles/auth-account-entry.css
+var accountEntryStyle string
+var accountEntryCSS = cssutil.Applier("auth-account-entry", accountEntryStyle)
 
 func newAddEntry() *gtk.ListBoxRow {
 	icon := gtk.NewImageFromIconName("list-add-symbolic")
@@ -53,12 +51,9 @@ var serverAttrs = textutil.Attrs(
 	pango.NewAttrForegroundAlpha(uint16(math.Round(0.75*65535))),
 )
 
-var avatarCSS = cssutil.Applier("auth-avatar", `
-	.auth-avatar {
-		margin:  4px;
-		padding: 0;
-	}
-`)
+//go:embed styles/auth-avatar.css
+var avatarStyle string
+var avatarCSS = cssutil.Applier("auth-avatar", avatarStyle)
 
 func newAccountEntry(ctx context.Context, account *Account) *gtk.ListBoxRow {
 	avatar := onlineimage.NewAvatar(ctx, gotktrix.AvatarProvider, avatarSize)
@@ -90,11 +85,9 @@ func newAccountEntry(ctx context.Context, account *Account) *gtk.ListBoxRow {
 	return row
 }
 
-var accountChooserCSS = cssutil.Applier("account-chooser-step", `
-	.account-chooser-step {
-		padding: 16px 6px;
-	}
-`)
+//go:embed styles/account-chooser-step.css
+var accountChooserStyle string
+var accountChooserCSS = cssutil.Applier("account-chooser-step", accountChooserStyle)
 
 func accountChooserStep(a *Assistant) *assistant.Step {
 	accountList := gtk.NewListBox()

@@ -1,0 +1,23 @@
+.composer-attach {
+	padding: 0px;
+	min-width: 36px;
+	min-height: 36px;
+	margin: 0 12px;
+	margin-right: 10px;
+	border-radius: 99px;
+}
+
+.composer-action {
+	padding: 4px;
+	margin-top: 7px;
+	/* why 7 */
+	margin-left: 12px;
+	margin-right: 8px;
+}
+
+.composer-input-placeholder {
+	padding: 0px 2px;
+	/* Keep the same as .composer-input */
+	padding-top: 12px;
+	color: alpha(@theme_fg_color, 0.65);
+}

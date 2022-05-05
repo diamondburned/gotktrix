@@ -2,6 +2,7 @@ package roomlist
 
 import (
 	"context"
+	_ "embed"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -21,12 +22,9 @@ type spaceButton interface {
 
 const spaceIconSize = 28
 
-var spaceNameCSS = cssutil.Applier("roomlist-space-name", `
-	.roomlist-space-name {
-		font-size: 0.9em;
-		padding-right: 4px;
-	}
-`)
+//go:embed styles/roomlist-space-name.css
+var spaceNameStyle string
+var spaceNameCSS = cssutil.Applier("roomlist-space-name", spaceNameStyle)
 
 // AllRoomsButton describes the button that says "All rooms".
 type AllRoomsButton struct {
@@ -81,14 +79,9 @@ type SpaceButton struct {
 
 var _ spaceButton = (*SpaceButton)(nil)
 
-var spaceButtonCSS = cssutil.Applier("roomlist-space", `
-	.roomlist-space {
-		margin-left: 6px;
-	}
-	.roomlist-space .roomlist-space-name {
-		padding-left: 6px;
-	}
-`)
+//go:embed styles/roomlist-space.css
+var spaceButtonStyle string
+var spaceButtonCSS = cssutil.Applier("roomlist-space", spaceButtonStyle)
 
 // NewSpaceButton creates a new space button.
 func NewSpaceButton(ctx context.Context, spaceID matrix.RoomID) *SpaceButton {

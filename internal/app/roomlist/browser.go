@@ -2,6 +2,7 @@ package roomlist
 
 import (
 	"context"
+	_ "embed"
 	"log"
 
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -28,19 +29,14 @@ type Browser struct {
 	ctx context.Context
 }
 
-var spacesCSS = cssutil.Applier("roomlist-spaces", `
-	.roomlist-spaces {
-		padding: 0 6px;
-	}
-	.roomlist-spaces > * {
-		border-radius: 999px 999px;
-		padding:    0;
-		min-width:  0;
-		min-height: 0;
-	}
-`)
+//go:embed styles/roomlist-spaces.css
+var spacesStyle string
+var spacesCSS = cssutil.Applier("roomlist-spaces", spacesStyle)
 
-var spacesRevealerCSS = cssutil.Applier("roomlist-spaces-revealer", ``)
+//TODO: add css to style
+//go:embed styles/roomlist-spaces-revealer.css
+var spacesRevealerStyle string
+var spacesRevealerCSS = cssutil.Applier("roomlist-spaces-revealer", spacesRevealerStyle)
 
 // New creates a new spaces browser.
 func New(ctx context.Context, ctrl space.Controller) *Browser {

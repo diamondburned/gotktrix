@@ -2,6 +2,7 @@ package uploadutil
 
 import (
 	"bufio"
+	_ "embed"
 	"errors"
 	"io"
 	"net/http"
@@ -14,16 +15,9 @@ import (
 	"github.com/diamondburned/gotrix/matrix"
 )
 
-var progressBarCSS = cssutil.Applier("uploadutil-progress", `
-	.uploadutil-progress.failed text {
-		color: red;
-	}
-	.uploadutil-progress.failed progress {
-		background-color: red;
-		border-color: red;
-		color: red;
-	}
-`)
+//go:embed styles/uploadutil-progress.css
+var progressBarStyle string
+var progressBarCSS = cssutil.Applier("uploadutil-progress", progressBarStyle)
 
 // ProgressBar is a wrapper around gtk.ProgressBar.
 type ProgressBar struct {

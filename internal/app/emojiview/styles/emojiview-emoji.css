@@ -1,0 +1,7 @@
+.emojiview-emoji {
+	padding: 8px;
+}
+
+.emojiview-emoji>*:not(:first-child) {
+	margin-left: 8px;
+}

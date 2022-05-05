@@ -1,0 +1,17 @@
+.message-collapsed {
+	padding-top: 2px;
+	padding-bottom: 2px;
+}
+
+.message-collapsed .message-timestamp {
+	font-size: 0.65em;
+	min-height: 1.9em;
+}
+
+.message-collapsed:not(.message-collapsed-edited) .message-timestamp {
+	opacity: 0;
+}
+
+.message-collapsed:hover .message-timestamp {
+	opacity: 1;
+}

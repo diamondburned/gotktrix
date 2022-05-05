@@ -2,6 +2,7 @@ package mcontent
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"html"
 	"net/url"
@@ -34,21 +35,9 @@ const (
 	embedImageHeight = 80
 )
 
-var embedCSS = cssutil.Applier("mcontent-embed", `
-	.mcontent-embed {
-		border-left: 3px solid @theme_fg_color;
-		padding: 0;
-	}
-	.mcontent-embed-body {
-		margin: 3px 6px;
-	}
-	.mcontent-embed label {
-		margin-right: 3px;
-	}
-	.mcontent-embeds > *:last-child {
-		margin-bottom: 6px;
-	}
-`)
+//go:embed styles/mcontent-embed.css
+var embedStyle string
+var embedCSS = cssutil.Applier("mcontent-embed", embedStyle)
 
 var descReplacer = strings.NewReplacer("\n", "  ")
 

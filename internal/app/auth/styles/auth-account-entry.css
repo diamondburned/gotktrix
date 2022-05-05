@@ -1,0 +1,5 @@
+.auth-account-entry {
+	padding: 6px 4px;
+	min-height: 32px;
+	/* (4px * 2) + 24px */
+}

@@ -3,6 +3,7 @@ package message
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 
 	"github.com/diamondburned/adaptive"
@@ -89,11 +90,9 @@ func redactMessage(v messageViewer) {
 	}
 }
 
-var reactCSS = cssutil.Applier("message-react", `
-	entry.message-react {
-		margin: 6px;
-	}
-`)
+//go:embed styles/message-react.css
+var reactStyle string
+var reactCSS = cssutil.Applier("message-react", reactStyle)
 
 type reactor struct {
 	ctx context.Context
@@ -174,12 +173,9 @@ func (r *reactor) react(text string) {
 	}()
 }
 
-var sourceCSS = cssutil.Applier("message-source", `
-	.message-source {
-		padding: 6px 4px;
-		font-family: monospace;
-	}
-`)
+//go:embed styles/message-source.css
+var sourceStyle string
+var sourceCSS = cssutil.Applier("message-source", sourceStyle)
 
 type partialRoomEvent struct {
 	event.RoomEventInfo

@@ -1,0 +1,12 @@
+.assistant-crumb {
+	color: alpha(@theme_fg_color, 0.5);
+	transition: linear 75ms color;
+}
+
+.assistant-crumb-arrow {
+	color: alpha(@theme_fg_color, 0.25);
+}
+
+.assistant-active-crumb {
+	color: @theme_selected_bg_color;
+}

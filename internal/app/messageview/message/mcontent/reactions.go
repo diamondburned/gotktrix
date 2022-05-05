@@ -2,6 +2,7 @@ package mcontent
 
 import (
 	"context"
+	_ "embed"
 	"strconv"
 	"strings"
 
@@ -29,35 +30,9 @@ type reactionBox struct {
 	events    map[matrix.EventID]string
 }
 
-var reactionsCSS = cssutil.Applier("mcontent-reactions", `
-	.mcontent-reactions {
-		padding: 0;
-		margin-top:    4px;
-		margin-bottom: 4px;
-	}
-	.mcontent-reaction {
-		padding: 0;
-		margin:  0;
-	}
-	.mcontent-reaction > button {
-		padding: 0px 4px;
-		margin:  0;
-	}
-	.mcontent-reaction > button {
-		background-color: mix(@theme_fg_color, @theme_base_color, 0.85);
-	}
-	.mcontent-reaction > button:hover {
-		background-color: mix(@theme_fg_color, @theme_base_color, 0.75);
-	}
-	.mcontent-reaction > button:checked {
-		color: @theme_selected_fg_color;
-		background-color: mix(mix(@theme_fg_color, @theme_base_color, 0.85), @theme_selected_bg_color, 0.4);
-	}
-	.mcontent-reaction > button:checked:hover {
-		color: @theme_selected_fg_color;
-		background-color: mix(mix(@theme_fg_color, @theme_base_color, 0.65), @theme_selected_bg_color, 0.4);
-	}
-`)
+//go:embed styles/mcontent-reactions.css
+var reactionsStyle string
+var reactionsCSS = cssutil.Applier("mcontent-reactions", reactionsStyle)
 
 func newReactionBox() *reactionBox {
 	r := reactionBox{}

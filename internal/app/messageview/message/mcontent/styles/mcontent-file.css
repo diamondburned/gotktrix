@@ -1,0 +1,12 @@
+.mcontent-file {
+	padding: 4px 6px;
+}
+
+.mcontent-file-info>image {
+	padding-right: 6px;
+}
+
+.mcontent-file-size {
+	font-size: 0.85rem;
+	margin-top: -2px;
+}

@@ -3,6 +3,7 @@ package compose
 import (
 	"container/list"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -59,17 +60,9 @@ type anchorPiece struct {
 	text   string
 }
 
-var inputCSS = cssutil.Applier("composer-input", `
-	.composer-input,
-	.composer-input text {
-		background-color: inherit;
-	}
-	.composer-input {
-		padding: 0px 2px;
-		padding-top: 12px;
-		margin-top:  0px;
-	}
-`)
+//go:embed styles/composer-input.css
+var inputStyle string
+var inputCSS = cssutil.Applier("composer-input", inputStyle)
 
 // NewInput creates a new Input instance.
 func NewInput(ctx context.Context, ctrl InputController, roomID matrix.RoomID) *Input {

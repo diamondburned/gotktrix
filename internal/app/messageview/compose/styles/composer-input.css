@@ -1,0 +1,10 @@
+.composer-input,
+.composer-input text {
+	background-color: inherit;
+}
+
+.composer-input {
+	padding: 0px 2px;
+	padding-top: 12px;
+	margin-top: 0px;
+}

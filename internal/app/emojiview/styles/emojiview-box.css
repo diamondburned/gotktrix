@@ -1,0 +1,11 @@
+.emojiview-box {
+	padding: 8px;
+}
+
+.emojiview-box .emojiview-name {
+	margin: 0 8px;
+}
+
+.emojiview-box .emojiview-rightbox {
+	margin-bottom: 8px;
+}

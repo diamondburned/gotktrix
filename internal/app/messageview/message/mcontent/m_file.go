@@ -2,6 +2,7 @@ package mcontent
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"html"
@@ -51,18 +52,9 @@ type fileInfo struct {
 	click  glib.SignalHandle
 }
 
-var fileCSS = cssutil.Applier("mcontent-file", `
-	.mcontent-file {
-		padding: 4px 6px;
-	}
-	.mcontent-file-info > image {
-		padding-right: 6px;
-	}
-	.mcontent-file-size {
-		font-size: 0.85rem;
-		margin-top: -2px;
-	}
-`)
+//go:embed styles/mcontent-file.css
+var fileStyle string
+var fileCSS = cssutil.Applier("mcontent-file", fileStyle)
 
 func newFileContent(ctx context.Context, msg *event.RoomMessageEvent) contentPart {
 	client := gotktrix.FromContext(ctx)

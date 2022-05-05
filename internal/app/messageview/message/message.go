@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"time"
 
@@ -31,26 +32,9 @@ type Message interface {
 	LoadMore()
 }
 
-var messageCSS = cssutil.Applier("message-message", `
-	@define-color highlighted_message @theme_selected_bg_color;
-
-	/* .message-collapsed */
-	/* .message-cozy */
-	/* .message-event */
-
-	.message-message {
-		margin: 0;
-		padding-right: 8px;
-		border-left: 2px solid transparent;
-	}
-	.message-mentions {
-		border-left: 2px solid @highlighted_message;
-		background-color: alpha(@highlighted_message, 0.05);
-	}
-	.message-blurred {
-		opacity: 0.5;
-	}
-`)
+//go:embed styles/message-message.css
+var messageStyle string
+var messageCSS = cssutil.Applier("message-message", messageStyle)
 
 // MessageViewer describes the parent that holds messages.
 type MessageViewer interface {

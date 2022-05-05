@@ -2,6 +2,7 @@ package message
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"time"
 
@@ -11,12 +12,9 @@ import (
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 )
 
-var timestampCSS = cssutil.Applier("message-timestamp", `
-	.message-timestamp {
-		font-size: 0.80em;
-		color: alpha(@theme_fg_color, 0.55);
-	}
-`)
+//go:embed styles/message-timestamp.css
+var timestampStyle string
+var timestampCSS = cssutil.Applier("message-timestamp", timestampStyle)
 
 type timestamp struct {
 	*gtk.Label

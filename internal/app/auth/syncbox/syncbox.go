@@ -2,6 +2,7 @@ package syncbox
 
 import (
 	"context"
+	_ "embed"
 	"log"
 	"math"
 
@@ -20,14 +21,9 @@ import (
 
 const avatarSize = 36
 
-var popupCSS = cssutil.Applier("syncbox-popup", `
-	.syncbox-popup {
-		padding: 6px 4px;
-	}
-	.syncbox-popup > grid {
-		margin-left: 2px;
-	}
-`)
+//go:embed styles/syncbox-popup.css
+var popupStyle string
+var popupCSS = cssutil.Applier("syncbox-popup", popupStyle)
 
 type Popup struct {
 	win     *app.Window

@@ -2,6 +2,7 @@ package emojiview
 
 import (
 	"context"
+	_ "embed"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,17 +42,9 @@ type View struct {
 	client *gotktrix.Client
 }
 
-var boxCSS = cssutil.Applier("emojiview-box", `
-	.emojiview-box {
-		padding: 8px;
-	}
-	.emojiview-box .emojiview-name {
-		margin: 0 8px;
-	}
-	.emojiview-box .emojiview-rightbox {
-		margin-bottom: 8px;
-	}
-`)
+//go:embed styles/emojiview-box.css
+var boxStyle string
+var boxCSS = cssutil.Applier("emojiview-box", boxStyle)
 
 var nameAttrs = textutil.Attrs(
 	pango.NewAttrScale(1.2),

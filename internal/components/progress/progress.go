@@ -1,26 +1,16 @@
 package progress
 
 import (
+	_ "embed"
+
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 )
 
-var barCSS = cssutil.Applier("progress-bar", `
-	.progress-label {
-		font-size: 0.85em;
-	}
-	.progress-error progressbar,
-	.progress-error label.progress-label {
-		color: @error_color;
-	}
-	.progress-error progressbar trough {
-		background-color: alpha(@error_color, 0.2);
-	}
-	.progress-error progressbar progress {
-		background-color: @error_color;
-	}
-`)
+//go:embed styles/progress-bar.css
+var barStyle string
+var barCSS = cssutil.Applier("progress-bar", barStyle)
 
 // Bar describes a progress bar.
 type Bar struct {

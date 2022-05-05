@@ -2,6 +2,8 @@
 package md
 
 import (
+	_ "embed"
+
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/gtkutil"
@@ -117,11 +119,9 @@ func htag(scale float64) textutil.TextTag {
 	}
 }
 
-var separatorCSS = cssutil.Applier("md-separator", `
-	.md-separator {
-		background-color: @theme_fg_color;
-	}
-`)
+//go:embed styles/md-separator.css
+var separatorStyle string
+var separatorCSS = cssutil.Applier("md-separator", separatorStyle)
 
 // NewSeparator creates a new 100px Markdown <hr> widget.
 func NewSeparator() *gtk.Separator {
@@ -202,11 +202,9 @@ func (i *InlineImage) SetSizeRequest(w, h int) {
 	i.Image.SetSizeRequest(w, h)
 }
 
-var inlineImageCSS = cssutil.Applier("md-inlineimage", `
-	.md-inlineimage {
-		margin-bottom: -0.45em;
-	}
-`)
+//go:embed styles/md-inlineimage.css
+var inlineImageStyle string
+var inlineImageCSS = cssutil.Applier("md-inlineimage", inlineImageStyle)
 
 // InsertImageWidget asynchronously inserts a new image widget. It does so in a
 // way that the text position of the text buffer is not scrambled. Images

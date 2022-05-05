@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"io"
 	"log"
@@ -111,17 +112,9 @@ type uploadProgress struct {
 	*progress.Bar
 }
 
-var uploadProgressCSS = cssutil.Applier("compose-upload-progress", `
-	.compose-upload-progress {
-		border-top:    1px solid @borders;
-		border-bottom: 1px solid transparent;
-		padding:    5px 10px;
-		padding-bottom: 10px;
-	}
-	.messageview-messagerow:not(:last-child) .compose-upload-progress {
-		border-bottom: 1px solid @borders;
-	}
-`)
+//go:embed styles/compose-upload-progress.css
+var uploadProgressStyle string
+var uploadProgressCSS = cssutil.Applier("compose-upload-progress", uploadProgressStyle)
 
 func newUploadProgress(name string) *uploadProgress {
 	bar := progress.NewBar()

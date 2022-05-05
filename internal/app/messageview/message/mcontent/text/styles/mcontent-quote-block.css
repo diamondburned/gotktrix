@@ -1,0 +1,12 @@
+.mcontent-quote-block {
+	border-left: 3px solid alpha(@theme_fg_color, 0.5);
+	padding: 0 5px;
+}
+
+.mcontent-quote-block:not(:last-child) {
+	margin-bottom: 3px;
+}
+
+.mcontent-quote-block>textview.mauthor-haschip {
+	margin-bottom: -1em;
+}

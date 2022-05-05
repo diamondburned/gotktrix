@@ -1,0 +1,7 @@
+.assistant-bread {
+	padding: 10px 15px;
+	box-shadow:
+		0px -5px 6px -5px rgba(0, 0, 0, 0.1) inset,
+		0px 5px 6px -5px rgba(0, 0, 0, 0.1) inset;
+	background-color: mix(@theme_bg_color, @theme_fg_color, 0.1);
+}

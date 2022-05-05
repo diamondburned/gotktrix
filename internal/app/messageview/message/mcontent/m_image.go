@@ -2,6 +2,7 @@ package mcontent
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"html"
 	"image"
@@ -27,37 +28,9 @@ type imageContent struct {
 	msg *event.RoomMessageEvent
 }
 
-var imageCSS = cssutil.Applier("mcontent-image", `
-	.mcontent-image-content {
-		margin-top: 6px;
-	}
-	.mcontent-image {
-		padding: 0;
-		margin:  0;
-		margin-left: -2px;
-		border:  2px solid transparent;
-		transition-duration: 150ms;
-		transition-property: all;
-	}
-	.mcontent-image,
-	.mcontent-image:hover {
-		background: none;
-	}
-	.mcontent-image:hover {
-		border: 2px solid @theme_selected_bg_color;
-	}
-	.mcontent-image > * {
-		background-color: black;
-		transition: linear 50ms filter;
-	}
-	.mcontent-image:hover > * {
-		filter: contrast(80%) brightness(80%);
-	}
-	.mcontent-image-errorlabel {
-		color: @error_color;
-		padding: 4px;
-	}
-`)
+//go:embed styles/mcontent-image.css
+var imageStyle string
+var imageCSS = cssutil.Applier("mcontent-image", imageStyle)
 
 func newImageContent(ctx context.Context, msg *event.RoomMessageEvent) *imageContent {
 	embed := newImageEmbed(msg.Body, maxWidth, maxHeight)

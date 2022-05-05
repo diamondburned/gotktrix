@@ -2,6 +2,7 @@ package space
 
 import (
 	"context"
+	_ "embed"
 
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -55,23 +56,9 @@ type RoomTabOpener interface {
 	OpenRoomInTab(matrix.RoomID)
 }
 
-var listCSS = cssutil.Applier("space-list", `
-	.space-list {
-		background: @theme_base_color;
-	}
-	.space-section {
-		margin-bottom: 8px;
-	}
-	.space-section list {
-		background: inherit;
-	}
-	.space-reorderactions {
-		color: @theme_selected_bg_color;
-	}
-	.space-reorderactions button {
-		margin-left: 6px;
-	}
-`)
+//go:embed styles/space-list.css
+var listStyle string
+var listCSS = cssutil.Applier("space-list", listStyle)
 
 // New creates a new room list widget.
 func New(ctx context.Context, ctrl Controller) *List {

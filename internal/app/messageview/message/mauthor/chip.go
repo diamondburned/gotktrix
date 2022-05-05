@@ -2,6 +2,7 @@ package mauthor
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"log"
 
@@ -38,26 +39,9 @@ type Chip struct {
 	user matrix.UserID
 }
 
-var chipCSS = cssutil.Applier("mauthor-chip", `
-	.mauthor-chip {
-		border-radius: 9999px 9999px;
-		margin-bottom: -0.4em;
-	}
-	.mauthor-chip-unpadded {
-		margin-bottom: 0;
-	}
-	.mauthor-chip-colored {
-		background-color: transparent; /* override custom CSS */
-		margin: -1px 0;
-	}
-	/*
-     * Workaround for GTK padding an extra line at the bottom of the TextView if
-	 * even one widget is inserted for some weird reason.
-     */
-	.mauthor-haschip {
-		margin-bottom: -1em;
-	}
-`)
+//go:embed styles/mauthor-chip.css
+var chipStyle string
+var chipCSS = cssutil.Applier("mauthor-chip", chipStyle)
 
 // NewChip creates a new Chip widget.
 func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip {
