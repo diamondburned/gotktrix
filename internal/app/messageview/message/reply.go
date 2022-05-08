@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"html"
 
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 type Reply struct {
@@ -35,6 +35,7 @@ type Reply struct {
 	roomID     matrix.RoomID
 	mentionURL string
 
+	link bool
 	done bool
 }
 
@@ -68,20 +69,7 @@ func NewReply(ctx context.Context, v MessageViewer, roomID matrix.RoomID, eventI
 		mentionURL: mentionURL(roomID, eventID),
 	}
 
-	r.box.info = gtk.NewLabel("")
-	r.box.info.SetMarkup(fmt.Sprintf(
-		`<a href="%s">%s</a>`,
-		html.EscapeString(r.mentionURL), locale.S(ctx, "In reply to "),
-	))
-	r.box.info.ConnectActivateLink(func(link string) bool {
-		if link == r.mentionURL {
-			if !v.ScrollTo(eventID) {
-				r.ShowContent()
-			}
-			return true
-		}
-		return false
-	})
+	r.box.info = gtk.NewLabel(locale.S(ctx, "In reply to "))
 	replyInfoCSS(r.box.info)
 
 	r.box.header = gtk.NewBox(gtk.OrientationHorizontal, 0)
@@ -114,6 +102,10 @@ func mentionURL(roomID matrix.RoomID, replyID matrix.EventID) string {
 
 // ShowContent opens a new Popover with the message content.
 func (r *Reply) ShowContent() {
+	if r.event == nil {
+		return
+	}
+
 	msg := NewCozyMessage(r.ctx, r.view, r.event, nil)
 	msg.LoadMore()
 	gtk.BaseWidget(msg).SetVAlign(gtk.AlignStart)
@@ -166,6 +158,7 @@ func (r *Reply) InvalidateContent() {
 
 			r.box.header.Append(author)
 			r.event = ev
+			r.bindLink()
 
 			message, ok := ev.(*event.RoomMessageEvent)
 			if !ok {
@@ -178,8 +171,32 @@ func (r *Reply) InvalidateContent() {
 	})
 }
 
+func (r *Reply) bindLink() {
+	if r.link {
+		return
+	}
+
+	r.link = true
+
+	r.box.info.SetMarkup(fmt.Sprintf(
+		`<a href="%s">%s</a>`,
+		html.EscapeString(r.mentionURL), locale.S(r.ctx, "In reply to "),
+	))
+
+	r.box.info.ConnectActivateLink(func(link string) bool {
+		if link == r.mentionURL {
+			if !r.view.ScrollTo(r.replyID) {
+				r.ShowContent()
+			}
+			return true
+		}
+		return false
+	})
+
+}
+
 func (r *Reply) useError(err error) {
-	r.setContent(textutil.ErrorMarkup(err.Error()))
+	r.box.content.SetMarkup(textutil.ErrorMarkup(err.Error()))
 }
 
 func (r *Reply) setContent(content string) {

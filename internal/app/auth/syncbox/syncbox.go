@@ -5,17 +5,17 @@ import (
 	"log"
 	"math"
 
-	"github.com/diamondburned/gotrix/api"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotkit/components/onlineimage"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/app/auth"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotrix/api"
 )
 
 const avatarSize = 36

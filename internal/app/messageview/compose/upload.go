@@ -4,13 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"strings"
 
-	"github.com/diamondburned/gotrix"
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/core/gioutil"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
@@ -23,13 +19,15 @@ import (
 	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
-	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotkit/osutil"
 	"github.com/diamondburned/gotktrix/internal/components/filepick"
 	"github.com/diamondburned/gotktrix/internal/components/progress"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
+	"github.com/diamondburned/gotrix"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 	"github.com/dustin/go-humanize"
 	"github.com/pkg/errors"
 )
@@ -321,14 +319,6 @@ func (u uploader) promptUpload(file fileUpload) {
 				return close
 			}
 
-			p, err := imgutil.Read(ctx, r)
-			r.Rewind()
-
-			if err != nil {
-				log.Println("image thumbnailing error:", err)
-				return func() { useStatusPage("image-x-generic") }
-			}
-
 			return func() {
 				img := gtk.NewPicture()
 				img.SetKeepAspectRatio(true)
@@ -336,7 +326,7 @@ func (u uploader) promptUpload(file fileUpload) {
 				img.SetTooltipText(upload.name)
 				img.SetHExpand(true)
 				img.SetVExpand(true)
-				img.SetPaintable(p)
+				img.SetFilename(r.Name())
 				bin.SetChild(img)
 
 				loading.Stop()

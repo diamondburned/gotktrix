@@ -1,11 +1,11 @@
 package auth
 
 import (
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 func methodToggler(a *Assistant, method matrix.LoginMethod) func() {

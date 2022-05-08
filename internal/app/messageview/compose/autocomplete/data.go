@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/gtkutil"
@@ -15,6 +14,7 @@ import (
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/indexer"
+	"github.com/diamondburned/gotrix/matrix"
 	unicodeemoji "github.com/enescakir/emoji"
 	"github.com/sahilm/fuzzy"
 )
@@ -282,7 +282,7 @@ func (d EmojiData) Row(ctx context.Context) *gtk.ListBoxRow {
 		url, _ := client.SquareThumbnail(d.Custom.URL, emojiSize, gtkutil.ScaleFactor())
 		// Use a background context so we don't constantly thrash the server
 		// with cancelled requests every time we time.
-		imgutil.AsyncGET(context.Background(), url, i.SetFromPaintable)
+		imgutil.AsyncGET(ctx, url, imgutil.ImageSetterFromImage(i))
 
 		b.Append(i)
 	}

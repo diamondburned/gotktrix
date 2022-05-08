@@ -62,11 +62,10 @@ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/diamondburned/adaptive v0.0.2-0.20220226002257-ef8720b54399 h1:MGJoYuTUukTa+y3XIAvQQmZAOO2JeRTefkdxhsoPfSY=
 github.com/diamondburned/adaptive v0.0.2-0.20220226002257-ef8720b54399/go.mod h1:cLoCdQtpCp/TSJBJTgXe7W2FJNelXrmPv+X7luB6/Qg=
 github.com/diamondburned/gotk4/pkg v0.0.0-20220225135826-2bb7260a63bb/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotk4/pkg v0.0.0-20220228011804-2178059e90d8/go.mod h1:dJ2gfR0gvBsGg4IteP8aMBq/U5Q9boDw0DP7kAjXTwM=
-github.com/diamondburned/gotk4/pkg v0.0.0-20220408070453-08962439fbbc h1:BkDOBlc7okNAJL5KYPXD7ZB4pB3x23XeCh79wmVC5x8=
-github.com/diamondburned/gotk4/pkg v0.0.0-20220408070453-08962439fbbc/go.mod h1:rLH6FHos690jFgAM/GYEpMykuE/9NmN6zOvFlr8JTvE=
-github.com/diamondburned/gotkit v0.0.0-20220401200241-044b6c30868e h1:6w0titJwajJ4mqs0uJuoZ7oXBXQwdn11JBh/1VVJvog=
-github.com/diamondburned/gotkit v0.0.0-20220401200241-044b6c30868e/go.mod h1:nuSiLYlASFCkAYVmzfzv5jj36cJuELVREaS7W2Bqet4=
+github.com/diamondburned/gotk4/pkg v0.0.0-20220417091308-856167c02355 h1:5J/EC+03IaQPbg8llTadKW7e+hNWBaY/eZXm5cXPTas=
+github.com/diamondburned/gotk4/pkg v0.0.0-20220417091308-856167c02355/go.mod h1:rLH6FHos690jFgAM/GYEpMykuE/9NmN6zOvFlr8JTvE=
+github.com/diamondburned/gotkit v0.0.0-20220429055254-0e11be4d973f h1:xPjpD/i5WrxX+lB1fCjH8cQq7+dvVEmXqtL/3WCmLoA=
+github.com/diamondburned/gotkit v0.0.0-20220429055254-0e11be4d973f/go.mod h1:vPfJRyjYv+hBfsnWf9Ouacp1Urltx8/qy5b0TWyeZNo=
 github.com/diamondburned/gotrix v0.1.2-0.20220411211558-ddbed452e46f h1:12wtWT5/f3NFZhStW4SzJlHPf0uvL0YOOxcxJvC7vcs=
 github.com/diamondburned/gotrix v0.1.2-0.20220411211558-ddbed452e46f/go.mod h1:5Yvs7QLMK0rehjrqinK0X6JIe0KL4UQVus0bYHu4T6o=
 github.com/dlclark/regexp2 v1.4.0 h1:F1rxgk7p4uKjwIQxBs9oAXe5CqrXlCduYEJvrF4u93E=
@@ -90,11 +89,7 @@ github.com/golang/protobuf v1.3.2/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5y
 github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
 github.com/golang/snappy v0.0.1 h1:Qgr9rKW7uDUkrbSmQeiDsGa8SjGyCOGtuasMWwvp2P4=
 github.com/golang/snappy v0.0.1/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
-github.com/google/btree v1.0.1 h1:gK4Kx5IaGY9CD5sPJ36FHiBJ6ZXl0kilRiiCj+jdYp4=
-github.com/google/btree v1.0.1/go.mod h1:xXMiIv4Fb/0kKde4SpL7qlzvu5cMJDRkFDxJfI9uaxA=
 github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
-github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 h1:+ngKgrYPPJrOjhax5N+uePQ0Fh1Z7PheYoUI/0nzkPA=
-github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
@@ -119,8 +114,6 @@ github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+W
 github.com/onsi/ginkgo v1.7.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/pelletier/go-toml v1.2.0/go.mod h1:5z9KED0ma1S8pY6P1sdut58dfprrGBbd/94hg7ilaic=
-github.com/peterbourgon/diskv v2.0.1+incompatible h1:UBdAOUP5p4RWqPBg048CAvpKN+vxiaj6gdUUzhl4XmI=
-github.com/peterbourgon/diskv v2.0.1+incompatible/go.mod h1:uqqh8zWWbv1HBMNONnaR/tNboyR3/BZd58JJSHlUSCU=
 github.com/philhofer/fwd v1.0.0/go.mod h1:gk3iGcWd9+svBvR0sR+KPcfE+RNWozjowpeBVG3ZVNU=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=

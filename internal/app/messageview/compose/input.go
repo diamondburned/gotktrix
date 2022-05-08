@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -24,6 +22,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/md"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 	"github.com/pkg/errors"
 )
 
@@ -114,6 +114,10 @@ func NewInput(ctx context.Context, ctrl InputController, roomID matrix.RoomID) *
 
 		for elem := i.anchors.Front(); elem != nil; elem = elem.Next() {
 			anchor := elem.Value.(anchorPiece)
+			if anchor.anchor.Deleted() {
+				continue
+			}
+
 			anIter := i.buffer.IterAtChildAnchor(anchor.anchor)
 			offset := anIter.Offset()
 
@@ -171,7 +175,10 @@ func (i *Input) onAutocompleted(row autocomplete.SelectedData) bool {
 
 			client := gotktrix.FromContext(i.ctx).Offline()
 			url, _ := client.SquareThumbnail(data.Custom.URL, inlineEmojiSize, gtkutil.ScaleFactor())
-			imgutil.AsyncGET(i.ctx, url, image.SetFromPaintable)
+			imgutil.AsyncGET(i.ctx, url, imgutil.ImageSetter{
+				SetFromPaintable: image.SetFromPaintable,
+				SetFromPixbuf:    image.SetFromPixbuf,
+			})
 
 			// Register the anchor.
 			i.anchors.PushBack(anchorPiece{

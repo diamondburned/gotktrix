@@ -8,7 +8,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/diamondburned/gotrix/api"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -18,6 +17,7 @@ import (
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotrix/api"
 )
 
 var titleAttrs = textutil.Attrs(

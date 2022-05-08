@@ -5,18 +5,18 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
-	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/m"
-	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotktrix/internal/md/hl"
+	"github.com/diamondburned/gotrix/event"
 	"github.com/pkg/errors"
 )
 

@@ -199,7 +199,7 @@ func (a *Autocompleter) Autocomplete() {
 
 	for _, result := range results {
 		r := row{
-			ListBoxRow: result.Row(ctx),
+			ListBoxRow: result.Row(a.parent),
 			data:       result,
 		}
 

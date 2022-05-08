@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
-	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
-	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotrix/event"
 )
 
 type contentPart interface {

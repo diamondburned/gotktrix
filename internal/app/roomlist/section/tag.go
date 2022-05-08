@@ -5,11 +5,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotktrix/internal/sortutil"
 	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotrix/matrix"
-	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotkit/app/locale"
-	"github.com/diamondburned/gotktrix/internal/sortutil"
 )
 
 // MatrixSectionOrder is the order of default Matrix rooms.

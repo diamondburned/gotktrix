@@ -7,8 +7,8 @@ require (
 	github.com/bbrks/go-blurhash v1.1.1
 	github.com/blevesearch/bleve/v2 v2.1.0
 	github.com/diamondburned/adaptive v0.0.2-0.20220226002257-ef8720b54399
-	github.com/diamondburned/gotk4/pkg v0.0.0-20220408070453-08962439fbbc
-	github.com/diamondburned/gotkit v0.0.0-20220401200241-044b6c30868e
+	github.com/diamondburned/gotk4/pkg v0.0.0-20220417091308-856167c02355
+	github.com/diamondburned/gotkit v0.0.0-20220429055254-0e11be4d973f
 	github.com/diamondburned/gotrix v0.1.2-0.20220411211558-ddbed452e46f
 	github.com/dustin/go-humanize v1.0.0
 	github.com/enescakir/emoji v1.0.0
@@ -46,13 +46,10 @@ require (
 	github.com/godbus/dbus/v5 v5.0.3 // indirect
 	github.com/golang/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
-	github.com/google/btree v1.0.1 // indirect
-	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
-	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/steveyen/gtreap v0.1.0 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
 	golang.org/x/mod v0.3.0 // indirect

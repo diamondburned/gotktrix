@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/adaptive"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -13,6 +12,7 @@ import (
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 // Chip describes a user chip. It is used for display in messages and for
@@ -161,7 +161,10 @@ func (c *Chip) setAvatar(client *gotktrix.Client, mxc *matrix.URL) {
 
 	avatarURL, _ := client.SquareThumbnail(*mxc, 24, gtkutil.ScaleFactor())
 
-	imgutil.AsyncGET(ctx, avatarURL, c.avatar.SetFromPaintable)
+	imgutil.AsyncGET(ctx, avatarURL, imgutil.ImageSetter{
+		SetFromPaintable: c.avatar.SetFromPaintable,
+		SetFromPixbuf:    c.avatar.SetFromPixbuf,
+	})
 }
 
 const maxChipWidth = 200

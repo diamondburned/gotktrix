@@ -5,8 +5,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/diamondburned/gotrix/api/httputil"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/app"
@@ -15,6 +13,8 @@ import (
 	"github.com/diamondburned/gotktrix/internal/components/assistant"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/secret"
+	"github.com/diamondburned/gotrix/api/httputil"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 type Assistant struct {

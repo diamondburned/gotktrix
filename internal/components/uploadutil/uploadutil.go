@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 var progressBarCSS = cssutil.Applier("uploadutil-progress", `

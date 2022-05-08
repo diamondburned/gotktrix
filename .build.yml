@@ -5,9 +5,6 @@ packages:
   - nixos.git
   - nixos.go_1_17
   - nixos.gotools
-  - nixos.curl
-  - nixos.coreutils
-  - nixos.jq
 secrets:
   - 82568347-1c9e-406e-8de0-525ee7dd21e2
 tasks:
@@ -27,15 +24,11 @@ tasks:
 
   - test-build: |-
       [[ $GITHUB_REF && $GITHUB_REF != *"/release" ]] && exit
-      cd gotktrix
-      nix-build -j1 .nix/package-impure.nix
+      out="$(cd gotktrix && nix-build .nix -j1 --argstr action build-package)"
 
   - tagged-build: |-
       [[ $GITHUB_REF != *"/tags/"* ]] && exit
-      out="$(cd gotktrix && nix-build -j1 .nix/cross.nix)"
+      cd gotktrix
 
-      mkdir artifacts
-      cp $out/* ./artifacts/
-
-      bash ./gotktrix/.github/upload-artifacts.sh
-
+      $(nix-build .nix -j1 --argstr action upload-artifacts) diamondburned/gotktrix \
+      $(nix-build .nix -j1 --argstr action build-cross)

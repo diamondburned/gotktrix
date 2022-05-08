@@ -8,7 +8,6 @@ import (
 	"log"
 
 	"github.com/bbrks/go-blurhash"
-	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
@@ -19,6 +18,7 @@ import (
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotrix/event"
 )
 
 type imageContent struct {
@@ -145,7 +145,11 @@ func newImageEmbed(name string, maxW, maxH int) *imageEmbed {
 func (e *imageEmbed) useURL(ctx context.Context, url string) {
 	ctx = imgutil.WithOpts(ctx, imgutil.WithErrorFn(e.onError))
 	// Only load the image when we actually draw the image.
-	gtkutil.OnFirstDraw(e, func() { imgutil.AsyncGET(ctx, url, e.setPaintable) })
+	gtkutil.OnFirstDraw(e, func() {
+		imgutil.AsyncGET(ctx, url, imgutil.ImageSetter{
+			SetFromPaintable: e.setPaintable,
+		})
+	})
 }
 
 func (e *imageEmbed) setPaintable(p gdk.Paintabler) {

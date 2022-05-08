@@ -5,13 +5,13 @@ import (
 	"html"
 	"strings"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/md"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 // RenderMetadata contains additional metadata that the message contains.

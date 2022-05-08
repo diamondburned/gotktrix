@@ -4,13 +4,13 @@ import (
 	"context"
 	"strings"
 
-	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotkit/app"
 	"github.com/diamondburned/gotkit/app/notify"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotktrix/internal/app/messageview/message/mauthor"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
+	"github.com/diamondburned/gotrix/event"
+	"github.com/diamondburned/gotrix/matrix"
 )
 
 // OpenRoomCommand is the command structure for the open room action.
@@ -40,17 +40,13 @@ func StartNotify(ctx context.Context, actionID string) (stop func()) {
 			return
 		}
 
-		const unreadIcon = notify.IconName("unread-mail")
+		unreadIcon := notify.IconName("unread-mail")
 		icon := notify.Icon(unreadIcon)
 
 		avatar, _ := client.MemberAvatar(message.RoomID, message.Sender)
 		if avatar != nil {
 			avatarURL, _ := client.SquareThumbnail(*avatar, notify.MaxIconSize, 1)
-			icon = notify.IconURL{
-				Context:      ctx,
-				URL:          avatarURL,
-				FallbackIcon: unreadIcon,
-			}
+			icon = notify.IconURL(ctx, avatarURL, unreadIcon)
 		}
 
 		notification := notify.Notification{

@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotkit/app"
 	"github.com/diamondburned/gotkit/gtkutil"
@@ -12,6 +11,7 @@ import (
 	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
+	"github.com/diamondburned/gotrix/event"
 )
 
 type videoContent struct {
@@ -114,7 +114,7 @@ func newVideoContent(ctx context.Context, msg *event.RoomMessageEvent) contentPa
 
 func (c videoContent) LoadMore() {
 	if c.thumbURL != "" {
-		imgutil.AsyncGET(c.ctx, c.thumbURL, c.preview.SetPaintable)
+		imgutil.AsyncGET(c.ctx, c.thumbURL, imgutil.ImageSetterFromPicture(c.preview))
 		return
 	}
 

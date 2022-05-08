@@ -6,21 +6,21 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/diamondburned/gotrix/matrix"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"github.com/diamondburned/gotkit/app"
+	"github.com/diamondburned/gotkit/components/actionbutton"
+	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
-	"github.com/diamondburned/gotkit/components/actionbutton"
-	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotktrix/internal/components/uploadutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotktrix/internal/gotktrix/events/emojis"
 	"github.com/diamondburned/gotktrix/internal/sortutil"
+	"github.com/diamondburned/gotrix/matrix"
 	"github.com/pkg/errors"
 )
 
@@ -192,7 +192,7 @@ func new(ctx context.Context, roomID matrix.RoomID) *View {
 	delButton.ConnectClicked(func() {
 		for _, row := range list.SelectedRows() {
 			delete(view.emojis, emojis.EmojiName(row.Name()))
-			list.Remove(&row)
+			list.Remove(row)
 		}
 
 		syncButton.SetSensitive(true)
@@ -393,7 +393,7 @@ func (v *View) useEmoticonEvent(emojiMap emojis.EmojiMap) {
 		v.emojis[name] = old
 
 		url, _ := v.client.SquareThumbnail(old.mxc, EmojiSize, gtkutil.ScaleFactor())
-		imgutil.AsyncGET(v.ctx.Take(), url, old.emoji.SetFromPaintable)
+		imgutil.AsyncGET(v.ctx.Take(), url, imgutil.ImageSetterFromImage(old.emoji))
 
 		delete(emojiMap, name)
 		continue
@@ -421,7 +421,7 @@ func (v *View) addEmoji(name emojis.EmojiName, mxc matrix.URL) emoji {
 	emoji.mxc = mxc
 
 	url, _ := v.client.SquareThumbnail(emoji.mxc, EmojiSize, gtkutil.ScaleFactor())
-	imgutil.AsyncGET(v.ctx.Take(), url, emoji.emoji.SetFromPaintable)
+	imgutil.AsyncGET(v.ctx.Take(), url, imgutil.ImageSetterFromImage(emoji.emoji))
 
 	v.list.Insert(emoji, -1)
 	v.emojis[name] = emoji

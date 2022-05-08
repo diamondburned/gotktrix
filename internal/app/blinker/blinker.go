@@ -3,15 +3,16 @@ package blinker
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 
-	"github.com/diamondburned/gotrix/api"
 	"github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotkit/app/locale"
+	"github.com/diamondburned/gotrix/api"
 )
 
 type blinkerState uint8
@@ -64,6 +65,9 @@ type Blinker struct {
 	prev  glib.SourceHandle
 	state blinkerState
 	last  time.Time
+
+	rmut    sync.Mutex
+	rcancel context.CancelFunc
 }
 
 var blinkerCSS = cssutil.Applier("blinker", `
@@ -116,14 +120,45 @@ func New(ctx context.Context) *Blinker {
 		)
 	})
 
+	gtkutil.BindActionMap(b, map[string]func(){
+		"blinker.stop-request": func() {
+			b.rmut.Lock()
+			defer b.rmut.Unlock()
+
+			if b.rcancel != nil {
+				b.rcancel()
+				b.rcancel = nil
+			}
+		},
+	})
+
+	gtkutil.BindPopoverMenu(b, gtk.PosBottom, [][2]string{
+		{"_Break", "blinker.stop-request"},
+	})
+
 	return b
 }
 
 func (b *Blinker) onRequest(
-	_ *http.Request,
+	req *http.Request,
 	next func() (*http.Response, error)) (*http.Response, error) {
 
 	glib.IdleAdd(b.syncing)
+
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
+
+	*req = *req.WithContext(ctx)
+
+	b.rmut.Lock()
+	b.rcancel = cancel
+	b.rmut.Unlock()
+
+	defer func() {
+		b.rmut.Lock()
+		b.rcancel = nil
+		b.rmut.Unlock()
+	}()
 
 	r, err := next()
 	if err != nil {

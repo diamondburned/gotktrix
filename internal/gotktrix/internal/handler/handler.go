@@ -4,10 +4,10 @@ import (
 	"log"
 	"sync"
 
+	"github.com/diamondburned/gotktrix/internal/registry"
 	"github.com/diamondburned/gotrix"
 	"github.com/diamondburned/gotrix/api"
 	"github.com/diamondburned/gotrix/event"
-	"github.com/diamondburned/gotktrix/internal/registry"
 )
 
 type wrapper struct {
