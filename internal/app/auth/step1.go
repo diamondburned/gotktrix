@@ -326,10 +326,10 @@ func addAccounts(a *Assistant, accountList *gtk.ListBox, src secret.Driver, acco
 			continue
 		}
 
-		a.accounts = append(a.accounts, assistantAccount{
+		a.accounts = append([]assistantAccount{{
 			Account: account,
 			src:     src,
-		})
+		}}, a.accounts...)
 		accountList.Prepend(newAccountEntry(a.ctx, account))
 	}
 }
