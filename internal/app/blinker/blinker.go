@@ -67,6 +67,7 @@ type Blinker struct {
 	last  time.Time
 
 	rmut    sync.Mutex
+	rctx    context.Context
 	rcancel context.CancelFunc
 }
 
@@ -112,6 +113,7 @@ func New(ctx context.Context) *Blinker {
 	}
 
 	client := gotktrix.FromContext(ctx)
+	b.rctx, b.rcancel = context.WithCancel(ctx)
 
 	gtkutil.BindSubscribe(b, func() func() {
 		return gtkutil.FuncBatcher(
@@ -125,10 +127,8 @@ func New(ctx context.Context) *Blinker {
 			b.rmut.Lock()
 			defer b.rmut.Unlock()
 
-			if b.rcancel != nil {
-				b.rcancel()
-				b.rcancel = nil
-			}
+			b.rcancel()
+			b.rctx, b.rcancel = context.WithCancel(ctx)
 		},
 	})
 
@@ -145,20 +145,11 @@ func (b *Blinker) onRequest(
 
 	glib.IdleAdd(b.syncing)
 
-	ctx, cancel := context.WithCancel(req.Context())
-	defer cancel()
-
-	*req = *req.WithContext(ctx)
-
 	b.rmut.Lock()
-	b.rcancel = cancel
+	ctx := b.rctx
 	b.rmut.Unlock()
 
-	defer func() {
-		b.rmut.Lock()
-		b.rcancel = nil
-		b.rmut.Unlock()
-	}()
+	*req = *req.WithContext(ctx)
 
 	r, err := next()
 	if err != nil {
