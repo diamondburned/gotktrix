@@ -8,6 +8,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/diamondburned/chatkit/components/embed"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -15,6 +16,7 @@ import (
 	"github.com/diamondburned/gotkit/app/prefs"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/imgutil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
 	"github.com/diamondburned/gotrix/api"
@@ -150,12 +152,16 @@ func addTextEmbed(ctx context.Context, box *gtk.Box, m *api.URLMetadata) {
 		}
 
 		if imageURL != "" {
-			img := newImageEmbed("", embedImageWidth, embedImageHeight)
-			img.canHide = true
+			img := embed.New(ctx, embedImageWidth, embedImageHeight, embed.Opts{
+				Type:     embed.EmbedTypeImage,
+				Provider: imgutil.HTTPProvider,
+				CanHide:  true,
+			})
 			img.AddCSSClass("mcontent-embed-thumbnail")
 			img.SetHAlign(gtk.AlignEnd)
-			img.useURL(ctx, imageURL)
-			img.setOpenURL(func() {
+			img.SetName(path.Base(imageURL))
+			img.SetFromURL(imageURL)
+			img.SetOpenURL(func() {
 				url, _ := gotktrix.FromContext(ctx).MediaDownloadURL(m.Image, true, "")
 				app.OpenURI(ctx, url)
 			})
@@ -178,10 +184,14 @@ func addImageEmbed(ctx context.Context, box *gtk.Box, m *api.URLMetadata) {
 	imageURL, _ := client.ScaledThumbnail(m.Image, maxWidth, maxHeight, gtkutil.ScaleFactor())
 
 	glib.IdleAdd(func() {
-		embed := newImageEmbed(name, maxWidth, maxHeight)
+		embed := embed.New(ctx, maxWidth, maxHeight, embed.Opts{
+			Type:     embed.EmbedTypeImage,
+			Provider: imgutil.HTTPProvider,
+		})
 		embed.AddCSSClass("mcontent-image-embed")
-		embed.useURL(ctx, imageURL)
-		embed.setOpenURL(func() {
+		embed.SetName(name)
+		embed.SetFromURL(imageURL)
+		embed.SetOpenURL(func() {
 			app.OpenURI(ctx, m.URL)
 		})
 		box.Append(embed)

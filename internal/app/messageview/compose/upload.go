@@ -19,12 +19,12 @@ import (
 	"github.com/diamondburned/gotkit/components/dialogs"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/cssutil"
+	"github.com/diamondburned/gotkit/gtkutil/mediautil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
-	"github.com/diamondburned/gotkit/osutil"
+	"github.com/diamondburned/gotkit/utils/osutil"
 	"github.com/diamondburned/gotktrix/internal/components/filepick"
 	"github.com/diamondburned/gotktrix/internal/components/progress"
 	"github.com/diamondburned/gotktrix/internal/gotktrix"
-	"github.com/diamondburned/gotktrix/internal/gtkutil/mediautil"
 	"github.com/diamondburned/gotrix"
 	"github.com/diamondburned/gotrix/event"
 	"github.com/diamondburned/gotrix/matrix"
@@ -61,7 +61,7 @@ func newUploadingFile(ctx context.Context, file gio.Filer) (*uploadingFile, erro
 			gioutil.InputCloser(ctx, s),
 		),
 		name: file.Basename(),
-		mime: mediautil.FileMIME(ctx, s),
+		mime: mediautil.FileMIME(ctx, file),
 		size: size,
 	}, nil
 }

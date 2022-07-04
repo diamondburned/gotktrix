@@ -9,9 +9,9 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
+	"github.com/diamondburned/gotkit/app"
 	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotkit/app/prefs"
-	"github.com/diamondburned/gotkit/app/prefs/kvstate"
 	"github.com/diamondburned/gotkit/gtkutil"
 	"github.com/diamondburned/gotkit/gtkutil/textutil"
 	"github.com/diamondburned/gotktrix/internal/app/roomlist/room"
@@ -122,8 +122,8 @@ type Section struct {
 	filtered bool
 }
 
-func acquireConfig(ctx context.Context, uID matrix.UserID) *kvstate.Config {
-	return kvstate.AcquireConfig(ctx, "sections", gotktrix.Base64UserID(uID), "state.json")
+func acquireConfig(ctx context.Context, uID matrix.UserID) *app.State {
+	return app.AcquireState(ctx, "sections", gotktrix.Base64UserID(uID), "state.json")
 }
 
 // New creates a new deactivated section.

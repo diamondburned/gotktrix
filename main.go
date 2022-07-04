@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/diamondburned/adaptive"
-	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotkit/app"
 	"github.com/diamondburned/gotkit/app/locale"
 	"github.com/diamondburned/gotkit/app/prefs"
@@ -117,16 +116,14 @@ var _ = cssutil.WriteCSS(`
 var locales embed.FS
 
 func main() {
-	glib.LogUseDefaultLogger()
-
 	// Initialize translations and locales.
 	ctx := locale.WithPrinter(context.Background(), locale.NewLocalPrinter(
 		message.Catalog(locale.MustLoadLocales(locales)),
 	))
 
-	app := app.New("com.github.diamondburned.gotktrix", "gotktrix")
+	app := app.New(ctx, "com.github.diamondburned.gotktrix", "gotktrix")
 	app.ConnectActivate(func() { activate(app.Context()) })
-	app.RunMain(ctx)
+	app.RunMain()
 }
 
 // initialized is true if the global initializers are ran. We assume that
