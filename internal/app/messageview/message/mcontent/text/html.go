@@ -344,7 +344,10 @@ func (s *renderState) renderNode(n *html.Node) traverseStatus {
 				// add it back.
 				uID := matrix.UserID("@" + strings.TrimPrefix(href, mentionURLPrefix))
 
-				chip := mauthor.NewChip(s.ctx, s.room, uID)
+				chip := mauthor.NewChip(
+					s.ctx, s.room, uID,
+					mauthor.WithName(nodeInnerText(n)),
+				)
 				chip.InsertText(text.TextView, text.iter)
 
 				md.InsertInvisible(text.iter, string(uID))
@@ -725,13 +728,13 @@ func nodePrependText(n *html.Node, text string) {
 
 func nodeText(n *html.Node) string {
 	if n != nil && n.Type == html.TextNode {
-		return n.Data
+		return strings.TrimSpace(n.Data)
 	}
 	return ""
 }
 
 func nodeHasText(n *html.Node) bool {
-	if strings.TrimSpace(nodeText(n)) != "" {
+	if nodeText(n) != "" {
 		return true
 	}
 	for n := n.FirstChild; n != nil; n = n.NextSibling {
@@ -740,4 +743,25 @@ func nodeHasText(n *html.Node) bool {
 		}
 	}
 	return false
+}
+
+func nodeInnerText(n *html.Node) string {
+	var s strings.Builder
+	if n != nil {
+		s.WriteString(nodeText(n))
+		nodeInnerTextRec(n.FirstChild, &s)
+	}
+	return s.String()
+}
+
+func nodeInnerTextRec(n *html.Node, s *strings.Builder) {
+	for n != nil {
+		if t := nodeText(n); t != "" {
+			s.WriteString(t)
+		}
+		if n.FirstChild != nil {
+			nodeInnerTextRec(n.FirstChild, s)
+		}
+		n = n.NextSibling
+	}
 }

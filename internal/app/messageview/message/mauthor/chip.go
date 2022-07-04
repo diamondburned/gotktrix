@@ -32,6 +32,7 @@ type Chip struct {
 	*gtk.Box
 	avatar *adaptive.Avatar
 	name   *gtk.Label
+	mods   []MarkupMod
 
 	ctx  context.Context
 	room matrix.RoomID
@@ -60,11 +61,12 @@ var chipCSS = cssutil.Applier("mauthor-chip", `
 `)
 
 // NewChip creates a new Chip widget.
-func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID) *Chip {
+func NewChip(ctx context.Context, room matrix.RoomID, user matrix.UserID, mods ...MarkupMod) *Chip {
 	c := Chip{
 		ctx:  ctx,
 		room: room,
 		user: user,
+		mods: mods,
 	}
 
 	c.name = gtk.NewLabel("")
@@ -139,7 +141,7 @@ func (c *Chip) Invalidate() {
 	// This does not query from the API at all. It's probably not very important
 	// to do so.
 	client := gotktrix.FromContext(c.ctx).Offline()
-	c.setName(Name(client, c.room, c.user))
+	c.setName(Name(client, c.room, c.user, c.mods...))
 
 	url, err := client.MemberAvatar(c.room, c.user)
 	if err == nil {
