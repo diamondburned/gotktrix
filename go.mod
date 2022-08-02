@@ -7,9 +7,9 @@ require (
 	github.com/bbrks/go-blurhash v1.1.1
 	github.com/blevesearch/bleve/v2 v2.1.0
 	github.com/diamondburned/adaptive v0.0.2-0.20220226002257-ef8720b54399
-	github.com/diamondburned/chatkit v0.0.0-20220702052112-210f8fca2c2b
-	github.com/diamondburned/gotk4/pkg v0.0.0-20220417091308-856167c02355
-	github.com/diamondburned/gotkit v0.0.0-20220701034720-3e15918e1adf
+	github.com/diamondburned/chatkit v0.0.0-20220802023058-e7ea396f3e46
+	github.com/diamondburned/gotk4/pkg v0.0.0-20220725071938-a40a809cc7a4
+	github.com/diamondburned/gotkit v0.0.0-20220725080531-2590d1e14ff8
 	github.com/diamondburned/gotrix v0.1.2-0.20220411211558-ddbed452e46f
 	github.com/dustin/go-humanize v1.0.0
 	github.com/enescakir/emoji v1.0.0
