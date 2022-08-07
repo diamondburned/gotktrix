@@ -67,8 +67,8 @@ var DefaultTransport = &http.Transport{
 	Proxy:                 http.ProxyFromEnvironment,
 	ForceAttemptHTTP2:     true,
 	MaxIdleConns:          100,
-	IdleConnTimeout:       90 * time.Second,
-	TLSHandshakeTimeout:   10 * time.Second,
+	IdleConnTimeout:       5 * time.Second,
+	TLSHandshakeTimeout:   8 * time.Second,
 	ExpectContinueTimeout: 1 * time.Second,
 	WriteBufferSize:       256 << 10, // 256KB
 	ReadBufferSize:        256 << 10,
