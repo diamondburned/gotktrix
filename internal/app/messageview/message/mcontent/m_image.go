@@ -54,10 +54,10 @@ func newImageContent(ctx context.Context, msg *event.RoomMessageEvent) *imageCon
 
 	i, err := msg.ImageInfo()
 	if err == nil && i.Width > 0 && i.Height > 0 {
-		embed.SetSize(i.Width, i.Height)
+		embed.SetSizeRequest(i.Width, i.Height)
 	} else {
 		// Oversize and resize it back after.
-		embed.SetSize(i.Width, i.Height)
+		embed.SetSizeRequest(i.Width, i.Height)
 	}
 
 	return &c
