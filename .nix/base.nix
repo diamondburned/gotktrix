@@ -1,7 +1,7 @@
 {
 	pname = "gotktrix";
 	version = "0.0.1-tip";
-	vendorSha256 = "1cpqm31gkmqycq57sz27p17yhxmdlww0f07wfm036zhbsz1szdcf";
+	vendorSha256 = "0cmandfdkczpppmf1kdxliw2b164a48vh9iqb46vizab69ynv7j7";
 
 	src = ../.;
 
