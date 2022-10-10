@@ -1,0 +1,22 @@
+name: Vendored Assets
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  asset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3.3.0
+      - name: Create vendored asset
+        run: |
+          go mod vendor
+          tar --exclude-vcs -caf /tmp/gotktrix-${{ github.ref_name }}-vendored.tar.gz ../gotktrix
+          mv /tmp/gotktrix-${{ github.ref_name }}-vendored.tar.gz ./
+      - name: Upload vendor tar
+        uses: shogo82148/actions-upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: gotktrix-${{ github.ref_name }}-vendored.tar.gz
