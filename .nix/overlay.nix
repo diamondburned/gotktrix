@@ -2,7 +2,7 @@ self: super:
 
 with builtins;
 
-let useOverlay = pathExists "/home/diamond/Scripts/gtk";
+let useOverlay = false; # pathExists "/home/diamond/Scripts/gtk";
 
 in
 if (!useOverlay) then ({}) else ({
