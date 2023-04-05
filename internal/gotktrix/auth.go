@@ -20,7 +20,10 @@ func Discover(serverName string, opts Opts) (*ClientAuth, error) {
 
 	c, err := gotrix.DiscoverWithClient(opts.Client, serverName)
 	if err != nil {
-		return nil, err
+		c, err = gotrix.NewWithClient(opts.Client, serverName)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &ClientAuth{

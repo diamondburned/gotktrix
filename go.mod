@@ -10,7 +10,7 @@ require (
 	github.com/diamondburned/chatkit v0.0.0-20230209213000-7d9bb654be2f
 	github.com/diamondburned/gotk4/pkg v0.0.6-0.20230331141043-6dd75799f56c
 	github.com/diamondburned/gotkit v0.0.0-20230307054845-dc8ab38b9db4
-	github.com/diamondburned/gotrix v0.1.2-0.20220411211558-ddbed452e46f
+	github.com/diamondburned/gotrix v0.1.2-0.20230405104540-0e84da59259c
 	github.com/dustin/go-humanize v1.0.0
 	github.com/enescakir/emoji v1.0.0
 	github.com/pkg/errors v0.9.1
